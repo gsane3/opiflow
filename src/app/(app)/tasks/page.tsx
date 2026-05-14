@@ -118,7 +118,7 @@ export default function TasksPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-semibold text-zinc-900">Tasks</h1>
         <button
           type="button"
@@ -145,8 +145,8 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="mb-4 flex gap-1 overflow-x-auto pb-1">
+      {/* Tabs — scroll horizontally inside their own row */}
+      <div className="mb-4 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
         {TAB_ORDER.map((tab) => {
           const count = tabCounts[tab];
           const active = tab === activeTab;

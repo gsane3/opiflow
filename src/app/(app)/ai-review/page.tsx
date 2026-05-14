@@ -380,8 +380,8 @@ export default function AiReviewPage() {
               />
             </div>
           </div>
-          <div className="flex gap-2">
-            <div className="flex-1">
+          <div className="flex flex-wrap gap-2">
+            <div className="min-w-0 flex-1 basis-40">
               <label className={labelCls}>Πηγή</label>
               <select
                 value={customerSource}
@@ -395,7 +395,7 @@ export default function AiReviewPage() {
                 ))}
               </select>
             </div>
-            <div className="w-32">
+            <div className="w-28 shrink-0">
               <label className={labelCls}>Εκτιμ. αξία (€)</label>
               <input
                 type="number"
@@ -454,11 +454,11 @@ export default function AiReviewPage() {
                   placeholder="Τίτλος task"
                   className={inputCls}
                 />
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <select
                     value={task.type}
                     onChange={(e) => updateTask(task._id, { type: e.target.value as TaskType })}
-                    className={`flex-1 ${selectCls}`}
+                    className={`min-w-0 flex-1 ${selectCls}`}
                   >
                     {(Object.entries(TASK_TYPE_LABELS) as [TaskType, string][]).map(([v, l]) => (
                       <option key={v} value={v}>
@@ -518,23 +518,21 @@ export default function AiReviewPage() {
                   value={item.description}
                   onChange={(e) => updateItem(item._id, { description: e.target.value })}
                   placeholder="Περιγραφή"
-                  className={`flex-1 ${inputCls}`}
+                  className={`min-w-0 flex-1 ${inputCls}`}
                 />
-                <div className="w-28">
-                  <input
-                    type="number"
-                    min={0}
-                    step={0.01}
-                    value={item.unitPrice}
-                    onChange={(e) => updateItem(item._id, { unitPrice: Number(e.target.value) })}
-                    placeholder="€"
-                    className={inputCls}
-                  />
-                </div>
+                <input
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={item.unitPrice}
+                  onChange={(e) => updateItem(item._id, { unitPrice: Number(e.target.value) })}
+                  placeholder="€"
+                  className={`w-20 shrink-0 ${inputCls}`}
+                />
                 <button
                   type="button"
                   onClick={() => setOfferItems((prev) => prev.filter((i) => i._id !== item._id))}
-                  className="text-lg text-zinc-400 hover:text-red-500 leading-none"
+                  className="shrink-0 text-lg text-zinc-400 hover:text-red-500 leading-none"
                 >
                   ×
                 </button>

@@ -35,7 +35,7 @@ export default function PostCallScreen({ durationSeconds, scenario, onNewCall }:
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Demo περίληψη κλήσης
           </h2>
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">mock</span>
+          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">Demo</span>
         </div>
         <p className="text-sm text-zinc-700 leading-relaxed">
           {scenario?.summaryText ??

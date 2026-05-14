@@ -99,7 +99,7 @@ export default function OfferPreview({ offerId }: Props) {
 
       {/* Page title */}
       <div className="flex items-center justify-between gap-3">
-        <h1 className="text-base font-semibold text-zinc-700">Preview προσφοράς</h1>
+        <h1 className="text-base font-semibold text-zinc-700">Προεπισκόπηση προσφοράς</h1>
         {offer.isDemo && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">Demo</span>
         )}
@@ -144,9 +144,15 @@ export default function OfferPreview({ offerId }: Props) {
           </div>
         )}
 
-        {/* Line items */}
-        <div>
-          <table className="w-full text-sm">
+        {/* Line items — table-fixed prevents description from pushing layout wider */}
+        <div className="overflow-x-auto">
+          <table className="w-full table-fixed text-sm">
+            <colgroup>
+              <col className="w-1/2" />
+              <col className="w-[10%]" />
+              <col className="w-[22%]" />
+              <col className="w-[18%]" />
+            </colgroup>
             <thead>
               <tr className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-400">
                 <th className="pb-2 text-left font-medium">Περιγραφή</th>
@@ -158,7 +164,9 @@ export default function OfferPreview({ offerId }: Props) {
             <tbody>
               {offer.items.map((item) => (
                 <tr key={item.id} className="border-b border-zinc-100">
-                  <td className="py-2 text-zinc-800">{item.description}</td>
+                  <td className="max-w-0 truncate py-2 pr-2 text-zinc-800" title={item.description}>
+                    {item.description}
+                  </td>
                   <td className="py-2 text-right text-zinc-600">{item.quantity}</td>
                   <td className="py-2 text-right text-zinc-600">{fmtEur(item.unitPrice)}</td>
                   <td className="py-2 text-right font-medium text-zinc-800">{fmtEur(lineTotal(item))}</td>
@@ -170,7 +178,7 @@ export default function OfferPreview({ offerId }: Props) {
 
         {/* Totals */}
         <div className="flex justify-end">
-          <div className="w-64 space-y-1 text-sm">
+          <div className="w-full max-w-[16rem] space-y-1 text-sm">
             <div className="flex justify-between text-zinc-500">
               <span>Καθαρή αξία</span>
               <span>{fmtEur(offer.subtotal)}</span>

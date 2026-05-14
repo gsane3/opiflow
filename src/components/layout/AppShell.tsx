@@ -24,11 +24,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <div className="flex min-h-full">
+    <div className="flex min-h-full overflow-x-hidden">
       <DesktopSidebar />
-      <div className="flex flex-1 flex-col md:pl-60">
+      <div className="flex min-w-0 flex-1 flex-col md:pl-60">
         {/* pb-24 ensures content clears bottom nav + FAB on mobile */}
-        <main className="flex-1 pb-24 md:pb-6">{children}</main>
+        <main className="min-w-0 flex-1 overflow-x-hidden pb-24 md:pb-6">{children}</main>
         <BottomNav />
       </div>
       {FAB_PATHS.has(pathname) && <FloatingActionMenu />}

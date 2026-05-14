@@ -368,14 +368,16 @@ export default function CustomerProfile({ customerId }: Props) {
                   href={`/offers/${offer.id}`}
                   className="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2.5 text-sm transition hover:bg-zinc-100 ring-1 ring-zinc-100"
                 >
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <span className="font-medium text-zinc-800">{offer.offerNumber}</span>
                     <span className="mx-2 text-zinc-300">·</span>
                     <span className="font-semibold text-zinc-700">{fmtEur(offer.total)}</span>
                     <span className="mx-2 text-zinc-300">·</span>
                     <span className="text-xs text-zinc-500">μέχρι {offer.validUntil}</span>
                   </div>
-                  <OfferStatusBadge status={offer.status} />
+                  <div className="shrink-0">
+                    <OfferStatusBadge status={offer.status} />
+                  </div>
                 </Link>
               </li>
             ))}
