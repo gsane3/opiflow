@@ -130,6 +130,7 @@ export default function OnboardingPage() {
       defaultOfferTerms: formData.offerTerms.trim(),
       defaultAcceptanceText:
         'Αποδέχομαι τους παραπάνω όρους και επιθυμώ να προχωρήσουμε.',
+      preferredContactMethod: 'viber',
       createdAt: now,
       updatedAt: now,
     };

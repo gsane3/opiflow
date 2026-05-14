@@ -26,6 +26,7 @@ export interface BusinessProfile {
   defaultVatRate: number;
   defaultOfferTerms: string;
   defaultAcceptanceText: string;
+  preferredContactMethod: 'viber' | 'email' | 'phone';
   createdAt: string;
   updatedAt: string;
 }
