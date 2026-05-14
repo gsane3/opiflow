@@ -43,20 +43,18 @@ export default function PostCallScreen({ durationSeconds, scenario, onNewCall }:
         </p>
       </div>
 
-      {/* AI review stub */}
-      <div className="rounded-2xl border-2 border-dashed border-indigo-200 bg-indigo-50 p-5">
-        <div className="mb-2 flex items-center gap-2">
-          <h2 className="text-sm font-semibold text-indigo-700">AI Review — Step 7</h2>
-          <span className="rounded bg-indigo-100 px-2 py-0.5 text-xs font-medium text-indigo-500">
-            Σύντομα
-          </span>
-        </div>
+      {/* AI review */}
+      <div className="rounded-2xl border border-indigo-200 bg-indigo-50 p-5">
+        <h2 className="mb-1 text-sm font-semibold text-indigo-700">AI Review</h2>
         <p className="text-sm text-zinc-600">
-          Δεν αποθηκεύτηκε τίποτα στο CRM, στα tasks ή στις προσφορές ακόμα.
+          Δεν αποθηκεύτηκε τίποτα στο CRM ακόμα. Έλεγξε και αποθήκευσε το αποτέλεσμα χειροκίνητα.
         </p>
-        <p className="mt-1 text-sm text-zinc-500">
-          Στο Step 7 θα εμφανίζεται εδώ η οθόνη ελέγχου AI πριν από την αποθήκευση.
-        </p>
+        <Link
+          href="/ai-review"
+          className="mt-3 inline-flex items-center rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+        >
+          Άνοιγμα AI Review →
+        </Link>
       </div>
 
       {/* Actions */}

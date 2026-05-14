@@ -1,6 +1,17 @@
 // Demo/mock data — local only, not connected to any real data source or backend.
 
-import type { Customer, Task, Offer, OfferItem, CallType } from './types';
+import type {
+  Customer,
+  Task,
+  Offer,
+  OfferItem,
+  CallType,
+  TaskType,
+  TaskPriority,
+  CustomerSource,
+  PreferredContactMethod,
+  CustomerStatus,
+} from './types';
 
 export interface DemoMissedCall {
   id: string;
@@ -430,3 +441,51 @@ export const demoCallScenarios: DemoCallScenario[] = [
       'Νέος lead, Νικολάου Αναστάσης. Ζητά αποτύπωση και προσφορά για ανακαίνιση μπάνιου. Έδωσε email επικοινωνίας. Θέλει προσφορά για την επόμενη εβδομάδα.',
   },
 ];
+
+// Static demo AI result — not real AI output. Used only for Step 7 review screen demo.
+// No transcript is included. Only structured summary/needs/tasks/offer/warnings.
+export function generateDemoAiResult() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+
+  return {
+    customer: {
+      name: 'Γιώργης Παπαδόπουλος',
+      phone: '+30 694 123 4567',
+      email: '',
+      source: 'inbound_call' as CustomerSource,
+      opportunityValue: 1170,
+      preferredContactMethod: 'viber' as PreferredContactMethod,
+    },
+    summary:
+      'Ο πελάτης ενδιαφέρεται για εγκατάσταση HVAC σε κατοικία 120 τ.μ. Ζήτησε προσφορά εργασίας και υλικών.',
+    customerNeeds: 'HVAC σε κατοικία 120 τ.μ. Γρήγορη τοποθέτηση.',
+    tasks: [
+      {
+        title: 'Αποστολή προσφοράς HVAC Παπαδόπουλου',
+        type: 'send_offer' as TaskType,
+        dueDate: tomorrowStr,
+        dueTime: '',
+        priority: 'normal' as TaskPriority,
+        note: 'Ζήτησε να λάβει προσφορά το συντομότερο δυνατό.',
+      },
+    ],
+    offer: {
+      shouldCreate: true,
+      items: [
+        { description: 'Εγκατάσταση HVAC — εργασία', quantity: 1, unitPrice: 800 },
+        { description: 'Υλικά HVAC', quantity: 1, unitPrice: 370 },
+      ],
+      notes: 'Ζήτησε γρήγορη τοποθέτηση.',
+      terms: 'Η παρούσα προσφορά ισχύει για 30 ημέρες από την ημερομηνία έκδοσης.',
+    },
+    statusUpdate: 'offer_drafted' as CustomerStatus,
+    nextBestAction:
+      'Στείλε την προσφορά και ρώτα αν μπορεί να επιβεβαιωθεί μέσα στην εβδομάδα.',
+    warnings: [
+      'Δεν επιβεβαιώθηκε το email του πελάτη',
+      'Η εκτιμώμενη αξία είναι κατά προσέγγιση',
+    ],
+  };
+}
