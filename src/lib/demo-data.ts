@@ -1,6 +1,6 @@
 // Demo/mock data — local only, not connected to any real data source or backend.
 
-import type { Customer, Task, Offer, OfferItem } from './types';
+import type { Customer, Task, Offer, OfferItem, CallType } from './types';
 
 export interface DemoMissedCall {
   id: string;
@@ -397,3 +397,36 @@ export function generateDemoOffers(): Offer[] {
     },
   ];
 }
+
+// Demo call scenarios — static in code only. Never stored in localStorage.
+// Only the demoScenarioId (string) is saved in CallRecord.
+export interface DemoCallScenario {
+  id: string;
+  title: string;
+  callTypes: CallType[];
+  summaryText: string;
+}
+
+export const demoCallScenarios: DemoCallScenario[] = [
+  {
+    id: 'scenario-hvac-new',
+    title: 'Νέος πελάτης για HVAC',
+    callTypes: ['inbound_new_customer', 'outbound_new_lead'],
+    summaryText:
+      'Ο πελάτης (Παπαδόπουλος) ενδιαφέρεται για εγκατάσταση HVAC σε κατοικία 120 τ.μ. Ζήτησε προσφορά εργασίας και υλικών. Είπε να τον καλέσουμε αύριο το πρωί πριν τις 10:00.',
+  },
+  {
+    id: 'scenario-offer-followup',
+    title: 'Follow-up εκκρεμούς προσφοράς',
+    callTypes: ['outbound_existing_customer'],
+    summaryText:
+      'Ο πελάτης θέλει χρόνο να σκεφτεί. Ξαναμιλάμε σε 3–4 μέρες. Δεν είχε αντιρρήσεις για την τιμή — συγκρίνει με άλλες προσφορές.',
+  },
+  {
+    id: 'scenario-missed-callback',
+    title: 'Επιστροφή χαμένης κλήσης',
+    callTypes: ['outbound_new_lead', 'outbound_existing_customer'],
+    summaryText:
+      'Νέος lead, Νικολάου Αναστάσης. Ζητά αποτύπωση και προσφορά για ανακαίνιση μπάνιου. Έδωσε email επικοινωνίας. Θέλει προσφορά για την επόμενη εβδομάδα.',
+  },
+];

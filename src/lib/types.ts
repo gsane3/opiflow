@@ -162,6 +162,28 @@ export interface YorgosMvpState {
   workspace?: Workspace;
   customers?: Customer[];
   tasks?: Task[];
-  // undefined = never initialized (seed demo); [] = user cleared all offers intentionally
   offers?: Offer[];
+  calls?: CallRecord[];
+}
+
+export type CallType =
+  | 'inbound_new_customer'
+  | 'inbound_existing_customer'
+  | 'outbound_new_lead'
+  | 'outbound_existing_customer';
+
+export type CallDirection = 'inbound' | 'outbound';
+
+export interface CallRecord {
+  id: string;
+  customerId?: string;
+  callType: CallType;
+  direction: CallDirection;
+  status: 'completed' | 'missed' | 'cancelled';
+  startedAt: string;
+  endedAt?: string;
+  durationSeconds: number;
+  isMock: true;
+  demoScenarioId?: string;
+  createdAt: string;
 }
