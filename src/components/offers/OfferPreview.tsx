@@ -7,6 +7,7 @@ import type { Offer, OfferStatus } from '@/lib/types';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
 import CopyDraftButtons from './CopyDraftButtons';
+import SendEmailSection from './SendEmailSection';
 
 const ALL_STATUSES: OfferStatus[] = [
   'draft',
@@ -252,6 +253,14 @@ export default function OfferPreview({ offerId }: Props) {
           </p>
         )}
       </section>
+
+      {/* Send email */}
+      <SendEmailSection
+        offer={offer}
+        customerEmail={customer?.email || undefined}
+        customerName={customerName}
+        businessName={bp?.businessName}
+      />
 
       {/* Copy drafts */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
