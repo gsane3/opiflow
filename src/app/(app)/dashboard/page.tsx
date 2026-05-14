@@ -1,13 +1,26 @@
+import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
+import MissedCallsSection from '@/components/dashboard/MissedCallsSection';
+import LeadsSection from '@/components/dashboard/LeadsSection';
+import TodayTasksSection from '@/components/dashboard/TodayTasksSection';
+import OpenOffersSection from '@/components/dashboard/OpenOffersSection';
+import RecentCallsSection from '@/components/dashboard/RecentCallsSection';
+
 export default function DashboardPage() {
   return (
-    <div className="p-5">
-      <h1 className="text-lg font-semibold text-zinc-900">Αρχική</h1>
-      <div className="mt-4 rounded-2xl border-2 border-dashed border-zinc-200 bg-white p-6 text-center">
-        <p className="text-sm font-semibold text-zinc-500">Step 2 — Dashboard</p>
-        <p className="mt-1 text-xs text-zinc-400">
-          Χαμένες κλήσεις, leads, σημερινά tasks και ανοιχτές προσφορές.
-        </p>
+    <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
+      <div>
+        <h1 className="text-lg font-semibold text-zinc-900">
+          Καλημέρα. Τι πρέπει να γίνει σήμερα;
+        </h1>
       </div>
+
+      <QuickAssistantInput />
+
+      <MissedCallsSection />
+      <LeadsSection />
+      <TodayTasksSection />
+      <OpenOffersSection />
+      <RecentCallsSection />
     </div>
   );
 }
