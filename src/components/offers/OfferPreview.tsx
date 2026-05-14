@@ -164,7 +164,7 @@ export default function OfferPreview({ offerId }: Props) {
             <tbody>
               {offer.items.map((item) => (
                 <tr key={item.id} className="border-b border-zinc-100">
-                  <td className="max-w-0 truncate py-2 pr-2 text-zinc-800" title={item.description}>
+                  <td className="py-2 pr-2 text-zinc-800 break-words">
                     {item.description}
                   </td>
                   <td className="py-2 text-right text-zinc-600">{item.quantity}</td>

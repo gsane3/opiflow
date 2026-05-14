@@ -24,10 +24,10 @@ function DisabledAction({ label, note }: { label: string; note?: string }) {
   return (
     <button
       disabled
-      className="flex flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-3 py-3 text-xs font-medium text-zinc-400 ring-1 ring-zinc-200 cursor-not-allowed min-w-[76px]"
+      className="flex w-full flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-2 py-3 text-xs font-medium text-zinc-400 cursor-not-allowed"
       title={note ? `Σύντομα — ${note}` : 'Σύντομα'}
     >
-      <span>{label}</span>
+      <span className="text-center leading-tight">{label}</span>
       <span className="text-zinc-300 text-[10px]">Σύντομα</span>
     </button>
   );
@@ -158,7 +158,8 @@ export default function CustomerProfile({ customerId }: Props) {
         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Γρήγορες ενέργειες
         </p>
-        <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4">
+        {/* 3-column grid — all items fully visible, no scroll */}
+        <div className="grid grid-cols-3 gap-2">
           {/* Call — stub */}
           <DisabledAction label="Κλήση" />
 
@@ -168,7 +169,7 @@ export default function CustomerProfile({ customerId }: Props) {
               href={mapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-3 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-w-[76px]"
+              className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
@@ -179,7 +180,7 @@ export default function CustomerProfile({ customerId }: Props) {
           ) : (
             <button
               disabled
-              className="flex flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-3 py-3 text-xs font-medium text-zinc-400 ring-1 ring-zinc-200 cursor-not-allowed min-w-[76px]"
+              className="flex w-full flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-2 py-3 text-xs font-medium text-zinc-400 cursor-not-allowed"
               title="Δεν υπάρχει διεύθυνση"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -192,7 +193,7 @@ export default function CustomerProfile({ customerId }: Props) {
 
           <Link
             href="/tasks"
-            className="flex flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-3 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-w-[76px]"
+            className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
           >
             <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
@@ -201,7 +202,7 @@ export default function CustomerProfile({ customerId }: Props) {
           </Link>
           <Link
             href="/offers"
-            className="flex flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-3 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-w-[76px]"
+            className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
           >
             <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -223,7 +224,7 @@ export default function CustomerProfile({ customerId }: Props) {
             <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 6Z" />
             </svg>
-            <span className="text-sm text-zinc-800">{customer.phone}</span>
+            <span className="min-w-0 flex-1 break-all text-sm text-zinc-800">{customer.phone}</span>
           </div>
         ) : null}
         {customer.email ? (
@@ -231,7 +232,7 @@ export default function CustomerProfile({ customerId }: Props) {
             <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
             </svg>
-            <span className="text-sm text-zinc-800">{customer.email}</span>
+            <span className="min-w-0 flex-1 break-all text-sm text-zinc-800">{customer.email}</span>
           </div>
         ) : null}
         {customer.address ? (
@@ -240,8 +241,8 @@ export default function CustomerProfile({ customerId }: Props) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
               <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
             </svg>
-            <div className="flex flex-1 items-center gap-2">
-              <span className="text-sm text-zinc-800">{customer.address}</span>
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <span className="min-w-0 flex-1 break-words text-sm text-zinc-800">{customer.address}</span>
               {mapsUrl && (
                 <a
                   href={mapsUrl}

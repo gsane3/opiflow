@@ -322,7 +322,7 @@ export default function AiReviewPage() {
 
   // ── Review screen ─────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5 space-y-4">
+    <div className="mx-auto max-w-2xl px-4 pt-5 pb-10 space-y-4">
       {/* Header */}
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -603,7 +603,7 @@ export default function AiReviewPage() {
       {saveError && <p className="text-sm text-red-600">{saveError}</p>}
 
       {/* Action buttons */}
-      <div className="flex gap-3 pb-6">
+      <div className="flex flex-col gap-3 sm:flex-row">
         <button
           type="button"
           onClick={() => router.push('/dashboard')}
