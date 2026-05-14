@@ -11,10 +11,12 @@ import type {
   CustomerSource,
   TaskType,
   TaskPriority,
+  PreferredContactMethod,
   Customer,
   Task,
   Offer,
 } from '@/lib/types';
+import type { AiReviewResult } from '@/lib/ai/schema';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
@@ -71,12 +73,16 @@ export default function AiReviewPage() {
   const [opportunityValue, setOpportunityValue] = useState(
     init.customer.opportunityValue.toString()
   );
-  const preferredContact = init.customer.preferredContactMethod;
+  const [preferredContact, setPreferredContact] = useState<PreferredContactMethod>(
+    init.customer.preferredContactMethod
+  );
 
   // AI result fields
   const [summary, setSummary] = useState(init.summary);
   const [customerNeeds, setCustomerNeeds] = useState(init.customerNeeds);
   const [statusUpdate, setStatusUpdate] = useState<CustomerStatus>(init.statusUpdate);
+  const [nextBestAction, setNextBestAction] = useState(init.nextBestAction);
+  const [warnings, setWarnings] = useState<string[]>(init.warnings);
 
   // Tasks
   const [tasks, setTasks] = useState<EditableTask[]>(() =>
@@ -92,6 +98,12 @@ export default function AiReviewPage() {
   const [offerTerms] = useState(
     init.offer.terms || businessProfile?.defaultOfferTerms || ''
   );
+
+  // AI input state
+  const [aiInputText, setAiInputText] = useState('');
+  const [isLoadingAi, setIsLoadingAi] = useState(false);
+  const [aiError, setAiError] = useState('');
+  const [resultSource, setResultSource] = useState<'demo' | 'ai'>('demo');
 
   // Phase
   const [phase, setPhase] = useState<'review' | 'saved'>('review');
@@ -122,6 +134,70 @@ export default function AiReviewPage() {
 
   function updateItem(_id: string, updates: Partial<Omit<EditableItem, '_id'>>) {
     setOfferItems((prev) => prev.map((i) => (i._id === _id ? { ...i, ...updates } : i)));
+  }
+
+  function applyResult(result: AiReviewResult) {
+    setCustomerName(result.customer.name);
+    setCustomerPhone(result.customer.phone);
+    setCustomerEmail(result.customer.email);
+    setCustomerSource(result.customer.source);
+    setOpportunityValue(
+      result.customer.opportunityValue > 0 ? result.customer.opportunityValue.toString() : ''
+    );
+    setPreferredContact(result.customer.preferredContactMethod);
+    setSummary(result.summary);
+    setCustomerNeeds(result.customerNeeds);
+    setStatusUpdate(result.statusUpdate);
+    setNextBestAction(result.nextBestAction);
+    setWarnings(result.warnings);
+    setTasks(result.tasks.map((t) => ({ ...t, _id: crypto.randomUUID() })));
+    setCreateOffer(result.offer.shouldCreate);
+    setOfferItems(result.offer.items.map((i) => ({ ...i, _id: crypto.randomUUID() })));
+    setOfferNotes(result.offer.notes);
+    // offerTerms intentionally not overwritten — keeps business default
+  }
+
+  function handleResetToDemo() {
+    applyResult(init);
+    setResultSource('demo');
+    setAiError('');
+  }
+
+  async function handleAiSubmit() {
+    const text = aiInputText.trim();
+    if (!text) return;
+    setIsLoadingAi(true);
+    setAiError('');
+    try {
+      const res = await fetch('/api/ai/review', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          inputText: text,
+          businessType: businessProfile?.businessType,
+          businessName: businessProfile?.businessName,
+          defaultVatRate: businessProfile?.defaultVatRate,
+        }),
+      });
+      const data = (await res.json()) as { error?: string; result?: AiReviewResult };
+      if (!res.ok || !data.result) {
+        const err = data.error ?? 'unknown';
+        if (err === 'no_api_key') {
+          setAiError('Δεν υπάρχει API key. Χρησιμοποιείται το demo αποτέλεσμα.');
+        } else if (err === 'invalid_response') {
+          setAiError('Μη έγκυρη απάντηση AI. Χρησιμοποιείται το demo αποτέλεσμα.');
+        } else {
+          setAiError('Η επεξεργασία AI απέτυχε. Δοκίμασε ξανά ή χρησιμοποίησε το demo.');
+        }
+        return;
+      }
+      applyResult(data.result);
+      setResultSource('ai');
+    } catch {
+      setAiError('Σφάλμα σύνδεσης. Δοκίμασε ξανά.');
+    } finally {
+      setIsLoadingAi(false);
+    }
   }
 
   function handleSave() {
@@ -327,22 +403,66 @@ export default function AiReviewPage() {
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-1">
           <h1 className="text-lg font-semibold text-zinc-900">Έλεγξε πριν αποθηκευτεί</h1>
-          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-            Demo αποτέλεσμα
-          </span>
+          {resultSource === 'ai' ? (
+            <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+              AI αποτέλεσμα
+            </span>
+          ) : (
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
+              Demo αποτέλεσμα
+            </span>
+          )}
         </div>
         <p className="text-sm text-zinc-500">
           Το yorgos.ai ετοίμασε τα παρακάτω. Μπορείς να τα διορθώσεις πριν αποθηκευτούν στο CRM.
         </p>
-        <p className="mt-1 text-xs text-zinc-400">
-          Η σύνδεση με πραγματικό AI ενεργοποιείται σε επόμενο βήμα.
+      </div>
+
+      {/* AI input */}
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Επεξεργασία με AI
         </p>
+        <textarea
+          value={aiInputText}
+          onChange={(e) => setAiInputText(e.target.value)}
+          placeholder='π.χ. "Ο Παπαδόπουλος θέλει HVAC 120τμ, ζήτησε προσφορά εργασίας και υλικών"'
+          rows={2}
+          className={`${inputCls} resize-none`}
+        />
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => { void handleAiSubmit(); }}
+            disabled={isLoadingAi || !aiInputText.trim()}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLoadingAi ? 'Επεξεργασία...' : 'Δημιούργησε με AI'}
+          </button>
+          {resultSource === 'ai' && (
+            <button
+              type="button"
+              onClick={handleResetToDemo}
+              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Επαναφορά Demo
+            </button>
+          )}
+        </div>
+        {aiError && (
+          <p className="mt-2 text-xs text-red-600">{aiError}</p>
+        )}
+        {resultSource === 'demo' && !aiError && (
+          <p className="mt-2 text-xs text-zinc-400">
+            Χωρίς API key τρέχει σε demo λειτουργία.
+          </p>
+        )}
       </div>
 
       {/* Warnings */}
-      {init.warnings.length > 0 && (
+      {warnings.length > 0 && (
         <div className="space-y-2">
-          {init.warnings.map((w, i) => (
+          {warnings.map((w, i) => (
             <AiWarningBadge key={i} message={w} />
           ))}
         </div>
@@ -596,7 +716,7 @@ export default function AiReviewPage() {
 
       {/* Next best action */}
       <SectionCard title="Προτεινόμενη επόμενη ενέργεια">
-        <p className="text-sm italic text-zinc-600">{init.nextBestAction}</p>
+        <p className="text-sm italic text-zinc-600">{nextBestAction || '—'}</p>
       </SectionCard>
 
       {/* Error */}
