@@ -36,7 +36,7 @@ export default function FloatingActionMenu() {
       )}
 
       {open && (
-        <div className="fixed bottom-24 right-4 z-50 flex flex-col items-end gap-2 md:bottom-10">
+        <div className="fixed bottom-40 right-4 z-50 flex flex-col items-end gap-2 md:bottom-24">
           {[...actions].reverse().map((action) => (
             <button
               key={action.label}

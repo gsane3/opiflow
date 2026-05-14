@@ -62,7 +62,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Link
           href={`/offers/${offer.id}`}
-          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+          className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
         >
           Προεπισκόπηση
         </Link>
@@ -70,7 +70,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
         <select
           value={offer.status}
           onChange={(e) => onStatusChange(offer.id, e.target.value as OfferStatus)}
-          className="rounded-lg border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 outline-none focus:border-indigo-400"
+          className="rounded-xl border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 outline-none focus:border-indigo-400"
           aria-label="Αλλαγή status"
         >
           {ALL_STATUSES.map((s) => (
@@ -83,7 +83,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
         <button
           type="button"
           onClick={handleDelete}
-          className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:text-red-600 hover:bg-zinc-50"
+          className="rounded-xl border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:text-red-600 hover:bg-zinc-50"
         >
           Διαγραφή
         </button>

@@ -631,7 +631,7 @@ export default function AiReviewPage() {
             />
           </div>
           <div className="flex gap-2">
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <label className={labelCls}>Τηλέφωνο</label>
               <input
                 type="tel"
@@ -640,7 +640,7 @@ export default function AiReviewPage() {
                 className={inputCls}
               />
             </div>
-            <div className="flex-1">
+            <div className="min-w-0 flex-1">
               <label className={labelCls}>Email</label>
               <input
                 type="email"
