@@ -1,6 +1,6 @@
 // Demo/mock data — local only, not connected to any real data source or backend.
 
-import type { Customer, Task } from './types';
+import type { Customer, Task, Offer, OfferItem } from './types';
 
 export interface DemoMissedCall {
   id: string;
@@ -322,6 +322,74 @@ export function generateDemoTasks(): Task[] {
       priority: 'low',
       dueDate: toStr(in3days),
       note: '',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+      isDemo: true,
+    },
+  ];
+}
+
+// Called once when state.offers === undefined (first launch only).
+export function generateDemoOffers(): Offer[] {
+  const toStr = (d: Date): string => d.toISOString().split('T')[0];
+  const today = new Date();
+  const in30days = new Date(today);
+  in30days.setDate(today.getDate() + 30);
+  const in10days = new Date(today);
+  in10days.setDate(today.getDate() + 10);
+  const now = new Date().toISOString();
+
+  const items1: OfferItem[] = [
+    { id: 'demo-item-1a', description: 'Εργασία τοποθέτησης HVAC', quantity: 1, unitPrice: 800 },
+    { id: 'demo-item-1b', description: 'Υλικά HVAC', quantity: 1, unitPrice: 370 },
+  ];
+  const subtotal1 = 1170;
+  const vatAmount1 = Number((subtotal1 * 24 / 100).toFixed(2));
+
+  const items2: OfferItem[] = [
+    { id: 'demo-item-2a', description: 'Εργασία ανακαίνισης', quantity: 1, unitPrice: 2000 },
+    { id: 'demo-item-2b', description: 'Υλικά κατασκευής', quantity: 1, unitPrice: 500 },
+  ];
+  const subtotal2 = 2500;
+  const vatAmount2 = Number((subtotal2 * 24 / 100).toFixed(2));
+
+  return [
+    {
+      id: 'demo-offer-1',
+      customerId: 'demo-karagiannis',
+      offerNumber: '#001',
+      status: 'draft',
+      offerDate: toStr(today),
+      validUntil: toStr(in30days),
+      items: items1,
+      subtotal: subtotal1,
+      vatRate: 24,
+      vatAmount: vatAmount1,
+      total: Number((subtotal1 + vatAmount1).toFixed(2)),
+      notes: '',
+      terms: 'Η παρούσα προσφορά ισχύει για 30 ημέρες από την ημερομηνία έκδοσης.',
+      acceptanceText: 'Αποδέχομαι τους παραπάνω όρους και επιθυμώ να προχωρήσουμε.',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+      isDemo: true,
+    },
+    {
+      id: 'demo-offer-2',
+      customerId: 'demo-alexandrou',
+      offerNumber: '#002',
+      status: 'ready_to_send',
+      offerDate: toStr(today),
+      validUntil: toStr(in10days),
+      items: items2,
+      subtotal: subtotal2,
+      vatRate: 24,
+      vatAmount: vatAmount2,
+      total: Number((subtotal2 + vatAmount2).toFixed(2)),
+      notes: 'Η τιμή δεν περιλαμβάνει αλλαγές εκτός αντικειμένου.',
+      terms: 'Η παρούσα προσφορά ισχύει για 10 ημέρες από την ημερομηνία έκδοσης.',
+      acceptanceText: 'Αποδέχομαι τους παραπάνω όρους και επιθυμώ να προχωρήσουμε.',
       createdFromAi: false,
       createdAt: now,
       updatedAt: now,

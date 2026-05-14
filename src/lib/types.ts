@@ -119,12 +119,49 @@ export function getEffectiveStatus(task: Task): TaskEffectiveStatus {
   return 'upcoming';
 }
 
+export type OfferStatus =
+  | 'draft'
+  | 'ready_to_send'
+  | 'sent_manually'
+  | 'accepted'
+  | 'rejected'
+  | 'expired';
+
+export interface OfferItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+export interface Offer {
+  id: string;
+  customerId?: string;
+  relatedTaskId?: string;
+  offerNumber: string;
+  status: OfferStatus;
+  offerDate: string; // YYYY-MM-DD
+  validUntil: string; // YYYY-MM-DD
+  items: OfferItem[];
+  subtotal: number;
+  vatRate: number;
+  vatAmount: number;
+  total: number;
+  notes: string;
+  terms: string;
+  acceptanceText: string;
+  createdFromAi: boolean;
+  createdAt: string;
+  updatedAt: string;
+  isDemo?: boolean;
+}
+
 export interface YorgosMvpState {
   userProfile?: UserProfile;
   businessProfile?: BusinessProfile;
   workspace?: Workspace;
-  // undefined = never initialized (seed demo); [] = user cleared all customers intentionally
   customers?: Customer[];
-  // undefined = never initialized (seed demo); [] = user cleared all tasks intentionally
   tasks?: Task[];
+  // undefined = never initialized (seed demo); [] = user cleared all offers intentionally
+  offers?: Offer[];
 }

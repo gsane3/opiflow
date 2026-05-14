@@ -1,4 +1,4 @@
-import type { YorgosMvpState, Customer, Task } from './types';
+import type { YorgosMvpState, Customer, Task, Offer } from './types';
 
 const STORAGE_KEY = 'yorgos_ai_mvp_state';
 
@@ -65,4 +65,24 @@ export function updateTask(updated: Task): void {
 
 export function deleteTask(id: string): void {
   saveTasks(getTasks().filter((t) => t.id !== id));
+}
+
+export function getOffers(): Offer[] {
+  return loadState().offers ?? [];
+}
+
+export function saveOffers(offers: Offer[]): void {
+  saveState({ offers });
+}
+
+export function addOffer(offer: Offer): void {
+  saveOffers([...getOffers(), offer]);
+}
+
+export function updateOffer(updated: Offer): void {
+  saveOffers(getOffers().map((o) => (o.id === updated.id ? updated : o)));
+}
+
+export function deleteOffer(id: string): void {
+  saveOffers(getOffers().filter((o) => o.id !== id));
 }
