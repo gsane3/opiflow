@@ -339,22 +339,27 @@ export default function NextActionsSection({
                         Στάλθηκε
                       </button>
                     )}
-                    {item.category === 'offer_followup' && item.offerId && onCreateOfferFollowUpTask && (
-                      createdFollowUpOfferIds.has(item.offerId) ? (
-                        <span className="text-[10px] font-medium text-zinc-400">
-                          Task δημιουργήθηκε
-                        </span>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onCreateOfferFollowUpTask(item.offerId!);
-                            setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
-                          }}
-                          className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
-                        >
-                          Task follow-up
-                        </button>
+                    {item.category === 'offer_followup' && item.offerId && (
+                      !item.customerName ? (
+                        // Offer has no linked customer — cannot create a customer-linked task.
+                        <span className="text-[10px] text-zinc-300">Χωρίς πελάτη</span>
+                      ) : onCreateOfferFollowUpTask && (
+                        createdFollowUpOfferIds.has(item.offerId) ? (
+                          <span className="text-[10px] font-medium text-zinc-400">
+                            Task δημιουργήθηκε
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onCreateOfferFollowUpTask(item.offerId!);
+                              setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
+                            }}
+                            className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                          >
+                            Task follow-up
+                          </button>
+                        )
                       )
                     )}
                     <Link
