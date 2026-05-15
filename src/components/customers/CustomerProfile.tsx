@@ -469,6 +469,7 @@ export default function CustomerProfile({ customerId }: Props) {
 
       {/* Activity timeline */}
       <CustomerTimeline
+        customerId={customerId}
         tasks={customerTasks}
         offers={customerOffers}
         calls={customerCalls}

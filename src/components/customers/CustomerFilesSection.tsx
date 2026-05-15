@@ -149,7 +149,7 @@ export default function CustomerFilesSection({ customerId }: Props) {
   }
 
   return (
-    <div className="mt-3">
+    <div id="customer-files" className="mt-3">
       {/* Gallery modal */}
       {selectedIndex !== null && rows.length > 0 && (
         <CustomerMediaGallery
