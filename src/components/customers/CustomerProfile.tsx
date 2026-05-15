@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loadState, updateCustomer, deleteCustomer, updateTask, addTask } from '@/lib/storage';
+import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
@@ -17,6 +17,7 @@ import CustomerFilesSection from './CustomerFilesSection';
 import CustomerTimeline from './CustomerTimeline';
 import CustomerNextActionPanel from './CustomerNextActionPanel';
 import TaskForm from '@/components/tasks/TaskForm';
+import OfferForm from '@/components/offers/OfferForm';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -55,6 +56,9 @@ export default function CustomerProfile({ customerId }: Props) {
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [newTaskInitial, setNewTaskInitial] = useState<Task | null>(null);
+  const [showOfferForm, setShowOfferForm] = useState(false);
+  const [offerFormNumber, setOfferFormNumber] = useState('#001');
+  const [offerFormInitial, setOfferFormInitial] = useState<Offer | null>(null);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -86,6 +90,56 @@ export default function CustomerProfile({ customerId }: Props) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [customerId]);
+
+  function openOfferForm() {
+    const now = new Date().toISOString();
+    const allOffers = loadState().offers ?? [];
+    const maxNum =
+      allOffers.length === 0
+        ? 0
+        : Math.max(
+            ...allOffers.map((o) => {
+              const match = o.offerNumber.match(/(\d+)$/);
+              return match ? parseInt(match[1]) : 0;
+            })
+          );
+    const nextNum = `#${String(maxNum + 1).padStart(3, '0')}`;
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + 30);
+    setOfferFormNumber(nextNum);
+    setOfferFormInitial({
+      id: crypto.randomUUID(),
+      customerId: customer?.id,
+      offerNumber: nextNum,
+      status: 'draft',
+      offerDate: now.split('T')[0],
+      validUntil: validUntil.toISOString().split('T')[0],
+      items: [],
+      subtotal: 0,
+      vatRate: 24,
+      vatAmount: 0,
+      total: 0,
+      notes: '',
+      terms: '',
+      acceptanceText: '',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setShowOfferForm(true);
+  }
+
+  function handleSaveNewOffer(offer: Offer) {
+    addOffer(offer);
+    setCustomerOffers((prev) => [...prev, offer]);
+    setShowOfferForm(false);
+    setOfferFormInitial(null);
+  }
+
+  function handleCancelOfferForm() {
+    setShowOfferForm(false);
+    setOfferFormInitial(null);
+  }
 
   function openNewTaskForm() {
     const now = new Date().toISOString();
@@ -499,14 +553,38 @@ export default function CustomerProfile({ customerId }: Props) {
 
       {/* Offers & files */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Προσφορές &amp; αρχεία πελάτη
           </h2>
-          <Link href="/offers" className="text-xs text-indigo-600 hover:text-indigo-700">
-            Διαχείριση →
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={showOfferForm ? handleCancelOfferForm : openOfferForm}
+              className={`text-xs font-medium transition ${
+                showOfferForm
+                  ? 'text-zinc-400 hover:text-zinc-600'
+                  : 'text-indigo-600 hover:text-indigo-700'
+              }`}
+            >
+              {showOfferForm ? 'Ακύρωση' : '+ Νέα προσφορά'}
+            </button>
+            <Link href="/offers" className="text-xs text-indigo-600 hover:text-indigo-700">
+              Διαχείριση →
+            </Link>
+          </div>
         </div>
+        {showOfferForm && offerFormInitial && customer && (
+          <div className="mb-4">
+            <OfferForm
+              initial={offerFormInitial}
+              customers={[customer]}
+              nextOfferNumber={offerFormNumber}
+              onSave={handleSaveNewOffer}
+              onCancel={handleCancelOfferForm}
+            />
+          </div>
+        )}
 
         {/* Offer list */}
         {customerOffers.length === 0 ? (
