@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadState, updateTask } from '@/lib/storage';
+import { loadState, updateTask, updateOffer } from '@/lib/storage';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
@@ -113,6 +113,17 @@ export default function DashboardPage() {
     setLastCompletedTask(null);
   }
 
+  function handleMarkOfferSent(offerId: string) {
+    const offer = dashboardData.offers.find((o) => o.id === offerId);
+    if (!offer) return;
+    const updated = { ...offer, status: 'sent_manually' as const, updatedAt: new Date().toISOString() };
+    updateOffer(updated);
+    setDashboardData((prev) => ({
+      ...prev,
+      offers: prev.offers.map((o) => (o.id === offerId ? updated : o)),
+    }));
+  }
+
   const leads = customers
     .filter((c) => LEAD_STATUSES.has(c.status))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -153,6 +164,7 @@ export default function DashboardPage() {
         onCompleteTask={handleCompleteTask}
         lastCompletedTaskTitle={lastCompletedTask?.title}
         onUndoCompleteTask={handleUndoCompleteTask}
+        onMarkOfferSent={handleMarkOfferSent}
       />
 
       <MissedCallsSection callRecords={calls} customerMap={customerMap} />

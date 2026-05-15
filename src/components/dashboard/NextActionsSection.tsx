@@ -45,6 +45,7 @@ interface ActionItem {
   customerName?: string;
   href: string;
   taskId?: string; // set only for task items to enable inline completion
+  offerId?: string; // set only for offer items
 }
 
 function buildActions(
@@ -111,6 +112,7 @@ function buildActions(
       detail: fmtEur(offer.total),
       customerName: offer.customerId ? customerMap[offer.customerId] : undefined,
       href: `/offers/${offer.id}`,
+      offerId: offer.id,
     });
   }
 
@@ -127,6 +129,7 @@ function buildActions(
       detail: fmtEur(offer.total),
       customerName: offer.customerId ? customerMap[offer.customerId] : undefined,
       href: `/offers/${offer.id}`,
+      offerId: offer.id,
     });
   }
 
@@ -174,6 +177,7 @@ interface Props {
   onCompleteTask?: (taskId: string) => void;
   lastCompletedTaskTitle?: string;
   onUndoCompleteTask?: () => void;
+  onMarkOfferSent?: (offerId: string) => void;
 }
 
 const FILTER_DEFS: { id: FilterId; label: string }[] = [
@@ -191,6 +195,7 @@ export default function NextActionsSection({
   onCompleteTask,
   lastCompletedTaskTitle,
   onUndoCompleteTask,
+  onMarkOfferSent,
 }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [showAll, setShowAll] = useState(false);
@@ -319,6 +324,15 @@ export default function NextActionsSection({
                         className="rounded-lg bg-green-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-green-700"
                       >
                         Ολοκλήρωση
+                      </button>
+                    )}
+                    {item.category === 'offer_ready' && item.offerId && onMarkOfferSent && (
+                      <button
+                        type="button"
+                        onClick={() => onMarkOfferSent(item.offerId!)}
+                        className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-indigo-700"
+                      >
+                        Στάλθηκε
                       </button>
                     )}
                     <Link
