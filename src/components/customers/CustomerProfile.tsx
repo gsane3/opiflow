@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
-import type { Customer, Task, Offer } from '@/lib/types';
+import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
 import { fmtEur } from '@/lib/offer-calculations';
@@ -14,6 +14,7 @@ import { SOURCE_LABELS } from './CustomerCard';
 import CustomerForm from './CustomerForm';
 import { TASK_TYPE_LABELS } from '@/components/tasks/TaskStatusBadge';
 import CustomerFilesSection from './CustomerFilesSection';
+import CustomerTimeline from './CustomerTimeline';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -44,23 +45,31 @@ export default function CustomerProfile({ customerId }: Props) {
   // Start with null/[] so server render and first client render match.
   const [hydrated, setHydrated] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [openTasks, setOpenTasks] = useState<Task[]>([]);
+  // All tasks for this customer (not just open) — used for timeline and open tasks section.
+  const [customerTasks, setCustomerTasks] = useState<Task[]>([]);
   const [customerOffers, setCustomerOffers] = useState<Offer[]>([]);
+  const [customerCalls, setCustomerCalls] = useState<CallRecord[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+
+  // Open tasks derived from all customer tasks (used in the open tasks section).
+  const openTasks = useMemo(
+    () => customerTasks.filter((t) => t.status === 'open'),
+    [customerTasks]
+  );
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
     const state = loadState();
     const foundCustomer = (state.customers ?? []).find((c) => c.id === customerId) ?? null;
-    const foundTasks = (state.tasks ?? []).filter(
-      (t) => t.customerId === customerId && t.status === 'open'
-    );
+    const foundTasks = (state.tasks ?? []).filter((t) => t.customerId === customerId);
     const foundOffers = (state.offers ?? []).filter((o) => o.customerId === customerId);
+    const foundCalls = (state.calls ?? []).filter((c) => c.customerId === customerId);
     const timer = window.setTimeout(() => {
       setCustomer(foundCustomer);
-      setOpenTasks(foundTasks);
+      setCustomerTasks(foundTasks);
       setCustomerOffers(foundOffers);
+      setCustomerCalls(foundCalls);
       setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -457,6 +466,13 @@ export default function CustomerProfile({ customerId }: Props) {
           Εμφανίζονται μετά από κλήση ή υπαγόρευση.
         </p>
       </section>
+
+      {/* Activity timeline */}
+      <CustomerTimeline
+        tasks={customerTasks}
+        offers={customerOffers}
+        calls={customerCalls}
+      />
 
       {/* Notes */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
