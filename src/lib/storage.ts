@@ -1,4 +1,4 @@
-import type { YorgosMvpState, Customer, Task, Offer, CallRecord, BusinessProfile } from './types';
+import type { YorgosMvpState, Customer, Task, Offer, CallRecord, BusinessProfile, CommunicationRecord } from './types';
 
 const STORAGE_KEY = 'yorgos_ai_mvp_state';
 
@@ -127,6 +127,15 @@ export function addCallRecord(record: CallRecord): void {
 export function updateCallRecord(updated: CallRecord): void {
   const state = loadState();
   saveState({ calls: (state.calls ?? []).map((c) => (c.id === updated.id ? updated : c)) });
+}
+
+export function getCommunications(): CommunicationRecord[] {
+  return loadState().communications ?? [];
+}
+
+export function addCommunicationRecord(record: CommunicationRecord): void {
+  const state = loadState();
+  saveState({ communications: [...(state.communications ?? []), record] });
 }
 
 export const SMS_INTAKE_REMINDER_MINUTES = 5;

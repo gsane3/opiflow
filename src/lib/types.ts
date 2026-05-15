@@ -165,6 +165,18 @@ export interface Offer {
   isDemo?: boolean;
 }
 
+export interface CommunicationRecord {
+  id: string;
+  customerId?: string;
+  channel: 'call' | 'sms';
+  direction: 'outbound' | 'inbound';
+  status: 'started' | 'sent' | 'failed' | 'completed';
+  phone?: string;
+  summary?: string;
+  createdAt: string;
+  isMock?: boolean;
+}
+
 export interface YorgosMvpState {
   userProfile?: UserProfile;
   businessProfile?: BusinessProfile;
@@ -173,6 +185,7 @@ export interface YorgosMvpState {
   tasks?: Task[];
   offers?: Offer[];
   calls?: CallRecord[];
+  communications?: CommunicationRecord[];
 }
 
 export type CallType =

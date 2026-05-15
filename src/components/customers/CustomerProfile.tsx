@@ -3,11 +3,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord } from '@/lib/storage';
+import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord, addCommunicationRecord } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
 import { isLikelyMobile, getCallPhone, getSmsPhone, getLandlinePhone } from '@/lib/phone';
 import { buildCallHref, buildSmsHref } from '@/lib/communications';
-import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
+import type { Customer, Task, Offer, CallRecord, CommunicationRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
 import { fmtEur } from '@/lib/offer-calculations';
@@ -55,6 +55,7 @@ export default function CustomerProfile({ customerId }: Props) {
   const [customerTasks, setCustomerTasks] = useState<Task[]>([]);
   const [customerOffers, setCustomerOffers] = useState<Offer[]>([]);
   const [customerCalls, setCustomerCalls] = useState<CallRecord[]>([]);
+  const [customerCommunications, setCustomerCommunications] = useState<CommunicationRecord[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -99,11 +100,13 @@ export default function CustomerProfile({ customerId }: Props) {
     const foundTasks = (state.tasks ?? []).filter((t) => t.customerId === customerId);
     const foundOffers = (state.offers ?? []).filter((o) => o.customerId === customerId);
     const foundCalls = (state.calls ?? []).filter((c) => c.customerId === customerId);
+    const foundComms = (state.communications ?? []).filter((c) => c.customerId === customerId);
     const timer = window.setTimeout(() => {
       setCustomer(foundCustomer);
       setCustomerTasks(foundTasks);
       setCustomerOffers(foundOffers);
       setCustomerCalls(foundCalls);
+      setCustomerCommunications(foundComms);
       setHydrated(true);
     }, 0);
     return () => window.clearTimeout(timer);
@@ -438,6 +441,21 @@ export default function CustomerProfile({ customerId }: Props) {
           {callPhone ? (
             <a
               href={buildCallHref(callPhone)}
+              onClick={() => {
+                const rec: CommunicationRecord = {
+                  id: crypto.randomUUID(),
+                  customerId: customer.id,
+                  channel: 'call',
+                  direction: 'outbound',
+                  status: 'started',
+                  phone: callPhone,
+                  summary: 'Έναρξη κλήσης από καρτέλα πελάτη.',
+                  createdAt: new Date().toISOString(),
+                  isMock: true,
+                };
+                addCommunicationRecord(rec);
+                setCustomerCommunications((prev) => [...prev, rec]);
+              }}
               className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -499,6 +517,21 @@ export default function CustomerProfile({ customerId }: Props) {
           {smsPhone ? (
             <a
               href={buildSmsHref(smsPhone)}
+              onClick={() => {
+                const rec: CommunicationRecord = {
+                  id: crypto.randomUUID(),
+                  customerId: customer.id,
+                  channel: 'sms',
+                  direction: 'outbound',
+                  status: 'sent',
+                  phone: smsPhone,
+                  summary: 'Άνοιγμα SMS από καρτέλα πελάτη.',
+                  createdAt: new Date().toISOString(),
+                  isMock: true,
+                };
+                addCommunicationRecord(rec);
+                setCustomerCommunications((prev) => [...prev, rec]);
+              }}
               className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -988,6 +1021,7 @@ export default function CustomerProfile({ customerId }: Props) {
         tasks={customerTasks}
         offers={customerOffers}
         calls={customerCalls}
+        communications={customerCommunications}
       />
 
       {/* Notes */}
