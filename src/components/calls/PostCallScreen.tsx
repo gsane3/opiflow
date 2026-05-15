@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import type { DemoCallScenario } from '@/lib/demo-data';
 import type { Customer, CallRecord, Task } from '@/lib/types';
@@ -27,6 +27,27 @@ function buildCrmSmsMessage(bp?: BusinessInfo): string {
   return `${body}\n\n${signature}`;
 }
 
+
+function buildDemoSmsReply(name?: string): string {
+  let firstName = 'Γιώργος';
+  let lastName = 'Παπαδόπουλος';
+  if (name && name.trim() && !/^Πελάτης #\d+$/.test(name) && !name.includes('Καταχώρηση')) {
+    const parts = name.trim().split(/\s+/);
+    firstName = parts[0];
+    lastName = parts.slice(1).join(' ');
+  }
+  return [
+    `Όνομα: ${firstName}`,
+    lastName ? `Επώνυμο: ${lastName}` : null,
+    'Διεύθυνση: Κηφισίας 10, Αθήνα',
+    'Email: george@example.com',
+  ].filter(Boolean).join('\n');
+}
+
+function makeDemoMobile(): string {
+  const r = () => Math.floor(Math.random() * 10);
+  return `+30 69${r()} ${r()}${r()}${r()} ${r()}${r()}${r()}${r()}`;
+}
 
 function formatDuration(seconds: number): string {
   const m = Math.floor(seconds / 60).toString().padStart(2, '0');
@@ -90,14 +111,21 @@ export default function PostCallScreen({
   // Active CRM customer — starts from prop customerId; may be set when a temp card is created.
   const [activeCrmId, setActiveCrmId] = useState<string | null>(customerId || null);
 
-  // Local phone — editable by user when no customer is pre-linked.
-  const [tempPhone, setTempPhone] = useState(customerPhone || '');
+  // Local phone — editable; pre-filled from prop or random demo mobile.
+  const [tempPhone, setTempPhone] = useState(() => customerPhone || makeDemoMobile());
 
   // SMS flow state.
   const [smsDecision, setSmsDecision] = useState<'undecided' | 'yes' | 'no'>('undecided');
-  const [smsRaw, setSmsRaw] = useState('');
-  const [smsSimDone, setSmsSimDone] = useState(false);
-  const [smsSimCustomerId, setSmsSimCustomerId] = useState<string | null>(null);
+  const [demoSmsStatus, setDemoSmsStatus] = useState<'idle' | 'waiting' | 'done'>('idle');
+  const [demoSmsText, setDemoSmsText] = useState('');
+  const [crmRegistered, setCrmRegistered] = useState(false);
+  const [crmRegisteredCustomerId, setCrmRegisteredCustomerId] = useState<string | null>(null);
+  const smsTimerRef = useRef<number | null>(null);
+
+  // Clear SMS timer on unmount.
+  useEffect(() => {
+    return () => { if (smsTimerRef.current) window.clearTimeout(smsTimerRef.current); };
+  }, []);
 
   function handleCopy() {
     const doCopy = () => {
@@ -152,39 +180,12 @@ export default function PostCallScreen({
   }
 
   function handleSmsSend() {
-    ensureCrmCustomer(briefSummary);
     setSmsDecision('yes');
-  }
-
-  function handleSimulateSms() {
-    const parsed = parseSmsReply(smsRaw);
-    const now = new Date().toISOString();
-
-    let targetId = activeCrmId;
-    if (!targetId) {
-      targetId = ensureCrmCustomer(briefSummary);
-    }
-    if (!targetId) return;
-
-    const state = loadState();
-    const existing = (state.customers ?? []).find((c) => c.id === targetId);
-    if (!existing) return;
-
-    const combinedName = [parsed.firstName, parsed.lastName].filter(Boolean).join(' ');
-    updateCustomer({
-      ...existing,
-      name: combinedName || existing.name,
-      address: parsed.address || existing.address,
-      email: parsed.email || existing.email,
-      status: existing.status === 'new_lead' ? 'contacted' : existing.status,
-      notes: existing.notes
-        ? `${existing.notes}\nΣτοιχεία συμπληρώθηκαν από SMS.`
-        : 'Στοιχεία συμπληρώθηκαν από SMS.',
-      updatedAt: now,
-    });
-
-    setSmsSimCustomerId(targetId);
-    setSmsSimDone(true);
+    setDemoSmsStatus('waiting');
+    smsTimerRef.current = window.setTimeout(() => {
+      setDemoSmsText(buildDemoSmsReply(customerName));
+      setDemoSmsStatus('done');
+    }, 2000);
   }
 
   function handleSaveBrief() {
@@ -244,6 +245,90 @@ export default function PostCallScreen({
     }
 
     setBriefSaved(true);
+  }
+
+  function handleRegisterCrm() {
+    if (crmRegistered) return;
+    const now = new Date().toISOString();
+    const trimmedSummary = briefSummary.trim();
+    const trimmedNextStep = briefNextStep.trim();
+
+    // Resolve / create customer.
+    let resolvedId = activeCrmId || customerId || null;
+    if (!resolvedId) resolvedId = ensureCrmCustomer(trimmedSummary);
+
+    // Update customer with parsed demo SMS details.
+    if (resolvedId && demoSmsText) {
+      const parsed = parseSmsReply(demoSmsText);
+      const state = loadState();
+      const existing = (state.customers ?? []).find((c) => c.id === resolvedId);
+      if (existing) {
+        const isTempName = /^Πελάτης #\d+$/.test(existing.name) || existing.name.includes('Καταχώρηση');
+        const combinedName = [parsed.firstName, parsed.lastName].filter(Boolean).join(' ');
+        const noteBase = trimmedSummary
+          ? `${trimmedSummary}\nΣτοιχεία συμπληρώθηκαν από demo SMS.`
+          : 'Στοιχεία συμπληρώθηκαν από demo SMS.';
+        updateCustomer({
+          ...existing,
+          name: isTempName && combinedName ? combinedName : existing.name,
+          address: parsed.address || existing.address,
+          email: parsed.email || existing.email,
+          status: existing.status === 'new_lead' ? 'contacted' : existing.status,
+          notes: existing.notes ? `${existing.notes}\n${noteBase}` : noteBase,
+          updatedAt: now,
+        });
+      }
+    }
+
+    // Save call brief.
+    const linkedId = resolvedId ?? undefined;
+    if (endedRecord) {
+      updateCallRecord({
+        ...endedRecord,
+        customerId: endedRecord.customerId ?? linkedId,
+        summary: trimmedSummary,
+        nextStep: trimmedNextStep || undefined,
+      });
+    } else {
+      addCallRecord({
+        id: crypto.randomUUID(),
+        customerId: linkedId,
+        callType: 'outbound_existing_customer',
+        direction: 'outbound',
+        status: 'completed',
+        startedAt: now,
+        durationSeconds: 0,
+        isMock: true,
+        summary: trimmedSummary,
+        nextStep: trimmedNextStep || undefined,
+        createdAt: now,
+      });
+    }
+
+    // Follow-up task.
+    if (briefCreateFollowUp && resolvedId) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const noteLines = [`Brief: ${trimmedSummary}`];
+      if (trimmedNextStep) noteLines.push(`Επόμενο βήμα: ${trimmedNextStep}`);
+      addTask({
+        id: crypto.randomUUID(),
+        customerId: resolvedId,
+        title: 'Follow-up μετά από κλήση',
+        type: 'other',
+        status: 'open',
+        priority: 'normal',
+        dueDate: tomorrow.toISOString().split('T')[0],
+        note: noteLines.join('\n'),
+        createdFromAi: false,
+        createdAt: now,
+        updatedAt: now,
+      } as Task);
+    }
+
+    setBriefSaved(true);
+    setCrmRegistered(true);
+    setCrmRegisteredCustomerId(resolvedId);
   }
 
   return (
@@ -314,13 +399,10 @@ export default function PostCallScreen({
             type="checkbox"
             checked={briefCreateFollowUp}
             onChange={(e) => setBriefCreateFollowUp(e.target.checked)}
-            disabled={briefSaved || !activeCrmId}
+            disabled={briefSaved}
             className="h-4 w-4 rounded border-zinc-300 text-indigo-600"
           />
           <span className="text-sm text-zinc-700">Δημιουργία task follow-up (αύριο)</span>
-          {!activeCrmId && (
-            <span className="text-xs text-zinc-400">— χωρίς συνδεδεμένο πελάτη</span>
-          )}
         </label>
 
         {briefSaved ? (
@@ -405,14 +487,6 @@ export default function PostCallScreen({
 
         {smsDecision === 'yes' && (
           <>
-            {activeCrmId && (
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs text-green-700 font-medium">Δημιουργήθηκε καρτέλα πελάτη.</p>
-                <Link href={`/customers/${activeCrmId}`} className="text-xs text-indigo-600 hover:text-indigo-700">
-                  Άνοιγμα →
-                </Link>
-              </div>
-            )}
             <pre className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-600 leading-relaxed whitespace-pre-wrap ring-1 ring-zinc-100">
               {smsMessage}
             </pre>
@@ -441,43 +515,48 @@ export default function PostCallScreen({
               </button>
             </div>
 
-            {/* Demo incoming SMS simulation — only visible after Yes */}
+            {/* Demo SMS response */}
             <div className="border-t border-zinc-100 pt-4 space-y-3">
-              <div>
-                <p className="text-xs font-semibold text-zinc-500">Demo εισερχόμενου SMS</p>
-                <p className="mt-0.5 text-xs text-zinc-400">
-                  Στο cloud αυτό θα γίνεται αυτόματα από SMS provider.
-                </p>
-              </div>
-              {smsSimDone ? (
-                <div className="rounded-xl bg-green-50 px-3 py-2.5 ring-1 ring-green-200 space-y-1.5">
-                  <p className="text-sm font-semibold text-green-700">Η καρτέλα πελάτη ενημερώθηκε.</p>
-                  {smsSimCustomerId && (
-                    <Link
-                      href={`/customers/${smsSimCustomerId}`}
-                      className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
-                    >
-                      Άνοιγμα καρτέλας →
-                    </Link>
-                  )}
+              {demoSmsStatus === 'waiting' && (
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-300 border-t-indigo-600" />
+                  <p className="text-xs text-zinc-500">Αναμονή demo απάντησης SMS...</p>
                 </div>
-              ) : (
+              )}
+              {demoSmsStatus === 'done' && (
                 <>
-                  <textarea
-                    value={smsRaw}
-                    onChange={(e) => setSmsRaw(e.target.value)}
-                    rows={3}
-                    placeholder={'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'}
-                    className={`${inputCls} resize-none font-mono text-xs leading-relaxed`}
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSimulateSms}
-                    disabled={!smsRaw.trim()}
-                    className="w-full rounded-xl bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    Προσομοίωση εισερχόμενου SMS
-                  </button>
+                  {crmRegistered ? (
+                    <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
+                      <p className="text-sm font-semibold text-green-700">
+                        Η καρτέλα πελάτη και το call brief καταχωρήθηκαν στο CRM.
+                      </p>
+                      {crmRegisteredCustomerId && (
+                        <Link
+                          href={`/customers/${crmRegisteredCustomerId}`}
+                          className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+                        >
+                          Άνοιγμα καρτέλας →
+                        </Link>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <p className="text-xs font-medium text-zinc-600">Ήρθε demo απάντηση SMS:</p>
+                      <pre className="rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600 whitespace-pre-wrap ring-1 ring-zinc-100 leading-relaxed">
+                        {demoSmsText}
+                      </pre>
+                      <p className="text-xs text-zinc-400">
+                        Στο cloud η απάντηση θα έρχεται από SMS provider webhook.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleRegisterCrm}
+                        className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                      >
+                        Καταχώρηση στοιχείων &amp; brief στο CRM
+                      </button>
+                    </div>
+                  )}
                 </>
               )}
             </div>
