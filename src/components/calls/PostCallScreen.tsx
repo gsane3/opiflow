@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { DemoCallScenario } from '@/lib/demo-data';
 import type { Customer, CallRecord, Task } from '@/lib/types';
 import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask } from '@/lib/storage';
-import { parseSmsReply, formatParsedData, type ParsedSmsData } from '@/lib/sms-intake';
+import { parseSmsReply } from '@/lib/sms-intake';
 
 interface BusinessInfo {
   businessName?: string;
@@ -14,9 +14,9 @@ interface BusinessInfo {
   businessEmail?: string;
 }
 
-function buildSmsMessage(bp?: BusinessInfo): string {
+function buildCrmSmsMessage(bp?: BusinessInfo): string {
   const body =
-    'Παρακαλώ στείλτε μου τα παρακάτω στοιχεία για την καταχώρηση στο σύστημά μας:\n\nΌνομα:\nΕπώνυμο:\nΔιεύθυνση:\nEmail:';
+    'Για την καταχώρηση στο CRM, παρακαλώ στείλτε μου τα παρακάτω στοιχεία με σειρά:\n\nΌνομα:\nΕπώνυμο:\nΔιεύθυνση:\nEmail:';
   const sigLines: string[] = [];
   if (bp?.ownerName) sigLines.push(bp.ownerName);
   if (bp?.businessName) sigLines.push(bp.businessName);
@@ -25,6 +25,18 @@ function buildSmsMessage(bp?: BusinessInfo): string {
   const signature =
     sigLines.length > 0 ? `Ευχαριστώ,\n${sigLines.join('\n')}` : 'Ευχαριστώ';
   return `${body}\n\n${signature}`;
+}
+
+function getNextCrmNumber(customers: Customer[]): string {
+  const nums = customers
+    .map((c) => c.crmNumber)
+    .filter(Boolean)
+    .map((n) => {
+      const match = n!.match(/(\d+)$/);
+      return match ? parseInt(match[1]) : 0;
+    });
+  const max = nums.length > 0 ? Math.max(...nums) : 329;
+  return `#${max + 1}`;
 }
 
 function formatDuration(seconds: number): string {
@@ -68,8 +80,8 @@ export default function PostCallScreen({
   endedRecord,
   onNewCall,
 }: Props) {
+  const smsMessage = buildCrmSmsMessage({ businessName, ownerName, businessPhone, businessEmail });
   const [copied, setCopied] = useState(false);
-  const smsMessage = buildSmsMessage({ businessName, ownerName, businessPhone, businessEmail });
 
   // CRM brief state — pre-filled with rule-based draft from scenario + customer.
   const [briefSummary, setBriefSummary] = useState(() => {
@@ -86,21 +98,119 @@ export default function PostCallScreen({
   const [briefCreateFollowUp, setBriefCreateFollowUp] = useState(false);
   const [briefSaved, setBriefSaved] = useState(false);
 
+  // Active CRM customer — starts from prop customerId; may be set when a temp card is created.
+  const [activeCrmId, setActiveCrmId] = useState<string | null>(customerId || null);
+
+  // SMS flow state.
+  const [smsDecision, setSmsDecision] = useState<'undecided' | 'yes' | 'no'>('undecided');
+  const [smsRaw, setSmsRaw] = useState('');
+  const [smsSimDone, setSmsSimDone] = useState(false);
+  const [smsSimCustomerId, setSmsSimCustomerId] = useState<string | null>(null);
+
+  function handleCopy() {
+    const doCopy = () => {
+      const el = document.createElement('textarea');
+      el.value = smsMessage;
+      document.body.appendChild(el);
+      el.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(el);
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(smsMessage).then(
+        () => { setCopied(true); setTimeout(() => setCopied(false), 2000); },
+        () => { doCopy(); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+      );
+    } else {
+      doCopy();
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  // Ensure a CRM customer exists; creates a temp card if only phone is available.
+  // Returns the resolved customer id or null.
+  function ensureCrmCustomer(summary: string): string | null {
+    if (activeCrmId) return activeCrmId;
+    if (!customerPhone) return null;
+    const now = new Date().toISOString();
+    const state = loadState();
+    const customers = state.customers ?? [];
+    const crmNumber = getNextCrmNumber(customers);
+    const newCustomer: Customer = {
+      id: crypto.randomUUID(),
+      crmNumber,
+      name: `Καταχώρηση CRM ${crmNumber}`,
+      companyName: '',
+      phone: customerPhone,
+      email: '',
+      address: '',
+      source: 'inbound_call',
+      status: 'new_lead',
+      preferredContactMethod: 'phone',
+      needsSummary: summary,
+      notes: `${summary}\nΑναμονή στοιχείων από SMS.`,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addCustomer(newCustomer);
+    setActiveCrmId(newCustomer.id);
+    return newCustomer.id;
+  }
+
+  function handleSmsSend() {
+    ensureCrmCustomer(briefSummary);
+    setSmsDecision('yes');
+  }
+
+  function handleSimulateSms() {
+    const parsed = parseSmsReply(smsRaw);
+    const now = new Date().toISOString();
+
+    let targetId = activeCrmId;
+    if (!targetId) {
+      targetId = ensureCrmCustomer(briefSummary);
+    }
+    if (!targetId) return;
+
+    const state = loadState();
+    const existing = (state.customers ?? []).find((c) => c.id === targetId);
+    if (!existing) return;
+
+    const combinedName = [parsed.firstName, parsed.lastName].filter(Boolean).join(' ');
+    updateCustomer({
+      ...existing,
+      name: combinedName || existing.name,
+      address: parsed.address || existing.address,
+      email: parsed.email || existing.email,
+      status: existing.status === 'new_lead' ? 'contacted' : existing.status,
+      notes: existing.notes
+        ? `${existing.notes}\nΣτοιχεία συμπληρώθηκαν από SMS.`
+        : 'Στοιχεία συμπληρώθηκαν από SMS.',
+      updatedAt: now,
+    });
+
+    setSmsSimCustomerId(targetId);
+    setSmsSimDone(true);
+  }
+
   function handleSaveBrief() {
     const now = new Date().toISOString();
     const trimmedSummary = briefSummary.trim();
     const trimmedNextStep = briefNextStep.trim();
+    const linkedId = activeCrmId || customerId || undefined;
 
     if (endedRecord) {
       updateCallRecord({
         ...endedRecord,
+        customerId: endedRecord.customerId ?? linkedId,
         summary: trimmedSummary,
         nextStep: trimmedNextStep || undefined,
       });
     } else {
       const record: CallRecord = {
         id: crypto.randomUUID(),
-        customerId: customerId || undefined,
+        customerId: linkedId,
         callType: 'outbound_existing_customer',
         direction: 'outbound',
         status: 'completed',
@@ -114,14 +224,14 @@ export default function PostCallScreen({
       addCallRecord(record);
     }
 
-    if (briefCreateFollowUp && customerId) {
+    if (briefCreateFollowUp && activeCrmId) {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const noteLines = [`Brief: ${trimmedSummary}`];
       if (trimmedNextStep) noteLines.push(`Επόμενο βήμα: ${trimmedNextStep}`);
       const task: Task = {
         id: crypto.randomUUID(),
-        customerId,
+        customerId: activeCrmId,
         title: 'Follow-up μετά από κλήση',
         type: 'other',
         status: 'open',
@@ -136,105 +246,6 @@ export default function PostCallScreen({
     }
 
     setBriefSaved(true);
-  }
-
-  // SMS intake state
-  const [smsRaw, setSmsRaw] = useState('');
-  const [parsed, setParsed] = useState<ParsedSmsData | null>(null);
-  const [editFirst, setEditFirst] = useState('');
-  const [editLast, setEditLast] = useState('');
-  const [editAddress, setEditAddress] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [saveResult, setSaveResult] = useState<'saved' | 'created' | null>(null);
-  const [savedCustomerId, setSavedCustomerId] = useState<string | null>(null);
-  const [dataCopied, setDataCopied] = useState(false);
-
-  function handleCopy() {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(smsMessage).then(
-        () => { setCopied(true); setTimeout(() => setCopied(false), 2000); },
-        () => fallbackCopy()
-      );
-    } else {
-      fallbackCopy();
-    }
-  }
-
-  function fallbackCopy() {
-    const el = document.createElement('textarea');
-    el.value = smsMessage;
-    document.body.appendChild(el);
-    el.select();
-    try { document.execCommand('copy'); } catch { /* ignore */ }
-    document.body.removeChild(el);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  function handleAnalyze() {
-    const result = parseSmsReply(smsRaw);
-    setParsed(result);
-    setEditFirst(result.firstName);
-    setEditLast(result.lastName);
-    setEditAddress(result.address);
-    setEditEmail(result.email);
-    setSaveResult(null);
-  }
-
-  function handleSave() {
-    const now = new Date().toISOString();
-    const combinedName = [editFirst, editLast].filter(Boolean).join(' ');
-
-    if (customerId) {
-      // Update existing customer
-      const state = loadState();
-      const existing = (state.customers ?? []).find((c) => c.id === customerId);
-      if (!existing) return;
-      updateCustomer({
-        ...existing,
-        name: combinedName || existing.name,
-        address: editAddress || existing.address,
-        email: editEmail || existing.email,
-        updatedAt: now,
-      });
-      setSavedCustomerId(customerId);
-      setSaveResult('saved');
-    } else if (customerPhone) {
-      // Create new customer from SMS reply
-      const newCustomer: Customer = {
-        id: crypto.randomUUID(),
-        name: combinedName || customerPhone,
-        companyName: '',
-        phone: customerPhone,
-        email: editEmail,
-        address: editAddress,
-        source: 'inbound_call',
-        status: 'new_lead',
-        preferredContactMethod: 'phone',
-        needsSummary: '',
-        notes: 'Δημιουργήθηκε από απάντηση SMS.',
-        createdAt: now,
-        updatedAt: now,
-      };
-      addCustomer(newCustomer);
-      setSavedCustomerId(newCustomer.id);
-      setSaveResult('created');
-    }
-  }
-
-  function handleCopyParsed() {
-    const text = formatParsedData({
-      firstName: editFirst,
-      lastName: editLast,
-      address: editAddress,
-      email: editEmail,
-    });
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(
-        () => { setDataCopied(true); setTimeout(() => setDataCopied(false), 2000); },
-        () => {}
-      );
-    }
   }
 
   return (
@@ -305,27 +316,21 @@ export default function PostCallScreen({
             type="checkbox"
             checked={briefCreateFollowUp}
             onChange={(e) => setBriefCreateFollowUp(e.target.checked)}
-            disabled={briefSaved || !customerId}
+            disabled={briefSaved || !activeCrmId}
             className="h-4 w-4 rounded border-zinc-300 text-indigo-600"
           />
           <span className="text-sm text-zinc-700">Δημιουργία task follow-up (αύριο)</span>
-          {!customerId && (
+          {!activeCrmId && (
             <span className="text-xs text-zinc-400">— χωρίς συνδεδεμένο πελάτη</span>
           )}
         </label>
 
-        {!customerId && (
-          <p className="text-xs text-zinc-400">
-            Δεν υπάρχει συνδεδεμένος πελάτης. Το brief θα αποθηκευτεί χωρίς σύνδεση.
-          </p>
-        )}
-
         {briefSaved ? (
           <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
             <p className="text-sm font-semibold text-green-700">Αποθηκεύτηκε στο CRM.</p>
-            {customerId && (
+            {activeCrmId && (
               <Link
-                href={`/customers/${customerId}`}
+                href={`/customers/${activeCrmId}`}
                 className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
               >
                 Άνοιγμα πελάτη →
@@ -344,172 +349,134 @@ export default function PostCallScreen({
         )}
       </div>
 
-      {/* SMS details request */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
-        <h2 className="mb-1 text-sm font-semibold text-zinc-800">Ζήτησε στοιχεία με SMS</h2>
-        <p className="mb-3 text-xs text-zinc-400">
-          Άνοιξε έτοιμο SMS στο κινητό σου. Το μήνυμα δεν στέλνεται αυτόματα.
-        </p>
+      {/* SMS CRM intake — send decision */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <h2 className="text-sm font-semibold text-zinc-800">
+          Αποστολή SMS καταχώρησης στοιχείων CRM
+        </h2>
 
-        <pre className="mb-4 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-600 leading-relaxed whitespace-pre-wrap ring-1 ring-zinc-100">
-          {smsMessage}
-        </pre>
-
-        <div className="flex flex-col gap-2 sm:flex-row">
-          {customerPhone ? (
-            <a
-              href={buildSmsHref(customerPhone, smsMessage)}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-            >
-              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-              </svg>
-              Άνοιγμα SMS
-            </a>
-          ) : (
-            <div className="flex flex-1 items-center justify-center rounded-xl bg-zinc-100 px-4 py-2.5 text-sm text-zinc-400">
-              Δεν υπάρχει τηλέφωνο πελάτη.
-            </div>
-          )}
-          <button
-            type="button"
-            onClick={handleCopy}
-            className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition sm:flex-none sm:w-auto ${
-              copied
-                ? 'border-green-200 bg-green-50 text-green-700'
-                : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
-            }`}
-          >
-            {copied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
-          </button>
-        </div>
-      </div>
-
-      {/* SMS intake section */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
-        <h2 className="mb-1 text-sm font-semibold text-zinc-800">Καταχώρηση απάντησης SMS</h2>
-        <p className="mb-3 text-xs text-zinc-400">
-          Επικόλλησε την απάντηση του πελάτη. Τα στοιχεία δεν αποθηκεύονται αυτόματα — πρέπει να πατήσεις αποθήκευση.
-        </p>
-
-        <div className="space-y-3">
-          <textarea
-            value={smsRaw}
-            onChange={(e) => { setSmsRaw(e.target.value); setParsed(null); setSaveResult(null); setSavedCustomerId(null); }}
-            rows={5}
-            placeholder={
-              'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'
-            }
-            className={`${inputCls} resize-none font-mono text-xs leading-relaxed`}
-          />
-
-          <button
-            type="button"
-            onClick={handleAnalyze}
-            disabled={!smsRaw.trim()}
-            className="w-full rounded-xl bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Ανάλυση απάντησης
-          </button>
-        </div>
-
-        {/* Parsed / editable fields */}
-        {parsed !== null && (
-          <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>Όνομα</label>
-                <input
-                  type="text"
-                  value={editFirst}
-                  onChange={(e) => setEditFirst(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-              <div>
-                <label className={labelCls}>Επώνυμο</label>
-                <input
-                  type="text"
-                  value={editLast}
-                  onChange={(e) => setEditLast(e.target.value)}
-                  className={inputCls}
-                />
-              </div>
-            </div>
-            <div>
-              <label className={labelCls}>Διεύθυνση</label>
-              <input
-                type="text"
-                value={editAddress}
-                onChange={(e) => setEditAddress(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className={labelCls}>Email</label>
-              <input
-                type="email"
-                value={editEmail}
-                onChange={(e) => setEditEmail(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-
-            {/* Save / copy actions */}
-            {(saveResult === 'saved' || saveResult === 'created') && (
-              <div className="rounded-xl bg-green-50 p-3 ring-1 ring-green-200 space-y-2">
-                <p className="text-sm font-medium text-green-700">
-                  {saveResult === 'saved' ? 'Ο πελάτης ενημερώθηκε.' : 'Νέος πελάτης δημιουργήθηκε.'}
-                </p>
-                {savedCustomerId && (
-                  <Link
-                    href={`/customers/${savedCustomerId}`}
-                    className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
-                  >
-                    Άνοιγμα πελάτη
-                  </Link>
-                )}
-              </div>
+        {smsDecision === 'undecided' && (
+          <>
+            <p className="text-sm text-zinc-600">
+              Να σταλεί SMS στον πελάτη για να συμπληρώσει τα στοιχεία της καρτέλας CRM;
+            </p>
+            {!customerPhone && (
+              <p className="text-xs text-amber-600">
+                Δεν υπάρχει τηλέφωνο πελάτη. Δεν μπορεί να σταλεί SMS.
+              </p>
             )}
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleSmsSend}
+                disabled={!customerPhone}
+                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Ναι, αποστολή SMS
+              </button>
+              <button
+                type="button"
+                onClick={() => setSmsDecision('no')}
+                className="flex-1 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              >
+                Όχι τώρα
+              </button>
+            </div>
+          </>
+        )}
 
-            {saveResult === null && (
-              <>
-                {customerId ? (
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                  >
-                    Ενημέρωση πελάτη{customerName ? ` — ${customerName}` : ''}
-                  </button>
-                ) : customerPhone ? (
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-                  >
-                    Δημιουργία πελάτη
-                  </button>
-                ) : (
-                  <p className="text-xs text-zinc-400">
-                    Δεν υπάρχει τηλέφωνο πελάτη. Δεν μπορεί να δημιουργηθεί εγγραφή. Αντέγραψε τα στοιχεία.
-                  </p>
-                )}
-              </>
-            )}
-
+        {smsDecision === 'no' && (
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm text-zinc-400">Μπορείς να το στείλεις αργότερα.</p>
             <button
               type="button"
-              onClick={handleCopyParsed}
-              className={`w-full rounded-xl border px-4 py-2 text-sm font-medium transition ${
-                dataCopied
-                  ? 'border-green-200 bg-green-50 text-green-700'
-                  : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
-              }`}
+              onClick={() => setSmsDecision('undecided')}
+              className="shrink-0 text-xs text-indigo-600 hover:text-indigo-700"
             >
-              {dataCopied ? 'Αντιγράφηκε' : 'Αντιγραφή στοιχείων'}
+              Αποστολή SMS
             </button>
           </div>
+        )}
+
+        {smsDecision === 'yes' && (
+          <>
+            <pre className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-600 leading-relaxed whitespace-pre-wrap ring-1 ring-zinc-100">
+              {smsMessage}
+            </pre>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {customerPhone && (
+                <a
+                  href={buildSmsHref(customerPhone, smsMessage)}
+                  className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+                  </svg>
+                  Άνοιγμα SMS
+                </a>
+              )}
+              <button
+                type="button"
+                onClick={handleCopy}
+                className={`flex-1 rounded-xl border px-4 py-2.5 text-sm font-medium transition sm:flex-none sm:w-auto ${
+                  copied
+                    ? 'border-green-200 bg-green-50 text-green-700'
+                    : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                }`}
+              >
+                {copied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Incoming SMS simulation */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-800">Απάντηση SMS πελάτη</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">
+            Στο demo κάνε paste την απάντηση. Στο cloud θα έρχεται αυτόματα από SMS provider.
+          </p>
+        </div>
+
+        {smsSimDone ? (
+          <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
+            <p className="text-sm font-semibold text-green-700">Η καρτέλα CRM ενημερώθηκε.</p>
+            {smsSimCustomerId && (
+              <Link
+                href={`/customers/${smsSimCustomerId}`}
+                className="inline-flex items-center rounded-xl bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
+              >
+                Άνοιγμα καρτέλας →
+              </Link>
+            )}
+          </div>
+        ) : (
+          <>
+            {!customerPhone && !customerId && (
+              <p className="text-xs text-zinc-400">
+                Χωρίς τηλέφωνο ή πελάτη δεν μπορεί να γίνει σύνδεση.
+              </p>
+            )}
+            <textarea
+              value={smsRaw}
+              onChange={(e) => setSmsRaw(e.target.value)}
+              rows={4}
+              placeholder={
+                'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'
+              }
+              className={`${inputCls} resize-none font-mono text-xs leading-relaxed`}
+            />
+            <button
+              type="button"
+              onClick={handleSimulateSms}
+              disabled={!smsRaw.trim() || (!activeCrmId && !customerPhone)}
+              className="w-full rounded-xl bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Προσομοίωση εισερχόμενου SMS
+            </button>
+          </>
         )}
       </div>
 

@@ -75,6 +75,7 @@ export interface Customer {
   updatedAt: string;
   lastContactAt?: string;
   nextTaskId?: string;
+  crmNumber?: string;
   isDemo?: boolean;
 }
 
