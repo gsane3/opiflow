@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { loadState, saveState, addTask, updateTask, deleteTask } from '@/lib/storage';
 import { generateDemoTasks } from '@/lib/demo-data';
 import type { Task, Customer, TaskBaseStatus, TaskType, TaskPriority } from '@/lib/types';
@@ -28,28 +28,14 @@ const EMPTY_STATES: Record<TabId, string> = {
   completed: 'Δεν υπάρχουν ολοκληρωμένα tasks.',
 };
 
-function initTasks(): Task[] {
-  if (typeof window === 'undefined') return [];
-  const state = loadState();
-  if (state.tasks === undefined) {
-    const seeded = generateDemoTasks();
-    saveState({ tasks: seeded });
-    return seeded;
-  }
-  return state.tasks;
-}
-
-function initCustomers(): Customer[] {
-  if (typeof window === 'undefined') return [];
-  return loadState().customers ?? [];
-}
-
 const selCls =
   'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
 
 export default function TasksPage() {
-  const [tasks, setTasks] = useState<Task[]>(initTasks);
-  const [customers] = useState<Customer[]>(initCustomers);
+  // Start with empty arrays so server render and first client render match.
+  const [hydrated, setHydrated] = useState(false);
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [activeTab, setActiveTab] = useState<TabId>('due_today');
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -59,6 +45,27 @@ export default function TasksPage() {
   const [priorityFilter, setPriorityFilter] = useState<TaskPriority | ''>('');
   const [typeFilter, setTypeFilter] = useState<TaskType | ''>('');
 
+  // Load localStorage after mount to avoid hydration mismatch.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
+    const state = loadState();
+    let nextTasks: Task[];
+    const nextCustomers: Customer[] = state.customers ?? [];
+    if (state.tasks === undefined) {
+      const seeded = generateDemoTasks();
+      saveState({ tasks: seeded });
+      nextTasks = seeded;
+    } else {
+      nextTasks = state.tasks;
+    }
+    const timer = window.setTimeout(() => {
+      setTasks(nextTasks);
+      setCustomers(nextCustomers);
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const hasTaskFilter = taskSearch.trim() !== '' || priorityFilter !== '' || typeFilter !== '';
 
   const customerMap = useMemo(
@@ -66,7 +73,7 @@ export default function TasksPage() {
     [customers]
   );
 
-  // Tab counts — based on ALL tasks, unaffected by search/filter (constraint)
+  // Tab counts — based on ALL tasks, unaffected by search/filter
   const tabCounts = useMemo(() => {
     const counts: Record<TabId, number> = { due_today: 0, upcoming: 0, overdue: 0, completed: 0 };
     for (const t of tasks) {
@@ -151,6 +158,39 @@ export default function TasksPage() {
   function openNewForm() {
     setEditingTask(null);
     setShowForm(true);
+  }
+
+  // Stable shell shown on server and first client render — no localStorage-derived content.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-lg font-semibold text-zinc-900">Tasks</h1>
+          <button
+            type="button"
+            className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
+          >
+            + Νέο task
+          </button>
+        </div>
+        <div className="mb-3 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
+          {TAB_ORDER.map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                tab === 'due_today'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-zinc-100 text-zinc-600'
+              }`}
+            >
+              {TAB_LABELS[tab]}
+            </button>
+          ))}
+        </div>
+        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση tasks...</p>
+      </div>
+    );
   }
 
   return (
