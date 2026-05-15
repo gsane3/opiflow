@@ -63,6 +63,8 @@ export default function CustomerProfile({ customerId }: Props) {
   const [briefText, setBriefText] = useState('');
   const [briefNextStep, setBriefNextStep] = useState('');
   const [briefCreateFollowUp, setBriefCreateFollowUp] = useState(false);
+  const [showAiDemoPanel, setShowAiDemoPanel] = useState(false);
+  const [aiTranscriptionText, setAiTranscriptionText] = useState('');
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -105,6 +107,7 @@ export default function CustomerProfile({ customerId }: Props) {
   }, [customerId]);
 
   function openBriefForm() {
+    setShowAiDemoPanel(false);
     setBriefText('');
     setBriefNextStep('');
     setBriefCreateFollowUp(false);
@@ -113,6 +116,35 @@ export default function CustomerProfile({ customerId }: Props) {
 
   function handleCancelBriefForm() {
     setShowBriefForm(false);
+  }
+
+  function openAiDemoPanel() {
+    setShowBriefForm(false);
+    setAiTranscriptionText(
+      `Καλημέρα σας, μιλάω με ${customer?.name ?? 'τον πελάτη'}. Ο πελάτης ανέφερε ότι ενδιαφέρεται για τις υπηρεσίες μας και χρειάζεται προσφορά. Ζήτησε επίσης επιβεβαίωση στοιχείων και χρόνου παράδοσης. Συμφωνήσαμε να επικοινωνήσουμε εκ νέου μέσα στις επόμενες ημέρες.`
+    );
+    setShowAiDemoPanel(true);
+  }
+
+  function handleCancelAiDemo() {
+    setShowAiDemoPanel(false);
+  }
+
+  function handleGenerateBrief() {
+    const sentences = aiTranscriptionText
+      .trim()
+      .split(/[.!?\n]+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 8);
+    const excerpt = sentences.slice(0, 2).join('. ');
+    const generated =
+      `Ο πελάτης περιέγραψε το αίτημα και χρειάζεται συνέχεια από την επιχείρηση.` +
+      (excerpt ? ` ${excerpt}.` : '');
+    setBriefText(generated);
+    setBriefNextStep('Follow-up με προσφορά ή επιβεβαίωση στοιχείων.');
+    setBriefCreateFollowUp(true);
+    setShowAiDemoPanel(false);
+    setShowBriefForm(true);
   }
 
   function handleSaveBrief() {
@@ -731,18 +763,70 @@ export default function CustomerProfile({ customerId }: Props) {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Περιλήψεις συνομιλιών
           </h2>
-          <button
-            type="button"
-            onClick={showBriefForm ? handleCancelBriefForm : openBriefForm}
-            className={`text-xs font-medium transition ${
-              showBriefForm
-                ? 'text-zinc-400 hover:text-zinc-600'
-                : 'text-indigo-600 hover:text-indigo-700'
-            }`}
-          >
-            {showBriefForm ? 'Ακύρωση' : '+ Νέο brief'}
-          </button>
+          <div className="flex items-center gap-3">
+            {!showBriefForm && (
+              <button
+                type="button"
+                onClick={showAiDemoPanel ? handleCancelAiDemo : openAiDemoPanel}
+                className="text-xs font-medium text-zinc-500 transition hover:text-zinc-700"
+              >
+                {showAiDemoPanel ? 'Ακύρωση' : 'Demo AI brief'}
+              </button>
+            )}
+            {!showAiDemoPanel && (
+              <button
+                type="button"
+                onClick={showBriefForm ? handleCancelBriefForm : openBriefForm}
+                className={`text-xs font-medium transition ${
+                  showBriefForm
+                    ? 'text-zinc-400 hover:text-zinc-600'
+                    : 'text-indigo-600 hover:text-indigo-700'
+                }`}
+              >
+                {showBriefForm ? 'Ακύρωση' : '+ Νέο brief'}
+              </button>
+            )}
+          </div>
         </div>
+
+        {showAiDemoPanel && (
+          <div className="mb-4 rounded-2xl bg-indigo-50 p-4 ring-1 ring-indigo-100 space-y-3">
+            <div>
+              <p className="text-xs font-semibold text-indigo-700">Demo AI brief από transcription</p>
+              <p className="mt-0.5 text-xs text-indigo-400">
+                Demo χωρίς πραγματικό transcription. Στο cloud θα δημιουργείται αυτόματα από την κλήση.
+              </p>
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-zinc-700">
+                Transcription κλήσης
+              </label>
+              <textarea
+                rows={4}
+                value={aiTranscriptionText}
+                onChange={(e) => setAiTranscriptionText(e.target.value)}
+                className="w-full rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-none"
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={handleCancelAiDemo}
+                className="flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              >
+                Ακύρωση
+              </button>
+              <button
+                type="button"
+                onClick={handleGenerateBrief}
+                disabled={!aiTranscriptionText.trim()}
+                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Δημιουργία brief
+              </button>
+            </div>
+          </div>
+        )}
 
         {showBriefForm && (
           <div className="mb-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-100 space-y-3">
