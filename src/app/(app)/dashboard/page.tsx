@@ -127,12 +127,24 @@ export default function DashboardPage() {
   function handleCreateOfferFollowUpTask(offerId: string) {
     const offer = dashboardData.offers.find((o) => o.id === offerId);
     if (!offer || !offer.customerId) return; // orphan offers cannot link task to customer
+
+    // Prevent duplicates: skip if an open follow-up task already exists for this offer.
+    const alreadyExists = dashboardData.tasks.some(
+      (t) =>
+        t.type === 'follow_up_offer' &&
+        t.status === 'open' &&
+        t.customerId === offer.customerId &&
+        (t.offerId === offer.id || t.title === `Follow-up προσφοράς ${offer.offerNumber}`)
+    );
+    if (alreadyExists) return;
+
     const now = new Date().toISOString();
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
     const task: Task = {
       id: crypto.randomUUID(),
       customerId: offer.customerId,
+      offerId: offer.id,
       title: `Follow-up προσφοράς ${offer.offerNumber}`,
       type: 'follow_up_offer',
       status: 'open',

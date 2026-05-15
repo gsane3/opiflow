@@ -104,6 +104,7 @@ export interface Task {
   dueDate: string; // YYYY-MM-DD
   dueTime?: string; // HH:mm
   note: string;
+  offerId?: string; // optional link to a specific offer (e.g. for follow_up_offer tasks)
   createdFromAi: boolean;
   createdAt: string;
   updatedAt: string;

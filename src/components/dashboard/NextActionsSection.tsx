@@ -46,6 +46,7 @@ interface ActionItem {
   href: string;
   taskId?: string; // set only for task items to enable inline completion
   offerId?: string; // set only for offer items
+  hasExistingTask?: boolean; // true when a follow-up task already exists in localStorage tasks
 }
 
 function buildActions(
@@ -121,6 +122,14 @@ function buildActions(
     .filter((o) => o.status === 'sent_manually')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   for (const offer of sentOffers) {
+    // Detect if an open follow-up task already exists for this offer (persistent dedup check).
+    const hasExistingTask = tasks.some(
+      (t) =>
+        t.type === 'follow_up_offer' &&
+        t.status === 'open' &&
+        t.customerId === offer.customerId &&
+        (t.offerId === offer.id || t.title === `Follow-up προσφοράς ${offer.offerNumber}`)
+    );
     items.push({
       id: `follow-${offer.id}`,
       category: 'offer_followup',
@@ -130,6 +139,7 @@ function buildActions(
       customerName: offer.customerId ? customerMap[offer.customerId] : undefined,
       href: `/offers/${offer.id}`,
       offerId: offer.id,
+      hasExistingTask,
     });
   }
 
@@ -343,24 +353,21 @@ export default function NextActionsSection({
                       !item.customerName ? (
                         // Offer has no linked customer — cannot create a customer-linked task.
                         <span className="text-[10px] text-zinc-300">Χωρίς πελάτη</span>
-                      ) : onCreateOfferFollowUpTask && (
-                        createdFollowUpOfferIds.has(item.offerId) ? (
-                          <span className="text-[10px] font-medium text-zinc-400">
-                            Task δημιουργήθηκε
-                          </span>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              onCreateOfferFollowUpTask(item.offerId!);
-                              setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
-                            }}
-                            className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
-                          >
-                            Task follow-up
-                          </button>
-                        )
-                      )
+                      ) : item.hasExistingTask || createdFollowUpOfferIds.has(item.offerId) ? (
+                        // Task already exists (persistent check takes priority over session state).
+                        <span className="text-[10px] font-medium text-zinc-400">Υπάρχει task</span>
+                      ) : onCreateOfferFollowUpTask ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onCreateOfferFollowUpTask(item.offerId!);
+                            setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
+                          }}
+                          className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                        >
+                          Task follow-up
+                        </button>
+                      ) : null
                     )}
                     <Link
                       href={item.href}

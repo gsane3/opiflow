@@ -31,9 +31,11 @@ const PRIORITY_DOT: Record<string, string> = {
   low: 'bg-zinc-300',
 };
 
-function primaryAction(type: TaskType, customerId?: string): { label: string; href: string } | null {
+function primaryAction(type: TaskType, customerId?: string, offerId?: string): { label: string; href: string } | null {
   if (type === 'call_back') return { label: 'Άνοιγμα κλήσης', href: '/call/mock' };
-  if (type === 'send_offer' || type === 'follow_up_offer') return { label: 'Άνοιγμα προσφορών', href: '/offers' };
+  if (type === 'send_offer' || type === 'follow_up_offer') {
+    return { label: 'Άνοιγμα προσφοράς', href: offerId ? `/offers/${offerId}` : '/offers' };
+  }
   if (
     type === 'visit_customer' ||
     type === 'ask_for_photos_documents' ||
@@ -117,7 +119,7 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
             Ολοκλήρωση
           </button>
           {(() => {
-            const action = primaryAction(task.type, task.customerId);
+            const action = primaryAction(task.type, task.customerId, task.offerId);
             return action ? (
               <Link
                 href={action.href}
