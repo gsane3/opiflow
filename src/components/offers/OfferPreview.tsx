@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadState, updateOffer, deleteOffer, addTask } from '@/lib/storage';
-import type { Offer, OfferStatus, Task } from '@/lib/types';
+import type { Offer, OfferStatus, Task, Customer, BusinessProfile } from '@/lib/types';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
 import CopyDraftButtons from './CopyDraftButtons';
@@ -33,30 +33,29 @@ interface Props {
 export default function OfferPreview({ offerId }: Props) {
   const router = useRouter();
 
-  const [offer, setOffer] = useState<Offer | null>(() => {
-    if (typeof window === 'undefined') return null;
-    const state = loadState();
-    return (state.offers ?? []).find((o) => o.id === offerId) ?? null;
-  });
+  // Start with null so server render and first client render match.
+  const [hydrated, setHydrated] = useState(false);
+  const [offer, setOffer] = useState<Offer | null>(null);
+  const [customer, setCustomer] = useState<Customer | null>(null);
+  const [bp, setBp] = useState<BusinessProfile | null>(null);
 
-  const [customerName] = useState<string | undefined>(() => {
-    if (typeof window === 'undefined') return undefined;
+  // Load localStorage after mount to avoid hydration mismatch.
+  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  useEffect(() => {
     const state = loadState();
-    if (!offer?.customerId) return undefined;
-    return (state.customers ?? []).find((c) => c.id === offer.customerId)?.name;
-  });
-
-  const [customer] = useState(() => {
-    if (typeof window === 'undefined') return null;
-    const state = loadState();
-    if (!offer?.customerId) return null;
-    return (state.customers ?? []).find((c) => c.id === offer.customerId) ?? null;
-  });
-
-  const [bp] = useState(() => {
-    if (typeof window === 'undefined') return null;
-    return loadState().businessProfile ?? null;
-  });
+    const foundOffer = (state.offers ?? []).find((o) => o.id === offerId) ?? null;
+    const foundCustomer = foundOffer?.customerId
+      ? (state.customers ?? []).find((c) => c.id === foundOffer.customerId) ?? null
+      : null;
+    const foundBp = state.businessProfile ?? null;
+    const timer = window.setTimeout(() => {
+      setOffer(foundOffer);
+      setCustomer(foundCustomer);
+      setBp(foundBp);
+      setHydrated(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [offerId]);
 
   function handleStatusChange(status: OfferStatus) {
     if (!offer) return;
@@ -104,6 +103,15 @@ export default function OfferPreview({ offerId }: Props) {
     router.push('/offers');
   }
 
+  // Stable loading shell — identical on server and first client render.
+  if (!hydrated) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center">
+        <p className="text-sm text-zinc-400">Φόρτωση προσφοράς...</p>
+      </div>
+    );
+  }
+
   if (!offer) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center">
@@ -118,6 +126,8 @@ export default function OfferPreview({ offerId }: Props) {
       </div>
     );
   }
+
+  const customerName = customer?.name;
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
@@ -150,7 +160,7 @@ export default function OfferPreview({ offerId }: Props) {
         )}
       </div>
 
-      {/* ── PDF-style document ─────────────────────────── */}
+      {/* PDF-style document */}
       <div className="offer-print-document rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 space-y-5">
 
         {/* Header row: business + offer meta */}
@@ -189,7 +199,7 @@ export default function OfferPreview({ offerId }: Props) {
           </div>
         )}
 
-        {/* Line items — table-fixed prevents description from pushing layout wider */}
+        {/* Line items */}
         <div className="overflow-x-auto">
           <table className="w-full table-fixed text-sm">
             <colgroup>
@@ -263,7 +273,6 @@ export default function OfferPreview({ offerId }: Props) {
           </div>
         )}
       </div>
-      {/* ── End PDF-style document ──────────────────────── */}
 
       {/* Status management */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
