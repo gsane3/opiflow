@@ -129,6 +129,52 @@ export function updateCallRecord(updated: CallRecord): void {
   saveState({ calls: (state.calls ?? []).map((c) => (c.id === updated.id ? updated : c)) });
 }
 
+export const SMS_INTAKE_REMINDER_MINUTES = 5;
+export const SMS_INTAKE_NO_RESPONSE_MINUTES = 5;
+
+export function advanceSmsIntakeStatuses(customers: Customer[], now = new Date()): Customer[] {
+  const nowMs = now.getTime();
+  return customers.map((c) => {
+    if (
+      !c.intakeStatus ||
+      c.intakeStatus === 'none' ||
+      c.intakeStatus === 'completed' ||
+      c.intakeStatus === 'kept_draft'
+    ) {
+      return c;
+    }
+    if (c.intakeStatus === 'waiting_sms' && c.intakeSmsSentAt) {
+      if (nowMs - new Date(c.intakeSmsSentAt).getTime() >= SMS_INTAKE_REMINDER_MINUTES * 60 * 1000) {
+        const ts = now.toISOString();
+        return {
+          ...c,
+          intakeStatus: 'reminder_sent' as const,
+          intakeReminderSentAt: ts,
+          notes: c.notes
+            ? `${c.notes}\nDemo: στάλθηκε δεύτερο SMS υπενθύμισης.`
+            : 'Demo: στάλθηκε δεύτερο SMS υπενθύμισης.',
+          updatedAt: ts,
+        };
+      }
+    }
+    if (c.intakeStatus === 'reminder_sent' && c.intakeReminderSentAt) {
+      if (nowMs - new Date(c.intakeReminderSentAt).getTime() >= SMS_INTAKE_NO_RESPONSE_MINUTES * 60 * 1000) {
+        const ts = now.toISOString();
+        return {
+          ...c,
+          intakeStatus: 'no_response' as const,
+          intakeNoResponseAt: ts,
+          notes: c.notes
+            ? `${c.notes}\nΟ πελάτης δεν απάντησε στο SMS στοιχείων.`
+            : 'Ο πελάτης δεν απάντησε στο SMS στοιχείων.',
+          updatedAt: ts,
+        };
+      }
+    }
+    return c;
+  });
+}
+
 export function getBusinessProfile(): BusinessProfile | null {
   return loadState().businessProfile ?? null;
 }

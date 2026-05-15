@@ -64,6 +64,23 @@ export default function CustomerCard({ customer }: Props) {
           </span>
         )}
         {customer.phone && <span>{customer.phone}</span>}
+        {(customer.intakeStatus === 'waiting_sms' ||
+          customer.intakeStatus === 'reminder_sent' ||
+          customer.intakeStatus === 'no_response' ||
+          customer.intakeStatus === 'kept_draft') && (
+          <span className={
+            customer.intakeStatus === 'no_response'
+              ? 'text-red-500'
+              : customer.intakeStatus === 'reminder_sent'
+              ? 'text-amber-600'
+              : 'text-zinc-400'
+          }>
+            {customer.intakeStatus === 'waiting_sms' ? 'Αναμονή SMS'
+              : customer.intakeStatus === 'reminder_sent' ? 'Υπενθύμιση SMS'
+              : customer.intakeStatus === 'no_response' ? 'Δεν απάντησε στο SMS'
+              : 'Πρόχειρη'}
+          </span>
+        )}
       </div>
 
       {customer.lastContactAt && (

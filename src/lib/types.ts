@@ -76,6 +76,10 @@ export interface Customer {
   lastContactAt?: string;
   nextTaskId?: string;
   crmNumber?: string;
+  intakeStatus?: 'none' | 'waiting_sms' | 'reminder_sent' | 'no_response' | 'completed' | 'kept_draft';
+  intakeSmsSentAt?: string;
+  intakeReminderSentAt?: string;
+  intakeNoResponseAt?: string;
   isDemo?: boolean;
 }
 

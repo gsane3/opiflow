@@ -371,6 +371,22 @@ export default function CustomerProfile({ customerId }: Props) {
                   Πελάτης {customer.crmNumber}
                 </span>
               )}
+              {customer.intakeStatus && customer.intakeStatus !== 'none' && customer.intakeStatus !== 'completed' && (
+                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                  customer.intakeStatus === 'no_response'
+                    ? 'bg-red-100 text-red-600'
+                    : customer.intakeStatus === 'reminder_sent'
+                    ? 'bg-amber-100 text-amber-700'
+                    : customer.intakeStatus === 'kept_draft'
+                    ? 'bg-zinc-100 text-zinc-500'
+                    : 'bg-blue-50 text-blue-600'
+                }`}>
+                  {customer.intakeStatus === 'waiting_sms' ? 'Αναμονή SMS στοιχείων'
+                    : customer.intakeStatus === 'reminder_sent' ? 'Στάλθηκε υπενθύμιση SMS'
+                    : customer.intakeStatus === 'no_response' ? 'Δεν απάντησε στο SMS'
+                    : 'Πρόχειρη καρτέλα'}
+                </span>
+              )}
               {customer.isDemo && (
                 <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
                   Demo

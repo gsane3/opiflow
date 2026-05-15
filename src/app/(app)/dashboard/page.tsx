@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadState, updateTask, updateOffer, addTask } from '@/lib/storage';
+import { loadState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses } from '@/lib/storage';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
@@ -11,6 +11,7 @@ import TodayTasksSection from '@/components/dashboard/TodayTasksSection';
 import OpenOffersSection from '@/components/dashboard/OpenOffersSection';
 import RecentCallsSection from '@/components/dashboard/RecentCallsSection';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
+import SmsIntakeNotificationBar from '@/components/dashboard/SmsIntakeNotificationBar';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -53,8 +54,12 @@ export default function DashboardPage() {
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
     const state = loadState();
+    const rawCustomers = state.customers ?? [];
+    const advanced = advanceSmsIntakeStatuses(rawCustomers);
+    const anyChanged = advanced.some((c, i) => c.intakeStatus !== rawCustomers[i]?.intakeStatus);
+    if (anyChanged) saveCustomers(advanced);
     const nextData: DashboardData = {
-      customers: state.customers ?? [],
+      customers: anyChanged ? advanced : rawCustomers,
       tasks: state.tasks ?? [],
       offers: state.offers ?? [],
       calls: state.calls,
@@ -121,6 +126,62 @@ export default function DashboardPage() {
     setDashboardData((prev) => ({
       ...prev,
       offers: prev.offers.map((o) => (o.id === offerId ? updated : o)),
+    }));
+  }
+
+  function handleDeleteSmsIntakeCustomer(customerId: string) {
+    deleteCustomer(customerId);
+    setDashboardData((prev) => ({
+      ...prev,
+      customers: prev.customers.filter((c) => c.id !== customerId),
+    }));
+  }
+
+  function handleCreateSmsIntakeFollowUp(customerId: string) {
+    const now = new Date().toISOString();
+    const customer = dashboardData.customers.find((c) => c.id === customerId);
+    if (!customer) return;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const task: Task = {
+      id: crypto.randomUUID(),
+      customerId,
+      title: 'Follow-up για στοιχεία πελάτη',
+      type: 'other',
+      status: 'open',
+      priority: 'normal',
+      dueDate: tomorrow.toISOString().split('T')[0],
+      note: 'Ο πελάτης δεν απάντησε στο SMS στοιχείων.',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addTask(task);
+    const updated = { ...customer, intakeStatus: 'kept_draft' as const, updatedAt: now };
+    updateCustomer(updated);
+    setDashboardData((prev) => ({
+      ...prev,
+      tasks: [...prev.tasks, task],
+      customers: prev.customers.map((c) => (c.id === customerId ? updated : c)),
+    }));
+  }
+
+  function handleKeepSmsIntakeDraft(customerId: string) {
+    const now = new Date().toISOString();
+    const customer = dashboardData.customers.find((c) => c.id === customerId);
+    if (!customer) return;
+    const updated = {
+      ...customer,
+      intakeStatus: 'kept_draft' as const,
+      notes: customer.notes
+        ? `${customer.notes}\nΚρατήθηκε ως πρόχειρη καρτέλα.`
+        : 'Κρατήθηκε ως πρόχειρη καρτέλα.',
+      updatedAt: now,
+    };
+    updateCustomer(updated);
+    setDashboardData((prev) => ({
+      ...prev,
+      customers: prev.customers.map((c) => (c.id === customerId ? updated : c)),
     }));
   }
 
@@ -194,6 +255,13 @@ export default function DashboardPage() {
       </div>
 
       <QuickAssistantInput />
+
+      <SmsIntakeNotificationBar
+        customers={customers}
+        onDeleteCustomer={handleDeleteSmsIntakeCustomer}
+        onCreateFollowUp={handleCreateSmsIntakeFollowUp}
+        onKeepDraft={handleKeepSmsIntakeDraft}
+      />
 
       <NextActionsSection
         customers={customers}

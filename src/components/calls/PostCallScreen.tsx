@@ -180,6 +180,23 @@ export default function PostCallScreen({
   }
 
   function handleSmsSend() {
+    const now = new Date().toISOString();
+    const resolvedId = ensureCrmCustomer(briefSummary);
+    if (resolvedId) {
+      const state = loadState();
+      const existing = (state.customers ?? []).find((c) => c.id === resolvedId);
+      if (existing && existing.intakeStatus !== 'completed') {
+        updateCustomer({
+          ...existing,
+          intakeStatus: 'waiting_sms',
+          intakeSmsSentAt: now,
+          notes: existing.notes
+            ? `${existing.notes}\nΑποστολή SMS για στοιχεία πελάτη.`
+            : 'Αποστολή SMS για στοιχεία πελάτη.',
+          updatedAt: now,
+        });
+      }
+    }
     setSmsDecision('yes');
     setDemoSmsStatus('waiting');
     smsTimerRef.current = window.setTimeout(() => {
@@ -274,6 +291,7 @@ export default function PostCallScreen({
           address: parsed.address || existing.address,
           email: parsed.email || existing.email,
           status: existing.status === 'new_lead' ? 'contacted' : existing.status,
+          intakeStatus: 'completed',
           notes: existing.notes ? `${existing.notes}\n${noteBase}` : noteBase,
           updatedAt: now,
         });
