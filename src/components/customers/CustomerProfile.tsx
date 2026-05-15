@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer } from '@/lib/storage';
+import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
@@ -59,6 +59,10 @@ export default function CustomerProfile({ customerId }: Props) {
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [offerFormNumber, setOfferFormNumber] = useState('#001');
   const [offerFormInitial, setOfferFormInitial] = useState<Offer | null>(null);
+  const [showBriefForm, setShowBriefForm] = useState(false);
+  const [briefText, setBriefText] = useState('');
+  const [briefNextStep, setBriefNextStep] = useState('');
+  const [briefCreateFollowUp, setBriefCreateFollowUp] = useState(false);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -71,6 +75,15 @@ export default function CustomerProfile({ customerId }: Props) {
   const openTasks = useMemo(
     () => customerTasks.filter((t) => t.status === 'open'),
     [customerTasks]
+  );
+
+  // Call records that have a manual brief summary.
+  const callBriefs = useMemo(
+    () =>
+      [...customerCalls]
+        .filter((c) => c.summary)
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [customerCalls]
   );
 
   // Load localStorage after mount to avoid hydration mismatch.
@@ -90,6 +103,61 @@ export default function CustomerProfile({ customerId }: Props) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [customerId]);
+
+  function openBriefForm() {
+    setBriefText('');
+    setBriefNextStep('');
+    setBriefCreateFollowUp(false);
+    setShowBriefForm(true);
+  }
+
+  function handleCancelBriefForm() {
+    setShowBriefForm(false);
+  }
+
+  function handleSaveBrief() {
+    if (!briefText.trim()) return;
+    const now = new Date().toISOString();
+    const record: CallRecord = {
+      id: crypto.randomUUID(),
+      customerId: customer?.id,
+      callType: 'outbound_existing_customer',
+      direction: 'outbound',
+      status: 'completed',
+      startedAt: now,
+      durationSeconds: 0,
+      isMock: true,
+      summary: briefText.trim(),
+      nextStep: briefNextStep.trim() || undefined,
+      createdAt: now,
+    };
+    addCallRecord(record);
+    setCustomerCalls((prev) => [...prev, record]);
+
+    if (briefCreateFollowUp) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const noteLines = [`Brief: ${briefText.trim()}`];
+      if (briefNextStep.trim()) noteLines.push(`Επόμενο βήμα: ${briefNextStep.trim()}`);
+      const task: Task = {
+        id: crypto.randomUUID(),
+        customerId: customer?.id,
+        title: 'Follow-up μετά από κλήση',
+        type: 'other',
+        status: 'open',
+        priority: 'normal',
+        dueDate: tomorrow.toISOString().split('T')[0],
+        note: noteLines.join('\n'),
+        createdFromAi: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      addTask(task);
+      setCustomerTasks((prev) => [...prev, task]);
+    }
+
+    setShowBriefForm(false);
+  }
 
   function openOfferForm() {
     const now = new Date().toISOString();
@@ -657,14 +725,108 @@ export default function CustomerProfile({ customerId }: Props) {
         </div>
       </section>
 
-      {/* Summaries placeholder */}
-      <section className="rounded-2xl border-2 border-dashed border-zinc-200 p-4">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Περιλήψεις συνομιλιών
-        </h2>
-        <p className="mt-1 text-xs text-zinc-400">
-          Εμφανίζονται μετά από κλήση ή υπαγόρευση.
-        </p>
+      {/* Call briefs */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Περιλήψεις συνομιλιών
+          </h2>
+          <button
+            type="button"
+            onClick={showBriefForm ? handleCancelBriefForm : openBriefForm}
+            className={`text-xs font-medium transition ${
+              showBriefForm
+                ? 'text-zinc-400 hover:text-zinc-600'
+                : 'text-indigo-600 hover:text-indigo-700'
+            }`}
+          >
+            {showBriefForm ? 'Ακύρωση' : '+ Νέο brief'}
+          </button>
+        </div>
+
+        {showBriefForm && (
+          <div className="mb-4 rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-100 space-y-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-zinc-700">
+                Τι συζητήθηκε; *
+              </label>
+              <textarea
+                rows={3}
+                value={briefText}
+                onChange={(e) => setBriefText(e.target.value)}
+                placeholder="Περίληψη κλήσης ή συνομιλίας..."
+                className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-none"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-zinc-700">
+                Επόμενο βήμα{' '}
+                <span className="text-xs font-normal text-zinc-400">(προαιρετικό)</span>
+              </label>
+              <input
+                type="text"
+                value={briefNextStep}
+                onChange={(e) => setBriefNextStep(e.target.value)}
+                placeholder="π.χ. Αποστολή προσφοράς εντός 2 ημερών"
+                className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              />
+            </div>
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={briefCreateFollowUp}
+                onChange={(e) => setBriefCreateFollowUp(e.target.checked)}
+                className="h-4 w-4 rounded border-zinc-300 text-indigo-600"
+              />
+              <span className="text-sm text-zinc-700">Δημιουργία task follow-up (αύριο)</span>
+            </label>
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={handleCancelBriefForm}
+                className="flex-1 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+              >
+                Ακύρωση
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveBrief}
+                disabled={!briefText.trim()}
+                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Αποθήκευση
+              </button>
+            </div>
+          </div>
+        )}
+
+        {callBriefs.length === 0 && !showBriefForm ? (
+          <p className="text-sm text-zinc-400 italic">
+            Εμφανίζονται μετά από κλήση ή υπαγόρευση.
+          </p>
+        ) : (
+          <ul className="space-y-3">
+            {callBriefs.map((rec) => (
+              <li key={rec.id} className="rounded-xl bg-zinc-50 p-3 ring-1 ring-zinc-100 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-zinc-500">
+                    {new Date(rec.createdAt).toLocaleDateString('el-GR', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                    })}
+                  </span>
+                </div>
+                <p className="text-sm text-zinc-800 whitespace-pre-wrap">{rec.summary}</p>
+                {rec.nextStep && (
+                  <p className="text-xs text-indigo-700">
+                    <span className="font-medium">Επόμενο βήμα:</span> {rec.nextStep}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
 
       {/* Activity timeline */}

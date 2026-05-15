@@ -187,5 +187,7 @@ export interface CallRecord {
   durationSeconds: number;
   isMock: true;
   demoScenarioId?: string;
+  summary?: string;
+  nextStep?: string;
   createdAt: string;
 }
