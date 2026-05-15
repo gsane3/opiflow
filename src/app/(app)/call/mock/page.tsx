@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { loadState } from '@/lib/storage';
 import { addCallRecord } from '@/lib/storage';
+import { getSmsPhone, isLikelyMobile } from '@/lib/phone';
 import { demoCallScenarios } from '@/lib/demo-data';
 import type { CallType, Customer, CallRecord, BusinessProfile } from '@/lib/types';
 import CallTypeSelector, { CALL_TYPE_LABELS } from '@/components/calls/CallTypeSelector';
@@ -136,7 +137,12 @@ export default function MockCallPage() {
         scenario={selectedScenario}
         customerId={selectedCustomer?.id || undefined}
         customerName={selectedCustomer?.name || undefined}
-        customerPhone={selectedCustomer?.phone || undefined}
+        customerPhone={selectedCustomer ? (getSmsPhone(selectedCustomer) ?? undefined) : undefined}
+        customerLandlinePhone={
+          selectedCustomer && !getSmsPhone(selectedCustomer)
+            ? (selectedCustomer.landlinePhone || (!isLikelyMobile(selectedCustomer.phone || '') ? selectedCustomer.phone : undefined))
+            : undefined
+        }
         businessName={businessProfile?.businessName || undefined}
         ownerName={businessProfile?.ownerName || undefined}
         businessPhone={businessProfile?.phone || undefined}

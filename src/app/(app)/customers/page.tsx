@@ -61,7 +61,9 @@ export default function CustomersPage() {
           norm(c.email).includes(q) ||
           norm(c.notes).includes(q) ||
           norm(c.needsSummary).includes(q) ||
-          norm(c.crmNumber ?? '').includes(q);
+          norm(c.crmNumber ?? '').includes(q) ||
+          norm(c.mobilePhone ?? '').includes(q) ||
+          norm(c.landlinePhone ?? '').includes(q);
         if (!hit) return false;
       }
       if (statusFilter && c.status !== statusFilter) return false;

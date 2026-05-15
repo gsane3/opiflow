@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Customer } from '@/lib/types';
+import { isLikelyMobile } from '@/lib/phone';
 import CustomerStatusBadge from './CustomerStatusBadge';
 
 export const SOURCE_LABELS: Record<string, string> = {
@@ -63,7 +64,12 @@ export default function CustomerCard({ customer }: Props) {
             €{customer.opportunityValue.toLocaleString('el-GR')}
           </span>
         )}
-        {customer.phone && <span>{customer.phone}</span>}
+        {(customer.mobilePhone || (customer.phone && isLikelyMobile(customer.phone))) && (
+          <span>Κιν. {customer.mobilePhone || customer.phone}</span>
+        )}
+        {(customer.landlinePhone || (customer.phone && !isLikelyMobile(customer.phone) && !customer.mobilePhone)) && (
+          <span>Σταθ. {customer.landlinePhone || customer.phone}</span>
+        )}
         {(customer.intakeStatus === 'waiting_sms' ||
           customer.intakeStatus === 'reminder_sent' ||
           customer.intakeStatus === 'no_response' ||

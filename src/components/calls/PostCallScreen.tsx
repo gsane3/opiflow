@@ -6,6 +6,7 @@ import type { DemoCallScenario } from '@/lib/demo-data';
 import type { Customer, CallRecord, Task } from '@/lib/types';
 import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask, getNextCrmNumber } from '@/lib/storage';
 import { parseSmsReply } from '@/lib/sms-intake';
+import { isLikelyMobile } from '@/lib/phone';
 
 interface BusinessInfo {
   businessName?: string;
@@ -67,6 +68,7 @@ interface Props {
   durationSeconds: number;
   scenario: DemoCallScenario | null;
   customerPhone?: string;
+  customerLandlinePhone?: string;
   customerId?: string;
   customerName?: string;
   businessName?: string;
@@ -81,6 +83,7 @@ export default function PostCallScreen({
   durationSeconds,
   scenario,
   customerPhone,
+  customerLandlinePhone,
   customerId,
   customerName,
   businessName,
@@ -111,8 +114,14 @@ export default function PostCallScreen({
   // Active CRM customer — starts from prop customerId; may be set when a temp card is created.
   const [activeCrmId, setActiveCrmId] = useState<string | null>(customerId || null);
 
-  // Local phone — editable; pre-filled from prop or random demo mobile.
-  const [tempPhone, setTempPhone] = useState(() => customerPhone || makeDemoMobile());
+  // Local phone — editable mobile for SMS; pre-filled from mobile prop.
+  // If existing customer has no mobile (landline only), start empty so user types one.
+  // If no customer at all, pre-fill with demo mobile.
+  const [tempPhone, setTempPhone] = useState(() => {
+    if (customerPhone) return customerPhone;
+    if (customerId) return ''; // existing customer but no mobile — must type
+    return makeDemoMobile();
+  });
 
   // SMS flow state.
   const [smsDecision, setSmsDecision] = useState<'undecided' | 'yes' | 'no'>('undecided');
@@ -164,6 +173,7 @@ export default function PostCallScreen({
       name: `Πελάτης ${crmNumber}`,
       companyName: '',
       phone,
+      mobilePhone: isLikelyMobile(phone) ? phone : undefined,
       email: '',
       address: '',
       source: 'inbound_call',
@@ -459,15 +469,22 @@ export default function PostCallScreen({
               Να σταλεί SMS στον πελάτη για να αποστείλει τα στοιχεία του στην καρτέλα;
             </p>
             {!customerId && (
-              <div>
-                <label className={labelCls}>Τηλέφωνο πελάτη</label>
-                <input
-                  type="tel"
-                  value={tempPhone}
-                  onChange={(e) => setTempPhone(e.target.value)}
-                  placeholder="69xxxxxxxx"
-                  className={inputCls}
-                />
+              <div className="space-y-2">
+                {customerLandlinePhone && !tempPhone && (
+                  <p className="text-xs text-amber-700">
+                    Υπάρχει μόνο σταθερό ({customerLandlinePhone}). Ζήτησε κινητό για SMS ή καταχώρησε στοιχεία χειροκίνητα.
+                  </p>
+                )}
+                <div>
+                  <label className={labelCls}>Κινητό για SMS</label>
+                  <input
+                    type="tel"
+                    value={tempPhone}
+                    onChange={(e) => setTempPhone(e.target.value)}
+                    placeholder="69xxxxxxxx"
+                    className={inputCls}
+                  />
+                </div>
               </div>
             )}
             <div className="flex gap-3">

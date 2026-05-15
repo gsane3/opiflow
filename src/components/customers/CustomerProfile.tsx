@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
+import { isLikelyMobile } from '@/lib/phone';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
@@ -488,12 +489,26 @@ export default function CustomerProfile({ customerId }: Props) {
         <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Στοιχεία επικοινωνίας
         </h2>
-        {customer.phone ? (
+        {(customer.mobilePhone || (customer.phone && isLikelyMobile(customer.phone))) ? (
           <div className="flex items-center gap-3">
             <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 6Z" />
             </svg>
-            <span className="min-w-0 flex-1 break-all text-sm text-zinc-800">{customer.phone}</span>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="text-xs text-zinc-400">Κιν.</span>
+              <span className="min-w-0 flex-1 break-all text-sm text-zinc-800">{customer.mobilePhone || customer.phone}</span>
+            </div>
+          </div>
+        ) : null}
+        {(customer.landlinePhone || (customer.phone && !isLikelyMobile(customer.phone) && !customer.mobilePhone)) ? (
+          <div className="flex items-center gap-3">
+            <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 6Z" />
+            </svg>
+            <div className="flex min-w-0 flex-1 items-center gap-1.5">
+              <span className="text-xs text-zinc-400">Σταθ.</span>
+              <span className="min-w-0 flex-1 break-all text-sm text-zinc-800">{customer.landlinePhone || customer.phone}</span>
+            </div>
           </div>
         ) : null}
         {customer.email ? (
@@ -525,7 +540,7 @@ export default function CustomerProfile({ customerId }: Props) {
             </div>
           </div>
         ) : null}
-        {!customer.phone && !customer.email && !customer.address && (
+        {!customer.phone && !customer.mobilePhone && !customer.landlinePhone && !customer.email && !customer.address && (
           <p className="text-sm text-zinc-400">Δεν έχουν καταχωρηθεί στοιχεία επικοινωνίας.</p>
         )}
       </section>

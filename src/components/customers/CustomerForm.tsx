@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { Customer, CustomerStatus, CustomerSource, PreferredContactMethod } from '@/lib/types';
+import { isLikelyMobile } from '@/lib/phone';
 import { STATUS_LABELS } from './CustomerStatusBadge';
 import { SOURCE_LABELS } from './CustomerCard';
 
@@ -20,7 +21,16 @@ interface Props {
 export default function CustomerForm({ initial, onSave, onCancel }: Props) {
   const [name, setName] = useState(initial?.name ?? '');
   const [companyName, setCompanyName] = useState(initial?.companyName ?? '');
-  const [phone, setPhone] = useState(initial?.phone ?? '');
+  const [mobilePhoneVal, setMobilePhoneVal] = useState(() => {
+    if (initial?.mobilePhone) return initial.mobilePhone;
+    if (initial?.phone && isLikelyMobile(initial.phone)) return initial.phone;
+    return '';
+  });
+  const [landlinePhoneVal, setLandlinePhoneVal] = useState(() => {
+    if (initial?.landlinePhone) return initial.landlinePhone;
+    if (initial?.phone && !isLikelyMobile(initial.phone)) return initial.phone;
+    return '';
+  });
   const [email, setEmail] = useState(initial?.email ?? '');
   const [address, setAddress] = useState(initial?.address ?? '');
   const [source, setSource] = useState<CustomerSource>(initial?.source ?? 'manual_entry');
@@ -40,11 +50,17 @@ export default function CustomerForm({ initial, onSave, onCancel }: Props) {
       return;
     }
     const now = new Date().toISOString();
+    const resolvedMobile = mobilePhoneVal.trim();
+    const resolvedLandline = landlinePhoneVal.trim();
+    const resolvedPhone = resolvedMobile || resolvedLandline || initial?.phone || '';
     const customer: Customer = {
+      ...(initial ?? {}),
       id: initial?.id ?? crypto.randomUUID(),
       name: name.trim(),
       companyName: companyName.trim(),
-      phone: phone.trim(),
+      phone: resolvedPhone,
+      mobilePhone: resolvedMobile || undefined,
+      landlinePhone: resolvedLandline || undefined,
       email: email.trim(),
       address: address.trim(),
       source,
@@ -55,9 +71,6 @@ export default function CustomerForm({ initial, onSave, onCancel }: Props) {
       notes: notes.trim(),
       createdAt: initial?.createdAt ?? now,
       updatedAt: now,
-      lastContactAt: initial?.lastContactAt,
-      nextTaskId: initial?.nextTaskId,
-      isDemo: initial?.isDemo,
     };
     onSave(customer);
   }
@@ -102,14 +115,32 @@ export default function CustomerForm({ initial, onSave, onCancel }: Props) {
           />
         </div>
 
-        {/* Phone */}
+        {/* Mobile */}
         <div>
-          <label className={labelCls}>Τηλέφωνο</label>
+          <label className={labelCls}>
+            Κινητό{' '}
+            <span className="text-xs font-normal text-zinc-400">(για SMS)</span>
+          </label>
           <input
             type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            value={mobilePhoneVal}
+            onChange={(e) => setMobilePhoneVal(e.target.value)}
             placeholder="π.χ. 694 000 0000"
+            className={inputCls}
+          />
+        </div>
+
+        {/* Landline */}
+        <div>
+          <label className={labelCls}>
+            Σταθερό{' '}
+            <span className="text-xs font-normal text-zinc-400">(προαιρετικό)</span>
+          </label>
+          <input
+            type="tel"
+            value={landlinePhoneVal}
+            onChange={(e) => setLandlinePhoneVal(e.target.value)}
+            placeholder="π.χ. 210 000 0000"
             className={inputCls}
           />
         </div>

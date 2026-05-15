@@ -76,6 +76,8 @@ export interface Customer {
   lastContactAt?: string;
   nextTaskId?: string;
   crmNumber?: string;
+  mobilePhone?: string;
+  landlinePhone?: string;
   intakeStatus?: 'none' | 'waiting_sms' | 'reminder_sent' | 'no_response' | 'completed' | 'kept_draft';
   intakeSmsSentAt?: string;
   intakeReminderSentAt?: string;
