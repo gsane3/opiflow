@@ -8,6 +8,7 @@ import {
   deleteCustomerFile,
   type CustomerFileRecord,
 } from '@/lib/customer-files';
+import CustomerMediaGallery from './CustomerMediaGallery';
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024; // 25 MB
 
@@ -45,6 +46,7 @@ export default function CustomerFilesSection({ customerId }: Props) {
   const [rows, setRows] = useState<FileRow[]>([]);
   const [fileError, setFileError] = useState('');
   const [isAdding, setIsAdding] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   // Track all active object URLs so they can be revoked on cleanup.
   const urlsRef = useRef<string[]>([]);
@@ -113,11 +115,26 @@ export default function CustomerFilesSection({ customerId }: Props) {
   }
 
   async function handleDelete(id: string, objectUrl: string) {
+    const idx = rows.findIndex((r) => r.record.id === id);
     try {
       await deleteCustomerFile(id);
       URL.revokeObjectURL(objectUrl);
       urlsRef.current = urlsRef.current.filter((u) => u !== objectUrl);
-      setRows((prev) => prev.filter((r) => r.record.id !== id));
+      const nextRows = rows.filter((r) => r.record.id !== id);
+      setRows(nextRows);
+      // Adjust gallery selection safely when deleting while gallery is open.
+      if (selectedIndex !== null) {
+        if (nextRows.length === 0) {
+          setSelectedIndex(null);
+        } else if (idx === selectedIndex) {
+          // Deleted the current item — clamp to last available
+          setSelectedIndex(Math.min(selectedIndex, nextRows.length - 1));
+        } else if (idx < selectedIndex) {
+          // Deleted an item before current — shift index back by one
+          setSelectedIndex(selectedIndex - 1);
+        }
+        // idx > selectedIndex: no change needed
+      }
     } catch {
       // Ignore delete errors silently
     }
@@ -133,13 +150,24 @@ export default function CustomerFilesSection({ customerId }: Props) {
 
   return (
     <div className="mt-3">
+      {/* Gallery modal */}
+      {selectedIndex !== null && rows.length > 0 && (
+        <CustomerMediaGallery
+          files={rows}
+          currentIndex={selectedIndex}
+          onClose={() => setSelectedIndex(null)}
+          onChangeIndex={setSelectedIndex}
+        />
+      )}
+
       {/* File rows */}
       {rows.length > 0 && (
         <ul className="mb-3 space-y-2">
-          {rows.map(({ record, objectUrl }) => (
+          {rows.map(({ record, objectUrl }, idx) => (
             <li
               key={record.id}
-              className="flex items-center gap-3 rounded-xl bg-zinc-50 p-2 ring-1 ring-zinc-100"
+              className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-50 p-2 ring-1 ring-zinc-100 transition hover:bg-zinc-100"
+              onClick={() => setSelectedIndex(idx)}
             >
               {/* Thumbnail / icon */}
               {record.kind === 'image' ? (
@@ -193,17 +221,16 @@ export default function CustomerFilesSection({ customerId }: Props) {
 
               {/* Actions */}
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <a
-                  href={objectUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setSelectedIndex(idx); }}
                   className="text-xs text-indigo-600 hover:text-indigo-700"
                 >
                   Άνοιγμα
-                </a>
+                </button>
                 <button
                   type="button"
-                  onClick={() => { void handleDelete(record.id, objectUrl); }}
+                  onClick={(e) => { e.stopPropagation(); void handleDelete(record.id, objectUrl); }}
                   className="text-xs text-zinc-400 transition hover:text-red-500"
                 >
                   Διαγραφή
