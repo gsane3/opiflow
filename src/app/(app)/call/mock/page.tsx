@@ -131,6 +131,7 @@ export default function MockCallPage() {
       <PostCallScreen
         durationSeconds={endedRecord?.durationSeconds ?? duration}
         scenario={selectedScenario}
+        customerPhone={selectedCustomer?.phone || undefined}
         onNewCall={handleNewCall}
       />
     );
