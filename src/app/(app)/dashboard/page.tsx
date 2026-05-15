@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadState } from '@/lib/storage';
+import { loadState, updateTask } from '@/lib/storage';
 import { getEffectiveStatus } from '@/lib/types';
-import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
+import type { Customer, Task, Offer, CallRecord, TaskBaseStatus } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
 import MissedCallsSection from '@/components/dashboard/MissedCallsSection';
 import LeadsSection from '@/components/dashboard/LeadsSection';
@@ -73,6 +73,23 @@ export default function DashboardPage() {
 
   const { customers, tasks, offers, calls } = dashboardData;
 
+  function handleCompleteTask(taskId: string) {
+    const now = new Date().toISOString();
+    const task = dashboardData.tasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const completed: Task = {
+      ...task,
+      status: 'completed' as TaskBaseStatus,
+      completedAt: now,
+      updatedAt: now,
+    };
+    updateTask(completed);
+    setDashboardData((prev) => ({
+      ...prev,
+      tasks: prev.tasks.map((t) => (t.id === taskId ? completed : t)),
+    }));
+  }
+
   const leads = customers
     .filter((c) => LEAD_STATUSES.has(c.status))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -106,7 +123,12 @@ export default function DashboardPage() {
 
       <QuickAssistantInput />
 
-      <NextActionsSection customers={customers} tasks={tasks} offers={offers} />
+      <NextActionsSection
+        customers={customers}
+        tasks={tasks}
+        offers={offers}
+        onCompleteTask={handleCompleteTask}
+      />
 
       <MissedCallsSection callRecords={calls} customerMap={customerMap} />
       <LeadsSection leads={leads} />

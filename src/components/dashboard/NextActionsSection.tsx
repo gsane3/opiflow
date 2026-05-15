@@ -44,6 +44,7 @@ interface ActionItem {
   detail: string;
   customerName?: string;
   href: string;
+  taskId?: string; // set only for task items to enable inline completion
 }
 
 function buildActions(
@@ -76,6 +77,7 @@ function buildActions(
       detail: `Εκπρόθεσμο · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
       href: '/tasks',
+      taskId: task.id,
     });
   }
 
@@ -92,6 +94,7 @@ function buildActions(
       detail: `Σήμερα · ${TASK_TYPE_LABELS[task.type] ?? task.type}`,
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
       href: '/tasks',
+      taskId: task.id,
     });
   }
 
@@ -168,6 +171,7 @@ interface Props {
   customers: Customer[];
   tasks: Task[];
   offers: Offer[];
+  onCompleteTask?: (taskId: string) => void;
 }
 
 const FILTER_DEFS: { id: FilterId; label: string }[] = [
@@ -178,7 +182,7 @@ const FILTER_DEFS: { id: FilterId; label: string }[] = [
   { id: 'followups', label: 'Follow-up' },
 ];
 
-export default function NextActionsSection({ customers, tasks, offers }: Props) {
+export default function NextActionsSection({ customers, tasks, offers, onCompleteTask }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [showAll, setShowAll] = useState(false);
 
@@ -281,12 +285,23 @@ export default function NextActionsSection({ customers, tasks, offers }: Props) 
                       <p className="text-xs text-zinc-500">{item.detail}</p>
                     )}
                   </div>
-                  <Link
-                    href={item.href}
-                    className={`shrink-0 text-xs font-medium transition ${TONE_LINK[item.tone]}`}
-                  >
-                    Άνοιγμα
-                  </Link>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    {item.taskId && onCompleteTask && (
+                      <button
+                        type="button"
+                        onClick={() => onCompleteTask(item.taskId!)}
+                        className="rounded-lg bg-green-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-green-700"
+                      >
+                        Ολοκλήρωση
+                      </button>
+                    )}
+                    <Link
+                      href={item.href}
+                      className={`text-xs font-medium transition ${TONE_LINK[item.tone]}`}
+                    >
+                      Άνοιγμα
+                    </Link>
+                  </div>
                 </div>
               </li>
             ))}
