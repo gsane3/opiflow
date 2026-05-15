@@ -8,6 +8,7 @@ import { norm } from '@/lib/search';
 import OfferCard from '@/components/offers/OfferCard';
 import OfferForm from '@/components/offers/OfferForm';
 import { OFFER_STATUS_LABELS } from '@/components/offers/OfferStatusBadge';
+import OfferAnalyticsPanel from '@/components/offers/OfferAnalyticsPanel';
 
 type SortBy = 'newest' | 'amount_desc' | 'amount_asc';
 
@@ -192,6 +193,9 @@ export default function OffersPage() {
           {showForm && !editingOffer ? 'Ακύρωση' : '+ Νέα προσφορά'}
         </button>
       </div>
+
+      {/* Analytics */}
+      <OfferAnalyticsPanel offers={offers} />
 
       {/* Form */}
       {showForm && (
