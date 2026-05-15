@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loadState, updateCustomer, deleteCustomer, updateTask } from '@/lib/storage';
+import { loadState, updateCustomer, deleteCustomer, updateTask, addTask } from '@/lib/storage';
 import { buildMapsUrl } from '@/lib/maps';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
@@ -16,6 +16,7 @@ import { TASK_TYPE_LABELS } from '@/components/tasks/TaskStatusBadge';
 import CustomerFilesSection from './CustomerFilesSection';
 import CustomerTimeline from './CustomerTimeline';
 import CustomerNextActionPanel from './CustomerNextActionPanel';
+import TaskForm from '@/components/tasks/TaskForm';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -52,6 +53,8 @@ export default function CustomerProfile({ customerId }: Props) {
   const [customerCalls, setCustomerCalls] = useState<CallRecord[]>([]);
   const [isEditing, setIsEditing] = useState(false);
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
+  const [showTaskForm, setShowTaskForm] = useState(false);
+  const [newTaskInitial, setNewTaskInitial] = useState<Task | null>(null);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -83,6 +86,36 @@ export default function CustomerProfile({ customerId }: Props) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [customerId]);
+
+  function openNewTaskForm() {
+    const now = new Date().toISOString();
+    setNewTaskInitial({
+      id: crypto.randomUUID(),
+      customerId: customer?.id,
+      title: '',
+      type: 'other',
+      status: 'open',
+      priority: 'normal',
+      dueDate: now.split('T')[0],
+      note: '',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setShowTaskForm(true);
+  }
+
+  function handleSaveNewTask(task: Task) {
+    addTask(task);
+    setCustomerTasks((prev) => [...prev, task]);
+    setShowTaskForm(false);
+    setNewTaskInitial(null);
+  }
+
+  function handleCancelNewTask() {
+    setShowTaskForm(false);
+    setNewTaskInitial(null);
+  }
 
   function handleCompleteTask(taskId: string) {
     const now = new Date().toISOString();
@@ -356,14 +389,37 @@ export default function CustomerProfile({ customerId }: Props) {
 
       {/* Open tasks */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <div className="mb-3 flex items-center justify-between">
+        <div className="mb-3 flex items-center justify-between gap-2">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Ανοιχτά tasks
           </h2>
-          <Link href="/tasks" className="text-xs text-indigo-600 hover:text-indigo-700">
-            Διαχείριση →
-          </Link>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={showTaskForm ? handleCancelNewTask : openNewTaskForm}
+              className={`text-xs font-medium transition ${
+                showTaskForm
+                  ? 'text-zinc-400 hover:text-zinc-600'
+                  : 'text-indigo-600 hover:text-indigo-700'
+              }`}
+            >
+              {showTaskForm ? 'Ακύρωση' : '+ Νέο task'}
+            </button>
+            <Link href="/tasks" className="text-xs text-indigo-600 hover:text-indigo-700">
+              Διαχείριση →
+            </Link>
+          </div>
         </div>
+        {showTaskForm && newTaskInitial && (
+          <div className="mb-4">
+            <TaskForm
+              initial={newTaskInitial}
+              customers={customer ? [customer] : []}
+              onSave={handleSaveNewTask}
+              onCancel={handleCancelNewTask}
+            />
+          </div>
+        )}
         {lastCompletedTask && (
           <div className="mb-3 flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2 ring-1 ring-green-200">
             <p className="min-w-0 truncate text-xs text-green-700">
