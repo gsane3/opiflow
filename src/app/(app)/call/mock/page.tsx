@@ -134,6 +134,8 @@ export default function MockCallPage() {
       <PostCallScreen
         durationSeconds={endedRecord?.durationSeconds ?? duration}
         scenario={selectedScenario}
+        customerId={selectedCustomer?.id || undefined}
+        customerName={selectedCustomer?.name || undefined}
         customerPhone={selectedCustomer?.phone || undefined}
         businessName={businessProfile?.businessName || undefined}
         ownerName={businessProfile?.ownerName || undefined}

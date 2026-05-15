@@ -3,6 +3,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import type { DemoCallScenario } from '@/lib/demo-data';
+import type { Customer } from '@/lib/types';
+import { updateCustomer, addCustomer, loadState } from '@/lib/storage';
+import { parseSmsReply, formatParsedData, type ParsedSmsData } from '@/lib/sms-intake';
 
 interface BusinessInfo {
   businessName?: string;
@@ -19,7 +22,8 @@ function buildSmsMessage(bp?: BusinessInfo): string {
   if (bp?.businessName) sigLines.push(bp.businessName);
   if (bp?.businessPhone) sigLines.push(bp.businessPhone);
   if (bp?.businessEmail) sigLines.push(bp.businessEmail);
-  const signature = sigLines.length > 0 ? `Ευχαριστώ,\n${sigLines.join('\n')}` : 'Ευχαριστώ';
+  const signature =
+    sigLines.length > 0 ? `Ευχαριστώ,\n${sigLines.join('\n')}` : 'Ευχαριστώ';
   return `${body}\n\n${signature}`;
 }
 
@@ -33,10 +37,16 @@ function buildSmsHref(phone: string, message: string): string {
   return `sms:${phone}?body=${encodeURIComponent(message)}`;
 }
 
+const inputCls =
+  'w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+const labelCls = 'mb-1 block text-xs font-medium text-zinc-600';
+
 interface Props {
   durationSeconds: number;
   scenario: DemoCallScenario | null;
   customerPhone?: string;
+  customerId?: string;
+  customerName?: string;
   businessName?: string;
   ownerName?: string;
   businessPhone?: string;
@@ -48,6 +58,8 @@ export default function PostCallScreen({
   durationSeconds,
   scenario,
   customerPhone,
+  customerId,
+  customerName,
   businessName,
   ownerName,
   businessPhone,
@@ -56,6 +68,16 @@ export default function PostCallScreen({
 }: Props) {
   const [copied, setCopied] = useState(false);
   const smsMessage = buildSmsMessage({ businessName, ownerName, businessPhone, businessEmail });
+
+  // SMS intake state
+  const [smsRaw, setSmsRaw] = useState('');
+  const [parsed, setParsed] = useState<ParsedSmsData | null>(null);
+  const [editFirst, setEditFirst] = useState('');
+  const [editLast, setEditLast] = useState('');
+  const [editAddress, setEditAddress] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [saveResult, setSaveResult] = useState<'saved' | 'created' | null>(null);
+  const [dataCopied, setDataCopied] = useState(false);
 
   function handleCopy() {
     if (navigator.clipboard) {
@@ -77,6 +99,70 @@ export default function PostCallScreen({
     document.body.removeChild(el);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  }
+
+  function handleAnalyze() {
+    const result = parseSmsReply(smsRaw);
+    setParsed(result);
+    setEditFirst(result.firstName);
+    setEditLast(result.lastName);
+    setEditAddress(result.address);
+    setEditEmail(result.email);
+    setSaveResult(null);
+  }
+
+  function handleSave() {
+    const now = new Date().toISOString();
+    const combinedName = [editFirst, editLast].filter(Boolean).join(' ');
+
+    if (customerId) {
+      // Update existing customer
+      const state = loadState();
+      const existing = (state.customers ?? []).find((c) => c.id === customerId);
+      if (!existing) return;
+      updateCustomer({
+        ...existing,
+        name: combinedName || existing.name,
+        address: editAddress || existing.address,
+        email: editEmail || existing.email,
+        updatedAt: now,
+      });
+      setSaveResult('saved');
+    } else if (customerPhone) {
+      // Create new customer from SMS reply
+      const newCustomer: Customer = {
+        id: crypto.randomUUID(),
+        name: combinedName || customerPhone,
+        companyName: '',
+        phone: customerPhone,
+        email: editEmail,
+        address: editAddress,
+        source: 'inbound_call',
+        status: 'new_lead',
+        preferredContactMethod: 'phone',
+        needsSummary: '',
+        notes: 'Δημιουργήθηκε από απάντηση SMS.',
+        createdAt: now,
+        updatedAt: now,
+      };
+      addCustomer(newCustomer);
+      setSaveResult('created');
+    }
+  }
+
+  function handleCopyParsed() {
+    const text = formatParsedData({
+      firstName: editFirst,
+      lastName: editLast,
+      address: editAddress,
+      email: editEmail,
+    });
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(
+        () => { setDataCopied(true); setTimeout(() => setDataCopied(false), 2000); },
+        () => {}
+      );
+    }
   }
 
   return (
@@ -115,7 +201,6 @@ export default function PostCallScreen({
           Άνοιξε έτοιμο SMS στο κινητό σου. Το μήνυμα δεν στέλνεται αυτόματα.
         </p>
 
-        {/* Message preview */}
         <pre className="mb-4 rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-600 leading-relaxed whitespace-pre-wrap ring-1 ring-zinc-100">
           {smsMessage}
         </pre>
@@ -136,7 +221,6 @@ export default function PostCallScreen({
               Δεν υπάρχει τηλέφωνο πελάτη.
             </div>
           )}
-
           <button
             type="button"
             onClick={handleCopy}
@@ -149,6 +233,129 @@ export default function PostCallScreen({
             {copied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
           </button>
         </div>
+      </div>
+
+      {/* SMS intake section */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
+        <h2 className="mb-1 text-sm font-semibold text-zinc-800">Καταχώρηση απάντησης SMS</h2>
+        <p className="mb-3 text-xs text-zinc-400">
+          Επικόλλησε την απάντηση του πελάτη. Τα στοιχεία δεν αποθηκεύονται αυτόματα — πρέπει να πατήσεις αποθήκευση.
+        </p>
+
+        <div className="space-y-3">
+          <textarea
+            value={smsRaw}
+            onChange={(e) => { setSmsRaw(e.target.value); setParsed(null); setSaveResult(null); }}
+            rows={5}
+            placeholder={
+              'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'
+            }
+            className={`${inputCls} resize-none font-mono text-xs leading-relaxed`}
+          />
+
+          <button
+            type="button"
+            onClick={handleAnalyze}
+            disabled={!smsRaw.trim()}
+            className="w-full rounded-xl bg-zinc-800 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Ανάλυση απάντησης
+          </button>
+        </div>
+
+        {/* Parsed / editable fields */}
+        {parsed !== null && (
+          <div className="mt-4 space-y-3 border-t border-zinc-100 pt-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>Όνομα</label>
+                <input
+                  type="text"
+                  value={editFirst}
+                  onChange={(e) => setEditFirst(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+              <div>
+                <label className={labelCls}>Επώνυμο</label>
+                <input
+                  type="text"
+                  value={editLast}
+                  onChange={(e) => setEditLast(e.target.value)}
+                  className={inputCls}
+                />
+              </div>
+            </div>
+            <div>
+              <label className={labelCls}>Διεύθυνση</label>
+              <input
+                type="text"
+                value={editAddress}
+                onChange={(e) => setEditAddress(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Email</label>
+              <input
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+
+            {/* Save / copy actions */}
+            {saveResult === 'saved' && (
+              <p className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700 ring-1 ring-green-200">
+                Ο πελάτης ενημερώθηκε.
+              </p>
+            )}
+            {saveResult === 'created' && (
+              <p className="rounded-xl bg-green-50 px-3 py-2 text-sm text-green-700 ring-1 ring-green-200">
+                Νέος πελάτης δημιουργήθηκε.
+              </p>
+            )}
+
+            {saveResult === null && (
+              <>
+                {customerId ? (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                  >
+                    Ενημέρωση πελάτη{customerName ? ` — ${customerName}` : ''}
+                  </button>
+                ) : customerPhone ? (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                  >
+                    Δημιουργία πελάτη
+                  </button>
+                ) : (
+                  <p className="text-xs text-zinc-400">
+                    Δεν υπάρχει τηλέφωνο πελάτη. Δεν μπορεί να δημιουργηθεί εγγραφή. Αντέγραψε τα στοιχεία.
+                  </p>
+                )}
+              </>
+            )}
+
+            <button
+              type="button"
+              onClick={handleCopyParsed}
+              className={`w-full rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                dataCopied
+                  ? 'border-green-200 bg-green-50 text-green-700'
+                  : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              {dataCopied ? 'Αντιγράφηκε' : 'Αντιγραφή στοιχείων'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* AI review */}
