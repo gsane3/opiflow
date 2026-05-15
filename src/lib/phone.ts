@@ -12,3 +12,30 @@ export function getSmsPhone(customer: {
   if (customer.phone?.trim() && isLikelyMobile(customer.phone)) return customer.phone.trim();
   return null;
 }
+
+export function getMobilePhone(customer: {
+  phone?: string;
+  mobilePhone?: string;
+}): string | null {
+  return getSmsPhone(customer);
+}
+
+export function getLandlinePhone(customer: {
+  phone?: string;
+  landlinePhone?: string;
+}): string | null {
+  if (customer.landlinePhone?.trim()) return customer.landlinePhone.trim();
+  if (customer.phone?.trim() && !isLikelyMobile(customer.phone)) return customer.phone.trim();
+  return null;
+}
+
+export function getCallPhone(customer: {
+  phone?: string;
+  mobilePhone?: string;
+  landlinePhone?: string;
+}): string | null {
+  if (customer.mobilePhone?.trim()) return customer.mobilePhone.trim();
+  if (customer.landlinePhone?.trim()) return customer.landlinePhone.trim();
+  if (customer.phone?.trim()) return customer.phone.trim();
+  return null;
+}
