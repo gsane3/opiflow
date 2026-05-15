@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord } from '@/lib/storage';
+import { parseSmsReply } from '@/lib/sms-intake';
 import { buildMapsUrl } from '@/lib/maps';
 import type { Customer, Task, Offer, CallRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
@@ -24,6 +25,14 @@ const CONTACT_LABELS: Record<string, string> = {
   email: 'Email',
   phone: 'Τηλέφωνο',
 };
+
+function shouldShowSmsPanel(c: Customer): boolean {
+  if (!c.phone) return false;
+  const isTempCard =
+    c.name.includes('Καταχώρηση') || /^Πελάτης #\d+$/.test(c.name);
+  const hasRealName = !!c.name && !isTempCard;
+  return !hasRealName || !c.address || !c.email;
+}
 
 function DisabledAction({ label, note }: { label: string; note?: string }) {
   return (
@@ -65,6 +74,9 @@ export default function CustomerProfile({ customerId }: Props) {
   const [briefCreateFollowUp, setBriefCreateFollowUp] = useState(false);
   const [showAiDemoPanel, setShowAiDemoPanel] = useState(false);
   const [aiTranscriptionText, setAiTranscriptionText] = useState('');
+  const [smsIntakeRaw, setSmsIntakeRaw] = useState('');
+  const [smsIntakeError, setSmsIntakeError] = useState('');
+  const [smsIntakeDone, setSmsIntakeDone] = useState(false);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -105,6 +117,34 @@ export default function CustomerProfile({ customerId }: Props) {
     }, 0);
     return () => window.clearTimeout(timer);
   }, [customerId]);
+
+  function handleSmsIntake() {
+    if (!smsIntakeRaw.trim() || !customer) return;
+    const parsed = parseSmsReply(smsIntakeRaw);
+    const hasData = parsed.firstName || parsed.lastName || parsed.address || parsed.email;
+    if (!hasData) {
+      setSmsIntakeError('Δεν βρέθηκαν στοιχεία. Έλεγξε το κείμενο.');
+      return;
+    }
+    const now = new Date().toISOString();
+    const combinedName = [parsed.firstName, parsed.lastName].filter(Boolean).join(' ');
+    const updated: Customer = {
+      ...customer,
+      name: combinedName || customer.name,
+      address: parsed.address || customer.address,
+      email: parsed.email || customer.email,
+      status: customer.status === 'new_lead' ? 'contacted' : customer.status,
+      notes: customer.notes
+        ? `${customer.notes}\nΣτοιχεία συμπληρώθηκαν από SMS.`
+        : 'Στοιχεία συμπληρώθηκαν από SMS.',
+      updatedAt: now,
+    };
+    updateCustomer(updated);
+    setCustomer(updated);
+    setSmsIntakeRaw('');
+    setSmsIntakeError('');
+    setSmsIntakeDone(true);
+  }
 
   function openBriefForm() {
     setShowAiDemoPanel(false);
@@ -404,6 +444,49 @@ export default function CustomerProfile({ customerId }: Props) {
         tasks={customerTasks}
         offers={customerOffers}
       />
+
+      {/* SMS intake panel — shown when customer card is incomplete */}
+      {shouldShowSmsPanel(customer) && (
+        <section className="rounded-2xl bg-amber-50 p-4 ring-1 ring-amber-200 space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-amber-900">
+              Συμπλήρωση στοιχείων από SMS
+            </h2>
+            <p className="mt-0.5 text-xs text-amber-700">
+              Κάνε paste την απάντηση του πελάτη. Στο cloud θα ενημερώνεται αυτόματα από SMS provider.
+            </p>
+          </div>
+          {smsIntakeDone && !shouldShowSmsPanel(customer) ? null : (
+            <>
+              {smsIntakeDone && (
+                <p className="rounded-xl bg-green-50 px-3 py-2 text-xs font-medium text-green-700 ring-1 ring-green-200">
+                  Η καρτέλα ενημερώθηκε.
+                </p>
+              )}
+              <textarea
+                rows={4}
+                value={smsIntakeRaw}
+                onChange={(e) => { setSmsIntakeRaw(e.target.value); setSmsIntakeError(''); setSmsIntakeDone(false); }}
+                placeholder={
+                  'Όνομα: Γιώργος\nΕπώνυμο: Παπαδόπουλος\nΔιεύθυνση: Κηφισίας 10, Αθήνα\nEmail: george@example.com'
+                }
+                className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-none font-mono text-xs leading-relaxed"
+              />
+              {smsIntakeError && (
+                <p className="text-xs text-red-600">{smsIntakeError}</p>
+              )}
+              <button
+                type="button"
+                onClick={handleSmsIntake}
+                disabled={!smsIntakeRaw.trim()}
+                className="w-full rounded-xl bg-amber-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-amber-800 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Ενημέρωση καρτέλας
+              </button>
+            </>
+          )}
+        </section>
+      )}
 
       {/* Quick actions */}
       <div>
