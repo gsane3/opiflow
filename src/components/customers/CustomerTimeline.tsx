@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import type { Task, Offer, CallRecord, CommunicationRecord } from '@/lib/types';
+import { norm } from '@/lib/search';
 import { TASK_TYPE_LABELS } from '@/components/tasks/TaskStatusBadge';
 import { OFFER_STATUS_LABELS } from '@/components/offers/OfferStatusBadge';
 import { fmtEur } from '@/lib/offer-calculations';
@@ -13,6 +14,40 @@ import {
 } from '@/lib/customer-files';
 
 const INITIAL_VISIBLE = 8;
+
+type FilterChip = 'all' | 'calls' | 'sms' | 'tasks' | 'offers' | 'media';
+
+const CHIP_LABELS: Record<FilterChip, string> = {
+  all: 'Όλα',
+  calls: 'Κλήσεις',
+  sms: 'SMS',
+  tasks: 'Tasks',
+  offers: 'Προσφορές',
+  media: 'Αρχεία',
+};
+
+const CHIP_ORDER: FilterChip[] = ['all', 'calls', 'sms', 'tasks', 'offers', 'media'];
+
+function matchesChip(item: TimelineItem, chip: FilterChip): boolean {
+  if (chip === 'all') return true;
+  if (chip === 'calls') return item.kind === 'call' || (item.kind === 'comm' && item.subKind === 'call');
+  if (chip === 'sms') return item.kind === 'comm' && item.subKind === 'sms';
+  if (chip === 'tasks') return item.kind === 'task';
+  if (chip === 'offers') return item.kind === 'offer';
+  if (chip === 'media') return item.kind === 'media';
+  return false;
+}
+
+function matchesSearch(item: TimelineItem, q: string): boolean {
+  if (!q) return true;
+  return (
+    norm(item.title).includes(q) ||
+    norm(item.detail).includes(q) ||
+    norm(item.summary ?? '').includes(q) ||
+    norm(item.nextStep ?? '').includes(q) ||
+    norm(item.dateLabel).includes(q)
+  );
+}
 
 const TASK_STATUS_LABELS: Record<string, string> = {
   open: 'Ανοιχτό',
@@ -267,6 +302,8 @@ interface Props {
 export default function CustomerTimeline({ customerId, tasks, offers, calls, communications = [] }: Props) {
   const [showAll, setShowAll] = useState(false);
   const [mediaFiles, setMediaFiles] = useState<CustomerFileRecord[]>([]);
+  const [activeChip, setActiveChip] = useState<FilterChip>('all');
+  const [search, setSearch] = useState('');
 
   // Load IndexedDB media files after mount — async promise callback is OK for setState.
   useEffect(() => {
@@ -277,8 +314,17 @@ export default function CustomerTimeline({ customerId, tasks, offers, calls, com
   }, [customerId]);
 
   const items = buildItems(tasks, offers, calls, mediaFiles, communications);
-  const visible = showAll ? items : items.slice(0, INITIAL_VISIBLE);
-  const hasMore = items.length > INITIAL_VISIBLE;
+
+  const q = norm(search.trim());
+  const filteredItems = items.filter(
+    (item) => matchesChip(item, activeChip) && matchesSearch(item, q)
+  );
+  const visible = showAll ? filteredItems : filteredItems.slice(0, INITIAL_VISIBLE);
+  const hasMore = filteredItems.length > INITIAL_VISIBLE;
+
+  const chipCounts = Object.fromEntries(
+    CHIP_ORDER.map((chip) => [chip, items.filter((i) => matchesChip(i, chip)).length])
+  ) as Record<FilterChip, number>;
 
   return (
     <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
@@ -292,6 +338,46 @@ export default function CustomerTimeline({ customerId, tasks, offers, calls, com
         </p>
       ) : (
         <>
+          {/* Search */}
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setShowAll(false); }}
+            placeholder="Αναζήτηση ιστορικού..."
+            className="mb-2 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-100"
+          />
+
+          {/* Filter chips */}
+          <div className="mb-3 -mx-1 flex flex-wrap gap-1 overflow-x-auto px-1">
+            {CHIP_ORDER.map((chip) => {
+              const count = chipCounts[chip];
+              if (count === 0 && chip !== 'all') return null;
+              const active = activeChip === chip;
+              return (
+                <button
+                  key={chip}
+                  type="button"
+                  onClick={() => { setActiveChip(chip); setShowAll(false); }}
+                  className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium transition ${
+                    active
+                      ? 'bg-indigo-600 text-white'
+                      : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  }`}
+                >
+                  {CHIP_LABELS[chip]}
+                  <span className={`text-[10px] leading-none ${active ? 'text-white/70' : 'text-zinc-400'}`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          {filteredItems.length === 0 ? (
+            <p className="py-2 text-sm text-zinc-400">
+              Δεν βρέθηκαν εγγραφές για αυτό το φίλτρο.
+            </p>
+          ) : (
           <ul className="space-y-3">
             {visible.map((item) => {
               const icon =
@@ -365,6 +451,7 @@ export default function CustomerTimeline({ customerId, tasks, offers, calls, com
               );
             })}
           </ul>
+          )}
 
           {hasMore && !showAll && (
             <button
@@ -372,7 +459,7 @@ export default function CustomerTimeline({ customerId, tasks, offers, calls, com
               onClick={() => setShowAll(true)}
               className="mt-3 text-xs text-indigo-600 hover:text-indigo-700"
             >
-              Προβολή όλων ({items.length})
+              Προβολή όλων ({filteredItems.length})
             </button>
           )}
         </>
