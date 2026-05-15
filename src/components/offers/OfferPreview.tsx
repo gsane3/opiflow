@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadState, updateOffer, deleteOffer } from '@/lib/storage';
-import type { Offer, OfferStatus } from '@/lib/types';
+import { loadState, updateOffer, deleteOffer, addTask } from '@/lib/storage';
+import type { Offer, OfferStatus, Task } from '@/lib/types';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
 import CopyDraftButtons from './CopyDraftButtons';
@@ -63,6 +63,38 @@ export default function OfferPreview({ offerId }: Props) {
     const updated = { ...offer, status, updatedAt: new Date().toISOString() };
     updateOffer(updated);
     setOffer(updated);
+  }
+
+  function handleMarkSent() {
+    if (!offer) return;
+    const updated: Offer = {
+      ...offer,
+      status: 'sent_manually',
+      updatedAt: new Date().toISOString(),
+    };
+    updateOffer(updated);
+    setOffer(updated);
+  }
+
+  function handleCreateFollowUpTask() {
+    if (!offer) return;
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 3);
+    const now = new Date().toISOString();
+    const task: Task = {
+      id: crypto.randomUUID(),
+      customerId: offer.customerId,
+      title: `Follow-up προσφοράς ${offer.offerNumber}`,
+      type: 'follow_up_offer',
+      status: 'open',
+      priority: 'normal',
+      dueDate: dueDate.toISOString().split('T')[0],
+      note: 'Follow-up μετά την αποστολή της προσφοράς μέσω email.',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addTask(task);
   }
 
   function handleDelete() {
@@ -260,6 +292,9 @@ export default function OfferPreview({ offerId }: Props) {
         customerEmail={customer?.email || undefined}
         customerName={customerName}
         businessName={bp?.businessName}
+        offerStatus={offer.status}
+        onMarkSent={handleMarkSent}
+        onCreateFollowUpTask={handleCreateFollowUpTask}
       />
 
       {/* Copy drafts */}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { Offer } from '@/lib/types';
+import type { Offer, OfferStatus } from '@/lib/types';
 import { buildEmailSubject, buildEmailBody } from '@/lib/offer-email';
 
 type SendState = 'idle' | 'sending' | 'sent' | 'missing_config' | 'invalid_email' | 'error';
@@ -16,14 +16,28 @@ interface Props {
   customerEmail?: string;
   customerName?: string;
   businessName?: string;
+  // Post-send action props
+  offerStatus?: OfferStatus;
+  onMarkSent?: () => void;
+  onCreateFollowUpTask?: () => void;
 }
 
-export default function SendEmailSection({ offer, customerEmail, customerName, businessName }: Props) {
+export default function SendEmailSection({
+  offer,
+  customerEmail,
+  customerName,
+  businessName,
+  offerStatus,
+  onMarkSent,
+  onCreateFollowUpTask,
+}: Props) {
   const [to, setTo] = useState(customerEmail ?? '');
   const [subject, setSubject] = useState(() => buildEmailSubject(offer, businessName));
   const [body, setBody] = useState(() => buildEmailBody(offer, customerName, businessName));
   const [state, setState] = useState<SendState>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+  // Track within-session task creation to prevent duplicates
+  const [taskCreated, setTaskCreated] = useState(false);
 
   async function handleSend() {
     if (!EMAIL_RE.test(to.trim())) {
@@ -78,25 +92,70 @@ export default function SendEmailSection({ offer, customerEmail, customerName, b
           onClick={() => setState('idle')}
           className="mt-2 text-xs text-zinc-400 hover:text-zinc-600"
         >
-          ← Πίσω
+          Πίσω
         </button>
       </section>
     );
   }
 
   if (state === 'sent') {
+    const alreadyMarked = offerStatus === 'sent_manually';
     return (
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
           Αποστολή email
         </p>
+
         <div className="rounded-xl bg-green-50 px-4 py-3 text-sm text-green-700 ring-1 ring-green-200">
-          ✓ Το email στάλθηκε επιτυχώς.
+          Το email στάλθηκε επιτυχώς.
         </div>
+
+        {/* Post-send actions */}
+        {(onMarkSent || onCreateFollowUpTask) && (
+          <div className="mt-3 space-y-2">
+            {/* Mark as sent */}
+            {onMarkSent && (
+              alreadyMarked ? (
+                <p className="text-xs text-green-700">
+                  Η προσφορά σημάνθηκε ως &quot;Στάλθηκε&quot;.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onMarkSent}
+                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                >
+                  Σήμανση ως &quot;Στάλθηκε&quot;
+                </button>
+              )
+            )}
+
+            {/* Follow-up task */}
+            {onCreateFollowUpTask && (
+              taskCreated ? (
+                <p className="text-xs text-zinc-500">
+                  Δημιουργήθηκε task follow-up για σε 3 μέρες.
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onCreateFollowUpTask();
+                    setTaskCreated(true);
+                  }}
+                  className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 transition hover:bg-indigo-100"
+                >
+                  + Δημιουργία task follow-up (σε 3 μέρες)
+                </button>
+              )
+            )}
+          </div>
+        )}
+
         <button
           type="button"
           onClick={() => setState('idle')}
-          className="mt-2 text-xs text-zinc-400 hover:text-zinc-600"
+          className="mt-3 text-xs text-zinc-400 hover:text-zinc-600"
         >
           Αποστολή νέου
         </button>
