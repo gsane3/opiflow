@@ -178,6 +178,7 @@ interface Props {
   lastCompletedTaskTitle?: string;
   onUndoCompleteTask?: () => void;
   onMarkOfferSent?: (offerId: string) => void;
+  onCreateOfferFollowUpTask?: (offerId: string) => void;
 }
 
 const FILTER_DEFS: { id: FilterId; label: string }[] = [
@@ -196,9 +197,12 @@ export default function NextActionsSection({
   lastCompletedTaskTitle,
   onUndoCompleteTask,
   onMarkOfferSent,
+  onCreateOfferFollowUpTask,
 }: Props) {
   const [activeFilter, setActiveFilter] = useState<FilterId>('all');
   const [showAll, setShowAll] = useState(false);
+  // Track follow-up tasks created in this session to prevent duplicate creation.
+  const [createdFollowUpOfferIds, setCreatedFollowUpOfferIds] = useState<Set<string>>(new Set());
 
   const allItems = buildActions(customers, tasks, offers);
 
@@ -334,6 +338,24 @@ export default function NextActionsSection({
                       >
                         Στάλθηκε
                       </button>
+                    )}
+                    {item.category === 'offer_followup' && item.offerId && onCreateOfferFollowUpTask && (
+                      createdFollowUpOfferIds.has(item.offerId) ? (
+                        <span className="text-[10px] font-medium text-zinc-400">
+                          Task δημιουργήθηκε
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onCreateOfferFollowUpTask(item.offerId!);
+                            setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
+                          }}
+                          className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                        >
+                          Task follow-up
+                        </button>
+                      )
                     )}
                     <Link
                       href={item.href}

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadState, updateTask, updateOffer } from '@/lib/storage';
+import { loadState, updateTask, updateOffer, addTask } from '@/lib/storage';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
@@ -124,6 +124,32 @@ export default function DashboardPage() {
     }));
   }
 
+  function handleCreateOfferFollowUpTask(offerId: string) {
+    const offer = dashboardData.offers.find((o) => o.id === offerId);
+    if (!offer) return;
+    const now = new Date().toISOString();
+    const dueDate = new Date();
+    dueDate.setDate(dueDate.getDate() + 3);
+    const task: Task = {
+      id: crypto.randomUUID(),
+      customerId: offer.customerId,
+      title: `Follow-up προσφοράς ${offer.offerNumber}`,
+      type: 'follow_up_offer',
+      status: 'open',
+      priority: 'normal',
+      dueDate: dueDate.toISOString().split('T')[0],
+      note: 'Follow-up μετά την αποστολή της προσφοράς.',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addTask(task);
+    setDashboardData((prev) => ({
+      ...prev,
+      tasks: [...prev.tasks, task],
+    }));
+  }
+
   const leads = customers
     .filter((c) => LEAD_STATUSES.has(c.status))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -165,6 +191,7 @@ export default function DashboardPage() {
         lastCompletedTaskTitle={lastCompletedTask?.title}
         onUndoCompleteTask={handleUndoCompleteTask}
         onMarkOfferSent={handleMarkOfferSent}
+        onCreateOfferFollowUpTask={handleCreateOfferFollowUpTask}
       />
 
       <MissedCallsSection callRecords={calls} customerMap={customerMap} />
