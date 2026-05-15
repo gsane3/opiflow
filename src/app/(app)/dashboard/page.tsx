@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { loadState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses } from '@/lib/storage';
 import { getEffectiveStatus } from '@/lib/types';
-import type { Customer, Task, Offer, CallRecord, TaskBaseStatus } from '@/lib/types';
+import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
 import MissedCallsSection from '@/components/dashboard/MissedCallsSection';
 import LeadsSection from '@/components/dashboard/LeadsSection';
 import TodayTasksSection from '@/components/dashboard/TodayTasksSection';
 import OpenOffersSection from '@/components/dashboard/OpenOffersSection';
 import RecentCallsSection from '@/components/dashboard/RecentCallsSection';
+import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicationsSection';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
 import SmsIntakeNotificationBar from '@/components/dashboard/SmsIntakeNotificationBar';
 
@@ -28,6 +29,7 @@ interface DashboardData {
   tasks: Task[];
   offers: Offer[];
   calls: CallRecord[] | undefined;
+  communications: CommunicationRecord[];
 }
 
 export default function DashboardPage() {
@@ -38,6 +40,7 @@ export default function DashboardPage() {
     tasks: [],
     offers: [],
     calls: undefined,
+    communications: [],
   });
 
   // Undo state for dashboard task completion — must be declared before any conditional return.
@@ -63,6 +66,7 @@ export default function DashboardPage() {
       tasks: state.tasks ?? [],
       offers: state.offers ?? [],
       calls: state.calls,
+      communications: state.communications ?? [],
     };
     const timer = window.setTimeout(() => {
       setDashboardData(nextData);
@@ -86,7 +90,7 @@ export default function DashboardPage() {
     );
   }
 
-  const { customers, tasks, offers, calls } = dashboardData;
+  const { customers, tasks, offers, calls, communications } = dashboardData;
 
   function handleCompleteTask(taskId: string) {
     const now = new Date().toISOString();
@@ -278,6 +282,7 @@ export default function DashboardPage() {
       <LeadsSection leads={leads} />
       <TodayTasksSection tasks={urgentTasks} customerMap={customerMap} />
       <OpenOffersSection offers={openOffers} customerMap={customerMap} />
+      <RecentCommunicationsSection communications={communications} customerMap={customerMap} />
       <RecentCallsSection callRecords={calls} customerMap={customerMap} />
     </div>
   );
