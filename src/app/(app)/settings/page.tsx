@@ -47,6 +47,8 @@ export default function SettingsPage() {
   const [resetDone, setResetDone] = useState(false);
   const [seedConfirming, setSeedConfirming] = useState(false);
   const [seedDone, setSeedDone] = useState(false);
+  // Step 151: seed variant selector
+  const [seedVariant, setSeedVariant] = useState<'basic' | 'rich'>('basic');
   const [csvImportText, setCsvImportText] = useState('');
   const [csvPreview, setCsvPreview] = useState<CsvImportPreview | null>(null);
   const csvImportRef = useRef<HTMLInputElement>(null);
@@ -139,12 +141,64 @@ export default function SettingsPage() {
   }
 
   function handleSeedDemo() {
+    const baseTasks = generateDemoTasks();
+    const baseOffers = generateDemoOffers();
+    let extraTasks = baseTasks;
+    let extraOffers = baseOffers;
+    let extraComms: { id: string; customerId: string; channel: 'sms' | 'call'; direction: 'outbound' | 'inbound'; status: 'completed'; summary: string; createdAt: string; isMock: true }[] = [];
+    // Step 151: rich pilot demo adds a completed task, an accepted offer, and 2 comm records
+    if (seedVariant === 'rich') {
+      const now = new Date().toISOString();
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const richTask = {
+        id: 'demo-task-rich-1',
+        customerId: 'demo-papanikolaou',
+        title: 'Αποστολή προσφοράς συντήρησης — ολοκληρώθηκε',
+        type: 'send_offer' as const,
+        status: 'completed' as const,
+        priority: 'normal' as const,
+        dueDate: yesterday.toISOString().split('T')[0],
+        note: 'Demo completed task.',
+        createdFromAi: false,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: now,
+        isDemo: true,
+      };
+      const richOffer = {
+        id: 'demo-offer-rich-1',
+        customerId: 'demo-papanikolaou',
+        offerNumber: '#003',
+        status: 'accepted' as const,
+        offerDate: yesterday.toISOString().split('T')[0],
+        validUntil: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+        items: [{ id: 'rich-item-1', description: 'Συντήρηση 3 κλιματιστικών', quantity: 1, unitPrice: 240 }],
+        subtotal: 240,
+        vatRate: 24,
+        vatAmount: 57.6,
+        total: 297.6,
+        notes: 'Απάντηση μέσω demo link: Αποδοχή.',
+        terms: 'Πληρωμή κατά την εκτέλεση.',
+        acceptanceText: 'Αποδέχομαι τους παραπάνω όρους.',
+        createdFromAi: false,
+        createdAt: now,
+        updatedAt: now,
+        isDemo: true,
+      };
+      extraTasks = [...baseTasks, richTask];
+      extraOffers = [...baseOffers, richOffer];
+      extraComms = [
+        { id: 'demo-comm-1', customerId: 'demo-karagiannis', channel: 'sms', direction: 'outbound', status: 'completed', summary: 'Αποστολή SMS για στοιχεία πελάτη.', createdAt: now, isMock: true },
+        { id: 'demo-comm-2', customerId: 'demo-papanikolaou', channel: 'sms', direction: 'inbound', status: 'completed', summary: 'Ο πελάτης αποδέχτηκε την προσφορά #003 μέσω demo link.', createdAt: now, isMock: true },
+      ];
+    }
     const demoState = {
       customers: demoCustomers,
-      tasks: generateDemoTasks(),
-      offers: generateDemoOffers(),
+      tasks: extraTasks,
+      offers: extraOffers,
       calls: [],
-      communications: [],
+      communications: extraComms,
     };
     clearState();
     saveState(demoState);
@@ -549,15 +603,28 @@ export default function SettingsPage() {
                 <div className="border-t border-zinc-100 px-4 py-3 space-y-1.5">
                   <p className="text-xs font-semibold text-zinc-500 mb-2">Λεπτομέρειες</p>
                   <ul className="space-y-1">
-                    {healthReport.issues.slice(0, 20).map((issue, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-zinc-600">
-                        <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
-                        <span>
-                          <span className="font-medium text-zinc-700">{issue.entity}:</span>{' '}
-                          {issue.message}
-                        </span>
-                      </li>
-                    ))}
+                    {healthReport.issues.slice(0, 20).map((issue, i) => {
+                      // Step 148: link to relevant page based on entity type
+                      const href =
+                        issue.entity === 'Task' ? '/tasks'
+                        : issue.entity === 'Προσφορά' ? '/offers'
+                        : '/customers';
+                      return (
+                        <li key={i} className="flex items-start gap-2 text-xs text-zinc-600">
+                          <span className="mt-0.5 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+                          <span className="min-w-0 flex-1">
+                            <span className="font-medium text-zinc-700">{issue.entity}:</span>{' '}
+                            {issue.message}
+                          </span>
+                          <Link
+                            href={href}
+                            className="shrink-0 text-xs text-indigo-600 hover:text-indigo-700"
+                          >
+                            Άνοιγμα
+                          </Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                   {healthReport.issues.length > 20 && (
                     <p className="text-xs text-zinc-400">
@@ -660,6 +727,31 @@ export default function SettingsPage() {
                 Πελάτες, tasks, προσφορές, κλήσεις και επικοινωνίες θα αντικατασταθούν από τα
                 αρχικά demo δεδομένα.
               </p>
+              {/* Step 151: seed variant selector */}
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-amber-800">Επιλογή τύπου demo:</p>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { id: 'basic', label: 'Basic demo', note: '4 πελάτες, 4 tasks, 2 προσφορές.' },
+                    { id: 'rich', label: 'Rich pilot demo', note: 'Ίδια βάση + completed task, accepted offer, 2 comm records.' },
+                  ].map((v) => (
+                    <label key={v.id} className="flex cursor-pointer items-start gap-2">
+                      <input
+                        type="radio"
+                        name="seed-variant"
+                        value={v.id}
+                        checked={seedVariant === v.id}
+                        onChange={() => setSeedVariant(v.id as 'basic' | 'rich')}
+                        className="mt-0.5 accent-amber-600"
+                      />
+                      <div>
+                        <span className="text-xs font-medium text-amber-900">{v.label}</span>
+                        <span className="ml-1 text-xs text-amber-700">— {v.note}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
               <div className="flex flex-wrap gap-3">
                 <button
                   type="button"

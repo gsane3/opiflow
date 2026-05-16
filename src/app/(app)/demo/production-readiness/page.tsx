@@ -71,7 +71,18 @@ function PilotChecklist() {
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-zinc-500">{doneCount} / {total} ολοκληρωμένα</p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-zinc-500">{doneCount} / {total} ολοκληρωμένα</p>
+          {doneCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setChecked(new Set())}
+              className="text-xs text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
+            >
+              Καθαρισμός
+            </button>
+          )}
+        </div>
         <div className="h-1.5 w-32 overflow-hidden rounded-full bg-zinc-100">
           <div
             className="h-1.5 rounded-full bg-indigo-500 transition-all"
@@ -396,6 +407,30 @@ export default function ProductionReadinessPage() {
           ) : (
             <p className="text-sm text-zinc-400">Φόρτωση...</p>
           )}
+        </div>
+      </Section>
+
+      {/* Step 152: Known issues for pilot */}
+      <Section title="Known issues για pilot">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-2">
+          {[
+            { issue: 'Τοπική αποθήκευση', detail: 'Τα δεδομένα μπορεί να διαγραφούν αν καθαριστεί το localStorage του browser.' },
+            { issue: 'Demo links μόνο στον ίδιο browser', detail: 'Το /offer-response/[id] δεν λειτουργεί σε άλλο browser ή συσκευή.' },
+            { issue: 'Χωρίς cloud sync', detail: 'Δεν υπάρχει συγχρονισμός μεταξύ συσκευών ή browser tabs.' },
+            { issue: 'Χωρίς πραγματικό SMS/email', detail: 'Οι επικοινωνίες γίνονται μόνο με αντιγραφή κειμένου ή native link (tel:/sms:).' },
+            { issue: 'Χωρίς VoIP ή ηχογράφηση', detail: 'Η demo κλήση δεν συνδέεται με πραγματικό πάροχο.' },
+            { issue: 'Χωρίς νομικό / e-signature', detail: 'Η αποδοχή προσφοράς δεν αποτελεί νόμιμη υπογραφή.' },
+            { issue: 'Δεν είναι production-safe', detail: 'Μην αποθηκεύεις πραγματικά δεδομένα παραγωγής σε αυτό το MVP.' },
+            { issue: 'Print / export εξαρτάται από browser', detail: 'Η εκτύπωση προσφορών εξαρτάται από τις ρυθμίσεις του browser και OS.' },
+          ].map(({ issue, detail }) => (
+            <div key={issue} className="flex items-start gap-2 text-sm">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />
+              <div className="min-w-0">
+                <span className="font-medium text-zinc-700">{issue}: </span>
+                <span className="text-zinc-500">{detail}</span>
+              </div>
+            </div>
+          ))}
         </div>
       </Section>
 

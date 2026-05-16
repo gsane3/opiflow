@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import KnownLimitationsBox from '@/components/common/KnownLimitationsBox';
+import { loadState } from '@/lib/storage';
+import { buildDataHealthReport } from '@/lib/data-health';
 
 // ── Step 113: Feedback questions ──────────────────────────────────────────────
 const QUESTIONS = [
@@ -28,6 +30,22 @@ export default function PilotFeedbackPage() {
   // ── Step 117: Bug report ─────────────────────────────────────────────────
   const [bugReport, setBugReport] = useState('');
   const [bugCopied, setBugCopied] = useState(false);
+
+  // Steps 146+147: local counts and health for report/snapshot
+  const [localCounts, setLocalCounts] = useState({ customers: 0, tasks: 0, offers: 0, calls: 0, communications: 0 });
+  const [healthIssueCount, setHealthIssueCount] = useState(0);
+  const [reportCopied, setReportCopied] = useState(false);
+  const [snapshotCopied, setSnapshotCopied] = useState(false);
+
+  useEffect(() => {
+    const state = loadState();
+    const report = buildDataHealthReport(state);
+    const timer = window.setTimeout(() => {
+      setLocalCounts(report.counts);
+      setHealthIssueCount(report.issues.length);
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   async function copyText(text: string, onDone: () => void) {
     try {
@@ -55,6 +73,59 @@ export default function PilotFeedbackPage() {
     void copyText(bugReport, () => {
       setBugCopied(true);
       setTimeout(() => setBugCopied(false), 2500);
+    });
+  }
+
+  // Step 146: full pilot report (answers + counts, no PII)
+  function buildFullReport(): string {
+    const now = new Date().toLocaleString('el-GR');
+    const feedbackLines = QUESTIONS.map(q => `${q.label}\n${answers[q.id] || '—'}`).join('\n\n');
+    return `=== Pilot Report yorgos.ai ===
+Ημερομηνία: ${now}
+
+=== Feedback ===
+${feedbackLines}
+
+=== Τοπικά δεδομένα (αριθμοί μόνο, χωρίς PII) ===
+Πελάτες: ${localCounts.customers}
+Tasks: ${localCounts.tasks}
+Προσφορές: ${localCounts.offers}
+Κλήσεις: ${localCounts.calls}
+Επικοινωνίες: ${localCounts.communications}
+Θέματα data health: ${healthIssueCount}
+
+=== Δήλωση ===
+Demo μόνο. Τοπική αποθήκευση. Δεν αποτελεί παραγωγικό σύστημα.
+Χωρίς cloud sync, χωρίς VoIP, χωρίς SMS/email provider, χωρίς νομικό έλεγχο.`;
+  }
+
+  // Step 147: support snapshot (browser info + counts, no PII)
+  function buildSupportSnapshot(): string {
+    const now = new Date().toISOString();
+    const ua = typeof navigator !== 'undefined' ? navigator.userAgent : 'N/A';
+    const vw = typeof window !== 'undefined' ? `${window.innerWidth}x${window.innerHeight}` : 'N/A';
+    const route = typeof window !== 'undefined' ? window.location.pathname : '/demo/pilot-feedback';
+    return `=== Support Snapshot yorgos.ai ===
+Timestamp: ${now}
+Route: ${route}
+Viewport: ${vw}
+Browser: ${ua}
+Counts: customers=${localCounts.customers}, tasks=${localCounts.tasks}, offers=${localCounts.offers}, calls=${localCounts.calls}, comms=${localCounts.communications}
+Health issues: ${healthIssueCount}
+Demo/MVP only. No customer PII included.`;
+  }
+
+  function handleCopyReport() {
+    void copyText(buildFullReport(), () => {
+      setReportCopied(true);
+      setTimeout(() => setReportCopied(false), 2500);
+    });
+  }
+
+  function handleCopySnapshot() {
+    void copyText(buildSupportSnapshot(), () => {
+      setSnapshotCopied(true);
+      setTimeout(() => setSnapshotCopied(false), 2500);
     });
   }
 
@@ -106,6 +177,35 @@ export default function PilotFeedbackPage() {
           </button>
           <p className="text-xs text-zinc-400">
             Αντέγραψε το κείμενο και στείλε το μέσω email ή Viber στον υπεύθυνο pilot.
+          </p>
+
+          {/* Step 146+147: full report + support snapshot */}
+          <div className="flex flex-wrap gap-3 pt-2 border-t border-zinc-100">
+            <button
+              type="button"
+              onClick={handleCopyReport}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                reportCopied
+                  ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+                  : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              {reportCopied ? '✓ Αντιγράφηκε' : 'Αντιγραφή πλήρους pilot report'}
+            </button>
+            <button
+              type="button"
+              onClick={handleCopySnapshot}
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                snapshotCopied
+                  ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
+                  : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              {snapshotCopied ? '✓ Αντιγράφηκε' : 'Αντιγραφή support snapshot'}
+            </button>
+          </div>
+          <p className="text-xs text-zinc-400">
+            Τα reports περιέχουν αριθμούς δεδομένων μόνο — χωρίς ονόματα, τηλέφωνα ή PII.
           </p>
         </div>
       </section>

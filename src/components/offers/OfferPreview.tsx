@@ -471,9 +471,23 @@ export default function OfferPreview({ offerId }: Props) {
           {/* Step 137: demo-only undo response */}
           <div className="mt-3 pt-3 border-t border-zinc-100">
             {undoResponseState === 'done' ? (
-              <p className="text-xs text-zinc-500">
-                Η απάντηση επαναφέρθηκε. Μπορείς να δοκιμάσεις ξανά το demo link.
-              </p>
+              <div className="space-y-1.5">
+                <p className="text-xs text-zinc-500">
+                  Η απάντηση επαναφέρθηκε. Μπορείς να δοκιμάσεις ξανά το demo link.
+                </p>
+                {/* Step 150: demo replay link */}
+                <a
+                  href={`/offer-response/${offer.id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  Άνοιγμα ξανά demo link
+                </a>
+                <p className="text-xs text-zinc-400">
+                  Το demo link λειτουργεί μόνο στον ίδιο browser.
+                </p>
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <button

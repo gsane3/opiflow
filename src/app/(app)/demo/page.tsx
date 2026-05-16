@@ -449,42 +449,49 @@ export default function DemoPage() {
         </p>
       </div>
 
-      {/* Step 112: Pilot user onboarding ─────────────────────────────────── */}
+      {/* Step 144: Pilot entry point — improved sequence card */}
       <div className="border-t border-zinc-100 pt-6 space-y-4">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">
             Για pilot χρήστες
           </p>
-          <h2 className="mt-1 text-base font-bold text-zinc-900">Οδηγός pilot χρήστη</h2>
+          <h2 className="mt-1 text-base font-bold text-zinc-900">Ξεκίνα pilot δοκιμή</h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Αν δοκιμάζεις το app για πρώτη φορά με δικά σου δεδομένα, διάβασε πρώτα αυτά.
+            Ακολούθησε αυτά τα βήματα για χρήσιμη δοκιμή με δικά σου δεδομένα.
           </p>
         </div>
 
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
-          <div className="space-y-2">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+          <ol className="space-y-2">
             {[
-              { label: 'Τι είναι πραγματικό:', text: 'Αποθήκευση πελατών, tasks, προσφορών, AI review (με API key), CSV εξαγωγή, backup JSON.' },
-              { label: 'Τι είναι demo:', text: 'Κλήσεις (VoIP), ηχογράφηση, αποστολή SMS/email, cloud sync — όλα local/demo.' },
-              { label: 'Πώς να δοκιμάσεις:', text: 'Πρόσθεσε 1-2 δικούς σου πελάτες, δημιούργησε task, δοκίμασε AI review. Παρακολούθησε τι αποθηκεύεται.' },
-              { label: 'Γιατί backup πρώτα:', text: 'Τα δεδομένα είναι μόνο στον browser. Αν διαγραφεί το localStorage, χάνονται χωρίς backup.' },
-            ].map(({ label, text }) => (
-              <div key={label} className="flex items-start gap-2 text-sm">
-                <span className="mt-0.5 shrink-0 font-semibold text-zinc-700">{label}</span>
-                <span className="text-zinc-500">{text}</span>
-              </div>
+              { n: 1, text: 'Κάνε backup για ασφάλεια πριν ξεκινήσεις.' },
+              { n: 2, text: 'Πρόσθεσε έναν πελάτη (όνομα + κινητό ή email).' },
+              { n: 3, text: 'Δοκίμασε AI review ή demo call — κοίτα τι δημιουργείται.' },
+              { n: 4, text: 'Δημιούργησε μια προσφορά και άνοιξε το demo response link.' },
+              { n: 5, text: 'Άνοιξε /offer-response/[id] και κάνε αποδοχή ή απόρριψη.' },
+              { n: 6, text: 'Στείλε feedback μέσω της φόρμας.' },
+            ].map(({ n, text }) => (
+              <li key={n} className="flex items-start gap-3 text-sm text-zinc-600">
+                <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-[10px] font-bold text-indigo-700">
+                  {n}
+                </span>
+                {text}
+              </li>
             ))}
-          </div>
+          </ol>
 
           <div className="flex flex-wrap gap-2 pt-2 border-t border-zinc-100">
-            <Link href="/dashboard" className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700">
-              Άνοιγμα Αρχικής
+            <Link href="/settings" className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700">
+              Δημιουργία backup
             </Link>
             <Link href="/customers" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
               Προσθήκη πελάτη
             </Link>
-            <Link href="/settings" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
-              Δημιουργία backup
+            <Link href="/ai-review" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+              AI review
+            </Link>
+            <Link href="/call/mock" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
+              Demo κλήση
             </Link>
             <Link href="/demo/pilot-feedback" className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-50">
               Feedback pilot
@@ -521,6 +528,8 @@ const FIRST_USE_ITEMS = [
 
 function FirstUseChecklist() {
   const [checked, setChecked] = useState<Set<number>>(new Set());
+  // Step 145: reset checklist — local state only, never persisted
+  function resetChecklist() { setChecked(new Set()); }
 
   function toggle(i: number) {
     setChecked((prev) => {
@@ -532,11 +541,22 @@ function FirstUseChecklist() {
 
   return (
     <div className="space-y-3">
-      <div>
-        <h2 className="text-base font-bold text-zinc-900">Πρώτη δοκιμή με δικά σου δεδομένα</h2>
-        <p className="mt-0.5 text-xs text-zinc-400">
-          Τοπική λίστα — δεν αποθηκεύεται. Μόνο οδηγός.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-base font-bold text-zinc-900">Πρώτη δοκιμή με δικά σου δεδομένα</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">
+            Η πρόοδος δεν αποθηκεύεται. Τοπική λίστα μόνο.
+          </p>
+        </div>
+        {checked.size > 0 && (
+          <button
+            type="button"
+            onClick={resetChecklist}
+            className="shrink-0 text-xs text-zinc-400 underline-offset-2 hover:text-zinc-600 hover:underline"
+          >
+            Καθαρισμός
+          </button>
+        )}
       </div>
       <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-2">
         {FIRST_USE_ITEMS.map((item, i) => {

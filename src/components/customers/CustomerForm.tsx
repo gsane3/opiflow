@@ -83,9 +83,15 @@ export default function CustomerForm({ initial, onSave, onCancel }: Props) {
 
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
-      <h3 className="mb-4 text-base font-semibold text-zinc-900">
+      <h3 className="mb-1 text-base font-semibold text-zinc-900">
         {initial ? 'Επεξεργασία πελάτη' : 'Νέος πελάτης'}
       </h3>
+      {/* Step 149: pilot helper text */}
+      {!initial && (
+        <p className="mb-4 text-xs text-zinc-400">
+          Για pilot δοκιμή, βάλε τουλάχιστον όνομα και κινητό ή email.
+        </p>
+      )}
 
       <div className="flex flex-col gap-4">
         {/* Name */}
