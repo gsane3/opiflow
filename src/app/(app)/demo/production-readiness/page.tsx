@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 
 interface GapRow {
@@ -38,6 +39,81 @@ const PRIORITY_CLS: Record<string, string> = {
   medium: 'bg-amber-100 text-amber-700',
   low: 'bg-zinc-100 text-zinc-500',
 };
+
+const PILOT_ITEMS = [
+  { id: 'data', label: 'Demo δεδομένα έτοιμα', note: 'Επαναφορά από Ρυθμίσεις > Demo και επαναφορά.' },
+  { id: 'backup', label: 'Backup δοκιμασμένο', note: 'Λήψη backup JSON και επιβεβαίωση περιεχομένου.' },
+  { id: 'restore', label: 'Restore δοκιμασμένο', note: 'Επαναφορά backup σε νέο browser tab — επιβεβαίωση preview.' },
+  { id: 'csv', label: 'CSV εισαγωγή / εξαγωγή δοκιμασμένα', note: 'Εξαγωγή πελατών + εισαγωγή σε νέα λίστα.' },
+  { id: 'claims', label: 'Δεν εμφανίζονται fake ισχυρισμοί', note: 'Έλεγχος: VoIP, SMS, cloud, αποστολή email.' },
+  { id: 'apikey', label: 'API key ρυθμισμένο ή demo fallback αποδεκτό', note: 'Χωρίς API key: demo αποτέλεσμα στο AI review.' },
+  { id: 'support', label: 'Διαδικασία υποστήριξης pilot users έτοιμη', note: 'Email / WhatsApp για αναφορά bugs και ερωτήσεις.' },
+  { id: 'limits', label: 'Γνωστοί περιορισμοί κοινοποιημένοι', note: 'Τοπική αποθήκευση, χωρίς sync, χωρίς VoIP.' },
+  { id: 'legal', label: 'Νομικός / GDPR έλεγχος: ΔΕΝ έχει γίνει', note: 'Pilot μόνο — δεν χρησιμοποιείται για πραγματικά δεδομένα παραγωγής.' },
+  { id: 'feedback', label: 'Ερωτήσεις feedback pilot users έτοιμες', note: 'π.χ. ροή, ταχύτητα, demo σενάρια, αναφορά προβλημάτων.' },
+];
+
+function PilotChecklist() {
+  const [checked, setChecked] = useState<Set<string>>(new Set());
+
+  function toggle(id: string) {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  const doneCount = checked.size;
+  const total = PILOT_ITEMS.length;
+
+  return (
+    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-zinc-500">{doneCount} / {total} ολοκληρωμένα</p>
+        <div className="h-1.5 w-32 overflow-hidden rounded-full bg-zinc-100">
+          <div
+            className="h-1.5 rounded-full bg-indigo-500 transition-all"
+            style={{ width: `${(doneCount / total) * 100}%` }}
+          />
+        </div>
+      </div>
+      <ul className="space-y-3">
+        {PILOT_ITEMS.map((item) => {
+          const done = checked.has(item.id);
+          return (
+            <li key={item.id}>
+              <button
+                type="button"
+                onClick={() => toggle(item.id)}
+                className="flex w-full items-start gap-3 text-left"
+              >
+                <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border transition ${
+                  done ? 'border-indigo-600 bg-indigo-600' : 'border-zinc-300 bg-white'
+                }`}>
+                  {done && (
+                    <svg className="h-2.5 w-2.5 text-white" fill="none" strokeWidth={3} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p className={`text-sm font-medium ${done ? 'text-zinc-400 line-through' : 'text-zinc-800'}`}>
+                    {item.label}
+                  </p>
+                  <p className="text-xs text-zinc-400">{item.note}</p>
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      <p className="text-xs text-amber-700">
+        Η λίστα δεν αποθηκεύεται. Εσωτερική χρήση μόνο — δεν αντιστοιχεί σε production readiness.
+      </p>
+    </div>
+  );
+}
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -223,6 +299,11 @@ export default function ProductionReadinessPage() {
             ))}
           </ol>
         </div>
+      </Section>
+
+      {/* Step 111: Pilot readiness checklist */}
+      <Section title="Pilot Readiness Checklist (5-10 users)">
+        <PilotChecklist />
       </Section>
 
       {/* Disclaimer */}
