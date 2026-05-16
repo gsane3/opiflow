@@ -17,20 +17,23 @@ function isSentStatus(status: Offer['status']): boolean {
   return status === 'sent_manually' || status === 'accepted' || status === 'rejected';
 }
 
-function buildViberDraft(offer: Offer, customerName?: string): string {
+function buildViberDraft(offer: Offer, customerName?: string, responseLink?: string): string {
   const surname = customerName ? customerName.split(' ').slice(-1)[0] : null;
   const greeting = surname ? `Καλησπέρα κύριε/κυρία ${surname}` : 'Καλησπέρα';
+  const linkLine = responseLink
+    ? `\n\nΜπορείτε να δείτε και να απαντήσετε στην προσφορά εδώ:\n${responseLink}`
+    : '';
 
   if (isSentStatus(offer.status)) {
     // Follow-up after the offer was already sent
-    return `${greeting}, ήθελα να επικοινωνήσω μαζί σας σχετικά με την προσφορά μας ${offer.offerNumber} ύψους ${fmtEur(offer.total)}. Εάν έχετε απορίες ή θέλετε να συζητήσουμε περαιτέρω, είμαι στη διάθεσή σας.`;
+    return `${greeting}, ήθελα να επικοινωνήσω μαζί σας σχετικά με την προσφορά μας ${offer.offerNumber} ύψους ${fmtEur(offer.total)}. Εάν έχετε απορίες ή θέλετε να συζητήσουμε περαιτέρω, είμαι στη διάθεσή σας.${linkLine}`;
   }
 
   // Default: offer is being sent for the first time
-  return `${greeting}, σας αποστέλλω την προσφορά μας ${offer.offerNumber} ύψους ${fmtEur(offer.total)}. Παραμένω στη διάθεσή σας για οποιαδήποτε διευκρίνιση ή ερώτηση.`;
+  return `${greeting}, σας αποστέλλω την προσφορά μας ${offer.offerNumber} ύψους ${fmtEur(offer.total)}.${linkLine}\n\nΠαραμένω στη διάθεσή σας για οποιαδήποτε διευκρίνιση ή ερώτηση.`;
 }
 
-function buildEmailDraft(offer: Offer, customerName?: string, businessName?: string): string {
+function buildEmailDraft(offer: Offer, customerName?: string, businessName?: string, responseLink?: string): string {
   const surname = customerName ? customerName.split(' ').slice(-1)[0] : null;
   const greeting = surname ? `Αγαπητέ/ή κύριε/κυρία ${surname},` : 'Αγαπητέ/ή κύριε/κυρία,';
   const itemLines = offer.items
@@ -38,6 +41,9 @@ function buildEmailDraft(offer: Offer, customerName?: string, businessName?: str
     .join('\n');
   const from = businessName ? `\nΜε εκτίμηση,\n${businessName}` : '\nΜε εκτίμηση,';
   const subject = `Θέμα: Προσφορά ${offer.offerNumber}${businessName ? ` — ${businessName}` : ''}`;
+  const linkSection = responseLink
+    ? `\nΜπορείτε να δείτε και να απαντήσετε στην προσφορά εδώ:\n${responseLink}\n`
+    : '';
 
   if (isSentStatus(offer.status)) {
     // Follow-up email — do not imply the offer is being sent now
@@ -46,7 +52,7 @@ function buildEmailDraft(offer: Offer, customerName?: string, businessName?: str
 ${greeting}
 
 Επικοινωνώ μαζί σας σε συνέχεια της προσφοράς μας ${offer.offerNumber} (${fmtEur(offer.total)}) που σας αποστείλαμε.
-
+${linkSection}
 Θα χαρούμε να απαντήσουμε σε οποιαδήποτε ερώτηση ή να συζητήσουμε τους όρους σε βολική για σας ώρα.
 ${from}`;
   }
@@ -62,7 +68,7 @@ ${itemLines}
 
 Σύνολο (συμπ. ΦΠΑ ${offer.vatRate}%): ${fmtEur(offer.total)}
 Ισχύει μέχρι: ${formatDateGR(offer.validUntil)}
-
+${linkSection}
 Παραμένουμε στη διάθεσή σας για οποιαδήποτε πληροφορία ή διευκρίνιση.
 ${from}`;
 }
@@ -132,8 +138,15 @@ interface Props {
 }
 
 export default function CopyDraftButtons({ offer, customerName, businessName }: Props) {
-  const viberText = buildViberDraft(offer, customerName);
-  const emailText = buildEmailDraft(offer, customerName, businessName);
+  // Build the response link client-side (window is available — CopyDraftButtons is always
+  // rendered after hydration inside OfferPreview's hydrated guard).
+  const responseLink =
+    typeof window !== 'undefined'
+      ? `${window.location.origin}/offer-response/${offer.id}`
+      : `/offer-response/${offer.id}`;
+
+  const viberText = buildViberDraft(offer, customerName, responseLink);
+  const emailText = buildEmailDraft(offer, customerName, businessName, responseLink);
 
   return (
     <div className="space-y-2">

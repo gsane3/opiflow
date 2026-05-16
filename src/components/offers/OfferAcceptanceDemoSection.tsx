@@ -105,10 +105,21 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
         </button>
       </div>
 
-      {/* Explanatory copy */}
-      <div className="mb-4 space-y-0.5">
+      {/* Open demo link */}
+      <div className="mb-4 space-y-1.5">
+        <a
+          href={demoLink}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+        >
+          <svg className="h-3.5 w-3.5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+          </svg>
+          Άνοιγμα demo link πελάτη
+        </a>
         <p className="text-xs text-zinc-400">
-          Demo link για το MVP. Λειτουργεί μόνο σε αυτή τη συσκευή/browser.
+          Το demo link λειτουργεί μόνο με τα τοπικά δεδομένα αυτού του browser.
         </p>
         <p className="text-xs text-zinc-400">
           Στην πραγματική έκδοση ο πελάτης θα ανοίγει δημόσια σελίδα και θα πατάει αποδοχή ή απόρριψη.
