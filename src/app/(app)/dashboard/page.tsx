@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { loadState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses } from '@/lib/storage';
+import { loadState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses, addCommunicationRecord } from '@/lib/storage';
+import { getSmsPhone } from '@/lib/phone';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
@@ -61,12 +62,36 @@ export default function DashboardPage() {
     const advanced = advanceSmsIntakeStatuses(rawCustomers);
     const anyChanged = advanced.some((c, i) => c.intakeStatus !== rawCustomers[i]?.intakeStatus);
     if (anyChanged) saveCustomers(advanced);
+
+    // Log reminder SMS for each waiting_sms -> reminder_sent transition.
+    const now = new Date().toISOString();
+    const reminderComms: CommunicationRecord[] = [];
+    advanced.forEach((after, i) => {
+      const before = rawCustomers[i];
+      if (before?.intakeStatus === 'waiting_sms' && after.intakeStatus === 'reminder_sent') {
+        const phone = getSmsPhone(after) ?? undefined;
+        const rec: CommunicationRecord = {
+          id: crypto.randomUUID(),
+          customerId: after.id,
+          channel: 'sms',
+          direction: 'outbound',
+          status: 'sent',
+          phone,
+          summary: 'Αποστολή δεύτερου SMS υπενθύμισης για στοιχεία πελάτη.',
+          createdAt: now,
+          isMock: true,
+        };
+        addCommunicationRecord(rec);
+        reminderComms.push(rec);
+      }
+    });
+
     const nextData: DashboardData = {
       customers: anyChanged ? advanced : rawCustomers,
       tasks: state.tasks ?? [],
       offers: state.offers ?? [],
       calls: state.calls,
-      communications: state.communications ?? [],
+      communications: [...(state.communications ?? []), ...reminderComms],
     };
     const timer = window.setTimeout(() => {
       setDashboardData(nextData);
