@@ -225,6 +225,21 @@ export function mergeCustomers(primaryId: string, duplicateId: string): void {
   });
 }
 
+export function exportStateJson(): string {
+  return JSON.stringify(loadState(), null, 2);
+}
+
+export function importStateJson(json: string): boolean {
+  try {
+    const parsed = JSON.parse(json);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false;
+    saveState(parsed as Partial<YorgosMvpState>);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function getBusinessProfile(): BusinessProfile | null {
   return loadState().businessProfile ?? null;
 }
