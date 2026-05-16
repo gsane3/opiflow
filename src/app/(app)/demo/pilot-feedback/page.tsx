@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import KnownLimitationsBox from '@/components/common/KnownLimitationsBox';
 import { loadState } from '@/lib/storage';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 import { buildDataHealthReport } from '@/lib/data-health';
 
 // ── Step 113: Feedback questions ──────────────────────────────────────────────
@@ -141,6 +142,14 @@ Demo/MVP only. No customer PII included.`;
             ← Demo οδηγός
           </Link>
         </div>
+        {/* Step 169: Demo mission final step banner */}
+        <DemoStepBanner
+          step="feedback"
+          stepNum={8}
+          title="Τελευταίο βήμα -- Feedback!"
+          body="Συμπλήρωσε τις ερωτήσεις, πάτα 'Αντιγραφή πλήρους pilot report' και στείλε το στον George."
+          watchLabel="Χωρίς αυτόματη αποστολή -- copy-paste μόνο."
+        />
         <h1 className="text-xl font-bold text-zinc-900">Feedback reviewer</h1>
         <p className="mt-1 text-sm text-zinc-500">
           Συμπλήρωσε τις ερωτήσεις — πάτα «Αντιγραφή» και στείλ&apos; το αποτέλεσμα χειροκίνητα.

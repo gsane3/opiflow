@@ -17,6 +17,7 @@ import SmsIntakeNotificationBar from '@/components/dashboard/SmsIntakeNotificati
 import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
 import LocalAnalyticsWidget from '@/components/dashboard/LocalAnalyticsWidget';
 import RecentResponsesSection from '@/components/dashboard/RecentResponsesSection';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -280,6 +281,15 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
+      <DemoStepBanner
+        step="dashboard"
+        stepNum={2}
+        title="Dashboard -- εκκρεμότητες της ημέρας"
+        body="Κοίτα tasks εκπρόθεσμα, ανοιχτές προσφορές και τοπική εικόνα στο κάτω μέρος."
+        watchLabel="Αν δεν βλέπεις στοιχεία, γύρνα στο Mission 1 και επαναφέρε Rich demo."
+        actionLabel="Επόμενο: AI review"
+        actionHref="/ai-review?demoStep=review"
+      />
       <div>
         <h1 className="text-lg font-semibold text-zinc-900">
           Καλημέρα. Τι πρέπει να γίνει σήμερα;

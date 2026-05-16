@@ -9,6 +9,7 @@ import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
 import CopyDraftButtons from './CopyDraftButtons';
 import SendEmailSection from './SendEmailSection';
 import OfferAcceptanceDemoSection from './OfferAcceptanceDemoSection';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 
 const ALL_STATUSES: OfferStatus[] = [
   'draft',
@@ -245,6 +246,25 @@ export default function OfferPreview({ offerId }: Props) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
+      {/* Step 165: Demo mission banners */}
+      <DemoStepBanner
+        step="offer"
+        stepNum={5}
+        title="Προσφορά -- preview, print, copy draft"
+        body="Δοκίμασε print PDF, αντιγραφή Viber/email draft και άνοιξε το demo response link παρακάτω."
+        watchLabel="Ενότητα 'Link αποδοχής πελάτη' -- πάτα 'Άνοιγμα demo link πελάτη'."
+        actionLabel="Επόμενο: Απάντηση πελάτη"
+        actionHref={`/offer-response/${offerId}?demoStep=response`}
+      />
+      <DemoStepBanner
+        step="followup"
+        stepNum={7}
+        title="Follow-up task -- μετά την αποδοχή"
+        body="Η προσφορά αποδέχτηκε. Δημιούργησε task για προγραμματισμό εργασίας."
+        watchLabel="Ενότητα 'Επόμενο βήμα' -- πάτα 'Δημιουργία task'."
+        actionLabel="Επόμενο: Feedback"
+        actionHref="/demo/pilot-feedback?demoStep=feedback"
+      />
       {/* Back + actions */}
       <div className="flex items-center justify-between gap-3 print:hidden">
         <button

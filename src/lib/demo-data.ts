@@ -374,7 +374,7 @@ export function generateDemoOffers(): Offer[] {
       id: 'demo-offer-1',
       customerId: 'demo-karagiannis',
       offerNumber: '#001',
-      status: 'draft',
+      status: 'sent_manually',
       offerDate: toStr(today),
       validUntil: toStr(in30days),
       items: items1,

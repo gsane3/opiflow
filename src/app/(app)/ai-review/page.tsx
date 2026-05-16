@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { loadState, addCustomer, updateCustomer, addTask, addOffer } from '@/lib/storage';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 import { generateDemoAiResult } from '@/lib/demo-data';
 import { calculateTotals, fmtEur } from '@/lib/offer-calculations';
 import type {
@@ -564,6 +565,16 @@ export default function AiReviewPage() {
   // ── Review screen ─────────────────────────────────────────────────────────
   return (
     <div className="mx-auto max-w-2xl px-4 pt-5 pb-10 space-y-4">
+      {/* Step 165: Demo mission banner */}
+      <DemoStepBanner
+        step="review"
+        stepNum={3}
+        title="AI review -- δημιουργία στοιχείων από AI"
+        body="Επέλεξε ένα παράδειγμα υπαγόρευσης ή γράψε δικό σου κείμενο. Πάτα 'Δημιούργησε με AI'."
+        watchLabel="Το AI προτείνει -- εσύ αποφασίζεις τι αποθηκεύεται."
+        actionLabel="Επόμενο: Καρτέλα πελάτη"
+        actionHref="/customers/demo-karagiannis?demoStep=customer"
+      />
       {/* Header */}
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-1">

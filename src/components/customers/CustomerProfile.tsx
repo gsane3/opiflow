@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord, addCommunicationRecord } from '@/lib/storage';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 import { buildMapsUrl } from '@/lib/maps';
 import { isLikelyMobile, getCallPhone, getSmsPhone, getLandlinePhone } from '@/lib/phone';
 import { buildCallHref, buildSmsHref } from '@/lib/communications';
@@ -465,6 +466,16 @@ export default function CustomerProfile({ customerId }: Props) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
+      {/* Step 165: Demo mission banner */}
+      <DemoStepBanner
+        step="customer"
+        stepNum={4}
+        title="Καρτέλα πελάτη -- ιστορικό και επόμενες ενέργειες"
+        body="Κοίτα τη σύνοψη, τα ανοιχτά tasks και το timeline. Δες πώς συνδέεται με τις προσφορές."
+        watchLabel="Timeline κάτω, ανοιχτά tasks, σύνοψη δραστηριότητας."
+        actionLabel="Επόμενο: Προσφορά"
+        actionHref="/offers/demo-offer-1?demoStep=offer"
+      />
       {/* Back */}
       <button
         type="button"

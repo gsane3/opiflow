@@ -496,35 +496,84 @@ export default function DemoPage() {
         </Link>
       </div>
 
-      {/* Step 162: 5-minute review script */}
-      <div className="border-t border-zinc-100 pt-5 space-y-3">
+      {/* Steps 164+166+170: Demo missions — primary reviewer entry */}
+      <div className="border-t border-zinc-100 pt-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-zinc-900">Τι να δοκιμάσεις σε 5 λεπτά</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">Σύντομος οδηγός για reviewers.</p>
+          <h2 className="text-base font-bold text-zinc-900">Demo αποστολές</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">
+            Κάνε κλικ σε κάθε αποστολή — η σελίδα θα σε καθοδηγήσει.
+          </p>
         </div>
-        <ol className="space-y-1.5">
+        <ol className="space-y-2">
           {[
-            { n: 1, text: 'Άνοιξε Demo οδηγό — πάτα Ξεκινάμε.' },
-            { n: 2, text: 'Αν δεν βλέπεις στοιχεία, πάτα Επαναφορά → Ρυθμίσεις > Demo.' },
-            { n: 3, text: 'Άνοιξε AI review ή demo call — κοίτα τι δημιουργεί το AI.' },
-            { n: 4, text: 'Άνοιξε μια προσφορά — προεπισκόπηση, print, copy draft.' },
-            { n: 5, text: 'Πάτα «Άνοιγμα demo link πελάτη» — δοκίμασε αποδοχή.' },
-            { n: 6, text: 'Συμπλήρωσε feedback report και στείλ\' το.' },
-          ].map(({ n, text }) => (
-            <li key={n} className="flex items-start gap-2.5 text-sm text-zinc-600">
-              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-[10px] font-bold text-zinc-500">
-                {n}
-              </span>
-              {text}
+            {
+              n: 1,
+              title: 'Ετοίμασε demo δεδομένα',
+              learn: 'Επαναφορά Rich Pilot Demo για πλήρη ροή.',
+              href: '/settings?demoStep=seed',
+            },
+            {
+              n: 2,
+              title: 'Δες το dashboard',
+              learn: 'Tasks, χαμένες κλήσεις, ανοιχτές προσφορές.',
+              href: '/dashboard?demoStep=dashboard',
+            },
+            {
+              n: 3,
+              title: 'Δοκίμασε AI review',
+              learn: 'Υπαγόρευση brief και δημιουργία στοιχείων από AI.',
+              href: '/ai-review?demoStep=review',
+            },
+            {
+              n: 4,
+              title: 'Άνοιξε καρτέλα πελάτη',
+              learn: 'Ιστορικό, tasks, προσφορές, timeline.',
+              href: '/customers/demo-karagiannis?demoStep=customer',
+            },
+            {
+              n: 5,
+              title: 'Άνοιξε προσφορά',
+              learn: 'Print PDF, copy Viber/email draft, demo response link.',
+              href: '/offers/demo-offer-1?demoStep=offer',
+            },
+            {
+              n: 6,
+              title: 'Απάντησε σαν πελάτης',
+              learn: 'Αποδοχή ή απόρριψη — αποθηκεύεται τοπικά.',
+              href: '/offer-response/demo-offer-1?demoStep=response',
+            },
+            {
+              n: 7,
+              title: 'Δημιούργησε follow-up task',
+              learn: 'Επόμενο βήμα μετά αποδοχή — στο CRM offer.',
+              href: '/offers/demo-offer-1?demoStep=followup',
+            },
+            {
+              n: 8,
+              title: 'Στείλε feedback',
+              learn: 'Copy report και στείλε χειροκίνητα.',
+              href: '/demo/pilot-feedback?demoStep=feedback',
+            },
+          ].map(({ n, title, learn, href }) => (
+            <li key={n}>
+              <Link
+                href={href}
+                className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-100 transition hover:ring-indigo-200"
+              >
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                  {n}
+                </span>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-zinc-900">{title}</p>
+                  <p className="text-xs text-zinc-400">{learn}</p>
+                </div>
+                <svg className="ml-auto h-4 w-4 shrink-0 self-center text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                </svg>
+              </Link>
             </li>
           ))}
         </ol>
-        <Link
-          href="/demo/pilot-feedback"
-          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
-        >
-          Φόρμα feedback →
-        </Link>
       </div>
 
       {/* Step 144: Pilot entry point — improved sequence card */}

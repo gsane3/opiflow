@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { loadState, updateOffer, addCommunicationRecord } from '@/lib/storage';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import type { Offer, Customer, BusinessProfile } from '@/lib/types';
 
@@ -178,6 +179,16 @@ export default function OfferResponseClient({ offerId }: Props) {
     <div className="min-h-screen bg-zinc-50 py-8">
       <div className="mx-auto max-w-2xl space-y-6 px-4">
 
+        {/* Step 168: Demo mission banner */}
+        <DemoStepBanner
+          step="response"
+          stepNum={6}
+          title="Απάντηση σαν πελάτης"
+          body="Αυτό βλέπει ο πελάτης. Πάτα 'Αποδοχή προσφοράς' και επιβεβαίωσε. Μετά γύρνα στο CRM για followup."
+          watchLabel="Δεν γίνεται πραγματική αποστολή -- αποθηκεύεται τοπικά μόνο."
+          actionLabel="Επόμενο: Follow-up στο CRM"
+          actionHref={`/offers/${offerId}?demoStep=followup`}
+        />
         {/* Step 127: Demo/signature disclaimer — visible on screen and in print */}
         <div className="rounded-xl bg-amber-50 px-4 py-2.5 ring-1 ring-amber-200 text-center">
           <p className="text-xs font-medium text-amber-700">
@@ -354,6 +365,18 @@ export default function OfferResponseClient({ offerId }: Props) {
             </div>
           )}
 
+          {/* Step 168: Followup CTA shown after accept/reject when in demo mission */}
+          {(action === 'accepted' || action === 'rejected') && (
+            <DemoStepBanner
+              step="response"
+              stepNum={6}
+              title="Τέλεια! Η απάντηση αποθηκεύτηκε."
+              body="Γύρνα τώρα στο CRM offer για να δεις το status και να δημιουργήσεις follow-up task."
+              watchLabel="Mission 7: follow-up task μετά αποδοχή."
+              actionLabel="CRM offer + followup"
+              actionHref={`/offers/${offerId}?demoStep=followup`}
+            />
+          )}
           {/* Step 134: Accepted success — clear next-step messaging */}
           {action === 'accepted' && (
             <div className="rounded-xl bg-green-50 px-4 py-5 ring-1 ring-green-200 space-y-2 text-center">

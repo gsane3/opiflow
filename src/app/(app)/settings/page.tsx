@@ -11,6 +11,7 @@ import type { BusinessProfile, Customer } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import MockWorkspacePanel from '@/components/settings/MockWorkspacePanel';
 import MockCrmPanel from '@/components/settings/MockCrmPanel';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 
 function defaultProfile(): BusinessProfile {
   return {
@@ -301,6 +302,16 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
+      {/* Step 165: Demo mission banner */}
+      <DemoStepBanner
+        step="seed"
+        stepNum={1}
+        title="Ετοίμασε demo δεδομένα"
+        body="Πήγαινε στην ενότητα 'Demo και επαναφορά' παρακάτω. Επέλεξε Rich pilot demo και πάτα επιβεβαίωση."
+        watchLabel="Επιλογή Rich pilot demo — επαναφέρει 4 πελάτες, tasks, 3 προσφορές και comms."
+        actionLabel="Επόμενο: Dashboard"
+        actionHref="/dashboard?demoStep=dashboard"
+      />
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-xl font-bold text-zinc-900">Ρυθμίσεις</h1>
