@@ -1,7 +1,20 @@
 import Link from 'next/link';
-import type { Offer } from '@/lib/types';
+import type { Offer, OfferStatus } from '@/lib/types';
 import { fmtEur } from '@/lib/offer-calculations';
 import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
+
+const RESOLVED_STATUSES: OfferStatus[] = ['accepted', 'rejected', 'expired'];
+
+function getExpiryState(offer: Offer): 'expired' | 'expiring_soon' | null {
+  if (RESOLVED_STATUSES.includes(offer.status)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const validUntil = new Date(offer.validUntil + 'T00:00:00');
+  const diffDays = Math.round((validUntil.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return 'expired';
+  if (diffDays <= 7) return 'expiring_soon';
+  return null;
+}
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('el-GR', {
@@ -52,6 +65,22 @@ export default function OpenOffersSection({ offers, customerMap }: Props) {
                       <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
                         <span className="font-semibold text-zinc-700">{fmtEur(offer.total)}</span>
                         <OfferStatusBadge status={offer.status} />
+                        {(() => {
+                          const exp = getExpiryState(offer);
+                          if (exp === 'expired')
+                            return (
+                              <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
+                                Έληξε
+                              </span>
+                            );
+                          if (exp === 'expiring_soon')
+                            return (
+                              <span className="rounded-full bg-orange-100 px-2 py-0.5 font-semibold text-orange-700">
+                                Λήγει σύντομα
+                              </span>
+                            );
+                          return null;
+                        })()}
                         <span className="text-zinc-400">
                           Ισχύει έως {formatDate(offer.validUntil)}
                         </span>

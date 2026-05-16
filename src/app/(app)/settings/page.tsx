@@ -1,10 +1,12 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getBusinessProfile, saveBusinessProfile, exportStateJson, importStateJson, loadState, clearState } from '@/lib/storage';
+import { getBusinessProfile, saveBusinessProfile, exportStateJson, loadState, clearState, saveState, parseBackupJson, normalizeImportedState, saveCustomers, getNextCrmNumber, type ParsedBackup } from '@/lib/storage';
+import { demoCustomers, generateDemoTasks, generateDemoOffers } from '@/lib/demo-data';
 import { buildDataHealthReport, type DataHealthReport } from '@/lib/data-health';
 import { downloadCustomersCsv } from '@/lib/csv-export';
-import type { BusinessProfile } from '@/lib/types';
+import { parseCustomerCsv, parseCsvToRows, detectCrmDuplicates, type CsvImportPreview } from '@/lib/csv-import';
+import type { BusinessProfile, Customer } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import MockWorkspacePanel from '@/components/settings/MockWorkspacePanel';
 import MockCrmPanel from '@/components/settings/MockCrmPanel';
@@ -37,10 +39,18 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<BusinessProfile>(defaultProfile);
   const [saved, setSaved] = useState(false);
   const [restoreStatus, setRestoreStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  const [backupPreview, setBackupPreview] = useState<ParsedBackup | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [healthReport, setHealthReport] = useState<DataHealthReport | null>(null);
   const [resetConfirming, setResetConfirming] = useState(false);
   const [resetDone, setResetDone] = useState(false);
+  const [seedConfirming, setSeedConfirming] = useState(false);
+  const [seedDone, setSeedDone] = useState(false);
+  const [csvImportText, setCsvImportText] = useState('');
+  const [csvPreview, setCsvPreview] = useState<CsvImportPreview | null>(null);
+  const csvImportRef = useRef<HTMLInputElement>(null);
+  const [csvImportDone, setCsvImportDone] = useState(false);
+  const [csvImportCount, setCsvImportCount] = useState(0);
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -74,26 +84,41 @@ export default function SettingsPage() {
   function handleRestoreFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    setRestoreStatus('idle');
     const reader = new FileReader();
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
-      if (
-        !window.confirm(
-          'Η επαναφορά θα αντικαταστήσει τα τρέχοντα δεδομένα. Συνέχεια;'
-        )
-      ) {
-        if (fileInputRef.current) fileInputRef.current.value = '';
+      const parsed = parseBackupJson(text);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      if (!parsed) {
+        setRestoreStatus('error');
+        setBackupPreview(null);
         return;
       }
-      const ok = importStateJson(text);
-      setRestoreStatus(ok ? 'success' : 'error');
-      if (fileInputRef.current) fileInputRef.current.value = '';
+      setBackupPreview(parsed);
     };
     reader.onerror = () => {
       setRestoreStatus('error');
+      setBackupPreview(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     };
     reader.readAsText(file);
+  }
+
+  function handleConfirmRestore() {
+    if (!backupPreview) return;
+    const { state } = backupPreview;
+    const normalized = normalizeImportedState(state);
+    clearState();
+    saveState(normalized);
+    setBackupPreview(null);
+    setRestoreStatus('success');
+    setHealthReport(buildDataHealthReport(normalized));
+  }
+
+  function handleCancelRestore() {
+    setBackupPreview(null);
+    setRestoreStatus('idle');
   }
 
   function handleRecheck() {
@@ -112,10 +137,99 @@ export default function SettingsPage() {
     setTimeout(() => window.location.reload(), 1500);
   }
 
+  function handleSeedDemo() {
+    const demoState = {
+      customers: demoCustomers,
+      tasks: generateDemoTasks(),
+      offers: generateDemoOffers(),
+      calls: [],
+      communications: [],
+    };
+    clearState();
+    saveState(demoState);
+    setSeedConfirming(false);
+    setSeedDone(true);
+    setHealthReport(buildDataHealthReport(demoState));
+    setTimeout(() => window.location.reload(), 1500);
+  }
+
   function handleSave() {
     saveBusinessProfile({ ...profile, updatedAt: new Date().toISOString() });
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  }
+
+  function handleCsvImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      setCsvImportText(text);
+      setCsvPreview(parseCustomerCsv(text));
+      if (csvImportRef.current) csvImportRef.current.value = '';
+    };
+    reader.readAsText(file, 'utf-8');
+  }
+
+  function handleClearCsvPreview() {
+    setCsvPreview(null);
+    setCsvImportText('');
+    setCsvImportDone(false);
+    setCsvImportCount(0);
+  }
+
+  function handleCsvImport() {
+    if (!csvPreview || !csvImportText) return;
+    const state = loadState();
+    const headers = csvPreview.columns.map(c => c.header);
+    const rows = parseCsvToRows(csvImportText, headers);
+    const existing = state.customers ?? [];
+    const dupIndices = detectCrmDuplicates(rows, existing);
+    const dupCount = dupIndices.size;
+    const validRows = rows.filter((_, i) => !dupIndices.has(i) && rows[i].name?.trim());
+    if (validRows.length === 0) {
+      alert('Δεν υπάρχουν έγκυρες γραμμές για εισαγωγή' + (dupCount > 0 ? ` (${dupCount} διπλότυπα).` : '.'));
+      return;
+    }
+    const msg = dupCount > 0
+      ? `Βρέθηκαν ${dupCount} διπλότυπα που θα παραλειφθούν. Εισαγωγή ${validRows.length} πελατών; Δεν υπάρχει undo.`
+      : `Εισαγωγή ${validRows.length} πελατών; Δεν υπάρχει undo.`;
+    if (!window.confirm(msg)) return;
+    const now = new Date().toISOString();
+    let allCustomers = [...existing];
+    const newCustomers: Customer[] = validRows.map(row => {
+      const crmNumber = getNextCrmNumber(allCustomers);
+      const resolvedPhone = row.mobilePhone || row.landlinePhone || row.phone;
+      const c: Customer = {
+        id: crypto.randomUUID(),
+        crmNumber,
+        name: row.name.trim(),
+        companyName: row.companyName,
+        phone: resolvedPhone,
+        mobilePhone: row.mobilePhone || undefined,
+        landlinePhone: row.landlinePhone || undefined,
+        email: row.email,
+        address: row.address,
+        source: (row.source as Customer['source']) || 'manual_entry',
+        status: (row.status as Customer['status']) || 'new_lead',
+        preferredContactMethod: (row.preferredContactMethod as Customer['preferredContactMethod']) || 'phone',
+        opportunityValue: row.opportunityValue,
+        needsSummary: row.needsSummary,
+        notes: row.notes,
+        createdAt: now,
+        updatedAt: now,
+      };
+      allCustomers = [...allCustomers, c];
+      return c;
+    });
+    saveCustomers([...existing, ...newCustomers]);
+    setHealthReport(buildDataHealthReport(loadState()));
+    setCsvImportCount(newCustomers.length);
+    // Clear preview but keep done/count for the success banner
+    setCsvPreview(null);
+    setCsvImportText('');
+    setCsvImportDone(true);
   }
 
   // Stable loading shell — identical on server and first client render.
@@ -182,32 +296,83 @@ export default function SettingsPage() {
               Λήψη backup
             </button>
 
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
-              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-              </svg>
-              Επαναφορά backup
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".json,application/json"
-                className="sr-only"
-                onChange={handleRestoreFile}
-              />
-            </label>
+            {!backupPreview && restoreStatus !== 'success' && (
+              <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
+                <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
+                Επιλογή backup για επαναφορά
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="sr-only"
+                  onChange={handleRestoreFile}
+                />
+              </label>
+            )}
           </div>
 
-          {restoreStatus === 'success' && (
+          {/* Preview card */}
+          {backupPreview && (
+            <div className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200 space-y-3">
+              <p className="text-sm font-semibold text-zinc-800">Προεπισκόπηση backup</p>
+              <div className="space-y-1 text-xs text-zinc-600">
+                {backupPreview.exportedAt && (
+                  <p>Εξαχθηκε: {new Date(backupPreview.exportedAt).toLocaleString('el-GR')}</p>
+                )}
+                {backupPreview.version && <p>Έκδοση: {backupPreview.version}</p>}
+                {!backupPreview.isWrapped && (
+                  <p className="text-amber-600">Παλαιός τύπος backup — χωρίς metadata.</p>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                {[
+                  { label: 'Πελάτες', value: (backupPreview.state.customers ?? []).length },
+                  { label: 'Tasks', value: (backupPreview.state.tasks ?? []).length },
+                  { label: 'Προσφορές', value: (backupPreview.state.offers ?? []).length },
+                  { label: 'Κλήσεις', value: (backupPreview.state.calls ?? []).length },
+                  { label: 'Επικοινωνίες', value: (backupPreview.state.communications ?? []).length },
+                ].map(({ label, value }) => (
+                  <div key={label} className="rounded-xl bg-white px-3 py-2 text-center ring-1 ring-zinc-100">
+                    <p className="text-base font-bold text-zinc-900">{value}</p>
+                    <p className="text-xs text-zinc-400">{label}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-zinc-500">
+                Η επαναφορά θα αντικαταστήσει τα τρέχοντα τοπικά δεδομένα.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={handleCancelRestore}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                >
+                  Ακύρωση
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmRestore}
+                  className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  Επαναφορά δεδομένων
+                </button>
+              </div>
+            </div>
+          )}
+
+          {restoreStatus === 'success' && !backupPreview && (
             <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200">
               <p className="text-sm font-medium text-green-700">
                 Το backup επαναφέρθηκε. Κάνε refresh για να δεις τα δεδομένα.
               </p>
             </div>
           )}
-          {restoreStatus === 'error' && (
+          {restoreStatus === 'error' && !backupPreview && (
             <div className="rounded-xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
               <p className="text-sm font-medium text-red-700">
-                Το αρχείο backup δεν είναι έγκυρο.
+                Το αρχείο backup δεν είναι έγκυρο ή δεν αναγνωρίζεται ως backup yorgos.ai.
               </p>
             </div>
           )}
@@ -283,6 +448,33 @@ export default function SettingsPage() {
             </div>
           )}
         </div>
+        {/* Provider readiness */}
+        <div className="pt-8 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-800">Πάροχοι επικοινωνίας</h2>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Στο MVP οι επικοινωνίες γίνονται με native συνδέσμους (tel:, sms:) και αντιγραφή κειμένου.
+              Οι πάροχοι θα συνδεθούν σε επόμενη έκδοση cloud.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {[
+              { label: 'Τηλεφωνία', desc: 'Ανοίγει την εφαρμογή κλήσεων της συσκευής.' },
+              { label: 'SMS', desc: 'Ανοίγει την εφαρμογή SMS της συσκευής.' },
+              { label: 'Viber', desc: 'Αντιγραφή κειμένου για αποστολή από Viber.' },
+              { label: 'Email', desc: 'Αντιγραφή draft για αποστολή από email client.' },
+            ].map(p => (
+              <div key={p.label} className="rounded-xl bg-white px-4 py-3 ring-1 ring-zinc-100 space-y-1">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-zinc-800">{p.label}</span>
+                  <span className="rounded bg-zinc-100 px-2 py-0.5 text-xs text-zinc-500">Demo</span>
+                </div>
+                <p className="text-xs text-zinc-400">{p.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
         {/* CSV export */}
         <div className="pt-8 space-y-4">
           <div>
@@ -306,6 +498,142 @@ export default function SettingsPage() {
               Η εξαγωγή γίνεται μόνο από τα τοπικά δεδομένα αυτού του browser.
             </p>
           </div>
+        </div>
+
+        {/* CSV Import */}
+        <div className="pt-8 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-800">Εισαγωγή πελατών CSV</h2>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Προεπισκόπηση μόνο — δεν αποθηκεύεται τίποτα ακόμα.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50">
+              Επιλογή CSV
+              <input ref={csvImportRef} type="file" accept=".csv,text/csv" className="sr-only" onChange={handleCsvImportFile} />
+            </label>
+            {csvPreview && (
+              <button type="button" onClick={handleClearCsvPreview} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50">
+                Καθαρισμός preview
+              </button>
+            )}
+          </div>
+          {csvPreview && (
+            <div className="rounded-2xl bg-zinc-50 p-4 ring-1 ring-zinc-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-zinc-800">Προεπισκόπηση CSV</p>
+                <span className={`rounded px-2 py-0.5 text-xs font-medium ${csvPreview.hasIssues ? 'bg-amber-100 text-amber-700' : 'bg-green-100 text-green-700'}`}>
+                  {csvPreview.totalRows} γραμμές{csvPreview.hasIssues ? ' · υπάρχουν θέματα' : ' · εντάξει'}
+                </span>
+              </div>
+              {csvPreview.globalIssues.length > 0 && (
+                <ul className="space-y-1">
+                  {csvPreview.globalIssues.map((issue, i) => (
+                    <li key={i} className="text-xs text-amber-700">&#x26A0; {issue}</li>
+                  ))}
+                </ul>
+              )}
+              <div className="overflow-x-auto rounded-xl bg-white ring-1 ring-zinc-100">
+                <table className="min-w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-zinc-100">
+                      {csvPreview.columns.map(col => (
+                        <th key={col.index} className={`px-3 py-2 text-left font-medium ${col.known ? 'text-zinc-700' : 'text-amber-600'}`}>
+                          {col.header}{!col.known && ' ⚠'}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-50">
+                    {csvPreview.rows.slice(0, 5).map(row => (
+                      <tr key={row.rowIndex} className={row.issues.length > 0 ? 'bg-amber-50' : ''}>
+                        {row.raw.map((cell, ci) => (
+                          <td key={ci} className="max-w-[150px] truncate px-3 py-2 text-zinc-600">{cell || '—'}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {csvPreview.rows.some(r => r.issues.length > 0) && (
+                <ul className="space-y-1">
+                  {csvPreview.rows.filter(r => r.issues.length > 0).slice(0, 5).map(row => (
+                    <li key={row.rowIndex} className="text-xs text-amber-700">
+                      Γραμμή {row.rowIndex}: {row.issues.join(', ')}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <p className="text-xs text-zinc-400">
+                Προεπισκόπηση μόνο. Χρησιμοποίησε το κουμπί εισαγωγής παρακάτω για αποθήκευση.
+              </p>
+            </div>
+          )}
+          {csvPreview && !csvImportDone && (
+            <button type="button" onClick={handleCsvImport}
+              className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+              Εισαγωγή πελατών
+            </button>
+          )}
+          {csvImportDone && (
+            <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200">
+              <p className="text-sm font-medium text-green-700">
+                Εισαχθηκαν {csvImportCount} πελάτες.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Seed demo data */}
+        <div className="pt-8 space-y-4">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-800">Επαναφορά demo δεδομένων</h2>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Επαναφέρει τα αρχικά demo δεδομένα (πελάτες, tasks, προσφορές) σε αυτόν τον browser.
+              Τα υπάρχοντα δεδομένα θα αντικατασταθούν.
+            </p>
+          </div>
+          {seedDone ? (
+            <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200">
+              <p className="text-sm font-medium text-green-700">
+                Τα demo δεδομένα επαναφέρθηκαν. Η σελίδα θα ανανεωθεί...
+              </p>
+            </div>
+          ) : seedConfirming ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
+              <p className="text-sm font-semibold text-amber-900">Επιβεβαίωση επαναφοράς demo</p>
+              <p className="text-xs text-amber-800">
+                Τα τρέχοντα δεδομένα (πελάτες, tasks, προσφορές, κλήσεις, επικοινωνίες) θα
+                αντικατασταθούν από τα demo δεδομένα. Κατέβασε backup πριν συνεχίσεις αν θέλεις
+                να διατηρήσεις τα τρέχοντα δεδομένα.
+              </p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  onClick={() => setSeedConfirming(false)}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                >
+                  Ακύρωση
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSeedDemo}
+                  className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-700"
+                >
+                  Ναι, επαναφορά demo δεδομένων
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setSeedConfirming(true)}
+              className="rounded-xl border border-amber-200 bg-white px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:bg-amber-50"
+            >
+              Επαναφορά demo δεδομένων
+            </button>
+          )}
         </div>
 
         {/* Data reset */}

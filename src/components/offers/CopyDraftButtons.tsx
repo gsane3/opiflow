@@ -12,33 +12,58 @@ function formatDateGR(dateStr: string): string {
   });
 }
 
+// Returns true for statuses where the offer has already been dispatched to the customer.
+function isSentStatus(status: Offer['status']): boolean {
+  return status === 'sent_manually' || status === 'accepted' || status === 'rejected';
+}
+
 function buildViberDraft(offer: Offer, customerName?: string): string {
   const surname = customerName ? customerName.split(' ').slice(-1)[0] : null;
   const greeting = surname ? `Καλησπέρα κύριε/κυρία ${surname}` : 'Καλησπέρα';
-  return `${greeting}, σας στέλνω την προσφορά μας ${offer.offerNumber} ύψους ${fmtEur(offer.total)} όπως συζητήσαμε. Είμαι στη διάθεσή σας για οποιαδήποτε διευκρίνιση.`;
+
+  if (isSentStatus(offer.status)) {
+    // Follow-up after the offer was already sent
+    return `${greeting}, ήθελα να επικοινωνήσω μαζί σας σχετικά με την προσφορά μας ${offer.offerNumber} ύψους ${fmtEur(offer.total)}. Εάν έχετε απορίες ή θέλετε να συζητήσουμε περαιτέρω, είμαι στη διάθεσή σας.`;
+  }
+
+  // Default: offer is being sent for the first time
+  return `${greeting}, σας αποστέλλω την προσφορά μας ${offer.offerNumber} ύψους ${fmtEur(offer.total)}. Παραμένω στη διάθεσή σας για οποιαδήποτε διευκρίνιση ή ερώτηση.`;
 }
 
 function buildEmailDraft(offer: Offer, customerName?: string, businessName?: string): string {
   const surname = customerName ? customerName.split(' ').slice(-1)[0] : null;
-  const greeting = surname ? `Καλησπέρα κύριε/κυρία ${surname},` : 'Καλησπέρα,';
+  const greeting = surname ? `Αγαπητέ/ή κύριε/κυρία ${surname},` : 'Αγαπητέ/ή κύριε/κυρία,';
   const itemLines = offer.items
     .map((item) => `- ${item.description}: ${fmtEur(item.quantity * item.unitPrice)}`)
     .join('\n');
   const from = businessName ? `\nΜε εκτίμηση,\n${businessName}` : '\nΜε εκτίμηση,';
+  const subject = `Θέμα: Προσφορά ${offer.offerNumber}${businessName ? ` — ${businessName}` : ''}`;
 
-  return `Θέμα: Προσφορά ${offer.offerNumber}${businessName ? ` — ${businessName}` : ''}
+  if (isSentStatus(offer.status)) {
+    // Follow-up email — do not imply the offer is being sent now
+    return `${subject}
 
 ${greeting}
 
-Σας αποστέλλω την προσφορά μας ${offer.offerNumber} όπως συζητήσαμε.
+Επικοινωνώ μαζί σας σε συνέχεια της προσφοράς μας ${offer.offerNumber} (${fmtEur(offer.total)}) που σας αποστείλαμε.
 
-Η προσφορά περιλαμβάνει:
+Θα χαρούμε να απαντήσουμε σε οποιαδήποτε ερώτηση ή να συζητήσουμε τους όρους σε βολική για σας ώρα.
+${from}`;
+  }
+
+  // Default: first dispatch of the offer
+  return `${subject}
+
+${greeting}
+
+Σας αποστέλλουμε την προσφορά μας ${offer.offerNumber} με τα παρακάτω στοιχεία:
+
 ${itemLines}
 
 Σύνολο (συμπ. ΦΠΑ ${offer.vatRate}%): ${fmtEur(offer.total)}
 Ισχύει μέχρι: ${formatDateGR(offer.validUntil)}
 
-Είμαι στη διάθεσή σας για οποιαδήποτε διευκρίνιση.
+Παραμένουμε στη διάθεσή σας για οποιαδήποτε πληροφορία ή διευκρίνιση.
 ${from}`;
 }
 

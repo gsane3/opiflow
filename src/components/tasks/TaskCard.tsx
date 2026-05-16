@@ -3,6 +3,12 @@ import type { Task } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import TaskStatusBadge, { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from './TaskStatusBadge';
 
+function addDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
 function formatDueDate(dateStr: string, timeStr?: string): string {
   const todayStr = new Date().toISOString().split('T')[0];
   const tomorrow = new Date();
@@ -88,9 +94,10 @@ interface Props {
   onComplete: (id: string) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: string) => void;
+  onSnooze?: (id: string, newDueDate: string) => void;
 }
 
-export default function TaskCard({ task, customerName, onComplete, onEdit, onDelete }: Props) {
+export default function TaskCard({ task, customerName, onComplete, onEdit, onDelete, onSnooze }: Props) {
   const effective = getEffectiveStatus(task);
 
   const cardBg =
@@ -182,6 +189,36 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
             >
               {secondaryOffer.label}
             </Link>
+          )}
+
+          {/* Snooze quick actions */}
+          {onSnooze && (
+            <>
+              <button
+                type="button"
+                onClick={() => onSnooze(task.id, addDays(1))}
+                className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+                title="Αναβολή για αύριο"
+              >
+                Αύριο
+              </button>
+              <button
+                type="button"
+                onClick={() => onSnooze(task.id, addDays(3))}
+                className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+                title="Αναβολή για σε 3 μέρες"
+              >
+                +3 μέρες
+              </button>
+              <button
+                type="button"
+                onClick={() => onSnooze(task.id, addDays(7))}
+                className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+                title="Αναβολή για σε 1 εβδομάδα"
+              >
+                +1 εβδ.
+              </button>
+            </>
           )}
 
           {/* Edit / Delete */}

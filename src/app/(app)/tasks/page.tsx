@@ -225,6 +225,16 @@ export default function TasksPage() {
     setEditingTask(null);
   }
 
+  function handleSnooze(id: string, newDueDate: string) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    // Only snooze open tasks — completed/cancelled tasks cannot be snoozed.
+    if (task.status !== 'open') return;
+    const snoozed = { ...task, dueDate: newDueDate, updatedAt: new Date().toISOString() };
+    updateTask(snoozed);
+    setTasks((prev) => prev.map((t) => (t.id === id ? snoozed : t)));
+  }
+
   function handleCancelForm() {
     setShowForm(false);
     setEditingTask(null);
@@ -418,6 +428,7 @@ export default function TasksPage() {
                 onComplete={handleComplete}
                 onEdit={handleEdit}
                 onDelete={handleDelete}
+                onSnooze={handleSnooze}
               />
             </li>
           ))}

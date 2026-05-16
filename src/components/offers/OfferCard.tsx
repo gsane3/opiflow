@@ -3,6 +3,22 @@ import type { Offer, OfferStatus } from '@/lib/types';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
 import { fmtEur } from '@/lib/offer-calculations';
 
+// Statuses that are already resolved — no expiry warning needed.
+const RESOLVED_STATUSES: OfferStatus[] = ['accepted', 'rejected', 'expired'];
+
+type ExpiryState = 'expiring_soon' | 'expired' | null;
+
+function getExpiryState(offer: Offer): ExpiryState {
+  if (RESOLVED_STATUSES.includes(offer.status)) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const validUntil = new Date(offer.validUntil + 'T00:00:00');
+  const diffDays = Math.round((validUntil.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays < 0) return 'expired';
+  if (diffDays <= 7) return 'expiring_soon';
+  return null;
+}
+
 function formatDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('el-GR', {
     day: 'numeric',
@@ -34,6 +50,8 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
     }
   }
 
+  const expiryState = getExpiryState(offer);
+
   return (
     <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
       <div className="flex items-start justify-between gap-3">
@@ -52,6 +70,16 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
             <span className="font-semibold text-zinc-800">{fmtEur(offer.total)}</span>
             <OfferStatusBadge status={offer.status} />
+            {expiryState === 'expired' && (
+              <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
+                Έληξε
+              </span>
+            )}
+            {expiryState === 'expiring_soon' && (
+              <span className="rounded-full bg-orange-100 px-2 py-0.5 font-semibold text-orange-700">
+                Λήγει σύντομα
+              </span>
+            )}
           </div>
           <p className="mt-1 text-xs text-zinc-400">
             Εκδόθηκε {formatDate(offer.offerDate)} · Ισχύει μέχρι {formatDate(offer.validUntil)}

@@ -63,6 +63,36 @@ function SectionCard({ title, children }: { title: string; children: React.React
   );
 }
 
+/** Returns 2-3 example dictation prompts matched to the business type. */
+function getDictationExamples(businessType?: string): string[] {
+  switch (businessType) {
+    case 'technical_services':
+      return [
+        'Ο Νίκος Παπαδόπουλος ζήτησε HVAC 120τμ, θέλει προσφορά υλικών και εργασίας.',
+        'Εγκατάσταση κλιματισμού σε κατάστημα 80τμ, παράδοση σε 2 εβδομάδες.',
+        'Ηλεκτρολογικές εργασίες σε νέα κατοικία, πελάτης ζήτησε αναλυτικό κόστος.',
+      ];
+    case 'sales_services':
+      return [
+        'Η Μαρία Γεωργίου ενδιαφέρεται για το πακέτο Premium, ρώτησε για έκπτωση.',
+        'Νέος πελάτης από σύσταση, θέλει πληροφορίες για τα προϊόντα Α και Β.',
+        'Ο πελάτης ζήτησε ανανέωση σύμβασης και αναβάθμιση υπηρεσίας.',
+      ];
+    case 'projects_construction':
+      return [
+        'Ανακαίνιση μπάνιου 8τμ, ο πελάτης θέλει προσφορά πλακιδίων και εργατικών.',
+        'Κατασκευή πέργκολας 20τμ σε αυλή, παράδοση εντός μηνός.',
+        'Επισκευή οροφής πολυκατοικίας, ζήτησε επίσκεψη για εκτίμηση.',
+      ];
+    default:
+      return [
+        'Ο πελάτης επικοινώνησε και ζήτησε προσφορά για τις υπηρεσίες μας.',
+        'Νέο αίτημα από πελάτη, χρειάζεται follow-up την επόμενη εβδομάδα.',
+        'Ο πελάτης ενδιαφέρεται, στείλε προσφορά και καλέσε σε 3 μέρες.',
+      ];
+  }
+}
+
 export default function AiReviewPage() {
   const router = useRouter();
 
@@ -116,6 +146,9 @@ export default function AiReviewPage() {
   const recognitionRef = useRef<AppSpeechRecognition | null>(null);
   const shouldKeepListeningRef = useRef(false);
   const stoppingManuallyRef = useRef(false);
+
+  // Dismissed warning indices (local state only, not persisted)
+  const [dismissedWarnings, setDismissedWarnings] = useState<Set<number>>(new Set());
 
   // Phase
   const [phase, setPhase] = useState<'review' | 'saved'>('review');
@@ -272,6 +305,7 @@ export default function AiReviewPage() {
     setStatusUpdate(result.statusUpdate);
     setNextBestAction(result.nextBestAction);
     setWarnings(result.warnings);
+    setDismissedWarnings(new Set());
     setTasks(result.tasks.map((t) => ({ ...t, _id: crypto.randomUUID() })));
     setCreateOffer(result.offer.shouldCreate);
     setOfferItems(result.offer.items.map((i) => ({ ...i, _id: crypto.randomUUID() })));
@@ -563,6 +597,25 @@ export default function AiReviewPage() {
           className={`${inputCls} resize-none disabled:bg-zinc-50`}
         />
 
+        {/* Example prompts by business type — shown when input is empty and not listening */}
+        {!aiInputText && !isListening && (
+          <div className="mt-2 space-y-1.5">
+            <p className="text-xs text-zinc-400">Παραδείγματα:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {getDictationExamples(businessProfile?.businessType).map((example) => (
+                <button
+                  key={example}
+                  type="button"
+                  onClick={() => setAiInputText(example)}
+                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-left text-xs text-zinc-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                >
+                  {example}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Interim speech preview — shown while listening, not stored */}
         {isListening && (
           <p className="mt-1 min-h-[1.25rem] text-xs italic text-zinc-400">
@@ -635,13 +688,38 @@ export default function AiReviewPage() {
       </div>
 
       {/* Warnings */}
-      {warnings.length > 0 && (
-        <div className="space-y-2">
-          {warnings.map((w, i) => (
-            <AiWarningBadge key={i} message={w} />
-          ))}
-        </div>
-      )}
+      {warnings.length > 0 && (() => {
+        const visibleWarnings = warnings.filter((_, i) => !dismissedWarnings.has(i));
+        if (visibleWarnings.length === 0) return null;
+        return (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                Προειδοποιήσεις
+              </span>
+              <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700">
+                {visibleWarnings.length}
+              </span>
+            </div>
+            {warnings.map((w, i) => {
+              if (dismissedWarnings.has(i)) return null;
+              return (
+                <AiWarningBadge
+                  key={i}
+                  message={w}
+                  onDismiss={() =>
+                    setDismissedWarnings((prev) => {
+                      const next = new Set(prev);
+                      next.add(i);
+                      return next;
+                    })
+                  }
+                />
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {/* Customer */}
       <SectionCard title="Πελάτης">

@@ -28,6 +28,76 @@ const CONTACT_LABELS: Record<string, string> = {
   phone: 'Τηλέφωνο',
 };
 
+function ActivitySummaryCard({
+  customerCalls,
+  customerCommunications,
+  openTasks,
+  customerOffers,
+}: {
+  customerCalls: CallRecord[];
+  customerCommunications: CommunicationRecord[];
+  openTasks: Task[];
+  customerOffers: Offer[];
+}) {
+  const lastCall = [...customerCalls]
+    .sort((a, b) => (b.startedAt || b.createdAt).localeCompare(a.startedAt || a.createdAt))[0];
+
+  const lastSms = [...customerCommunications]
+    .filter((c) => c.channel === 'sms')
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+
+  const openOffersCount = customerOffers.filter((o) =>
+    ['draft', 'ready_to_send', 'sent_manually'].includes(o.status)
+  ).length;
+
+  const openTasksCount = openTasks.length;
+
+  const hasAny = lastCall || lastSms || openTasksCount > 0 || openOffersCount > 0;
+  if (!hasAny) return null;
+
+  function fmtDate(iso: string) {
+    try {
+      return new Date(iso).toLocaleDateString('el-GR', { day: 'numeric', month: 'short' });
+    } catch {
+      return '';
+    }
+  }
+
+  return (
+    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+        Σύνοψη δραστηριότητας
+      </h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {openTasksCount > 0 && (
+          <div className="rounded-xl bg-amber-50 px-3 py-2.5 text-center ring-1 ring-amber-100">
+            <p className="text-lg font-bold text-amber-800">{openTasksCount}</p>
+            <p className="text-xs text-amber-600">Ανοιχτά tasks</p>
+          </div>
+        )}
+        {openOffersCount > 0 && (
+          <div className="rounded-xl bg-indigo-50 px-3 py-2.5 text-center ring-1 ring-indigo-100">
+            <p className="text-lg font-bold text-indigo-800">{openOffersCount}</p>
+            <p className="text-xs text-indigo-600">Ανοιχτές προσφορές</p>
+          </div>
+        )}
+        {lastCall && (
+          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100">
+            <p className="text-xs font-medium text-zinc-500">Τελευταία κλήση</p>
+            <p className="text-xs text-zinc-700">{fmtDate(lastCall.startedAt || lastCall.createdAt)}</p>
+          </div>
+        )}
+        {lastSms && (
+          <div className="rounded-xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100">
+            <p className="text-xs font-medium text-zinc-500">Τελευταίο SMS</p>
+            <p className="text-xs text-zinc-700">{fmtDate(lastSms.createdAt)}</p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
 
 function DisabledAction({ label, note }: { label: string; note?: string }) {
   return (
@@ -70,6 +140,7 @@ export default function CustomerProfile({ customerId }: Props) {
   const [briefCreateFollowUp, setBriefCreateFollowUp] = useState(false);
   const [showAiDemoPanel, setShowAiDemoPanel] = useState(false);
   const [aiTranscriptionText, setAiTranscriptionText] = useState('');
+  const [summaryCopied, setSummaryCopied] = useState(false);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -310,6 +381,40 @@ export default function CustomerProfile({ customerId }: Props) {
     router.push('/customers');
   }
 
+  function handleCopySummary() {
+    if (!customer) return;
+    const lines: string[] = [];
+    lines.push(customer.name);
+    if (customer.crmNumber) lines.push(`Πελάτης ${customer.crmNumber}`);
+    const phone = customer.mobilePhone || customer.phone;
+    if (phone) lines.push(`Κιν.: ${phone}`);
+    if (customer.landlinePhone) lines.push(`Σταθ.: ${customer.landlinePhone}`);
+    if (customer.email) lines.push(`Email: ${customer.email}`);
+    if ((customer as { needsSummary?: string }).needsSummary) lines.push(`Ανάγκες: ${(customer as { needsSummary?: string }).needsSummary}`);
+    if (openTasks.length > 0) lines.push(`Ανοιχτά tasks: ${openTasks.length}`);
+    const openOffers = customerOffers.filter((o) =>
+      ['draft', 'ready_to_send', 'sent_manually'].includes(o.status)
+    );
+    if (openOffers.length > 0) lines.push(`Ανοιχτές προσφορές: ${openOffers.length}`);
+    const allCommEvents = [
+      ...customerCommunications.map((c) => ({ createdAt: c.createdAt })),
+      ...customerCalls.map((c) => ({ createdAt: c.startedAt || c.createdAt })),
+    ].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const lastComm = allCommEvents[0];
+    if (lastComm) {
+      lines.push(
+        `Τελευταία επικοινωνία: ${new Date(lastComm.createdAt).toLocaleDateString('el-GR')}`
+      );
+    }
+    const text = lines.join('\n');
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(() => {
+        setSummaryCopied(true);
+        setTimeout(() => setSummaryCopied(false), 2500);
+      });
+    }
+  }
+
   // Stable loading shell — identical on server and first client render.
   if (!hydrated) {
     return (
@@ -414,13 +519,26 @@ export default function CustomerProfile({ customerId }: Props) {
               )}
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-          >
-            Επεξεργασία
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              type="button"
+              onClick={handleCopySummary}
+              className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
+                summaryCopied
+                  ? 'border-green-200 bg-green-50 text-green-700'
+                  : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+              }`}
+            >
+              {summaryCopied ? 'Αντιγράφηκε' : 'Αντιγραφή σύνοψης'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsEditing(true)}
+              className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Επεξεργασία
+            </button>
+          </div>
         </div>
       </div>
 
@@ -468,6 +586,14 @@ export default function CustomerProfile({ customerId }: Props) {
         );
       })()}
 
+      {/* Activity summary */}
+      <ActivitySummaryCard
+        customerCalls={customerCalls}
+        customerCommunications={customerCommunications}
+        openTasks={openTasks}
+        customerOffers={customerOffers}
+      />
+
       {/* Next action recommendation */}
       <CustomerNextActionPanel
         customer={customer}
@@ -486,6 +612,7 @@ export default function CustomerProfile({ customerId }: Props) {
           {callPhone ? (
             <a
               href={buildCallHref(callPhone)}
+              title="Ανοίγει την εφαρμογή κλήσεων"
               onClick={() => {
                 const rec: CommunicationRecord = {
                   id: crypto.randomUUID(),
@@ -562,6 +689,7 @@ export default function CustomerProfile({ customerId }: Props) {
           {smsPhone ? (
             <a
               href={buildSmsHref(smsPhone)}
+              title="Ανοίγει την εφαρμογή SMS"
               onClick={() => {
                 const rec: CommunicationRecord = {
                   id: crypto.randomUUID(),
@@ -587,7 +715,7 @@ export default function CustomerProfile({ customerId }: Props) {
           ) : (
             <DisabledAction
               label="SMS"
-              note={hasLandlineOnly ? 'Δεν υπάρχει κινητό για SMS' : 'Δεν υπάρχει τηλέφωνο'}
+              note={hasLandlineOnly ? 'Δεν υπάρχει κινητό για SMS' : undefined}
             />
           )}
           <DisabledAction label="Email draft" />

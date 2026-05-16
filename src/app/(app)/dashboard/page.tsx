@@ -14,6 +14,8 @@ import RecentCallsSection from '@/components/dashboard/RecentCallsSection';
 import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicationsSection';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
 import SmsIntakeNotificationBar from '@/components/dashboard/SmsIntakeNotificationBar';
+import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
+import LocalAnalyticsWidget from '@/components/dashboard/LocalAnalyticsWidget';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -292,6 +294,8 @@ export default function DashboardPage() {
         onKeepDraft={handleKeepSmsIntakeDraft}
       />
 
+      <DataQualityWidget customers={customers} />
+
       <NextActionsSection
         customers={customers}
         tasks={tasks}
@@ -309,6 +313,7 @@ export default function DashboardPage() {
       <OpenOffersSection offers={openOffers} customerMap={customerMap} />
       <RecentCommunicationsSection communications={communications} customerMap={customerMap} />
       <RecentCallsSection callRecords={calls} customerMap={customerMap} />
+      <LocalAnalyticsWidget customers={customers} tasks={tasks} offers={offers} />
     </div>
   );
 }

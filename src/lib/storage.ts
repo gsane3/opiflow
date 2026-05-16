@@ -225,19 +225,82 @@ export function mergeCustomers(primaryId: string, duplicateId: string): void {
   });
 }
 
+interface BackupEnvelope {
+  app: string;
+  type: string;
+  version: number;
+  exportedAt: string;
+  state: YorgosMvpState;
+}
+
+export interface ParsedBackup {
+  state: YorgosMvpState;
+  exportedAt?: string;
+  version?: number;
+  isWrapped: boolean;
+}
+
+const KNOWN_STATE_KEYS = [
+  'customers', 'tasks', 'offers', 'calls', 'communications',
+  'businessProfile', 'userProfile', 'workspace',
+];
+
+export function parseBackupJson(json: string): ParsedBackup | null {
+  try {
+    const parsed = JSON.parse(json);
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
+
+    // New wrapped format
+    if (parsed.app === 'yorgos.ai' && parsed.type === 'local_backup') {
+      const state = parsed.state;
+      if (typeof state !== 'object' || state === null || Array.isArray(state)) return null;
+      return {
+        state: state as YorgosMvpState,
+        exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : undefined,
+        version: typeof parsed.version === 'number' ? parsed.version : undefined,
+        isWrapped: true,
+      };
+    }
+
+    // Legacy raw format — must contain at least one recognised state key
+    const hasKnownKey = KNOWN_STATE_KEYS.some((k) => k in parsed);
+    if (!hasKnownKey) return null;
+    return { state: parsed as YorgosMvpState, isWrapped: false };
+  } catch {
+    return null;
+  }
+}
+
 export function exportStateJson(): string {
-  return JSON.stringify(loadState(), null, 2);
+  const envelope: BackupEnvelope = {
+    app: 'yorgos.ai',
+    type: 'local_backup',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    state: loadState(),
+  };
+  return JSON.stringify(envelope, null, 2);
 }
 
 export function importStateJson(json: string): boolean {
-  try {
-    const parsed = JSON.parse(json);
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return false;
-    saveState(parsed as Partial<YorgosMvpState>);
-    return true;
-  } catch {
-    return false;
-  }
+  const parsed = parseBackupJson(json);
+  if (!parsed) return false;
+  saveState(parsed.state);
+  return true;
+}
+
+export function normalizeImportedState(state: YorgosMvpState): YorgosMvpState {
+  // Ensure all arrays exist (older backups may omit them)
+  const customers = state.customers ?? [];
+  const normalized = {
+    ...state,
+    customers: ensureCustomerCrmNumbers(customers),
+    tasks: state.tasks ?? [],
+    offers: state.offers ?? [],
+    calls: state.calls ?? [],
+    communications: state.communications ?? [],
+  };
+  return normalized;
 }
 
 export function getBusinessProfile(): BusinessProfile | null {

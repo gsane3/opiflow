@@ -103,6 +103,26 @@ interface TimelineItem {
   summary?: string;
   nextStep?: string;
   isMock?: boolean;
+  commStatus?: string; // for comm items: e.g. 'started' | 'sent' | 'completed' | 'failed'
+}
+
+// Local demo helper: updates a CommunicationRecord status directly in localStorage.
+// The storage key matches the app's persistence layer. No auto-refresh — navigate
+// away and back to see the updated status reflected in the timeline.
+function updateCommStatus(commId: string, newStatus: 'completed' | 'failed') {
+  if (typeof window === 'undefined') return;
+  try {
+    const raw = localStorage.getItem('yorgos_ai_mvp_state');
+    if (!raw) return;
+    const state = JSON.parse(raw) as { communications?: Array<{ id: string }> };
+    if (!Array.isArray(state.communications)) return;
+    state.communications = state.communications.map((c) =>
+      c.id === commId ? { ...c, status: newStatus, updatedAt: new Date().toISOString() } : c
+    );
+    localStorage.setItem('yorgos_ai_mvp_state', JSON.stringify(state));
+  } catch {
+    // ignore parse/storage errors
+  }
 }
 
 function buildItems(
@@ -200,6 +220,7 @@ function buildItems(
       detail: comm.phone || comm.summary || '',
       dateIso,
       dateLabel,
+      commStatus: comm.status,
     });
   }
 
@@ -416,9 +437,41 @@ export default function CustomerTimeline({ customerId, tasks, offers, calls, com
                       </>
                     ) : (
                       <>
-                        <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
+                          {item.kind === 'comm' && item.commStatus === 'completed' && (
+                            <span className="inline-block h-2 w-2 rounded-full bg-green-500" title="Ολοκληρώθηκε" />
+                          )}
+                          {item.kind === 'comm' && item.commStatus === 'failed' && (
+                            <span className="inline-block h-2 w-2 rounded-full bg-red-500" title="Απέτυχε" />
+                          )}
+                        </div>
                         <p className="truncate text-xs text-zinc-500">{item.detail}</p>
                       </>
+                    )}
+                    {item.kind === 'comm' && !item.href && (
+                      <div className="mt-1 flex gap-1.5">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            updateCommStatus(item.id, 'completed');
+                          }}
+                          className="rounded bg-green-50 px-1.5 py-0.5 text-[10px] font-medium text-green-700 transition hover:bg-green-100"
+                        >
+                          Ολοκληρώθηκε
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            updateCommStatus(item.id, 'failed');
+                          }}
+                          className="rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 transition hover:bg-red-100"
+                        >
+                          Απέτυχε
+                        </button>
+                      </div>
                     )}
                   </div>
                   <span className="shrink-0 text-xs text-zinc-400">{item.dateLabel}</span>
