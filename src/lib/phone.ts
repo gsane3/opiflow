@@ -1,3 +1,27 @@
+import type { Customer } from './types';
+
+export function normalizePhone(phone: string): string {
+  let clean = phone.replace(/[\s\-\(\)\.]/g, '').replace(/^\+/, '');
+  if (clean.startsWith('0030')) clean = clean.slice(4);
+  else if (clean.startsWith('30') && clean.length > 10) clean = clean.slice(2);
+  return clean;
+}
+
+export function phonesMatch(a?: string, b?: string): boolean {
+  if (!a || !b) return false;
+  return normalizePhone(a) === normalizePhone(b);
+}
+
+export function findCustomerByPhone(customers: Customer[], phone: string): Customer | undefined {
+  if (!phone.trim()) return undefined;
+  return customers.find(
+    (c) =>
+      phonesMatch(c.mobilePhone, phone) ||
+      phonesMatch(c.landlinePhone, phone) ||
+      phonesMatch(c.phone, phone)
+  );
+}
+
 export function isLikelyMobile(phone: string): boolean {
   const clean = phone.replace(/[\s\-\(\)\.\+]/g, '');
   // Greek mobile: 69XXXXXXXX, 069XXXXXXXX, 3069XXXXXXXX, 003069XXXXXXXX

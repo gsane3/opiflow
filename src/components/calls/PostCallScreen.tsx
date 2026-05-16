@@ -6,7 +6,7 @@ import type { DemoCallScenario } from '@/lib/demo-data';
 import type { Customer, CallRecord, Task } from '@/lib/types';
 import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask, getNextCrmNumber, addCommunicationRecord } from '@/lib/storage';
 import { parseSmsReply } from '@/lib/sms-intake';
-import { isLikelyMobile } from '@/lib/phone';
+import { isLikelyMobile, findCustomerByPhone } from '@/lib/phone';
 import { buildSmsHref } from '@/lib/communications';
 
 interface BusinessInfo {
@@ -128,6 +128,7 @@ export default function PostCallScreen({
   const [crmRegistered, setCrmRegistered] = useState(false);
   const [crmRegisteredCustomerId, setCrmRegisteredCustomerId] = useState<string | null>(null);
   const [smsSendLogged, setSmsSendLogged] = useState(false);
+  const [reusedExisting, setReusedExisting] = useState(false);
 
   // Manual registration form state.
   const [manualOpen, setManualOpen] = useState(() =>
@@ -178,7 +179,7 @@ export default function PostCallScreen({
     }
   }
 
-  // Ensure a CRM customer exists; creates a temp card if a phone is available.
+  // Ensure a CRM customer exists; reuses existing if phone matches, else creates temp card.
   // Returns the resolved customer id or null.
   function ensureCrmCustomer(summary: string): string | null {
     if (activeCrmId) return activeCrmId;
@@ -187,6 +188,22 @@ export default function PostCallScreen({
     const now = new Date().toISOString();
     const state = loadState();
     const customers = state.customers ?? [];
+
+    // Reuse existing customer if phone matches — prevents duplicate cards.
+    const found = findCustomerByPhone(customers, phone);
+    if (found) {
+      const updates: Partial<Customer> = {};
+      if (isLikelyMobile(phone) && !found.mobilePhone) updates.mobilePhone = phone;
+      if (!isLikelyMobile(phone) && !found.landlinePhone) updates.landlinePhone = phone;
+      if (!found.phone) updates.phone = phone;
+      if (Object.keys(updates).length > 0) {
+        updateCustomer({ ...found, ...updates, updatedAt: now });
+      }
+      setActiveCrmId(found.id);
+      setReusedExisting(true);
+      return found.id;
+    }
+
     const crmNumber = getNextCrmNumber(customers);
     const newCustomer: Customer = {
       id: crypto.randomUUID(),
@@ -407,6 +424,19 @@ export default function PostCallScreen({
 
     let resolvedId = activeCrmId || customerId || null;
 
+    // Check existing customers by phone before creating new.
+    if (!resolvedId) {
+      const searchPhone = mobile || landline || tempPhone.trim();
+      if (searchPhone) {
+        const stateForSearch = loadState();
+        const found = findCustomerByPhone(stateForSearch.customers ?? [], searchPhone);
+        if (found) {
+          resolvedId = found.id;
+          setActiveCrmId(found.id);
+        }
+      }
+    }
+
     if (resolvedId) {
       const state = loadState();
       const existing = (state.customers ?? []).find((c) => c.id === resolvedId);
@@ -613,6 +643,11 @@ export default function PostCallScreen({
             <p className="text-sm text-zinc-600">
               Να σταλεί SMS στον πελάτη για να αποστείλει τα στοιχεία του στην καρτέλα;
             </p>
+            {reusedExisting && (
+              <p className="text-xs text-green-700">
+                Βρέθηκε υπάρχουσα καρτέλα με αυτό το τηλέφωνο.
+              </p>
+            )}
             {!customerId && (
               <div className="space-y-2">
                 {customerLandlinePhone && !tempPhone && (
