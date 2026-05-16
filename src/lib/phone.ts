@@ -22,6 +22,36 @@ export function findCustomerByPhone(customers: Customer[], phone: string): Custo
   );
 }
 
+export function getCustomerPhoneKeys(customer: Customer): string[] {
+  const keys = new Set<string>();
+  for (const p of [customer.mobilePhone, customer.landlinePhone, customer.phone]) {
+    if (p?.trim()) keys.add(normalizePhone(p.trim()));
+  }
+  return [...keys].filter(Boolean);
+}
+
+export function findDuplicateCustomerGroups(customers: Customer[]): Customer[][] {
+  const phoneToIds = new Map<string, string[]>();
+  for (const c of customers) {
+    for (const key of getCustomerPhoneKeys(c)) {
+      const arr = phoneToIds.get(key) ?? [];
+      arr.push(c.id);
+      phoneToIds.set(key, arr);
+    }
+  }
+  const seenGroupKeys = new Set<string>();
+  const groups: Customer[][] = [];
+  for (const ids of phoneToIds.values()) {
+    if (ids.length < 2) continue;
+    const groupKey = [...ids].sort().join(':');
+    if (seenGroupKeys.has(groupKey)) continue;
+    seenGroupKeys.add(groupKey);
+    const members = ids.map((id) => customers.find((c) => c.id === id)).filter(Boolean) as Customer[];
+    if (members.length > 1) groups.push(members);
+  }
+  return groups;
+}
+
 export function isLikelyMobile(phone: string): boolean {
   const clean = phone.replace(/[\s\-\(\)\.\+]/g, '');
   // Greek mobile: 69XXXXXXXX, 069XXXXXXXX, 3069XXXXXXXX, 003069XXXXXXXX

@@ -184,6 +184,47 @@ export function advanceSmsIntakeStatuses(customers: Customer[], now = new Date()
   });
 }
 
+export function mergeCustomers(primaryId: string, duplicateId: string): void {
+  const state = loadState();
+  const customers = state.customers ?? [];
+  const primary = customers.find((c) => c.id === primaryId);
+  const duplicate = customers.find((c) => c.id === duplicateId);
+  if (!primary || !duplicate) return;
+
+  const now = new Date().toISOString();
+  const merged = {
+    ...primary,
+    name: primary.name || duplicate.name,
+    companyName: primary.companyName || duplicate.companyName,
+    phone: primary.phone || duplicate.phone,
+    mobilePhone: primary.mobilePhone || duplicate.mobilePhone,
+    landlinePhone: primary.landlinePhone || duplicate.landlinePhone,
+    email: primary.email || duplicate.email,
+    address: primary.address || duplicate.address,
+    needsSummary: primary.needsSummary || duplicate.needsSummary,
+    notes:
+      primary.notes && duplicate.notes
+        ? `${primary.notes}\n${duplicate.notes}`
+        : primary.notes || duplicate.notes,
+    updatedAt: now,
+  };
+
+  const updatedCustomers = customers
+    .filter((c) => c.id !== duplicateId)
+    .map((c) => (c.id === primaryId ? merged : c));
+
+  const reassign = <T extends { customerId?: string }>(arr: T[]): T[] =>
+    arr.map((r) => (r.customerId === duplicateId ? { ...r, customerId: primaryId } : r));
+
+  saveState({
+    customers: updatedCustomers,
+    tasks: reassign(state.tasks ?? []),
+    offers: reassign(state.offers ?? []),
+    calls: reassign(state.calls ?? []),
+    communications: reassign(state.communications ?? []),
+  });
+}
+
 export function getBusinessProfile(): BusinessProfile | null {
   return loadState().businessProfile ?? null;
 }

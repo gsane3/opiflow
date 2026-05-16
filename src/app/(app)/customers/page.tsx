@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import { loadState, saveState, addCustomer, ensureCustomerCrmNumbers, getNextCrmNumber } from '@/lib/storage';
+import { loadState, saveState, addCustomer, ensureCustomerCrmNumbers, getNextCrmNumber, mergeCustomers } from '@/lib/storage';
 import { demoCustomers } from '@/lib/demo-data';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
 import CustomerCard from '@/components/customers/CustomerCard';
 import CustomerForm from '@/components/customers/CustomerForm';
+import DuplicateCustomersPanel from '@/components/customers/DuplicateCustomersPanel';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 
@@ -76,6 +77,12 @@ export default function CustomersPage() {
     setSearch('');
     setStatusFilter('');
     setSourceFilter('');
+  }
+
+  function handleMergeCustomers(primaryId: string, duplicateId: string) {
+    mergeCustomers(primaryId, duplicateId);
+    const freshCustomers = ensureCustomerCrmNumbers(loadState().customers ?? []);
+    setCustomers(freshCustomers);
   }
 
   function handleCreate(customer: Customer) {
@@ -149,6 +156,9 @@ export default function CustomersPage() {
           <CustomerForm onSave={handleCreate} onCancel={() => setShowForm(false)} />
         </div>
       )}
+
+      {/* Duplicate detection panel */}
+      <DuplicateCustomersPanel customers={customers} onMerge={handleMergeCustomers} />
 
       {/* Search + filters */}
       <div className="mb-4 space-y-2">
