@@ -3,26 +3,18 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-const actions = [
-  { label: 'Νέα κλήση' },
-  { label: 'Υπαγόρευση' },
-  { label: 'Νέος πελάτης' },
-  { label: 'Νέα προσφορά' },
+const ACTIONS = [
+  { label: 'AI review', href: '/ai-review' },
+  { label: 'Demo κλήση', href: '/call/mock' },
 ];
 
 export default function FloatingActionMenu() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
-  function handleAction(label: string) {
+  function handleAction(href: string) {
     setOpen(false);
-    if (label === 'Υπαγόρευση') {
-      router.push('/ai-review');
-      return;
-    }
-    setToast(`${label} — Σύντομα`);
-    setTimeout(() => setToast(null), 2200);
+    router.push(href);
   }
 
   return (
@@ -37,17 +29,14 @@ export default function FloatingActionMenu() {
 
       {open && (
         <div className="fixed bottom-40 right-4 z-50 flex flex-col items-end gap-2 md:bottom-24">
-          {[...actions].reverse().map((action) => (
+          {[...ACTIONS].reverse().map((action) => (
             <button
               key={action.label}
               type="button"
-              onClick={() => handleAction(action.label)}
-              className="flex items-center gap-2 rounded-full bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-md ring-1 ring-zinc-200 transition hover:bg-zinc-50 active:bg-zinc-100"
+              onClick={() => handleAction(action.href)}
+              className="flex items-center rounded-full bg-white px-4 py-2.5 text-sm font-medium text-zinc-700 shadow-md ring-1 ring-zinc-200 transition hover:bg-zinc-50 active:bg-zinc-100"
             >
-              <span>{action.label}</span>
-              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-400">
-                Σύντομα
-              </span>
+              {action.label}
             </button>
           ))}
         </div>
@@ -73,12 +62,6 @@ export default function FloatingActionMenu() {
           />
         </svg>
       </button>
-
-      {toast && (
-        <div className="fixed bottom-40 left-1/2 z-50 -translate-x-1/2 rounded-full bg-zinc-800 px-4 py-2 text-sm text-white shadow-lg md:bottom-24">
-          {toast}
-        </div>
-      )}
     </>
   );
 }

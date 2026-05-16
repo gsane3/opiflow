@@ -9,6 +9,7 @@ import type { CallType, Customer, CallRecord, BusinessProfile } from '@/lib/type
 import CallTypeSelector, { CALL_TYPE_LABELS } from '@/components/calls/CallTypeSelector';
 import MockCallScreen from '@/components/calls/MockCallScreen';
 import PostCallScreen from '@/components/calls/PostCallScreen';
+import DemoVoipKeypad from '@/components/call/DemoVoipKeypad';
 
 type Phase = 'setup' | 'active' | 'ended';
 
@@ -162,6 +163,19 @@ export default function MockCallPage() {
       <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
         Demo κλήση. Δεν γίνεται πραγματική τηλεφωνική κλήση ή ηχογράφηση στο MVP.
       </div>
+
+      {/* Future VoIP keypad preview */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+          Μελλοντική εμπειρία — Demo VoIP keypad
+        </p>
+        <DemoVoipKeypad />
+        <p className="text-center text-xs text-zinc-400">
+          Ή χρησιμοποίησε τη φόρμα παρακάτω για πλήρη demo κλήση με σενάριο.
+        </p>
+      </div>
+
+      <hr className="border-zinc-100" />
 
       {/* Call type */}
       <div>

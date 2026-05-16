@@ -457,6 +457,7 @@ export default function ProductionReadinessPage() {
               { route: '/settings', check: 'All sections load, backup download works.' },
               { route: '/demo/pilot-feedback', check: 'Feedback form loads, Copy full pilot report calls finishDemoGuide, app unlocks.' },
               { route: '/demo/privacy', check: 'Privacy page loads cleanly.' },
+              { route: '/call/mock', check: 'Setup screen loads. Demo VoIP keypad visible. "Demo κλήση" shows no-real-call notice.' },
               { route: '/api/ai/review', check: 'Returns demo result without API key (POST with text).' },
             ].map(({ route, check }) => (
               <div key={route} className="flex items-start gap-3 text-xs">
@@ -475,6 +476,11 @@ export default function ProductionReadinessPage() {
               'Mobile layout: no horizontal overflow.',
               'Print offer (/offers/demo-offer-1 -> print): document fills page, no sidebar clip.',
               'Guided demo app unlock: after feedback Copy report, guide session inactive, all nav works.',
+              'FloatingActionMenu: only "AI review" and "Demo κλήση" — no "Σύντομα" actions.',
+              'Demo VoIP keypad on /call/mock clearly says "Στο MVP δεν γίνεται πραγματική κλήση."',
+              '"Demo κλήση" button shows disclaimer, not a fake connected/answered state.',
+              'Native tel: link (if shown) labelled as "Άνοιγμα native κλήσης (συσκευή)", not in-app VoIP.',
+              'Mobile bottom nav: exactly 4 items (Αρχική, Πελάτες, Tasks, Προσφορές).',
             ].map((c) => (
               <p key={c} className="flex items-start gap-1.5 text-xs text-zinc-500">
                 <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-zinc-400" />
