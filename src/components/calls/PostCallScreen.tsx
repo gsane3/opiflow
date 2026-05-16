@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import type { DemoCallScenario } from '@/lib/demo-data';
 import type { Customer, CallRecord, Task } from '@/lib/types';
-import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask, getNextCrmNumber } from '@/lib/storage';
+import { updateCustomer, addCustomer, loadState, updateCallRecord, addCallRecord, addTask, getNextCrmNumber, addCommunicationRecord } from '@/lib/storage';
 import { parseSmsReply } from '@/lib/sms-intake';
 import { isLikelyMobile } from '@/lib/phone';
 import { buildSmsHref } from '@/lib/communications';
@@ -127,6 +127,7 @@ export default function PostCallScreen({
   const [demoSmsText, setDemoSmsText] = useState('');
   const [crmRegistered, setCrmRegistered] = useState(false);
   const [crmRegisteredCustomerId, setCrmRegisteredCustomerId] = useState<string | null>(null);
+  const [smsSendLogged, setSmsSendLogged] = useState(false);
 
   // Manual registration form state.
   const [manualOpen, setManualOpen] = useState(() =>
@@ -227,6 +228,21 @@ export default function PostCallScreen({
         });
       }
     }
+    if (!smsSendLogged && resolvedId) {
+      addCommunicationRecord({
+        id: crypto.randomUUID(),
+        customerId: resolvedId,
+        channel: 'sms',
+        direction: 'outbound',
+        status: 'sent',
+        phone: tempPhone.trim(),
+        summary: 'Αποστολή SMS για καταχώρηση στοιχείων πελάτη.',
+        createdAt: now,
+        isMock: true,
+      });
+      setSmsSendLogged(true);
+    }
+
     setSmsDecision('yes');
     setDemoSmsStatus('waiting');
     smsTimerRef.current = window.setTimeout(() => {
