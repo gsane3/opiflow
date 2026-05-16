@@ -10,6 +10,7 @@ import CallTypeSelector, { CALL_TYPE_LABELS } from '@/components/calls/CallTypeS
 import MockCallScreen from '@/components/calls/MockCallScreen';
 import PostCallScreen from '@/components/calls/PostCallScreen';
 import DemoVoipKeypad from '@/components/call/DemoVoipKeypad';
+import PageHelp from '@/components/common/PageHelp';
 
 type Phase = 'setup' | 'active' | 'ended';
 
@@ -158,6 +159,24 @@ export default function MockCallPage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
       <h1 className="text-lg font-semibold text-zinc-900">Νέα κλήση</h1>
+
+      <PageHelp title="Τι βλέπω εδώ;">
+        <p className="text-sm text-zinc-600">
+          Εδώ βλέπεις πώς θα μοιάζει η κλήση στο τελικό προϊόν. Στο MVP δεν γίνεται πραγματική κλήση.
+        </p>
+        <ul className="space-y-1 mt-1">
+          {[
+            'Ο Demo VoIP keypad δείχνει πώς θα φαίνεται το in-app dialer στο τελικό προϊόν.',
+            'Η φόρμα παρακάτω σου επιτρέπει να δοκιμάσεις τη ροή: κλήση → brief → AI review.',
+            'Τίποτα δεν αποστέλλεται και κανείς δεν ειδοποιείται.',
+          ].map((t) => (
+            <li key={t} className="flex items-start gap-2 text-xs text-zinc-500">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+              {t}
+            </li>
+          ))}
+        </ul>
+      </PageHelp>
 
       {/* Mock notice */}
       <div className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-700">

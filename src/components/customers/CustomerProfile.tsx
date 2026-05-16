@@ -9,10 +9,10 @@ import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import { buildMapsUrl } from '@/lib/maps';
 import { isLikelyMobile, getCallPhone, getSmsPhone, getLandlinePhone } from '@/lib/phone';
 import { buildCallHref, buildSmsHref } from '@/lib/communications';
-import type { Customer, Task, Offer, CallRecord, CommunicationRecord } from '@/lib/types';
+import type { Customer, Task, Offer, OfferItem, CallRecord, CommunicationRecord } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import OfferStatusBadge from '@/components/offers/OfferStatusBadge';
-import { fmtEur } from '@/lib/offer-calculations';
+import { fmtEur, calculateTotals } from '@/lib/offer-calculations';
 import CustomerStatusBadge, { STATUS_LABELS } from './CustomerStatusBadge';
 import { SOURCE_LABELS } from './CustomerCard';
 import CustomerForm from './CustomerForm';
@@ -23,6 +23,7 @@ import CustomerNextActionPanel from './CustomerNextActionPanel';
 import TaskForm from '@/components/tasks/TaskForm';
 import OfferForm from '@/components/offers/OfferForm';
 import { isIncompleteCustomer, getMissingFields } from './CustomerDataQualityPanel';
+import ActionSheet from '@/components/common/ActionSheet';
 
 const CONTACT_LABELS: Record<string, string> = {
   viber: 'Viber',
@@ -103,14 +104,15 @@ function ActivitySummaryCard({
 
 function DisabledAction({ label, note }: { label: string; note?: string }) {
   return (
-    <button
-      disabled
-      className="flex w-full flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-2 py-3 text-xs font-medium text-zinc-400 cursor-not-allowed"
-      title={note ? `Σύντομα — ${note}` : 'Σύντομα'}
+    <div
+      className="flex w-full flex-col items-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 ring-1 ring-zinc-200 cursor-not-allowed select-none"
+      title={note ?? label}
     >
-      <span className="text-center leading-tight">{label}</span>
-      <span className="text-zinc-300 text-[10px]">Σύντομα</span>
-    </button>
+      <span className="text-sm font-medium text-zinc-400 text-center leading-tight">{label}</span>
+      {note && (
+        <span className="text-[11px] text-zinc-400 text-center leading-snug">{note}</span>
+      )}
+    </div>
   );
 }
 
@@ -143,6 +145,24 @@ export default function CustomerProfile({ customerId }: Props) {
   const [showAiDemoPanel, setShowAiDemoPanel] = useState(false);
   const [aiTranscriptionText, setAiTranscriptionText] = useState('');
   const [summaryCopied, setSummaryCopied] = useState(false);
+  // Quick task sheet (customer-specific inline creation)
+  const [showQuickTaskSheet, setShowQuickTaskSheet] = useState(false);
+  const [quickTaskTitle, setQuickTaskTitle] = useState('');
+  const [quickTaskDueDate, setQuickTaskDueDate] = useState('');
+  const [quickTaskPriority, setQuickTaskPriority] = useState<'high' | 'normal' | 'low'>('normal');
+  const [quickTaskNote, setQuickTaskNote] = useState('');
+  const [quickTaskSuccess, setQuickTaskSuccess] = useState(false);
+  // Quick offer sheet (customer-specific inline creation)
+  const [showQuickOfferSheet, setShowQuickOfferSheet] = useState(false);
+  const [quickOfferDesc, setQuickOfferDesc] = useState('');
+  const [quickOfferQty, setQuickOfferQty] = useState('1');
+  const [quickOfferPrice, setQuickOfferPrice] = useState('');
+  const [quickOfferVat, setQuickOfferVat] = useState('24');
+  const [quickOfferNotes, setQuickOfferNotes] = useState('');
+  const [quickOfferSuccess, setQuickOfferSuccess] = useState(false);
+  const [quickOfferNewId, setQuickOfferNewId] = useState<string | null>(null);
+  // Email draft copy
+  const [emailDraftCopied, setEmailDraftCopied] = useState(false);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -346,6 +366,124 @@ export default function CustomerProfile({ customerId }: Props) {
     setNewTaskInitial(null);
   }
 
+  // ── Quick task (inline, customer-specific) ───────────────────────────────────
+  function openQuickTaskSheet() {
+    if (!customer) return;
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setQuickTaskTitle(`Follow-up με ${customer.name}`);
+    setQuickTaskDueDate(tomorrow.toISOString().split('T')[0]);
+    setQuickTaskPriority('normal');
+    setQuickTaskNote('');
+    setQuickTaskSuccess(false);
+    setShowQuickTaskSheet(true);
+  }
+
+  function handleSaveQuickTask() {
+    if (!customer) return;
+    const now = new Date().toISOString();
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const task: Task = {
+      id: crypto.randomUUID(),
+      customerId: customer.id,
+      title: quickTaskTitle.trim() || `Follow-up με ${customer.name}`,
+      type: 'call_back',
+      status: 'open',
+      priority: quickTaskPriority,
+      dueDate: quickTaskDueDate || tomorrow.toISOString().split('T')[0],
+      note: quickTaskNote.trim(),
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addTask(task);
+    setCustomerTasks((prev) => [...prev, task]);
+    setQuickTaskSuccess(true);
+  }
+
+  // ── Quick offer (inline, customer-specific) ───────────────────────────────────
+  function openQuickOfferSheet() {
+    setQuickOfferDesc('');
+    setQuickOfferQty('1');
+    setQuickOfferPrice('');
+    setQuickOfferVat('24');
+    setQuickOfferNotes('');
+    setQuickOfferSuccess(false);
+    setQuickOfferNewId(null);
+    setShowQuickOfferSheet(true);
+  }
+
+  function handleSaveQuickOffer() {
+    if (!customer) return;
+    const now = new Date().toISOString();
+    const allOffers = loadState().offers ?? [];
+    const maxNum =
+      allOffers.length === 0
+        ? 0
+        : Math.max(
+            ...allOffers.map((o) => {
+              const m = o.offerNumber.match(/(\d+)$/);
+              return m ? parseInt(m[1]) : 0;
+            })
+          );
+    const offerNumber = `#${String(maxNum + 1).padStart(3, '0')}`;
+    const validUntil = new Date();
+    validUntil.setDate(validUntil.getDate() + 30);
+
+    const qty = parseFloat(quickOfferQty) || 1;
+    const price = parseFloat(quickOfferPrice.replace(',', '.')) || 0;
+    const vatRate = parseFloat(quickOfferVat) || 24;
+
+    const item: OfferItem = {
+      id: crypto.randomUUID(),
+      description: quickOfferDesc.trim() || 'Υπηρεσία',
+      quantity: qty,
+      unitPrice: price,
+    };
+    const { subtotal, vatAmount, total } = calculateTotals([item], vatRate);
+
+    const newId = crypto.randomUUID();
+    const offer: Offer = {
+      id: newId,
+      customerId: customer.id,
+      offerNumber,
+      status: 'draft',
+      offerDate: now.split('T')[0],
+      validUntil: validUntil.toISOString().split('T')[0],
+      items: [item],
+      subtotal,
+      vatRate,
+      vatAmount,
+      total,
+      notes: quickOfferNotes.trim(),
+      terms: '',
+      acceptanceText: '',
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    addOffer(offer);
+    setCustomerOffers((prev) => [...prev, offer]);
+    setQuickOfferSuccess(true);
+    setQuickOfferNewId(newId);
+  }
+
+  // ── Email draft copy (customer-specific) ──────────────────────────────────────
+  function handleCopyEmailDraft() {
+    if (!customer?.email) return;
+    const draft = `Καλησπέρα ${customer.name},\n\nΣας γράφω σχετικά με την επικοινωνία μας.\n\nΜε εκτίμηση`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(draft).then(
+        () => { setEmailDraftCopied(true); setTimeout(() => setEmailDraftCopied(false), 2500); },
+        () => { setEmailDraftCopied(true); setTimeout(() => setEmailDraftCopied(false), 2500); }
+      );
+    } else {
+      setEmailDraftCopied(true);
+      setTimeout(() => setEmailDraftCopied(false), 2500);
+    }
+  }
+
   function handleCancelNewTask() {
     setShowTaskForm(false);
     setNewTaskInitial(null);
@@ -495,71 +633,73 @@ export default function CustomerProfile({ customerId }: Props) {
         ← Πελάτες
       </button>
 
-      {/* Header */}
-      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <h1 className="min-w-0 truncate text-lg font-bold text-zinc-900">{customer.name}</h1>
-              {customer.crmNumber && (
-                <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-500">
-                  Πελάτης {customer.crmNumber}
-                </span>
-              )}
-              {customer.intakeStatus && customer.intakeStatus !== 'none' && customer.intakeStatus !== 'completed' && (
-                <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${
-                  customer.intakeStatus === 'no_response'
-                    ? 'bg-red-100 text-red-600'
-                    : customer.intakeStatus === 'reminder_sent'
-                    ? 'bg-amber-100 text-amber-700'
-                    : customer.intakeStatus === 'kept_draft'
-                    ? 'bg-zinc-100 text-zinc-500'
-                    : 'bg-blue-50 text-blue-600'
-                }`}>
-                  {customer.intakeStatus === 'waiting_sms' ? 'Αναμονή SMS στοιχείων'
-                    : customer.intakeStatus === 'reminder_sent' ? 'Στάλθηκε υπενθύμιση SMS'
-                    : customer.intakeStatus === 'no_response' ? 'Δεν απάντησε στο SMS'
-                    : 'Πρόχειρη καρτέλα'}
-                </span>
-              )}
-              {customer.isDemo && (
-                <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-                  Demo
-                </span>
-              )}
-            </div>
-            {customer.companyName && (
-              <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
+      {/* Header — stacked for mobile readability */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        {/* Name — full width, never truncated */}
+        <div>
+          <h1 className="text-xl font-bold text-zinc-900 leading-tight">{customer.name}</h1>
+          {customer.companyName && (
+            <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
+          )}
+          {/* Badges row */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {customer.crmNumber && (
+              <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-medium text-zinc-500">
+                Πελάτης {customer.crmNumber}
+              </span>
             )}
-            <div className="mt-2 flex flex-wrap items-center gap-2">
-              <CustomerStatusBadge status={customer.status} />
-              {customer.opportunityValue && (
-                <span className="text-sm font-semibold text-zinc-700">
-                  €{customer.opportunityValue.toLocaleString('el-GR')}
-                </span>
-              )}
-            </div>
+            {customer.isDemo && (
+              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
+                Demo
+              </span>
+            )}
+            {customer.intakeStatus && customer.intakeStatus !== 'none' && customer.intakeStatus !== 'completed' && (
+              <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${
+                customer.intakeStatus === 'no_response'
+                  ? 'bg-red-100 text-red-600'
+                  : customer.intakeStatus === 'reminder_sent'
+                  ? 'bg-amber-100 text-amber-700'
+                  : customer.intakeStatus === 'kept_draft'
+                  ? 'bg-zinc-100 text-zinc-500'
+                  : 'bg-blue-50 text-blue-600'
+              }`}>
+                {customer.intakeStatus === 'waiting_sms' ? 'Αναμονή SMS στοιχείων'
+                  : customer.intakeStatus === 'reminder_sent' ? 'Στάλθηκε υπενθύμιση SMS'
+                  : customer.intakeStatus === 'no_response' ? 'Δεν απάντησε στο SMS'
+                  : 'Πρόχειρη καρτέλα'}
+              </span>
+            )}
           </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={handleCopySummary}
-              className={`rounded-xl border px-3 py-1.5 text-xs font-medium transition ${
-                summaryCopied
-                  ? 'border-green-200 bg-green-50 text-green-700'
-                  : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50'
-              }`}
-            >
-              {summaryCopied ? 'Αντιγράφηκε' : 'Αντιγραφή σύνοψης'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsEditing(true)}
-              className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-            >
-              Επεξεργασία
-            </button>
+          {/* Status + value */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <CustomerStatusBadge status={customer.status} />
+            {customer.opportunityValue && (
+              <span className="text-sm font-semibold text-zinc-700">
+                €{customer.opportunityValue.toLocaleString('el-GR')}
+              </span>
+            )}
           </div>
+        </div>
+        {/* Action buttons — separate row, never compete with name */}
+        <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3">
+          <button
+            type="button"
+            onClick={handleCopySummary}
+            className={`rounded-xl border px-3 py-2 text-sm font-medium transition min-h-[40px] ${
+              summaryCopied
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-zinc-200 text-zinc-600 hover:bg-zinc-50'
+            }`}
+          >
+            {summaryCopied ? '✓ Αντιγράφηκε' : 'Αντιγραφή σύνοψης'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setIsEditing(true)}
+            className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[40px]"
+          >
+            Επεξεργασία
+          </button>
         </div>
       </div>
 
@@ -622,18 +762,24 @@ export default function CustomerProfile({ customerId }: Props) {
         offers={customerOffers}
       />
 
-      {/* Quick actions */}
-      <div>
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Γρήγορες ενέργειες
-        </p>
-        {/* 3-column grid — all items fully visible, no scroll */}
-        <div className="grid grid-cols-3 gap-2">
-          {/* Call — real when phone exists */}
+      {/* Quick actions — customer-specific */}
+      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Γρήγορες ενέργειες
+          </p>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            Οι ενέργειες αφορούν τον πελάτη: <span className="font-semibold text-zinc-700">{customer.name}</span>
+          </p>
+        </div>
+
+        {/* 2-column grid — larger tap targets, mobile-friendly */}
+        <div className="grid grid-cols-2 gap-2.5">
+
+          {/* Κλήση */}
           {callPhone ? (
             <a
               href={buildCallHref(callPhone)}
-              title="Ανοίγει την εφαρμογή κλήσεων"
               onClick={() => {
                 const rec: CommunicationRecord = {
                   id: crypto.randomUUID(),
@@ -649,68 +795,22 @@ export default function CustomerProfile({ customerId }: Props) {
                 addCommunicationRecord(rec);
                 setCustomerCommunications((prev) => [...prev, rec]);
               }}
-              className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
+              className="flex flex-col items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-4 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-h-[72px]"
             >
-              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 6Z" />
               </svg>
               <span>Κλήση</span>
+              <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Ανοίγει συσκευή · όχι VoIP</span>
             </a>
           ) : (
             <DisabledAction label="Κλήση" note="Δεν υπάρχει τηλέφωνο" />
           )}
 
-          {/* Maps — real */}
-          {mapsUrl ? (
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
-            >
-              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-              </svg>
-              <span>Maps</span>
-            </a>
-          ) : (
-            <button
-              disabled
-              className="flex w-full flex-col items-center gap-1 rounded-2xl bg-zinc-50 px-2 py-3 text-xs font-medium text-zinc-400 cursor-not-allowed"
-              title="Δεν υπάρχει διεύθυνση"
-            >
-              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
-              </svg>
-              <span>Maps</span>
-            </button>
-          )}
-
-          <Link
-            href="/tasks"
-            className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
-          >
-            <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-            </svg>
-            <span>Tasks</span>
-          </Link>
-          <Link
-            href="/offers"
-            className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
-          >
-            <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-            </svg>
-            <span>Προσφορά</span>
-          </Link>
-          {/* SMS — real when mobile exists */}
+          {/* SMS */}
           {smsPhone ? (
             <a
               href={buildSmsHref(smsPhone)}
-              title="Ανοίγει την εφαρμογή SMS"
               onClick={() => {
                 const rec: CommunicationRecord = {
                   id: crypto.randomUUID(),
@@ -726,22 +826,302 @@ export default function CustomerProfile({ customerId }: Props) {
                 addCommunicationRecord(rec);
                 setCustomerCommunications((prev) => [...prev, rec]);
               }}
-              className="flex w-full flex-col items-center gap-1 rounded-2xl bg-indigo-50 px-2 py-3 text-xs font-medium text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100"
+              className="flex flex-col items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-4 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-h-[72px]"
             >
-              <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
               </svg>
               <span>SMS</span>
+              <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Ανοίγει συσκευή · δεν αποστέλλεται αυτ.</span>
             </a>
           ) : (
             <DisabledAction
               label="SMS"
-              note={hasLandlineOnly ? 'Δεν υπάρχει κινητό για SMS' : undefined}
+              note={hasLandlineOnly ? 'Δεν υπάρχει κινητό για SMS' : 'Δεν υπάρχει κινητό'}
             />
           )}
-          <DisabledAction label="Email draft" />
+
+          {/* Tasks — opens inline sheet for this customer */}
+          <button
+            type="button"
+            onClick={openQuickTaskSheet}
+            className="flex flex-col items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-4 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-h-[72px]"
+          >
+            <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+            <span>+ Νέο task</span>
+            <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Για τον συγκεκριμένο πελάτη</span>
+          </button>
+
+          {/* Προσφορά — opens inline sheet for this customer */}
+          <button
+            type="button"
+            onClick={openQuickOfferSheet}
+            className="flex flex-col items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-4 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-h-[72px]"
+          >
+            <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+            </svg>
+            <span>+ Προσφορά</span>
+            <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight">Για τον συγκεκριμένο πελάτη</span>
+          </button>
+
+          {/* Maps */}
+          {mapsUrl ? (
+            <a
+              href={mapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex flex-col items-center gap-1.5 rounded-2xl bg-indigo-50 px-3 py-4 text-sm font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 min-h-[72px]"
+            >
+              <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" />
+              </svg>
+              <span>Maps</span>
+              <span className="text-[10px] font-normal text-indigo-500 text-center leading-tight truncate max-w-full">{customer.address?.slice(0, 28)}</span>
+            </a>
+          ) : (
+            <DisabledAction label="Maps" note="Δεν υπάρχει διεύθυνση" />
+          )}
+
+          {/* Email draft */}
+          {customer.email ? (
+            <button
+              type="button"
+              onClick={handleCopyEmailDraft}
+              className={`flex flex-col items-center gap-1.5 rounded-2xl px-3 py-4 text-sm font-semibold ring-1 transition min-h-[72px] ${
+                emailDraftCopied
+                  ? 'bg-green-50 text-green-700 ring-green-200'
+                  : 'bg-indigo-50 text-indigo-700 ring-indigo-200 hover:bg-indigo-100'
+              }`}
+            >
+              <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+              </svg>
+              <span>{emailDraftCopied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή email'}</span>
+              <span className="text-[10px] font-normal text-center leading-tight opacity-70">Draft · δεν αποστέλλεται</span>
+            </button>
+          ) : (
+            <DisabledAction label="Email draft" note="Δεν υπάρχει email" />
+          )}
         </div>
       </div>
+
+      {/* ── Quick task sheet ──────────────────────────────────────────────────── */}
+      <ActionSheet
+        open={showQuickTaskSheet}
+        onClose={() => setShowQuickTaskSheet(false)}
+        title={`Νέο task για ${customer.name}`}
+        subtitle="Δημιουργία task για αυτόν τον πελάτη"
+      >
+        {quickTaskSuccess ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-green-50 px-4 py-3 ring-1 ring-green-200 text-center">
+              <p className="text-sm font-semibold text-green-800">Το task δημιουργήθηκε για τον πελάτη.</p>
+              <p className="mt-0.5 text-xs text-green-700">Εμφανίζεται παρακάτω στα Ανοιχτά tasks.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowQuickTaskSheet(false)}
+              className="w-full rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              Κλείσιμο
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Τίτλος task</label>
+              <input
+                type="text"
+                value={quickTaskTitle}
+                onChange={(e) => setQuickTaskTitle(e.target.value)}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                placeholder={`Follow-up με ${customer.name}`}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Ημερομηνία</label>
+              <input
+                type="date"
+                value={quickTaskDueDate}
+                onChange={(e) => setQuickTaskDueDate(e.target.value)}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Προτεραιότητα</label>
+              <select
+                value={quickTaskPriority}
+                onChange={(e) => setQuickTaskPriority(e.target.value as 'high' | 'normal' | 'low')}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              >
+                <option value="high">Υψηλή</option>
+                <option value="normal">Κανονική</option>
+                <option value="low">Χαμηλή</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Σημείωση <span className="text-zinc-400 font-normal">(προαιρετικό)</span></label>
+              <textarea
+                value={quickTaskNote}
+                onChange={(e) => setQuickTaskNote(e.target.value)}
+                rows={2}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-none"
+                placeholder="Τι πρέπει να γίνει..."
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleSaveQuickTask}
+                disabled={!quickTaskTitle.trim() && !customer.name}
+                className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+              >
+                Αποθήκευση task
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQuickTaskSheet(false)}
+                className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Ακύρωση
+              </button>
+            </div>
+          </div>
+        )}
+      </ActionSheet>
+
+      {/* ── Quick offer sheet ─────────────────────────────────────────────────── */}
+      <ActionSheet
+        open={showQuickOfferSheet}
+        onClose={() => setShowQuickOfferSheet(false)}
+        title={`Νέα προσφορά για ${customer.name}`}
+        subtitle="Δημιουργία draft προσφοράς για αυτόν τον πελάτη"
+      >
+        {quickOfferSuccess ? (
+          <div className="space-y-4">
+            <div className="rounded-2xl bg-green-50 px-4 py-3 ring-1 ring-green-200 text-center">
+              <p className="text-sm font-semibold text-green-800">Η προσφορά δημιουργήθηκε για τον πελάτη.</p>
+              <p className="mt-0.5 text-xs text-green-700">Εμφανίζεται παρακάτω στις προσφορές.</p>
+            </div>
+            <div className="flex gap-2">
+              {quickOfferNewId && (
+                <Link
+                  href={`/offers/${quickOfferNewId}`}
+                  onClick={() => setShowQuickOfferSheet(false)}
+                  className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-center text-sm font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  Άνοιγμα προσφοράς →
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowQuickOfferSheet(false)}
+                className="flex-1 rounded-xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Κλείσιμο
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Περιγραφή υπηρεσίας / προϊόντος</label>
+              <input
+                type="text"
+                value={quickOfferDesc}
+                onChange={(e) => setQuickOfferDesc(e.target.value)}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                placeholder="π.χ. Εγκατάσταση κλιματισμού"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Ποσότητα</label>
+                <input
+                  type="number"
+                  value={quickOfferQty}
+                  onChange={(e) => setQuickOfferQty(e.target.value)}
+                  min="0.01"
+                  step="0.01"
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-zinc-700 mb-1">Τιμή μονάδας (€)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={quickOfferPrice}
+                  onChange={(e) => setQuickOfferPrice(e.target.value)}
+                  className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  placeholder="0.00"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">ΦΠΑ (%)</label>
+              <select
+                value={quickOfferVat}
+                onChange={(e) => setQuickOfferVat(e.target.value)}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              >
+                <option value="24">24%</option>
+                <option value="13">13%</option>
+                <option value="6">6%</option>
+                <option value="0">0%</option>
+              </select>
+            </div>
+            {quickOfferPrice && (
+              <div className="rounded-xl bg-zinc-50 px-4 py-2.5 ring-1 ring-zinc-200 text-xs text-zinc-600 space-y-1">
+                {(() => {
+                  const q = parseFloat(quickOfferQty) || 1;
+                  const p = parseFloat(quickOfferPrice.replace(',', '.')) || 0;
+                  const v = parseFloat(quickOfferVat) || 24;
+                  const { subtotal, vatAmount, total } = calculateTotals([{ id: '', description: '', quantity: q, unitPrice: p }], v);
+                  return (
+                    <>
+                      <div className="flex justify-between"><span>Υποσύνολο</span><span>{fmtEur(subtotal)}</span></div>
+                      <div className="flex justify-between"><span>ΦΠΑ {v}%</span><span>{fmtEur(vatAmount)}</span></div>
+                      <div className="flex justify-between font-semibold text-zinc-800 border-t border-zinc-200 pt-1"><span>Σύνολο</span><span>{fmtEur(total)}</span></div>
+                    </>
+                  );
+                })()}
+              </div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-zinc-700 mb-1">Σημειώσεις <span className="text-zinc-400 font-normal">(προαιρετικό)</span></label>
+              <textarea
+                value={quickOfferNotes}
+                onChange={(e) => setQuickOfferNotes(e.target.value)}
+                rows={2}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 resize-none"
+                placeholder="Όροι, εξαιρέσεις..."
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleSaveQuickOffer}
+                disabled={!quickOfferDesc.trim()}
+                className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+              >
+                Αποθήκευση προσφοράς
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowQuickOfferSheet(false)}
+                className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Ακύρωση
+              </button>
+            </div>
+          </div>
+        )}
+      </ActionSheet>
 
       {/* Contact info */}
       <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">

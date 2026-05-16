@@ -10,6 +10,7 @@ import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
 import DuplicateTasksPanel from '@/components/tasks/DuplicateTasksPanel';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
+import PageHelp from '@/components/common/PageHelp';
 
 type TabId = 'due_today' | 'upcoming' | 'overdue' | 'completed';
 
@@ -280,6 +281,26 @@ export default function TasksPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
+      <div className="mb-4">
+        <PageHelp title="Τι βλέπω εδώ;">
+          <p className="text-sm text-zinc-600">
+            Εδώ βλέπεις όλες τις εκκρεμότητες. Άνοιξε ένα task ή πάτα Ολοκλήρωση.
+          </p>
+          <ul className="space-y-1 mt-1">
+            {[
+              'Πάτα «Ολοκλήρωση» για να κλείσεις ένα task.',
+              'Πάτα «Περισσότερα» για αναβολή, επεξεργασία ή διαγραφή.',
+              'Δεν χαλάς τίποτα — μπορείς να επαναφέρεις οποτεδήποτε.',
+            ].map((t) => (
+              <li key={t} className="flex items-start gap-2 text-xs text-zinc-500">
+                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+                {t}
+              </li>
+            ))}
+          </ul>
+        </PageHelp>
+      </div>
+
       {/* Header */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-lg font-semibold text-zinc-900">Tasks</h1>

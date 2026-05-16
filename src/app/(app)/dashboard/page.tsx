@@ -19,6 +19,8 @@ import LocalAnalyticsWidget from '@/components/dashboard/LocalAnalyticsWidget';
 import RecentResponsesSection from '@/components/dashboard/RecentResponsesSection';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
+import DashboardSmartCards from '@/components/dashboard/DashboardSmartCards';
+import PageHelp from '@/components/common/PageHelp';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -300,11 +302,39 @@ export default function DashboardPage() {
         whyItMatters="Στο τελικό προϊόν, εδώ θα βλέπεις τι χρειάζεται follow-up μετά από κλήσεις, SMS, Viber ή email. Στο MVP: τοπικά δεδομένα μόνο."
         canManualComplete={true}
       />
+
+      <PageHelp title="Τι βλέπω εδώ;">
+        <p className="text-sm text-zinc-600">
+          Εδώ βλέπεις τι πρέπει να γίνει σήμερα. Ξεκίνα από την πρώτη κάρτα.
+        </p>
+        <ul className="space-y-1 mt-1">
+          {[
+            'Πάτα μια κάρτα (Tasks, Πελάτες, Προσφορές) για να δεις λεπτομέρειες χωρίς να φύγεις από τη σελίδα.',
+            'Δεν χαλάς τίποτα — τα δεδομένα αποθηκεύονται μόνο τοπικά.',
+            'Δεν αποστέλλεται τίποτα αυτόματα.',
+          ].map((t) => (
+            <li key={t} className="flex items-start gap-2 text-xs text-zinc-500">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
+              {t}
+            </li>
+          ))}
+        </ul>
+      </PageHelp>
+
       <div>
         <h1 className="text-lg font-semibold text-zinc-900">
           Καλημέρα. Τι πρέπει να γίνει σήμερα;
         </h1>
       </div>
+
+      {/* Smart overview cards */}
+      <DashboardSmartCards
+        urgentTasks={urgentTasks}
+        leads={leads}
+        openOffers={openOffers}
+        customerMap={customerMap}
+        onCompleteTask={handleCompleteTask}
+      />
 
       <QuickAssistantInput />
 

@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { isDemoGuideActive } from '@/lib/demo-guide-session';
 
 const ACTIONS = [
   { label: 'AI review', href: '/ai-review' },
@@ -11,11 +12,21 @@ const ACTIONS = [
 export default function FloatingActionMenu() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [guideActive, setGuideActive] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setGuideActive(isDemoGuideActive());
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   function handleAction(href: string) {
     setOpen(false);
     router.push(href);
   }
+
+  if (guideActive) return null;
 
   return (
     <>

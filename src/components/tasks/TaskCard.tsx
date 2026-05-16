@@ -1,3 +1,6 @@
+'use client';
+
+import { useState } from 'react';
 import Link from 'next/link';
 import type { Task } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
@@ -98,6 +101,7 @@ interface Props {
 }
 
 export default function TaskCard({ task, customerName, onComplete, onEdit, onDelete, onSnooze }: Props) {
+  const [showMore, setShowMore] = useState(false);
   const effective = getEffectiveStatus(task);
 
   const cardBg =
@@ -148,94 +152,114 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
       </div>
 
       {effective !== 'completed' && effective !== 'cancelled' && (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {/* Complete */}
-          <button
-            type="button"
-            onClick={() => onComplete(task.id)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 px-2.5 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
-          >
-            <svg className="h-3 w-3" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-            Ολοκλήρωση
-          </button>
-
-          {/* Main contextual action */}
-          {main && (
-            <Link
-              href={main.href}
-              className="inline-flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+        <div className="mt-3 space-y-2">
+          {/* Primary row — always visible */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => onComplete(task.id)}
+              className="inline-flex items-center gap-1.5 rounded-xl bg-green-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-green-700 min-h-[36px]"
             >
-              {main.label}
-            </Link>
-          )}
+              <svg className="h-3 w-3" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+              </svg>
+              Ολοκλήρωση
+            </button>
 
-          {/* Secondary: customer link if not duplicate */}
-          {secondaryCustomer && (
-            <Link
-              href={secondaryCustomer.href}
-              className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+            {main && (
+              <Link
+                href={main.href}
+                className="inline-flex items-center gap-1 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 min-h-[36px]"
+              >
+                {main.label}
+              </Link>
+            )}
+
+            <button
+              type="button"
+              onClick={() => setShowMore((v) => !v)}
+              className="ml-auto inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
+              aria-expanded={showMore}
             >
-              {secondaryCustomer.label}
-            </Link>
-          )}
+              {showMore ? 'Λιγότερα' : 'Περισσότερα'}
+              <svg
+                className={`h-3.5 w-3.5 transition-transform duration-150 ${showMore ? 'rotate-180' : ''}`}
+                fill="none"
+                strokeWidth={2}
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+              </svg>
+            </button>
+          </div>
 
-          {/* Secondary: offer link if not duplicate */}
-          {secondaryOffer && (
-            <Link
-              href={secondaryOffer.href}
-              className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-            >
-              {secondaryOffer.label}
-            </Link>
-          )}
+          {/* Secondary row — shown when expanded */}
+          {showMore && (
+            <div className="flex flex-wrap gap-2 pt-1 border-t border-zinc-100">
+              {secondaryCustomer && (
+                <Link
+                  href={secondaryCustomer.href}
+                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
+                >
+                  {secondaryCustomer.label}
+                </Link>
+              )}
 
-          {/* Snooze quick actions */}
-          {onSnooze && (
-            <>
+              {secondaryOffer && (
+                <Link
+                  href={secondaryOffer.href}
+                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
+                >
+                  {secondaryOffer.label}
+                </Link>
+              )}
+
+              {onSnooze && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => onSnooze(task.id, addDays(1))}
+                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
+                    title="Αναβολή για αύριο"
+                  >
+                    Αύριο
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSnooze(task.id, addDays(3))}
+                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
+                    title="Αναβολή για σε 3 μέρες"
+                  >
+                    +3 μέρες
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSnooze(task.id, addDays(7))}
+                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
+                    title="Αναβολή για σε 1 εβδομάδα"
+                  >
+                    +1 εβδ.
+                  </button>
+                </>
+              )}
+
               <button
                 type="button"
-                onClick={() => onSnooze(task.id, addDays(1))}
-                className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-                title="Αναβολή για αύριο"
+                onClick={() => onEdit(task)}
+                className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
               >
-                Αύριο
+                Επεξεργασία
               </button>
               <button
                 type="button"
-                onClick={() => onSnooze(task.id, addDays(3))}
-                className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-                title="Αναβολή για σε 3 μέρες"
+                onClick={handleDelete}
+                className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50 hover:text-red-600 min-h-[36px]"
               >
-                +3 μέρες
+                Διαγραφή
               </button>
-              <button
-                type="button"
-                onClick={() => onSnooze(task.id, addDays(7))}
-                className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-                title="Αναβολή για σε 1 εβδομάδα"
-              >
-                +1 εβδ.
-              </button>
-            </>
+            </div>
           )}
-
-          {/* Edit / Delete */}
-          <button
-            type="button"
-            onClick={() => onEdit(task)}
-            className="inline-flex items-center gap-1 rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-          >
-            Επεξεργασία
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50 hover:text-red-600"
-          >
-            Διαγραφή
-          </button>
         </div>
       )}
 
