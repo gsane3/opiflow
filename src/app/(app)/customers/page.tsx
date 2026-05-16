@@ -8,6 +8,7 @@ import { norm } from '@/lib/search';
 import CustomerCard from '@/components/customers/CustomerCard';
 import CustomerForm from '@/components/customers/CustomerForm';
 import DuplicateCustomersPanel from '@/components/customers/DuplicateCustomersPanel';
+import CustomerDataQualityPanel, { isIncompleteCustomer } from '@/components/customers/CustomerDataQualityPanel';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 
@@ -21,6 +22,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
   const [sourceFilter, setSourceFilter] = useState<CustomerSource | ''>('');
+  const [incompleteOnly, setIncompleteOnly] = useState(false);
   const [showForm, setShowForm] = useState(false);
 
   // Load localStorage after mount to avoid hydration mismatch.
@@ -49,7 +51,7 @@ export default function CustomersPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  const hasFilter = search.trim() !== '' || statusFilter !== '' || sourceFilter !== '';
+  const hasFilter = search.trim() !== '' || statusFilter !== '' || sourceFilter !== '' || incompleteOnly;
 
   const filtered = useMemo(() => {
     const q = norm(search.trim());
@@ -69,14 +71,16 @@ export default function CustomersPage() {
       }
       if (statusFilter && c.status !== statusFilter) return false;
       if (sourceFilter && c.source !== sourceFilter) return false;
+      if (incompleteOnly && !isIncompleteCustomer(c)) return false;
       return true;
     });
-  }, [customers, search, statusFilter, sourceFilter]);
+  }, [customers, search, statusFilter, sourceFilter, incompleteOnly]);
 
   function clearFilters() {
     setSearch('');
     setStatusFilter('');
     setSourceFilter('');
+    setIncompleteOnly(false);
   }
 
   function handleMergeCustomers(primaryId: string, duplicateId: string) {
@@ -160,6 +164,9 @@ export default function CustomersPage() {
       {/* Duplicate detection panel */}
       <DuplicateCustomersPanel customers={customers} onMerge={handleMergeCustomers} />
 
+      {/* Data quality panel */}
+      <CustomerDataQualityPanel customers={customers} />
+
       {/* Search + filters */}
       <div className="mb-4 space-y-2">
         <input
@@ -190,6 +197,17 @@ export default function CustomersPage() {
               <option key={v} value={v}>{l}</option>
             ))}
           </select>
+          <button
+            type="button"
+            onClick={() => setIncompleteOnly((v) => !v)}
+            className={`rounded-xl border px-3 py-2 text-xs font-medium transition ${
+              incompleteOnly
+                ? 'border-indigo-200 bg-indigo-50 text-indigo-700'
+                : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+            }`}
+          >
+            Ελλιπείς
+          </button>
           {hasFilter && (
             <button
               type="button"
