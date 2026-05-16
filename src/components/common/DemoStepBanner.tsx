@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { isDemoGuideActive } from '@/lib/demo-guide-session';
 
 interface Props {
   step: string;        // which ?demoStep= value activates this banner
@@ -29,7 +30,9 @@ export default function DemoStepBanner({
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const timer = window.setTimeout(() => {
-      setVisible(params.get('demoStep') === step);
+      // Hide in guided mode (guide=1 URL param OR active session) — GuidedDemoBanner takes over
+      const isGuided = params.get('guide') === '1' || isDemoGuideActive();
+      setVisible(params.get('demoStep') === step && !isGuided);
     }, 0);
     return () => window.clearTimeout(timer);
   }, [step]);

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { loadState, updateOffer, addCommunicationRecord } from '@/lib/storage';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import type { Offer, Customer, BusinessProfile } from '@/lib/types';
 
@@ -188,6 +189,16 @@ export default function OfferResponseClient({ offerId }: Props) {
           watchLabel="Δεν γίνεται πραγματική αποστολή -- αποθηκεύεται τοπικά μόνο."
           actionLabel="Επόμενο: Follow-up στο CRM"
           actionHref={`/offers/${offerId}?demoStep=followup`}
+        />
+        <GuidedDemoBanner
+          step="response"
+          stepNum={5}
+          title="Απάντηση πελάτη — αποδοχή ή απόρριψη"
+          whatYouSee="Αυτό βλέπει ο πελάτης: preview προσφοράς, κουμπί αποδοχής/απόρριψης."
+          whatToDo="Πάτα 'Αποδοχή προσφοράς' και επιβεβαίωσε. Με την αποδοχή το CRM ενημερώνεται."
+          whyItMatters="Στο τελικό προϊόν, ο πελάτης λαμβάνει link μέσω SMS/Viber — αποδέχεται χωρίς να τηλεφωνήσει. Δεν γίνεται πραγματική αποστολή στο MVP."
+          canManualComplete={false}
+          isCompleted={action === 'accepted' || action === 'rejected'}
         />
         {/* Step 127: Demo/signature disclaimer — visible on screen and in print */}
         <div className="rounded-xl bg-amber-50 px-4 py-2.5 ring-1 ring-amber-200 text-center">

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { loadState, updateCustomer, deleteCustomer, updateTask, addTask, addOffer, addCallRecord, addCommunicationRecord } from '@/lib/storage';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import { buildMapsUrl } from '@/lib/maps';
 import { isLikelyMobile, getCallPhone, getSmsPhone, getLandlinePhone } from '@/lib/phone';
 import { buildCallHref, buildSmsHref } from '@/lib/communications';
@@ -475,6 +476,15 @@ export default function CustomerProfile({ customerId }: Props) {
         watchLabel="Timeline κάτω, ανοιχτά tasks, σύνοψη δραστηριότητας."
         actionLabel="Επόμενο: Προσφορά"
         actionHref="/offers/demo-offer-1?demoStep=offer"
+      />
+      <GuidedDemoBanner
+        step="customer"
+        stepNum={3}
+        title="Καρτέλα πελάτη — ιστορικό και επόμενες ενέργειες"
+        whatYouSee="Σύνοψη κλήσης, ανάγκες πελάτη, ανοιχτά tasks, timeline επικοινωνιών και προσφορών."
+        whatToDo="Κάνε scroll ως κάτω και δες activity summary, tasks, timeline."
+        whyItMatters="Όλο το ιστορικό κάθε πελάτη σε ένα μέρος μετά από κάθε κλήση, SMS ή email. Στο MVP: demo δεδομένα τοπικά μόνο."
+        canManualComplete={true}
       />
       {/* Back */}
       <button

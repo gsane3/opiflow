@@ -18,6 +18,7 @@ import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
 import LocalAnalyticsWidget from '@/components/dashboard/LocalAnalyticsWidget';
 import RecentResponsesSection from '@/components/dashboard/RecentResponsesSection';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -289,6 +290,15 @@ export default function DashboardPage() {
         watchLabel="Αν δεν βλέπεις στοιχεία, γύρνα στο Mission 1 και επαναφέρε Rich demo."
         actionLabel="Επόμενο: AI review"
         actionHref="/ai-review?demoStep=review"
+      />
+      <GuidedDemoBanner
+        step="dashboard"
+        stepNum={1}
+        title="Dashboard — κέντρο ελέγχου"
+        whatYouSee="Εκκρεμότητες ημέρας: tasks εκπρόθεσμα, ανοιχτές προσφορές, πρόσφατες απαντήσεις, local analytics."
+        whatToDo="Κάνε scroll ως κάτω. Δες τα tasks εκπρόθεσμα και την ενότητα Τοπικά Στατιστικά."
+        whyItMatters="Στο τελικό προϊόν, εδώ θα βλέπεις τι χρειάζεται follow-up μετά από κλήσεις, SMS, Viber ή email. Στο MVP: τοπικά δεδομένα μόνο."
+        canManualComplete={true}
       />
       <div>
         <h1 className="text-lg font-semibold text-zinc-900">

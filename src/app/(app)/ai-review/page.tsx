@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { loadState, addCustomer, updateCustomer, addTask, addOffer } from '@/lib/storage';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import { generateDemoAiResult } from '@/lib/demo-data';
 import { calculateTotals, fmtEur } from '@/lib/offer-calculations';
 import type {
@@ -574,6 +575,15 @@ export default function AiReviewPage() {
         watchLabel="Το AI προτείνει -- εσύ αποφασίζεις τι αποθηκεύεται."
         actionLabel="Επόμενο: Καρτέλα πελάτη"
         actionHref="/customers/demo-karagiannis?demoStep=customer"
+      />
+      <GuidedDemoBanner
+        step="review"
+        stepNum={2}
+        title="AI Review — brief μετά από κλήση"
+        whatYouSee="Επεξεργαστής υπαγόρευσης και editable fields: πελάτης, tasks, προσφορά."
+        whatToDo="Επέλεξε παράδειγμα, πάτα 'Δημιούργησε με AI' και κοίτα τα editable fields. Αλλαξέ ό,τι θέλεις πριν αποθηκεύσεις."
+        whyItMatters="Στο τελικό προϊόν, μετά κάθε κλήση το AI θα ετοιμάζει αυτόματα brief για CRM. Στο MVP: demo κείμενα — δεν αποθηκεύεται τίποτα χωρίς επιβεβαίωση σου."
+        canManualComplete={true}
       />
       {/* Header */}
       <div>

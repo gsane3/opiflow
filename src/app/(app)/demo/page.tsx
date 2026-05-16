@@ -2,9 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { loadState } from '@/lib/storage';
+import { loadState, clearState, saveState } from '@/lib/storage';
+import { buildRichDemoState } from '@/lib/demo-data';
 import DemoTruthBadge from '@/components/common/DemoTruthBadge';
 import KnownLimitationsBox from '@/components/common/KnownLimitationsBox';
+import {
+  startDemoGuide,
+  loadDemoGuideSession,
+  exitDemoGuide,
+  getCurrentGuideHref,
+  isDemoGuideDone,
+} from '@/lib/demo-guide-session';
 
 // ── Step 104: Scenario types ───────────────────────────────────────────────────
 type Scenario = 'technical' | 'sales' | 'construction';
@@ -181,6 +189,12 @@ export default function DemoPage() {
   // Step 102: data state awareness
   const [dataCounts, setDataCounts] = useState<DataCounts | null>(null);
 
+  // Step 172: guided demo session state
+  const [guideActive, setGuideActive] = useState(false);
+  const [guideDone, setGuideDone] = useState(false);
+  // Step 172: auto-seed tracking
+  const [autoSeeded, setAutoSeeded] = useState(false);
+
   // Step 161: copy demo URL state
   const [copyLinkCopied, setCopyLinkCopied] = useState(false);
 
@@ -197,23 +211,70 @@ export default function DemoPage() {
     }
   }
 
-  // Load state + resolve initial step from URL param after mount
+  // Step 172: load guide session state after mount
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      const session = loadDemoGuideSession();
+      setGuideActive(!!(session?.active));
+      setGuideDone(isDemoGuideDone());
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function handleStartGuide() {
+    startDemoGuide();
+    // Data is already auto-seeded — skip Settings, go straight to dashboard.
+    window.location.href = '/dashboard?demoStep=dashboard&guide=1';
+  }
+
+  function handleContinueGuide() {
+    window.location.href = getCurrentGuideHref();
+  }
+
+  function handleExitGuide() {
+    if (window.confirm('Θελεις να βγεις απο το guided demo;')) {
+      exitDemoGuide();
+      setGuideActive(false);
+      setGuideDone(false);
+    }
+  }
+
+  // Load state + resolve initial step from URL param after mount.
+  // Step 172: if browser has no CRM data, auto-seed Rich pilot demo safely.
   useEffect(() => {
     const state = loadState();
-    // Step 105: read ?step=slug from URL
     const slug = new URLSearchParams(window.location.search).get('step');
     const initialStep = slug && SLUG_TO_STEP[slug] !== undefined ? SLUG_TO_STEP[slug] : 0;
 
+    const isEmpty =
+      !state.customers?.length &&
+      !state.tasks?.length &&
+      !state.offers?.length &&
+      !state.calls?.length &&
+      !state.communications?.length;
+
+    let finalState = state;
+    let didAutoSeed = false;
+
+    if (isEmpty) {
+      const rich = buildRichDemoState();
+      clearState();
+      saveState(rich);
+      finalState = { ...state, ...rich } as typeof state;
+      didAutoSeed = true;
+    }
+
     const timer = window.setTimeout(() => {
-      setCustomerId(state.customers?.[0]?.id ?? '');
-      setOfferId(state.offers?.[0]?.id ?? '');
+      setCustomerId(finalState.customers?.[0]?.id ?? '');
+      setOfferId(finalState.offers?.[0]?.id ?? '');
       setDataCounts({
-        customers: state.customers?.length ?? 0,
-        offers: state.offers?.length ?? 0,
-        tasks: state.tasks?.length ?? 0,
-        communications: state.communications?.length ?? 0,
+        customers: finalState.customers?.length ?? 0,
+        offers: finalState.offers?.length ?? 0,
+        tasks: finalState.tasks?.length ?? 0,
+        communications: finalState.communications?.length ?? 0,
       });
       if (initialStep > 0) setStep(initialStep);
+      if (didAutoSeed) setAutoSeeded(true);
     }, 0);
     return () => window.clearTimeout(timer);
   }, []);
@@ -277,14 +338,16 @@ export default function DemoPage() {
         </p>
       </div>
 
-      {/* Step 102: Data state awareness card — shown only on step 0 after hydration */}
+      {/* Step 102 / 172: Data state awareness card — shown only on step 0 after hydration */}
       {isFirst && dataCounts !== null && (
         hasDemoData ? (
           <div className="flex items-start gap-3 rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200">
             <span className="mt-0.5 h-2 w-2 shrink-0 rounded-full bg-green-500" />
             <div className="min-w-0">
               <p className="text-sm font-medium text-green-800">
-                Υπάρχουν demo δεδομένα για να ακολουθήσεις τη ροή.
+                {autoSeeded
+                  ? 'Έτοιμα demo δεδομένα φορτώθηκαν για να ξεκινήσεις.'
+                  : 'Υπάρχουν ήδη δεδομένα σε αυτόν τον browser. Δεν τα αλλάξαμε.'}
               </p>
               <p className="text-xs text-green-600">
                 {dataCounts.customers} πελάτες · {dataCounts.tasks} tasks · {dataCounts.offers} προσφορές
@@ -295,17 +358,17 @@ export default function DemoPage() {
           <div className="flex items-start justify-between gap-3 rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
             <div className="min-w-0">
               <p className="text-sm font-medium text-amber-800">
-                Δεν υπάρχουν demo δεδομένα.
+                Δεν φορτώθηκαν demo δεδομένα.
               </p>
               <p className="text-xs text-amber-700">
-                Επαναφέρε demo δεδομένα για να δεις ολόκληρη τη ροή.
+                Ανανέωσε τη σελίδα ή χρησιμοποίησε τις Ρυθμίσεις.
               </p>
             </div>
             <Link
               href="/settings"
               className="shrink-0 rounded-xl bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-700"
             >
-              Επαναφορά →
+              Ρυθμίσεις →
             </Link>
           </div>
         )
@@ -494,6 +557,75 @@ export default function DemoPage() {
         <Link href="/demo/privacy" className="text-xs text-indigo-600 hover:text-indigo-700">
           Απόρρητο και αποθήκευση →
         </Link>
+      </div>
+
+      {/* Step 172: Guided demo entry */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        {guideDone ? (
+          <div className="space-y-2 text-center">
+            <p className="text-sm font-semibold text-green-700">
+              Το guided demo ολοκληρωθηκε!
+            </p>
+            <p className="text-xs text-zinc-500">
+              Μπορεις να χρησιμοποιησεις ελευθερα την εφαρμογη ή να ξεκινησεις ξανα.
+            </p>
+            <button
+              type="button"
+              onClick={handleStartGuide}
+              className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Ξεκινα ξανα guided demo
+            </button>
+          </div>
+        ) : guideActive ? (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
+                Guided demo ενεργο
+              </p>
+              <p className="text-sm font-bold text-zinc-900">Συνεχισε απο εκει που εμεινες</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Ο οδηγος θυμαται το βημα σου σε αυτο το tab.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleContinueGuide}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                Συνεχεια guided demo &rarr;
+              </button>
+              <button
+                type="button"
+                onClick={handleExitGuide}
+                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-50"
+              >
+                Εξοδος απο guided demo
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
+                Για reviewers
+              </p>
+              <p className="text-sm font-bold text-zinc-900">Ξεκινα guided demo</p>
+              <p className="text-xs text-zinc-500 mt-0.5">
+                Ο οδηγος θα σε παει βημα-βημα και θα σου λεει τι να πατησεις.
+                Μπορεις να βγεις οποτε θελεις.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleStartGuide}
+              className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              Ξεκινα guided demo &rarr;
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Steps 164+166+170: Demo missions — primary reviewer entry */}

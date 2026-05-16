@@ -5,12 +5,14 @@ import type {
   Task,
   Offer,
   OfferItem,
+  CallRecord,
   CallType,
   TaskType,
   TaskPriority,
   CustomerSource,
   PreferredContactMethod,
   CustomerStatus,
+  CommunicationRecord,
 } from './types';
 
 export interface DemoMissedCall {
@@ -445,6 +447,83 @@ export const demoCallScenarios: DemoCallScenario[] = [
       'Νέος lead, Νικολάου Αναστάσης. Ζητά αποτύπωση και προσφορά για ανακαίνιση μπάνιου. Έδωσε email επικοινωνίας. Θέλει προσφορά για την επόμενη εβδομάδα.',
   },
 ];
+
+// ── Shared rich demo state builder ────────────────────────────────────────────
+// Used by /demo auto-seed AND Settings rich pilot seed so both produce identical data.
+// Returns a plain state-compatible object — caller must clearState() + saveState() it.
+export function buildRichDemoState() {
+  const now = new Date().toISOString();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const richTask: Task = {
+    id: 'demo-task-rich-1',
+    customerId: 'demo-papanikolaou',
+    title: 'Αποστολή προσφοράς συντήρησης — ολοκληρώθηκε',
+    type: 'send_offer' as TaskType,
+    status: 'completed',
+    priority: 'normal',
+    dueDate: yesterday.toISOString().split('T')[0],
+    note: 'Demo completed task.',
+    createdFromAi: false,
+    createdAt: now,
+    updatedAt: now,
+    completedAt: now,
+    isDemo: true,
+  };
+
+  const richOffer: Offer = {
+    id: 'demo-offer-rich-1',
+    customerId: 'demo-papanikolaou',
+    offerNumber: '#003',
+    status: 'accepted',
+    offerDate: yesterday.toISOString().split('T')[0],
+    validUntil: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
+    items: [{ id: 'rich-item-1', description: 'Συντήρηση 3 κλιματιστικών', quantity: 1, unitPrice: 240 }],
+    subtotal: 240,
+    vatRate: 24,
+    vatAmount: 57.6,
+    total: 297.6,
+    notes: 'Απάντηση μέσω demo link: Αποδοχή.',
+    terms: 'Πληρωμή κατά την εκτέλεση.',
+    acceptanceText: 'Αποδέχομαι τους παραπάνω όρους.',
+    createdFromAi: false,
+    createdAt: now,
+    updatedAt: now,
+    isDemo: true,
+  };
+
+  const extraComms: CommunicationRecord[] = [
+    {
+      id: 'demo-comm-1',
+      customerId: 'demo-karagiannis',
+      channel: 'sms',
+      direction: 'outbound',
+      status: 'sent',
+      summary: 'Αποστολή SMS για στοιχεία πελάτη.',
+      createdAt: now,
+      isMock: true,
+    },
+    {
+      id: 'demo-comm-2',
+      customerId: 'demo-papanikolaou',
+      channel: 'sms',
+      direction: 'inbound',
+      status: 'sent',
+      summary: 'Ο πελάτης αποδέχτηκε την προσφορά #003 μέσω demo link.',
+      createdAt: now,
+      isMock: true,
+    },
+  ];
+
+  return {
+    customers: demoCustomers,
+    tasks: [...generateDemoTasks(), richTask],
+    offers: [...generateDemoOffers(), richOffer],
+    calls: [] as CallRecord[],
+    communications: extraComms,
+  };
+}
 
 // Static demo AI result — not real AI output. Used only for Step 7 review screen demo.
 // No transcript is included. Only structured summary/needs/tasks/offer/warnings.

@@ -10,6 +10,7 @@ import CopyDraftButtons from './CopyDraftButtons';
 import SendEmailSection from './SendEmailSection';
 import OfferAcceptanceDemoSection from './OfferAcceptanceDemoSection';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 
 const ALL_STATUSES: OfferStatus[] = [
   'draft',
@@ -264,6 +265,25 @@ export default function OfferPreview({ offerId }: Props) {
         watchLabel="Ενότητα 'Επόμενο βήμα' -- πάτα 'Δημιουργία task'."
         actionLabel="Επόμενο: Feedback"
         actionHref="/demo/pilot-feedback?demoStep=feedback"
+      />
+      <GuidedDemoBanner
+        step="offer"
+        stepNum={4}
+        title="Προσφορά — preview, print, link αποδοχής"
+        whatYouSee="Preview προσφοράς, print/PDF, copy draft για Viber/email, link αποδοχής πελάτη."
+        whatToDo="Δοκίμασε print ή copy draft. Βρες την ενότητα 'Link αποδοχής πελάτη' και πάτα 'Άνοιγμα demo link πελάτη'."
+        whyItMatters="Στο τελικό προϊόν, το link αποστέλλεται μέσω SMS, Viber ή email ανάλογα με το κανάλι του πελάτη. Στο MVP: copy-paste χειροκίνητα."
+        canManualComplete={true}
+      />
+      <GuidedDemoBanner
+        step="followup"
+        stepNum={6}
+        title="Follow-up task — μετά την αποδοχή"
+        whatYouSee="Ενότητα 'Επόμενο βήμα' με κουμπί δημιουργίας task προγραμματισμού."
+        whatToDo="Πάτα 'Δημιούργησε task προγραμματισμού' για να δημιουργηθεί task στο CRM."
+        whyItMatters="Κάθε αποδεκτή προσφορά γίνεται task. Στο τελικό προϊόν, αυτό θα γίνεται αυτόματα μετά την αποδοχή."
+        canManualComplete={false}
+        isCompleted={acceptTaskState === 'created' || acceptTaskState === 'duplicate'}
       />
       {/* Back + actions */}
       <div className="flex items-center justify-between gap-3 print:hidden">

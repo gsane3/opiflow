@@ -5,6 +5,8 @@ import Link from 'next/link';
 import KnownLimitationsBox from '@/components/common/KnownLimitationsBox';
 import { loadState } from '@/lib/storage';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
+import { finishDemoGuide } from '@/lib/demo-guide-session';
 import { buildDataHealthReport } from '@/lib/data-health';
 
 // ── Step 113: Feedback questions ──────────────────────────────────────────────
@@ -37,6 +39,7 @@ export default function PilotFeedbackPage() {
   const [healthIssueCount, setHealthIssueCount] = useState(0);
   const [reportCopied, setReportCopied] = useState(false);
   const [snapshotCopied, setSnapshotCopied] = useState(false);
+  const [guideFeedbackCompleted, setGuideFeedbackCompleted] = useState(false);
 
   useEffect(() => {
     const state = loadState();
@@ -119,6 +122,8 @@ Demo/MVP only. No customer PII included.`;
   function handleCopyReport() {
     void copyText(buildFullReport(), () => {
       setReportCopied(true);
+      setGuideFeedbackCompleted(true);
+      finishDemoGuide();
       setTimeout(() => setReportCopied(false), 2500);
     });
   }
@@ -149,6 +154,17 @@ Demo/MVP only. No customer PII included.`;
           title="Τελευταίο βήμα -- Feedback!"
           body="Συμπλήρωσε τις ερωτήσεις, πάτα 'Αντιγραφή πλήρους pilot report' και στείλε το στον George."
           watchLabel="Χωρίς αυτόματη αποστολή -- copy-paste μόνο."
+        />
+        <GuidedDemoBanner
+          step="feedback"
+          stepNum={7}
+          title="Feedback — τελευταίο βήμα"
+          whatYouSee="Ερωτήσεις αξιολόγησης, κουμπί αντιγραφής pilot report."
+          whatToDo="Συμπλήρωσε τις ερωτήσεις. Πάτα 'Αντιγραφή πλήρους pilot report'. Στείλε το αποτέλεσμα χειροκίνητα."
+          whyItMatters="Χωρίς αυτόματη αποστολή — copy-paste μόνο. Δεν αποστέλλεται τίποτα αυτόματα σε κανέναν."
+          canManualComplete={false}
+          isCompleted={guideFeedbackCompleted}
+          isFinalStep={true}
         />
         <h1 className="text-xl font-bold text-zinc-900">Feedback reviewer</h1>
         <p className="mt-1 text-sm text-zinc-500">

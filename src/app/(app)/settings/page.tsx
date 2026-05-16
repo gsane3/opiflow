@@ -3,15 +3,21 @@
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { getBusinessProfile, saveBusinessProfile, exportStateJson, loadState, clearState, saveState, parseBackupJson, normalizeImportedState, saveCustomers, getNextCrmNumber, type ParsedBackup } from '@/lib/storage';
-import { demoCustomers, generateDemoTasks, generateDemoOffers } from '@/lib/demo-data';
+import { demoCustomers, generateDemoTasks, generateDemoOffers, buildRichDemoState } from '@/lib/demo-data';
 import { buildDataHealthReport, type DataHealthReport } from '@/lib/data-health';
 import { downloadCustomersCsv } from '@/lib/csv-export';
 import { parseCustomerCsv, parseCsvToRows, detectCrmDuplicates, type CsvImportPreview } from '@/lib/csv-import';
-import type { BusinessProfile, Customer } from '@/lib/types';
+import type { BusinessProfile, Customer, CallRecord } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import MockWorkspacePanel from '@/components/settings/MockWorkspacePanel';
 import MockCrmPanel from '@/components/settings/MockCrmPanel';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
+import {
+  loadDemoGuideSession,
+  completeDemoGuideStep,
+  setCurrentDemoGuideStep,
+} from '@/lib/demo-guide-session';
 
 function defaultProfile(): BusinessProfile {
   return {
@@ -55,6 +61,18 @@ export default function SettingsPage() {
   const csvImportRef = useRef<HTMLInputElement>(null);
   const [csvImportDone, setCsvImportDone] = useState(false);
   const [csvImportCount, setCsvImportCount] = useState(0);
+
+  // Step 175: preselect Rich pilot demo when in guided mode
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('guide') === '1' && params.get('demoStep') === 'seed') {
+      const session = loadDemoGuideSession();
+      if (session?.active) {
+        const timer = window.setTimeout(() => setSeedVariant('rich'), 0);
+        return () => window.clearTimeout(timer);
+      }
+    }
+  }, []);
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -142,71 +160,35 @@ export default function SettingsPage() {
   }
 
   function handleSeedDemo() {
-    const baseTasks = generateDemoTasks();
-    const baseOffers = generateDemoOffers();
-    let extraTasks = baseTasks;
-    let extraOffers = baseOffers;
-    let extraComms: { id: string; customerId: string; channel: 'sms' | 'call'; direction: 'outbound' | 'inbound'; status: 'completed'; summary: string; createdAt: string; isMock: true }[] = [];
-    // Step 151: rich pilot demo adds a completed task, an accepted offer, and 2 comm records
+    let demoState: ReturnType<typeof buildRichDemoState>;
     if (seedVariant === 'rich') {
-      const now = new Date().toISOString();
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const richTask = {
-        id: 'demo-task-rich-1',
-        customerId: 'demo-papanikolaou',
-        title: 'Αποστολή προσφοράς συντήρησης — ολοκληρώθηκε',
-        type: 'send_offer' as const,
-        status: 'completed' as const,
-        priority: 'normal' as const,
-        dueDate: yesterday.toISOString().split('T')[0],
-        note: 'Demo completed task.',
-        createdFromAi: false,
-        createdAt: now,
-        updatedAt: now,
-        completedAt: now,
-        isDemo: true,
+      // Step 151 / 172: use shared builder so /demo auto-seed and Settings produce identical rich data.
+      demoState = buildRichDemoState();
+    } else {
+      demoState = {
+        customers: demoCustomers,
+        tasks: generateDemoTasks(),
+        offers: generateDemoOffers(),
+        calls: [] as CallRecord[],
+        communications: [],
       };
-      const richOffer = {
-        id: 'demo-offer-rich-1',
-        customerId: 'demo-papanikolaou',
-        offerNumber: '#003',
-        status: 'accepted' as const,
-        offerDate: yesterday.toISOString().split('T')[0],
-        validUntil: new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0],
-        items: [{ id: 'rich-item-1', description: 'Συντήρηση 3 κλιματιστικών', quantity: 1, unitPrice: 240 }],
-        subtotal: 240,
-        vatRate: 24,
-        vatAmount: 57.6,
-        total: 297.6,
-        notes: 'Απάντηση μέσω demo link: Αποδοχή.',
-        terms: 'Πληρωμή κατά την εκτέλεση.',
-        acceptanceText: 'Αποδέχομαι τους παραπάνω όρους.',
-        createdFromAi: false,
-        createdAt: now,
-        updatedAt: now,
-        isDemo: true,
-      };
-      extraTasks = [...baseTasks, richTask];
-      extraOffers = [...baseOffers, richOffer];
-      extraComms = [
-        { id: 'demo-comm-1', customerId: 'demo-karagiannis', channel: 'sms', direction: 'outbound', status: 'completed', summary: 'Αποστολή SMS για στοιχεία πελάτη.', createdAt: now, isMock: true },
-        { id: 'demo-comm-2', customerId: 'demo-papanikolaou', channel: 'sms', direction: 'inbound', status: 'completed', summary: 'Ο πελάτης αποδέχτηκε την προσφορά #003 μέσω demo link.', createdAt: now, isMock: true },
-      ];
     }
-    const demoState = {
-      customers: demoCustomers,
-      tasks: extraTasks,
-      offers: extraOffers,
-      calls: [],
-      communications: extraComms,
-    };
     clearState();
     saveState(demoState);
     setSeedConfirming(false);
     setSeedDone(true);
     setHealthReport(buildDataHealthReport(demoState));
-    setTimeout(() => window.location.reload(), 1500);
+    // If guided mode was somehow still on 'seed' step, advance it (legacy path).
+    const guideSession = loadDemoGuideSession();
+    if (guideSession?.active && guideSession.currentStep === 'seed') {
+      completeDemoGuideStep('seed');
+      setCurrentDemoGuideStep('dashboard');
+      setTimeout(() => {
+        window.location.href = '/dashboard?demoStep=dashboard&guide=1';
+      }, 1000);
+    } else {
+      setTimeout(() => window.location.reload(), 1500);
+    }
   }
 
   function handleSave() {
@@ -302,7 +284,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
-      {/* Step 165: Demo mission banner */}
+      {/* Step 165: Non-guided banner */}
       <DemoStepBanner
         step="seed"
         stepNum={1}
@@ -311,6 +293,16 @@ export default function SettingsPage() {
         watchLabel="Επιλογή Rich pilot demo — επαναφέρει 4 πελάτες, tasks, 3 προσφορές και comms."
         actionLabel="Επόμενο: Dashboard"
         actionHref="/dashboard?demoStep=dashboard"
+      />
+      {/* Step 175: Guided mode banner */}
+      <GuidedDemoBanner
+        step="seed"
+        stepNum={1}
+        title="Ετοίμασε demo δεδομένα"
+        whatYouSee="Ρυθμίσεις — ενότητα Demo και επαναφορά στο κάτω μέρος."
+        whatToDo="Κάνε scroll στην ενότητα 'Demo και επαναφορά'. Επέλεξε Rich pilot demo. Πάτα Επαναφορά demo δεδομένων."
+        whyItMatters="Χρειάζεσαι πραγματικά demo δεδομένα για να δεις ολόκληρη τη ροή."
+        canManualComplete={false}
       />
       {/* Header */}
       <div className="mb-6">
