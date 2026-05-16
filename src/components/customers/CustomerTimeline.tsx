@@ -212,15 +212,24 @@ function buildItems(
     const dateIso = comm.createdAt;
     const dateLabel = formatDate(dateIso);
     if (!dateLabel) continue;
+    // Step 138: detect offer-response records and give them a clearer title
+    const isOfferResponse = !!(
+      comm.summary?.includes('μέσω demo link') && comm.summary?.includes('προσφορά')
+    );
     items.push({
       id: comm.id,
       kind: 'comm',
       subKind: comm.channel,
-      title: comm.channel === 'sms' ? 'SMS από CRM' : 'Κλήση από CRM',
+      title: isOfferResponse
+        ? 'Απάντηση προσφοράς'
+        : comm.channel === 'sms'
+        ? 'SMS από CRM'
+        : 'Κλήση από CRM',
       detail: comm.phone || comm.summary || '',
       dateIso,
       dateLabel,
       commStatus: comm.status,
+      isMock: comm.isMock,
     });
   }
 

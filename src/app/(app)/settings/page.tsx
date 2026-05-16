@@ -596,9 +596,11 @@ export default function SettingsPage() {
             <div className="rounded-2xl border border-red-200 bg-red-50 p-4 space-y-3">
               <p className="text-sm font-semibold text-red-900">Επιβεβαίωση διαγραφής</p>
               <p className="text-xs text-red-700">
-                Η ενέργεια αυτή θα αφαιρέσει όλα τα τοπικά δεδομένα CRM από αυτόν τον browser.
+                Πριν συνεχίσεις, κατέβασε backup αν θέλεις να κρατήσεις τα τρέχοντα δεδομένα.
+              </p>
+              <p className="text-xs text-red-700">
                 Πελάτες, tasks, προσφορές, κλήσεις και επικοινωνίες θα διαγραφούν χωρίς δυνατότητα
-                ανάκτησης εκτός αν έχεις αποθηκευμένο backup.
+                ανάκτησης από το app.
               </p>
               <div className="flex flex-wrap gap-3">
                 <button
@@ -652,9 +654,11 @@ export default function SettingsPage() {
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-3">
               <p className="text-sm font-semibold text-amber-900">Επιβεβαίωση επαναφοράς demo</p>
               <p className="text-xs text-amber-800">
-                Τα τρέχοντα δεδομένα (πελάτες, tasks, προσφορές, κλήσεις, επικοινωνίες) θα
-                αντικατασταθούν από τα demo δεδομένα. Κατέβασε backup πριν συνεχίσεις αν θέλεις
-                να διατηρήσεις τα τρέχοντα δεδομένα.
+                Πριν συνεχίσεις, κατέβασε backup αν θέλεις να κρατήσεις τα τρέχοντα δεδομένα.
+              </p>
+              <p className="text-xs text-amber-800">
+                Πελάτες, tasks, προσφορές, κλήσεις και επικοινωνίες θα αντικατασταθούν από τα
+                αρχικά demo δεδομένα.
               </p>
               <div className="flex flex-wrap gap-3">
                 <button

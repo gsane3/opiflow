@@ -42,6 +42,8 @@ export default function OfferPreview({ offerId }: Props) {
   // Steps 131+132: task suggestion state
   const [acceptTaskState, setAcceptTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
   const [rejectTaskState, setRejectTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
+  // Step 137: demo response undo state
+  const [undoResponseState, setUndoResponseState] = useState<'idle' | 'done'>('idle');
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -112,12 +114,52 @@ export default function OfferPreview({ offerId }: Props) {
     router.push('/offers');
   }
 
+  // Step 137: reset demo response — for demo retry only
+  function handleUndoResponse() {
+    if (!offer) return;
+    if (
+      !window.confirm(
+        'Επαναφορά απάντησης demo; Η προσφορά θα επιστρέψει σε status "Στάλθηκε χειροκίνητα". Χρήσιμο μόνο για επανάληψη demo.'
+      )
+    )
+      return;
+    const now = new Date().toISOString();
+    const cleanedNotes = (offer.notes ?? '')
+      .split('\n')
+      .filter(
+        (l) =>
+          !l.startsWith('Απάντηση μέσω demo link:') &&
+          !l.startsWith('Αποδοχή demo') &&
+          !l.startsWith('Απόρριψη demo')
+      )
+      .join('\n')
+      .trim();
+    const updated: Offer = {
+      ...offer,
+      status: 'sent_manually',
+      notes: cleanedNotes,
+      updatedAt: now,
+    };
+    updateOffer(updated);
+    setOffer(updated);
+    setUndoResponseState('done');
+    setAcceptTaskState('idle');
+    setRejectTaskState('idle');
+  }
+
   // Step 131: suggest work-scheduling task after accepted offer
   function handleCreateAcceptTask() {
     if (!offer) return;
     const state = loadState();
+    // Step 140: improved duplicate detection — check offerId or same customer + offerNumber in title
     const hasDup = (state.tasks ?? []).some(
-      (t) => t.status === 'open' && t.offerId === offer.id
+      (t) =>
+        t.status === 'open' &&
+        (t.offerId === offer.id ||
+          (offer.customerId &&
+            t.customerId === offer.customerId &&
+            offer.offerNumber &&
+            t.title.includes(offer.offerNumber)))
     );
     if (hasDup) { setAcceptTaskState('duplicate'); return; }
     const now = new Date().toISOString();
@@ -144,8 +186,15 @@ export default function OfferPreview({ offerId }: Props) {
   function handleCreateRejectTask() {
     if (!offer) return;
     const state = loadState();
+    // Step 140: improved duplicate detection
     const hasDup = (state.tasks ?? []).some(
-      (t) => t.status === 'open' && t.offerId === offer.id
+      (t) =>
+        t.status === 'open' &&
+        (t.offerId === offer.id ||
+          (offer.customerId &&
+            t.customerId === offer.customerId &&
+            offer.offerNumber &&
+            t.title.includes(offer.offerNumber)))
     );
     if (hasDup) { setRejectTaskState('duplicate'); return; }
     const now = new Date().toISOString();
@@ -419,6 +468,25 @@ export default function OfferPreview({ offerId }: Props) {
           <p className="mt-2 text-xs text-zinc-400">
             Δεν αποτελεί νόμιμη ηλεκτρονική υπογραφή. Επικοινωνήστε με τον πελάτη για επιβεβαίωση.
           </p>
+          {/* Step 137: demo-only undo response */}
+          <div className="mt-3 pt-3 border-t border-zinc-100">
+            {undoResponseState === 'done' ? (
+              <p className="text-xs text-zinc-500">
+                Η απάντηση επαναφέρθηκε. Μπορείς να δοκιμάσεις ξανά το demo link.
+              </p>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleUndoResponse}
+                  className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+                >
+                  Επαναφορά απάντησης demo
+                </button>
+                <span className="text-[10px] text-zinc-400">Για επανάληψη demo μόνο</span>
+              </div>
+            )}
+          </div>
         </section>
       )}
 

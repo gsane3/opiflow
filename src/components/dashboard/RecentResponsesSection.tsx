@@ -1,10 +1,11 @@
 import Link from 'next/link';
-import type { Offer } from '@/lib/types';
+import type { Offer, Task } from '@/lib/types';
 import { fmtEur } from '@/lib/offer-calculations';
 
 interface Props {
   offers: Offer[];
   customerMap: Record<string, string>;
+  tasks?: Task[];
 }
 
 function formatDate(isoStr: string): string {
@@ -18,7 +19,7 @@ function formatDate(isoStr: string): string {
   }
 }
 
-export default function RecentResponsesSection({ offers, customerMap }: Props) {
+export default function RecentResponsesSection({ offers, customerMap, tasks = [] }: Props) {
   const responded = offers
     .filter((o) => o.status === 'accepted' || o.status === 'rejected')
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
@@ -41,6 +42,16 @@ export default function RecentResponsesSection({ offers, customerMap }: Props) {
         {responded.map((offer) => {
           const customerName = offer.customerId ? customerMap[offer.customerId] : undefined;
           const isAccepted = offer.status === 'accepted';
+          // Step 139: check for existing open task linked to this offer
+          const hasOpenTask = tasks.some(
+            (t) =>
+              t.status === 'open' &&
+              (t.offerId === offer.id ||
+                (offer.customerId &&
+                  t.customerId === offer.customerId &&
+                  offer.offerNumber &&
+                  t.title.includes(offer.offerNumber)))
+          );
 
           return (
             <li key={offer.id}>
@@ -69,9 +80,14 @@ export default function RecentResponsesSection({ offers, customerMap }: Props) {
                       <span className="font-semibold text-zinc-700">{fmtEur(offer.total)}</span>
                       <span>{formatDate(offer.updatedAt)}</span>
                     </div>
+                    {/* Step 139: task-aware hint */}
                     <p className={`mt-1 text-xs font-medium ${isAccepted ? 'text-green-600' : 'text-red-500'}`}>
                       {isAccepted
-                        ? 'Επόμενο βήμα: προγραμμάτισε εργασία'
+                        ? hasOpenTask
+                          ? 'Υπάρχει ήδη σχετικό task'
+                          : 'Επόμενο βήμα: προγραμμάτισε εργασία'
+                        : hasOpenTask
+                        ? 'Υπάρχει ήδη follow-up task'
                         : 'Σκέψου follow-up ή νέα προσφορά'}
                     </p>
                   </div>

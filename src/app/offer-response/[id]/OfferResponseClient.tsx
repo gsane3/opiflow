@@ -63,11 +63,19 @@ export default function OfferResponseClient({ offerId }: Props) {
     return () => window.clearTimeout(timer);
   }, [offerId]);
 
-  // Step 124: timestamped note + Step 125: log CommunicationRecord
   function handleConfirmAccept() {
     if (!offer) return;
+    // Step 136: re-read current state — prevent acting on stale offer
+    const currentState = loadState();
+    const currentOffer = (currentState.offers ?? []).find((o) => o.id === offer.id);
+    if (currentOffer && ['accepted', 'rejected', 'expired'].includes(currentOffer.status)) {
+      setOffer(currentOffer);
+      setAction(currentOffer.status === 'accepted' ? 'accepted' : currentOffer.status === 'rejected' ? 'rejected' : 'expired');
+      return;
+    }
     const now = new Date().toISOString();
     const dateLabel = formatTimestamp(now);
+    // Step 124: timestamped note
     const note = `Απάντηση μέσω demo link: Αποδοχή στις ${dateLabel}.`;
     const updated: Offer = {
       ...offer,
@@ -76,25 +84,39 @@ export default function OfferResponseClient({ offerId }: Props) {
       updatedAt: now,
     };
     updateOffer(updated);
-    // Step 125: log inbound response as communication record
-    addCommunicationRecord({
-      id: crypto.randomUUID(),
-      customerId: offer.customerId,
-      channel: 'sms',
-      direction: 'inbound',
-      status: 'completed',
-      summary: `Ο πελάτης αποδέχτηκε την προσφορά ${offer.offerNumber} μέσω demo link.`,
-      createdAt: now,
-      isMock: true,
-    });
+    // Step 135: guard against duplicate comm records
+    const alreadyLogged = (currentState.communications ?? []).some(
+      (c) => c.isMock && c.summary?.includes(offer.offerNumber) && c.summary?.includes('μέσω demo link')
+    );
+    if (!alreadyLogged) {
+      addCommunicationRecord({
+        id: crypto.randomUUID(),
+        customerId: offer.customerId,
+        channel: 'sms',
+        direction: 'inbound',
+        status: 'completed',
+        summary: `Ο πελάτης αποδέχτηκε την προσφορά ${offer.offerNumber} μέσω demo link.`,
+        createdAt: now,
+        isMock: true,
+      });
+    }
     setOffer(updated);
     setAction('accepted');
   }
 
   function handleConfirmReject() {
     if (!offer) return;
+    // Step 136: re-read current state — prevent acting on stale offer
+    const currentState = loadState();
+    const currentOffer = (currentState.offers ?? []).find((o) => o.id === offer.id);
+    if (currentOffer && ['accepted', 'rejected', 'expired'].includes(currentOffer.status)) {
+      setOffer(currentOffer);
+      setAction(currentOffer.status === 'accepted' ? 'accepted' : currentOffer.status === 'rejected' ? 'rejected' : 'expired');
+      return;
+    }
     const now = new Date().toISOString();
     const dateLabel = formatTimestamp(now);
+    // Step 124: timestamped note
     let note = `Απάντηση μέσω demo link: Απόρριψη στις ${dateLabel}.`;
     if (rejectComment.trim()) note += ` Σχόλιο: ${rejectComment.trim()}`;
     const updated: Offer = {
@@ -104,17 +126,22 @@ export default function OfferResponseClient({ offerId }: Props) {
       updatedAt: now,
     };
     updateOffer(updated);
-    // Step 125: log inbound rejection as communication record
-    addCommunicationRecord({
-      id: crypto.randomUUID(),
-      customerId: offer.customerId,
-      channel: 'sms',
-      direction: 'inbound',
-      status: 'completed',
-      summary: `Ο πελάτης απέρριψε την προσφορά ${offer.offerNumber} μέσω demo link.${rejectComment.trim() ? ` Σχόλιο: ${rejectComment.trim()}` : ''}`,
-      createdAt: now,
-      isMock: true,
-    });
+    // Step 135: guard against duplicate comm records
+    const alreadyLogged = (currentState.communications ?? []).some(
+      (c) => c.isMock && c.summary?.includes(offer.offerNumber) && c.summary?.includes('μέσω demo link')
+    );
+    if (!alreadyLogged) {
+      addCommunicationRecord({
+        id: crypto.randomUUID(),
+        customerId: offer.customerId,
+        channel: 'sms',
+        direction: 'inbound',
+        status: 'completed',
+        summary: `Ο πελάτης απέρριψε την προσφορά ${offer.offerNumber} μέσω demo link.${rejectComment.trim() ? ` Σχόλιο: ${rejectComment.trim()}` : ''}`,
+        createdAt: now,
+        isMock: true,
+      });
+    }
     setOffer(updated);
     setAction('rejected');
   }
@@ -327,9 +354,9 @@ export default function OfferResponseClient({ offerId }: Props) {
             </div>
           )}
 
-          {/* Accepted success */}
+          {/* Step 134: Accepted success — clear next-step messaging */}
           {action === 'accepted' && (
-            <div className="rounded-xl bg-green-50 px-4 py-5 ring-1 ring-green-200 space-y-1 text-center">
+            <div className="rounded-xl bg-green-50 px-4 py-5 ring-1 ring-green-200 space-y-2 text-center">
               <div className="flex justify-center mb-2">
                 <span className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100">
                   <svg className="h-5 w-5 text-green-600" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -338,15 +365,21 @@ export default function OfferResponseClient({ offerId }: Props) {
                 </span>
               </div>
               <p className="text-base font-bold text-green-700">Η προσφορά αποδέχτηκε</p>
-              <p className="text-sm text-green-600">Η επιχείρηση θα επικοινωνήσει μαζί σας σύντομα.</p>
+              <p className="text-sm text-green-600">
+                Η επιχείρηση θα επικοινωνήσει μαζί σας για το επόμενο βήμα.
+              </p>
+              <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
             </div>
           )}
 
-          {/* Rejected success */}
+          {/* Step 134: Rejected success — clear CRM note messaging */}
           {action === 'rejected' && (
-            <div className="rounded-xl bg-red-50 px-4 py-5 ring-1 ring-red-200 space-y-1 text-center">
+            <div className="rounded-xl bg-red-50 px-4 py-5 ring-1 ring-red-200 space-y-2 text-center">
               <p className="text-base font-bold text-red-700">Η προσφορά απορρίφθηκε</p>
-              <p className="text-sm text-red-600">Επικοινωνήστε αν επιθυμείτε να συζητήσετε περαιτέρω.</p>
+              <p className="text-sm text-red-600">
+                Η επιχείρηση θα δει την απάντησή σας στο demo CRM.
+              </p>
+              <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
             </div>
           )}
 

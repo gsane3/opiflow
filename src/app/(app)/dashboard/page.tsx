@@ -312,7 +312,7 @@ export default function DashboardPage() {
       <LeadsSection leads={leads} />
       <TodayTasksSection tasks={urgentTasks} customerMap={customerMap} />
       <OpenOffersSection offers={openOffers} customerMap={customerMap} />
-      <RecentResponsesSection offers={offers} customerMap={customerMap} />
+      <RecentResponsesSection offers={offers} customerMap={customerMap} tasks={tasks} />
       <RecentCommunicationsSection communications={communications} customerMap={customerMap} />
       <RecentCallsSection callRecords={calls} customerMap={customerMap} />
       <LocalAnalyticsWidget customers={customers} tasks={tasks} offers={offers} />
