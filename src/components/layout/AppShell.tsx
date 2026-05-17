@@ -14,7 +14,13 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const state = loadState();
     if (!state.userProfile) {
-      if (pathname !== '/demo') router.replace('/demo');
+      const hasAppData = !!(
+        state.customers?.length ||
+        state.tasks?.length ||
+        state.offers?.length ||
+        state.calls?.length
+      );
+      if (!hasAppData && pathname !== '/demo') router.replace('/demo');
     } else if (!state.userProfile.onboardingCompleted) {
       router.replace('/onboarding');
     }
