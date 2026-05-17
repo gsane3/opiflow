@@ -17,6 +17,7 @@ export default function GlobalGuideGuard() {
   const [show, setShow] = useState(false);
   const [currentStep, setCurrentStep] = useState<DemoGuideStep | null>(null);
   const [expectedHref, setExpectedHref] = useState('/demo');
+  const [confirmingDemoExit, setConfirmingDemoExit] = useState(false);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -48,10 +49,8 @@ export default function GlobalGuideGuard() {
   const stepTitle = currentStep ? (STEP_DISPLAY_TITLES[currentStep] ?? currentStep) : '';
 
   function handleExit() {
-    if (window.confirm('Θέλεις να βγεις από το guided demo;')) {
-      exitDemoGuide();
-      setShow(false);
-    }
+    exitDemoGuide();
+    setShow(false);
   }
 
   return (
@@ -73,12 +72,33 @@ export default function GlobalGuideGuard() {
         </button>
         <button
           type="button"
-          onClick={handleExit}
+          onClick={() => setConfirmingDemoExit(true)}
           className="rounded-xl border border-amber-300 px-3 py-1.5 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
         >
           Έξοδος από guided demo
         </button>
       </div>
+      {confirmingDemoExit && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-zinc-700">Να βγεις από το guided demo;</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleExit}
+              className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-red-700"
+            >
+              Ναι, έξοδος
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDemoExit(false)}
+              className="rounded-lg border border-amber-300 px-2.5 py-1 text-xs font-medium text-amber-700 transition hover:bg-amber-100"
+            >
+              Πίσω
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -46,6 +46,7 @@ export default function GuidedDemoBanner({
   const [sessionCompleted, setSessionCompleted] = useState(false);
   const [currentSessionStep, setCurrentSessionStep] = useState<DemoGuideStep | null>(null);
   const [guideFinished, setGuideFinished] = useState(false);
+  const [confirmingDemoExit, setConfirmingDemoExit] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -104,10 +105,12 @@ export default function GuidedDemoBanner({
   }
 
   function handleExit() {
-    if (window.confirm('Θέλεις να βγεις από το guided demo;')) {
-      exitDemoGuide();
-      window.location.href = '/demo';
-    }
+    setConfirmingDemoExit(true);
+  }
+
+  function handleConfirmExit() {
+    exitDemoGuide();
+    window.location.href = '/demo';
   }
 
   if (guideFinished) {
@@ -145,6 +148,28 @@ export default function GuidedDemoBanner({
           Εξοδος
         </button>
       </div>
+
+      {confirmingDemoExit && (
+        <div className="rounded-xl bg-red-50 px-3 py-2 ring-1 ring-red-200 space-y-1.5">
+          <p className="text-xs font-medium text-zinc-700">Να βγεις από το guided demo;</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleConfirmExit}
+              className="rounded-lg bg-red-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-red-700"
+            >
+              Ναι, έξοδος
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDemoExit(false)}
+              className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Πίσω
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Wrong-step soft warning */}
       {isWrongStep && (

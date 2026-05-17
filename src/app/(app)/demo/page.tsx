@@ -200,6 +200,7 @@ export default function DemoPage() {
   // Step 161: copy demo URL state
   const [copyLinkCopied, setCopyLinkCopied] = useState(false);
   const [showPilotDetails, setShowPilotDetails] = useState(false);
+  const [confirmingDemoExit, setConfirmingDemoExit] = useState(false);
 
   function handleCopyLink() {
     const url = `${window.location.origin}/demo`;
@@ -235,11 +236,7 @@ export default function DemoPage() {
   }
 
   function handleExitGuide() {
-    if (window.confirm('Θελεις να βγεις απο το guided demo;')) {
-      exitDemoGuide();
-      setGuideActive(false);
-      setGuideDone(false);
-    }
+    setConfirmingDemoExit(true);
   }
 
   // Load state + resolve initial step from URL param after mount.
@@ -422,6 +419,27 @@ export default function DemoPage() {
                 Εξοδος απο guided demo
               </button>
             </div>
+            {confirmingDemoExit && (
+              <div className="rounded-xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-200 space-y-1.5">
+                <p className="text-xs font-medium text-zinc-700">Να βγεις από το guided demo;</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { exitDemoGuide(); setGuideActive(false); setGuideDone(false); setConfirmingDemoExit(false); }}
+                    className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                  >
+                    Ναι, έξοδος
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingDemoExit(false)}
+                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Πίσω
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <div className="space-y-3">
