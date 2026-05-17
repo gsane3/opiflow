@@ -102,6 +102,7 @@ interface Props {
 
 export default function TaskCard({ task, customerName, onComplete, onEdit, onDelete, onSnooze }: Props) {
   const [showMore, setShowMore] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const effective = getEffectiveStatus(task);
 
   const cardBg =
@@ -119,9 +120,7 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
       : 'text-zinc-900';
 
   function handleDelete() {
-    if (window.confirm(`Διαγραφή task "${task.title}";`)) {
-      onDelete(task.id);
-    }
+    onDelete(task.id);
   }
 
   const { main, secondaryCustomer, secondaryOffer } = buildActions(task);
@@ -197,67 +196,92 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
           {/* Secondary row — shown when expanded */}
           {showMore && (
             <div className="flex flex-wrap gap-2 pt-1 border-t border-zinc-100">
-              {secondaryCustomer && (
-                <Link
-                  href={secondaryCustomer.href}
-                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
-                >
-                  {secondaryCustomer.label}
-                </Link>
-              )}
-
-              {secondaryOffer && (
-                <Link
-                  href={secondaryOffer.href}
-                  className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
-                >
-                  {secondaryOffer.label}
-                </Link>
-              )}
-
-              {onSnooze && (
+              {confirmingDelete ? (
                 <>
+                  <div className="w-full space-y-0.5">
+                    <p className="text-xs font-medium text-zinc-700">Να διαγραφεί αυτό το task;</p>
+                    <p className="text-xs text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => onSnooze(task.id, addDays(1))}
-                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
-                    title="Αναβολή για αύριο"
+                    onClick={handleDelete}
+                    className="inline-flex items-center rounded-xl bg-red-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-700 min-h-[36px]"
                   >
-                    Αύριο
+                    Ναι, διαγραφή
                   </button>
                   <button
                     type="button"
-                    onClick={() => onSnooze(task.id, addDays(3))}
-                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
-                    title="Αναβολή για σε 3 μέρες"
+                    onClick={() => setConfirmingDelete(false)}
+                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
                   >
-                    +3 μέρες
+                    Πίσω
+                  </button>
+                </>
+              ) : (
+                <>
+                  {secondaryCustomer && (
+                    <Link
+                      href={secondaryCustomer.href}
+                      className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
+                    >
+                      {secondaryCustomer.label}
+                    </Link>
+                  )}
+
+                  {secondaryOffer && (
+                    <Link
+                      href={secondaryOffer.href}
+                      className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
+                    >
+                      {secondaryOffer.label}
+                    </Link>
+                  )}
+
+                  {onSnooze && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onSnooze(task.id, addDays(1))}
+                        className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
+                        title="Αναβολή για αύριο"
+                      >
+                        Αύριο
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSnooze(task.id, addDays(3))}
+                        className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
+                        title="Αναβολή για σε 3 μέρες"
+                      >
+                        +3 μέρες
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onSnooze(task.id, addDays(7))}
+                        className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
+                        title="Αναβολή για σε 1 εβδομάδα"
+                      >
+                        +1 εβδ.
+                      </button>
+                    </>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => onEdit(task)}
+                    className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
+                  >
+                    Επεξεργασία
                   </button>
                   <button
                     type="button"
-                    onClick={() => onSnooze(task.id, addDays(7))}
-                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50 min-h-[36px]"
-                    title="Αναβολή για σε 1 εβδομάδα"
+                    onClick={() => setConfirmingDelete(true)}
+                    className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50 hover:text-red-600 min-h-[36px]"
                   >
-                    +1 εβδ.
+                    Διαγραφή
                   </button>
                 </>
               )}
-
-              <button
-                type="button"
-                onClick={() => onEdit(task)}
-                className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[36px]"
-              >
-                Επεξεργασία
-              </button>
-              <button
-                type="button"
-                onClick={handleDelete}
-                className="inline-flex items-center rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50 hover:text-red-600 min-h-[36px]"
-              >
-                Διαγραφή
-              </button>
             </div>
           )}
         </div>
