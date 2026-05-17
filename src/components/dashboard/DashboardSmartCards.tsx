@@ -31,7 +31,7 @@ interface DashboardCardProps {
   onOpen: (id: SheetId) => void;
 }
 
-function DashboardCard({ id, icon, title, count, hint, urgent, active, onOpen }: DashboardCardProps) {
+function DashboardCard({ id, icon, title, count, urgent, active, onOpen }: DashboardCardProps) {
   return (
     <button
       type="button"
@@ -52,8 +52,7 @@ function DashboardCard({ id, icon, title, count, hint, urgent, active, onOpen }:
       <p className={`text-xl font-bold leading-none ${
         urgent && Number(count) > 0 ? 'text-red-700' : active && Number(count) > 0 ? 'text-indigo-700' : 'text-zinc-400'
       }`}>{count}</p>
-      <p className="text-[11px] font-semibold text-zinc-600 leading-tight">{title}</p>
-      <p className="text-[9px] text-zinc-400 leading-tight">{hint}</p>
+      <p className="text-xs font-semibold text-zinc-700 leading-tight">{title}</p>
     </button>
   );
 }

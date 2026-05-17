@@ -13,6 +13,7 @@ import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import DashboardSmartCards from '@/components/dashboard/DashboardSmartCards';
+import ActionSheet from '@/components/common/ActionSheet';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -43,8 +44,9 @@ export default function DashboardPage() {
     communications: [],
   });
 
-  // Undo state for dashboard task completion â€” must be declared before any conditional return.
+  // Undo state - must be declared before any conditional return.
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   // Auto-clear the undo banner after 8 seconds.
   useEffect(() => {
@@ -76,7 +78,7 @@ export default function DashboardPage() {
           direction: 'outbound',
           status: 'sent',
           phone,
-          summary: 'Î‘Ï€Î¿ÏƒÏ„Î¿Î»Î® Î´ÎµÏÏ„ÎµÏÎ¿Ï… SMS Ï…Ï€ÎµÎ½Î¸ÏÎ¼Î¹ÏƒÎ·Ï‚ Î³Î¹Î± ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Î± Ï€ÎµÎ»Î¬Ï„Î·.',
+          summary: 'Αποστολή δεύτερου SMS υπενθύμισης για στοιχεία πελάτη.',
           createdAt: now,
           isMock: true,
         };
@@ -99,17 +101,17 @@ export default function DashboardPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  // Stable loading shell â€” identical on server and first client render.
+  // Stable loading shell - identical on server and first client render.
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900">
-            ÎšÎ±Î»Î·Î¼Î­ÏÎ±. Î¤Î¹ Ï€ÏÎ­Ï€ÎµÎ¹ Î½Î± Î³Î¯Î½ÎµÎ¹ ÏƒÎ®Î¼ÎµÏÎ±;
+            Καλημέρα. Τι πρέπει να γίνει σήμερα;
           </h1>
         </div>
         <QuickAssistantInput />
-        <p className="py-6 text-center text-sm text-zinc-400">Î¦ÏŒÏÏ„Ï‰ÏƒÎ· dashboard...</p>
+        <p className="py-6 text-center text-sm text-zinc-400">Φόρτωση dashboard...</p>
       </div>
     );
   }
@@ -120,7 +122,7 @@ export default function DashboardPage() {
     const now = new Date().toISOString();
     const task = dashboardData.tasks.find((t) => t.id === taskId);
     if (!task) return;
-    setLastCompletedTask(task); // save for undo before overwriting
+    setLastCompletedTask(task);
     const completed: Task = {
       ...task,
       status: 'completed' as TaskBaseStatus,
@@ -174,12 +176,12 @@ export default function DashboardPage() {
     const task: Task = {
       id: crypto.randomUUID(),
       customerId,
-      title: 'Follow-up Î³Î¹Î± ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Î± Ï€ÎµÎ»Î¬Ï„Î·',
+      title: 'Follow-up για στοιχεία πελάτη',
       type: 'other',
       status: 'open',
       priority: 'normal',
       dueDate: tomorrow.toISOString().split('T')[0],
-      note: 'ÎŸ Ï€ÎµÎ»Î¬Ï„Î·Ï‚ Î´ÎµÎ½ Î±Ï€Î¬Î½Ï„Î·ÏƒÎµ ÏƒÏ„Î¿ SMS ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Ï‰Î½.',
+      note: 'Ο πελάτης δεν απάντησε στο SMS στοιχείων.',
       createdFromAi: false,
       createdAt: now,
       updatedAt: now,
@@ -202,8 +204,8 @@ export default function DashboardPage() {
       ...customer,
       intakeStatus: 'kept_draft' as const,
       notes: customer.notes
-        ? `${customer.notes}\nÎšÏÎ±Ï„Î®Î¸Î·ÎºÎµ Ï‰Ï‚ Ï€ÏÏŒÏ‡ÎµÎ¹ÏÎ· ÎºÎ±ÏÏ„Î­Î»Î±.`
-        : 'ÎšÏÎ±Ï„Î®Î¸Î·ÎºÎµ Ï‰Ï‚ Ï€ÏÏŒÏ‡ÎµÎ¹ÏÎ· ÎºÎ±ÏÏ„Î­Î»Î±.',
+        ? `${customer.notes}\nΚρατήθηκε ως πρόχειρη καρτέλα.`
+        : 'Κρατήθηκε ως πρόχειρη καρτέλα.',
       updatedAt: now,
     };
     updateCustomer(updated);
@@ -215,7 +217,7 @@ export default function DashboardPage() {
 
   function handleCreateOfferFollowUpTask(offerId: string) {
     const offer = dashboardData.offers.find((o) => o.id === offerId);
-    if (!offer || !offer.customerId) return; // orphan offers cannot link task to customer
+    if (!offer || !offer.customerId) return;
 
     // Prevent duplicates: skip if an open follow-up task already exists for this offer.
     const alreadyExists = dashboardData.tasks.some(
@@ -223,7 +225,7 @@ export default function DashboardPage() {
         t.type === 'follow_up_offer' &&
         t.status === 'open' &&
         t.customerId === offer.customerId &&
-        (t.offerId === offer.id || t.title === `Follow-up Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ¬Ï‚ ${offer.offerNumber}`)
+        (t.offerId === offer.id || t.title === `Follow-up προσφοράς ${offer.offerNumber}`)
     );
     if (alreadyExists) return;
 
@@ -234,12 +236,12 @@ export default function DashboardPage() {
       id: crypto.randomUUID(),
       customerId: offer.customerId,
       offerId: offer.id,
-      title: `Follow-up Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ¬Ï‚ ${offer.offerNumber}`,
+      title: `Follow-up προσφοράς ${offer.offerNumber}`,
       type: 'follow_up_offer',
       status: 'open',
       priority: 'normal',
       dueDate: dueDate.toISOString().split('T')[0],
-      note: 'Follow-up Î¼ÎµÏ„Î¬ Ï„Î·Î½ Î±Ï€Î¿ÏƒÏ„Î¿Î»Î® Ï„Î·Ï‚ Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ¬Ï‚.',
+      note: 'Follow-up μετά την αποστολή της προσφοράς.',
       createdFromAi: false,
       createdAt: now,
       updatedAt: now,
@@ -279,43 +281,42 @@ export default function DashboardPage() {
       <DemoStepBanner
         step="dashboard"
         stepNum={2}
-        title="Dashboard -- ÎµÎºÎºÏÎµÎ¼ÏŒÏ„Î·Ï„ÎµÏ‚ Ï„Î·Ï‚ Î·Î¼Î­ÏÎ±Ï‚"
-        body="ÎšÎ¿Î¯Ï„Î± tasks ÎµÎºÏ€ÏÏŒÎ¸ÎµÏƒÎ¼Î±, Î±Î½Î¿Î¹Ï‡Ï„Î­Ï‚ Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ­Ï‚ ÎºÎ±Î¹ Ï„Î¿Ï€Î¹ÎºÎ® ÎµÎ¹ÎºÏŒÎ½Î± ÏƒÏ„Î¿ ÎºÎ¬Ï„Ï‰ Î¼Î­ÏÎ¿Ï‚."
-        watchLabel="Î‘Î½ Î´ÎµÎ½ Î²Î»Î­Ï€ÎµÎ¹Ï‚ ÏƒÏ„Î¿Î¹Ï‡ÎµÎ¯Î±, Î³ÏÏÎ½Î± ÏƒÏ„Î¿ Mission 1 ÎºÎ±Î¹ ÎµÏ€Î±Î½Î±Ï†Î­ÏÎµ Rich demo."
-        actionLabel="Î•Ï€ÏŒÎ¼ÎµÎ½Î¿: AI review"
+        title="Dashboard - εκκρεμότητες της ημέρας"
+        body="Κοίτα tasks εκπρόθεσμα, ανοιχτές προσφορές και τοπική εικόνα στο κάτω μέρος."
+        watchLabel="Αν δεν βλέπεις στοιχεία, γύρνα στο Mission 1 και επαναφέρε Rich demo."
+        actionLabel="Επόμενο: AI review"
         actionHref="/ai-review?demoStep=review"
       />
       <GuidedDemoBanner
         step="dashboard"
         stepNum={1}
-        title="Dashboard â€” ÎºÎ­Î½Ï„ÏÎ¿ ÎµÎ»Î­Î³Ï‡Î¿Ï…"
-        whatYouSee="Î•ÎºÎºÏÎµÎ¼ÏŒÏ„Î·Ï„ÎµÏ‚ Î·Î¼Î­ÏÎ±Ï‚: tasks ÎµÎºÏ€ÏÏŒÎ¸ÎµÏƒÎ¼Î±, Î±Î½Î¿Î¹Ï‡Ï„Î­Ï‚ Ï€ÏÎ¿ÏƒÏ†Î¿ÏÎ­Ï‚, Ï€ÏÏŒÏƒÏ†Î±Ï„ÎµÏ‚ Î±Ï€Î±Î½Ï„Î®ÏƒÎµÎ¹Ï‚, local analytics."
-        whatToDo="Î Î¬Ï„Î± Î­Î½Î± ÎµÎ¹ÎºÎ¿Î½Î¯Î´Î¹Î¿ Î³Î¹Î± Î½Î± Î´ÎµÎ¹Ï‚ Î»ÎµÏ€Ï„Î¿Î¼Î­ÏÎµÎ¹ÎµÏ‚ Ï‡Ï‰ÏÎ¯Ï‚ Î½Î± Ï†ÏÎ³ÎµÎ¹Ï‚ Î±Ï€ÏŒ Ï„Î·Î½ Î‘ÏÏ‡Î¹ÎºÎ®. ÎšÎ¬Î½Îµ scroll Ï‰Ï‚ ÎºÎ¬Ï„Ï‰ Î³Î¹Î± Î½Î± Î´ÎµÎ¹Ï‚ ÏŒÎ»ÎµÏ‚ Ï„Î¹Ï‚ ÎµÎ½ÏŒÏ„Î·Ï„ÎµÏ‚."
-        whyItMatters="Î£Ï„Î¿ Ï„ÎµÎ»Î¹ÎºÏŒ Ï€ÏÎ¿ÏŠÏŒÎ½, ÎµÎ´ÏŽ Î¸Î± Î²Î»Î­Ï€ÎµÎ¹Ï‚ Ï„Î¹ Ï‡ÏÎµÎ¹Î¬Î¶ÎµÏ„Î±Î¹ follow-up Î¼ÎµÏ„Î¬ Î±Ï€ÏŒ ÎºÎ»Î®ÏƒÎµÎ¹Ï‚, SMS, Viber Î® email. Î£Ï„Î¿ MVP: Ï„Î¿Ï€Î¹ÎºÎ¬ Î´ÎµÎ´Î¿Î¼Î­Î½Î± Î¼ÏŒÎ½Î¿."
+        title="Dashboard - κέντρο ελέγχου"
+        whatYouSee="Εκκρεμότητες ημέρας: tasks εκπρόθεσμα, ανοιχτές προσφορές, πρόσφατες απαντήσεις, local analytics."
+        whatToDo="Πάτα ένα εικονίδιο για να δεις λεπτομέρειες χωρίς να φύγεις από την Αρχική."
+        whyItMatters="Στο τελικό προϊόν, εδώ θα βλέπεις τι χρειάζεται follow-up μετά από κλήσεις, SMS, Viber ή email. Στο MVP: τοπικά δεδομένα μόνο."
         canManualComplete={true}
       />
 
+      {/* Header: greeting + menu icon */}
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-lg font-semibold text-zinc-900">
-          ÎšÎ±Î»Î·Î¼Î­ÏÎ±. Î¤Î¹ Ï€ÏÎ­Ï€ÎµÎ¹ Î½Î± Î³Î¯Î½ÎµÎ¹ ÏƒÎ®Î¼ÎµÏÎ±;
+          Καλημέρα. Τι πρέπει να γίνει σήμερα;
         </h1>
-        <div className="flex shrink-0 items-center gap-2">
-          <Link
-            href="/demo"
-            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-          >
-            Demo
-          </Link>
-          <Link
-            href="/settings"
-            className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-          >
-            Î¡Ï…Î¸Î¼Î¯ÏƒÎµÎ¹Ï‚
-          </Link>
-        </div>
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+          aria-label="Μενού"
+        >
+          <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="5" r="1.5" />
+            <circle cx="12" cy="12" r="1.5" />
+            <circle cx="12" cy="19" r="1.5" />
+          </svg>
+        </button>
       </div>
 
-      {/* Smart overview cards â€” 6 icon cards */}
+      {/* 6-card control center */}
       <DashboardSmartCards
         urgentTasks={urgentTasks}
         leads={leads}
@@ -347,6 +348,33 @@ export default function DashboardPage() {
         onMarkOfferSent={handleMarkOfferSent}
         onCreateOfferFollowUpTask={handleCreateOfferFollowUpTask}
       />
+
+      {/* App menu */}
+      <ActionSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Μενού">
+        <div className="space-y-2">
+          {[
+            { href: '/settings', label: 'Ρυθμίσεις', subtitle: 'Επιχείρηση, backup, demo δεδομένα' },
+            { href: '/demo', label: 'Demo', subtitle: 'Guided demo και πληροφορίες pilot' },
+            { href: '/demo/privacy', label: 'Απόρρητο demo', subtitle: 'Τι αποθηκεύεται και τι όχι' },
+            { href: '/demo/production-readiness', label: 'Τεχνική ετοιμότητα', subtitle: 'Checklist πριν το Vercel' },
+          ].map(({ href, label, subtitle }) => (
+            <Link
+              key={href}
+              href={href}
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center justify-between gap-3 rounded-2xl bg-white px-4 py-4 ring-1 ring-zinc-100 shadow-sm transition hover:ring-indigo-200"
+            >
+              <div>
+                <p className="text-base font-semibold text-zinc-900">{label}</p>
+                <p className="mt-0.5 text-sm text-zinc-500">{subtitle}</p>
+              </div>
+              <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </Link>
+          ))}
+        </div>
+      </ActionSheet>
 
     </div>
   );

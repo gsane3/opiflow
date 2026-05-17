@@ -8,8 +8,8 @@ import DesktopSidebar from './DesktopSidebar';
 import FloatingActionMenu from './FloatingActionMenu';
 import GlobalGuideGuard from './GlobalGuideGuard';
 
-// FAB only on top-level list pages
-const FAB_PATHS = new Set(['/dashboard', '/customers', '/tasks', '/offers']);
+// FAB only on top-level list pages (not dashboard - it has 6 smart cards already)
+const FAB_PATHS = new Set(['/customers', '/tasks', '/offers']);
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
