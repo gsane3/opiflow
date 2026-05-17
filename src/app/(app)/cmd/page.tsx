@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { loadState, addTask, addOffer } from '@/lib/storage';
+import { loadState, addTask, addOffer, updateTask } from '@/lib/storage';
 import {
   isSpeechSupported,
   createRecognition,
@@ -101,6 +101,34 @@ const CMD_EXAMPLES = [
   'Ετοίμασε προσφορά για τον Αλεξάνδρου, υλικά 3500 ευρώ, εργατικά 500',
 ];
 
+function computeApptCandidates(
+  params: { dueDate?: string; dueTime?: string; appointmentType?: string },
+  customerId: string | null,
+  filterByCustomer: boolean,
+  allTasks: Task[],
+  customerMap: Record<string, string>
+): (Task & { customerName?: string })[] {
+  let pool = allTasks.filter(
+    (t) => (t.type === 'book_appointment' || t.type === 'visit_customer') && t.status === 'open'
+  );
+  if (filterByCustomer && customerId) {
+    pool = pool.filter((t) => t.customerId === customerId);
+  }
+  if (params.dueDate) {
+    pool = pool.filter((t) => t.dueDate === params.dueDate);
+  }
+  if (params.dueTime) {
+    pool = pool.filter((t) => t.dueTime === params.dueTime);
+  }
+  if (params.appointmentType) {
+    pool = pool.filter((t) => (t.type as string) === params.appointmentType);
+  }
+  return pool.map((t) => ({
+    ...t,
+    customerName: t.customerId ? customerMap[t.customerId] : undefined,
+  }));
+}
+
 function filterByRange(tasks: Task[], range: string): Task[] {
   const today = todayStr();
   const tomorrow = addDaysStr(1);
@@ -127,6 +155,10 @@ export default function CmdPage() {
   const [noCustomerMatch, setNoCustomerMatch] = useState(false);
   const [customerCandidates, setCustomerCandidates] = useState<Customer[]>([]);
   const [customerMatchResolved, setCustomerMatchResolved] = useState(false);
+
+  const [appointmentCandidates, setAppointmentCandidates] = useState<(Task & { customerName?: string })[]>([]);
+  const [confirmingCancelApptId, setConfirmingCancelApptId] = useState<string | null>(null);
+  const [cancelApptSuccess, setCancelApptSuccess] = useState(false);
 
   const [offerPreviewData, setOfferPreviewData] = useState<{
     validItems: { description: string; quantity: number; unitPrice: number }[];
@@ -252,6 +284,9 @@ export default function CmdPage() {
     setNoCustomerMatch(false);
     setCustomerCandidates([]);
     setCustomerMatchResolved(false);
+    setAppointmentCandidates([]);
+    setConfirmingCancelApptId(null);
+    setCancelApptSuccess(false);
     setOfferPreviewData(null);
 
     try {
@@ -289,7 +324,9 @@ export default function CmdPage() {
         setQueryAppointments(filtered);
       }
 
-      if (r.intent === 'create_task' || r.intent === 'create_appointment' || r.intent === 'create_offer') {
+      let localMatchedCustomer: Customer | null = null;
+      let localCustomerResolved = false;
+      if (r.intent === 'create_task' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'cancel_appointment') {
         const hasName = !!r.params.customerName?.trim();
         const candidates = findCustomerCandidates(r.params.customerName, customers);
         if (!hasName) {
@@ -297,21 +334,36 @@ export default function CmdPage() {
           setMatchedCustomer(null);
           setNoCustomerMatch(false);
           setCustomerMatchResolved(true);
+          localCustomerResolved = true;
         } else if (candidates.length === 0) {
           setCustomerCandidates([]);
           setMatchedCustomer(null);
           setNoCustomerMatch(true);
           setCustomerMatchResolved(true);
+          localCustomerResolved = true;
         } else if (candidates.length === 1) {
           setCustomerCandidates([]);
           setMatchedCustomer(candidates[0]);
           setNoCustomerMatch(false);
           setCustomerMatchResolved(true);
+          localMatchedCustomer = candidates[0];
+          localCustomerResolved = true;
         } else {
           setCustomerCandidates(candidates);
           setMatchedCustomer(null);
           setNoCustomerMatch(false);
           setCustomerMatchResolved(false);
+        }
+      }
+
+      if (r.intent === 'cancel_appointment') {
+        if (localCustomerResolved) {
+          const filterByCustomer = !!r.params.customerName?.trim() && !!localMatchedCustomer;
+          const cMap = Object.fromEntries(customers.map((c) => [c.id, c.name]));
+          setAppointmentCandidates(computeApptCandidates(
+            { dueDate: r.params.dueDate, dueTime: r.params.dueTime, appointmentType: r.params.appointmentType },
+            localMatchedCustomer?.id ?? null, filterByCustomer, tasks, cMap
+          ));
         }
       }
 
@@ -442,6 +494,20 @@ export default function CmdPage() {
     setSavedResult(true);
   }
 
+  function handleConfirmCancelAppt(appt: Task & { customerName?: string }) {
+    const now = new Date().toISOString();
+    const label = new Date(now).toLocaleDateString('el-GR', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+    const noteAppend = `Ακύρωση ραντεβού: ${label}.`;
+    const updatedNote = appt.note ? `${appt.note}\n${noteAppend}` : noteAppend;
+    const updated: Task = { ...appt, status: 'cancelled' as Task['status'], updatedAt: now, note: updatedNote };
+    updateTask(updated);
+    setAppointmentCandidates((prev) => prev.filter((t) => t.id !== appt.id));
+    setConfirmingCancelApptId(null);
+    setCancelApptSuccess(true);
+  }
+
   function reset() {
     setCmdInput('');
     setResult(null);
@@ -452,6 +518,9 @@ export default function CmdPage() {
     setNoCustomerMatch(false);
     setCustomerCandidates([]);
     setCustomerMatchResolved(false);
+    setAppointmentCandidates([]);
+    setConfirmingCancelApptId(null);
+    setCancelApptSuccess(false);
     setOfferPreviewData(null);
   }
 
@@ -849,6 +918,109 @@ export default function CmdPage() {
               <Link href="/offers" className="inline-block text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τις προσφορές →
               </Link>
+            </div>
+          )}
+
+          {/* cancel_appointment */}
+          {result.intent === 'cancel_appointment' && (
+            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                Ακύρωση ραντεβού
+              </p>
+
+              {/* Customer disambiguation for cancel */}
+              {customerCandidates.length > 1 && !customerMatchResolved && (
+                <CustomerCandidatePicker
+                  candidates={customerCandidates}
+                  selectedId={matchedCustomer?.id}
+                  onSelect={(c) => {
+                    setMatchedCustomer(c);
+                    setCustomerMatchResolved(true);
+                    const s = loadState();
+                    const cMap = Object.fromEntries((s.customers ?? []).map((cu) => [cu.id, cu.name]));
+                    setAppointmentCandidates(computeApptCandidates(
+                      { dueDate: result.params.dueDate, dueTime: result.params.dueTime, appointmentType: result.params.appointmentType },
+                      c.id, true, s.tasks ?? [], cMap
+                    ));
+                  }}
+                  onContinueWithout={() => {
+                    setMatchedCustomer(null);
+                    setCustomerMatchResolved(true);
+                    const s = loadState();
+                    const cMap = Object.fromEntries((s.customers ?? []).map((cu) => [cu.id, cu.name]));
+                    setAppointmentCandidates(computeApptCandidates(
+                      { dueDate: result.params.dueDate, dueTime: result.params.dueTime, appointmentType: result.params.appointmentType },
+                      null, false, s.tasks ?? [], cMap
+                    ));
+                  }}
+                />
+              )}
+
+              {customerMatchResolved && (
+                <>
+                  {cancelApptSuccess ? (
+                    <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1">
+                      <p className="text-sm font-medium text-green-700">Το ραντεβού ακυρώθηκε.</p>
+                      <p className="text-xs text-zinc-500">Δεν γίνεται αποστολή ενημέρωσης στον πελάτη από αυτή την εντολή.</p>
+                    </div>
+                  ) : appointmentCandidates.length === 0 ? (
+                    <p className="text-sm text-zinc-400">Δεν βρέθηκαν ανοιχτά ραντεβού με αυτά τα κριτήρια.</p>
+                  ) : (
+                    <>
+                      <ul className="space-y-2">
+                        {appointmentCandidates.map((appt) => (
+                          <li key={appt.id} className="rounded-xl bg-zinc-50 ring-1 ring-zinc-100">
+                            {confirmingCancelApptId === appt.id ? (
+                              <div className="p-3 space-y-2">
+                                <p className="text-xs font-semibold text-zinc-800">Επιβεβαίωση ακύρωσης ραντεβού</p>
+                                <p className="text-xs text-zinc-600">
+                                  {appt.title}{appt.customerName ? ` · ${appt.customerName}` : ''}
+                                </p>
+                                <p className="text-xs text-zinc-500">
+                                  {appt.dueDate}{appt.dueTime ? ` ${appt.dueTime}` : ''}
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleConfirmCancelAppt(appt)}
+                                    className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-800"
+                                  >
+                                    Ναι, ακύρωση
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => setConfirmingCancelApptId(null)}
+                                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                                  >
+                                    Πίσω
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="p-3">
+                                <p className="text-sm font-semibold text-zinc-800">{appt.title}</p>
+                                <p className="text-xs text-zinc-500 mt-0.5">
+                                  {appt.dueDate}{appt.dueTime ? ` ${appt.dueTime}` : ''}
+                                  {appt.customerName ? ` · ${appt.customerName}` : ''}
+                                </p>
+                                <p className="text-xs text-zinc-400">{APPT_TYPE_LABELS[appt.type] ?? appt.type}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => { setCancelApptSuccess(false); setConfirmingCancelApptId(appt.id); }}
+                                  className="mt-2 text-xs font-medium text-red-600 hover:text-red-700 transition"
+                                >
+                                  Ακύρωση ραντεβού
+                                </button>
+                              </div>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      <p className="text-xs text-zinc-400">Δεν γίνεται αποστολή ενημέρωσης στον πελάτη από αυτή την εντολή.</p>
+                    </>
+                  )}
+                </>
+              )}
             </div>
           )}
 

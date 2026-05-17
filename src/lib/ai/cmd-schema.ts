@@ -3,6 +3,7 @@ export type CmdIntent =
   | 'create_task'
   | 'create_appointment'
   | 'create_offer'
+  | 'cancel_appointment'
   | 'unknown';
 
 export interface CmdReviewResult {
@@ -28,6 +29,7 @@ const SUPPORTED_INTENTS: CmdIntent[] = [
   'create_task',
   'create_appointment',
   'create_offer',
+  'cancel_appointment',
   'unknown',
 ];
 
@@ -120,6 +122,12 @@ export function parseCmdResponse(raw: string): CmdReviewResult {
 
   if (intent === 'query_appointments') {
     params.dateRange = isValidDateRange(rawParams.dateRange) ? rawParams.dateRange : 'today';
+  }
+
+  if (intent === 'cancel_appointment') {
+    if (isValidAppointmentType(rawParams.appointmentType)) {
+      params.appointmentType = rawParams.appointmentType;
+    }
   }
 
   if (intent === 'create_offer') {
