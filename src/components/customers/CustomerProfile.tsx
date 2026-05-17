@@ -621,6 +621,11 @@ export default function CustomerProfile({ customerId }: Props) {
                 Demo
               </span>
             )}
+            {customer.intakeStatus === 'completed' && (
+              <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
+                Intake ολοκληρώθηκε ✓
+              </span>
+            )}
             {customer.intakeStatus && customer.intakeStatus !== 'none' && customer.intakeStatus !== 'completed' && (
               <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${
                 customer.intakeStatus === 'no_response'
