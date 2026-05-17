@@ -27,6 +27,26 @@ function getResponseStatus(note: string): { label: string; cls: string } {
   return { label: 'Αναμονή απάντησης', cls: 'bg-zinc-100 text-zinc-500' };
 }
 
+function buildProposalEmailText(customer: Customer, date: string, time: string, taskId: string): string {
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const responseLink = `${origin}/appointment-response/${taskId}`;
+  return [
+    `Αγαπητέ/ή ${customer.name},`,
+    '',
+    'Σας προτείνουμε ραντεβού.',
+    '',
+    `Ημερομηνία: ${date}`,
+    `Ώρα: ${time}`,
+    '',
+    'Παρακαλούμε επιβεβαιώστε ή προτείνετε εναλλακτική ημερομηνία μέσω του παρακάτω συνδέσμου:',
+    responseLink,
+    '',
+    'Σημείωση: Ο σύνδεσμος λειτουργεί μόνο στον browser όπου δημιουργήθηκε η πρόταση. Τα δεδομένα αποθηκεύονται τοπικά.',
+    '',
+    'Με εκτίμηση',
+  ].join('\n');
+}
+
 type GroupKey = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later';
 const GROUP_LABELS: Record<GroupKey, string> = {
   overdue: 'Εκπρόθεσμα',
@@ -58,6 +78,8 @@ function tomorrowDateStr(): string {
   return d.toISOString().split('T')[0];
 }
 
+const inputCls = 'rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+
 export default function AppointmentsPage() {
   const [hydrated, setHydrated] = useState(false);
   const [appointments, setAppointments] = useState<Task[]>([]);
@@ -73,6 +95,15 @@ export default function AppointmentsPage() {
   const [apptTime, setApptTime] = useState('10:00');
   const [apptNote, setApptNote] = useState('');
   const [justCreated, setJustCreated] = useState(false);
+
+  // Proposal details after creation (for email/copy section)
+  const [proposalTaskId, setProposalTaskId] = useState('');
+  const [proposalCustomer, setProposalCustomer] = useState<Customer | null>(null);
+  const [proposalDate, setProposalDate] = useState('');
+  const [proposalTime, setProposalTime] = useState('');
+  const [proposalEmailState, setProposalEmailState] = useState<'idle' | 'sending' | 'sent' | 'missing_config' | 'error'>('idle');
+  const [proposalEmailCopied, setProposalEmailCopied] = useState(false);
+  const [proposalEmailManualCopyVisible, setProposalEmailManualCopyVisible] = useState(false);
 
   useEffect(() => {
     const state = loadState();
@@ -124,6 +155,14 @@ export default function AppointmentsPage() {
     addTask(task);
     setAppointments((prev) => sortAppointments([...prev, task]));
     setCustomerMap((prev) => ({ ...prev, [selectedCustomer.id]: selectedCustomer.name }));
+    // Store proposal details before resetting form
+    setProposalTaskId(taskId);
+    setProposalCustomer(selectedCustomer);
+    setProposalDate(apptDate);
+    setProposalTime(apptTime);
+    setProposalEmailState('idle');
+    setProposalEmailCopied(false);
+    setProposalEmailManualCopyVisible(false);
     // Reset form
     setFormOpen(false);
     setCustomerSearch('');
@@ -132,6 +171,43 @@ export default function AppointmentsPage() {
     setApptTime('10:00');
     setApptNote('');
     setJustCreated(true);
+  }
+
+  async function handleSendProposalEmail() {
+    if (!proposalCustomer?.email || !proposalTaskId) return;
+    setProposalEmailState('sending');
+    const subject = 'Πρόταση ραντεβού';
+    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId);
+    try {
+      const res = await fetch('/api/email/send-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: proposalCustomer.email, subject, text }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (data.ok) {
+        setProposalEmailState('sent');
+      } else if (data.error === 'missing_email_config') {
+        setProposalEmailState('missing_config');
+      } else {
+        setProposalEmailState('error');
+      }
+    } catch {
+      setProposalEmailState('error');
+    }
+  }
+
+  function handleCopyProposalEmail() {
+    if (!proposalTaskId || !proposalCustomer) return;
+    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(
+        () => { setProposalEmailCopied(true); setTimeout(() => setProposalEmailCopied(false), 2500); },
+        () => setProposalEmailManualCopyVisible(true)
+      );
+    } else {
+      setProposalEmailManualCopyVisible(true);
+    }
   }
 
   function openForm() {
@@ -198,11 +274,7 @@ export default function AppointmentsPage() {
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-indigo-200 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-zinc-800">Νέο ραντεβού</p>
-            <button
-              type="button"
-              onClick={closeForm}
-              className="text-xs text-zinc-400 hover:text-zinc-600 transition"
-            >
+            <button type="button" onClick={closeForm} className="text-xs text-zinc-400 hover:text-zinc-600 transition">
               Ακύρωση
             </button>
           </div>
@@ -214,9 +286,7 @@ export default function AppointmentsPage() {
               <div className="flex items-center justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-indigo-900 truncate">{selectedCustomer.name}</p>
-                  {selectedCustomer.phone && (
-                    <p className="text-xs text-zinc-500">{selectedCustomer.phone}</p>
-                  )}
+                  {selectedCustomer.phone && <p className="text-xs text-zinc-500">{selectedCustomer.phone}</p>}
                 </div>
                 <button
                   type="button"
@@ -233,7 +303,7 @@ export default function AppointmentsPage() {
                   value={customerSearch}
                   onChange={(e) => setCustomerSearch(e.target.value)}
                   placeholder="Αναζήτηση ονόματος, τηλεφώνου, email..."
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  className={`w-full ${inputCls}`}
                 />
                 {searchResults.length > 0 && (
                   <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-md">
@@ -267,36 +337,25 @@ export default function AppointmentsPage() {
           <div className="flex flex-wrap gap-3">
             <div className="flex-1 min-w-[140px]">
               <label className="mb-1 block text-xs font-medium text-zinc-600">Ημερομηνία</label>
-              <input
-                type="date"
-                value={apptDate}
-                onChange={(e) => setApptDate(e.target.value)}
-                className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-              />
+              <input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} className={`w-full ${inputCls}`} />
             </div>
             <div>
               <label className="mb-1 block text-xs font-medium text-zinc-600">Ώρα</label>
-              <input
-                type="time"
-                value={apptTime}
-                onChange={(e) => setApptTime(e.target.value)}
-                className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-              />
+              <input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} className={inputCls} />
             </div>
           </div>
 
           {/* Optional note */}
           <div>
             <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Σημείωση{' '}
-              <span className="font-normal text-zinc-400">(προαιρετικό)</span>
+              Σημείωση <span className="font-normal text-zinc-400">(προαιρετικό)</span>
             </label>
             <textarea
               rows={2}
               value={apptNote}
               onChange={(e) => setApptNote(e.target.value)}
               placeholder="Εσωτερική σημείωση για αυτό το ραντεβού..."
-              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              className={`w-full resize-none ${inputCls}`}
             />
           </div>
 
@@ -311,13 +370,92 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Success banner */}
-      {justCreated && !formOpen && (
-        <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1">
-          <p className="text-sm font-medium text-green-800">Το ραντεβού δημιουργήθηκε.</p>
-          <p className="text-xs text-zinc-500">
-            Ο πελάτης δεν έχει ειδοποιηθεί ακόμα. Η αποστολή πρότασης θα προστεθεί στο επόμενο βήμα.
-          </p>
+      {/* Success + proposal email section */}
+      {justCreated && !formOpen && proposalTaskId && proposalCustomer && (
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-green-200 space-y-3">
+          <div>
+            <p className="text-sm font-medium text-green-800">Το ραντεβού δημιουργήθηκε.</p>
+            <p className="text-xs text-zinc-500 mt-0.5">Ο πελάτης δεν έχει ειδοποιηθεί ακόμα.</p>
+          </div>
+
+          <div className="border-t border-zinc-100 pt-3 space-y-2">
+            <p className="text-xs font-semibold text-zinc-600">Πρόταση ραντεβού στον πελάτη</p>
+
+            {!proposalCustomer.email ? (
+              <div className="space-y-2">
+                <p className="text-xs text-zinc-400">
+                  Δεν υπάρχει email πελάτη για αποστολή πρότασης. Αντέγραψε το κείμενο και στείλ&apos; το χειροκίνητα.
+                </p>
+                <textarea
+                  readOnly
+                  rows={6}
+                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId)}
+                  className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyProposalEmail}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${proposalEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                >
+                  {proposalEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+                </button>
+              </div>
+            ) : proposalEmailState === 'sent' ? (
+              <p className="text-xs font-medium text-green-700">Στάλθηκε email πρότασης ραντεβού.</p>
+            ) : (proposalEmailState === 'missing_config' || proposalEmailState === 'error') ? (
+              <div className="space-y-2">
+                <p className="text-xs text-amber-700">
+                  {proposalEmailState === 'missing_config'
+                    ? 'Δεν έχει ρυθμιστεί αποστολή email στον server, οπότε δεν στάλθηκε email. Μπορείς να αντιγράψεις το κείμενο και να το στείλεις χειροκίνητα.'
+                    : 'Σφάλμα αποστολής. Αντέγραψε το κείμενο για χειροκίνητη αποστολή.'}
+                </p>
+                <textarea
+                  readOnly
+                  rows={6}
+                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId)}
+                  className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyProposalEmail}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${proposalEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                >
+                  {proposalEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-zinc-500">
+                  Αν η αποστολή email είναι ρυθμισμένη στον server, αυτό θα στείλει πρόταση ραντεβού στον πελάτη ({proposalCustomer.email}).
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSendProposalEmail}
+                    disabled={proposalEmailState === 'sending'}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {proposalEmailState === 'sending' ? 'Αποστολή...' : 'Αποστολή πρότασης'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCopyProposalEmail}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${proposalEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                  >
+                    {proposalEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+                  </button>
+                </div>
+                {proposalEmailManualCopyVisible && (
+                  <textarea
+                    readOnly
+                    rows={6}
+                    value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, proposalTaskId)}
+                    className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                  />
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
 
@@ -357,9 +495,7 @@ export default function AppointmentsPage() {
               {group.map((task) => {
                 const customerName = task.customerId ? customerMap[task.customerId] : undefined;
                 const offer = task.offerId ? offerMap[task.offerId] : undefined;
-                const primaryHref = task.customerId
-                  ? `/customers/${task.customerId}`
-                  : `/tasks?taskId=${task.id}`;
+                const primaryHref = task.customerId ? `/customers/${task.customerId}` : `/tasks?taskId=${task.id}`;
                 const status = getResponseStatus(task.note);
 
                 return (
@@ -371,9 +507,7 @@ export default function AppointmentsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <p className={`text-xs font-semibold ${key === 'overdue' ? 'text-red-700' : 'text-indigo-700'}`}>
                           {formatDate(task.dueDate)}
-                          {task.dueTime && (
-                            <span className="ml-1.5 font-normal text-zinc-500">{task.dueTime}</span>
-                          )}
+                          {task.dueTime && <span className="ml-1.5 font-normal text-zinc-500">{task.dueTime}</span>}
                         </p>
                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}`}>
                           {status.label}
@@ -405,7 +539,6 @@ export default function AppointmentsPage() {
           </section>
         );
       })}
-
     </div>
   );
 }
