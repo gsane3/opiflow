@@ -3,7 +3,34 @@ import { NextRequest, NextResponse } from 'next/server';
 const MAX_BODY_BYTES = 32_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// MVP-only in-memory rate limiter. Not persistent across instances or restarts.
+const RATE_LIMIT = 5;
+const RATE_WINDOW_MS = 60_000;
+const ipMap = new Map<string, { count: number; resetAt: number }>();
+
+function getIp(req: NextRequest): string {
+  const forwarded = req.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return 'unknown';
+}
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = ipMap.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    ipMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    return false;
+  }
+  if (entry.count >= RATE_LIMIT) return true;
+  entry.count += 1;
+  return false;
+}
+
 export async function POST(req: NextRequest) {
+  if (isRateLimited(getIp(req))) {
+    return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 
