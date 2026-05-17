@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { loadState, addTask } from '@/lib/storage';
+import { loadState, addTask, updateTask } from '@/lib/storage';
 import type { Task, Offer, Customer } from '@/lib/types';
 
 function formatDate(dateStr: string): string {
@@ -45,6 +45,44 @@ function buildProposalEmailText(customer: Customer, date: string, time: string, 
     '',
     'Με εκτίμηση',
   ].join('\n');
+}
+
+function formatTimestamp(isoStr: string): string {
+  return new Date(isoStr).toLocaleDateString('el-GR', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function isFutureAppointment(task: Task): boolean {
+  const todayStr = new Date().toISOString().split('T')[0];
+  if (task.dueDate > todayStr) return true;
+  if (task.dueDate === todayStr) {
+    if (!task.dueTime) return true;
+    const nowTime = new Date().toTimeString().slice(0, 5);
+    return task.dueTime > nowTime;
+  }
+  return false;
+}
+
+function buildCancellationEmailText(customer: Customer | null, task: Task): string {
+  const name = customer?.name ?? 'πελάτη';
+  const lines: string[] = [
+    `Αγαπητέ/ή ${name},`,
+    '',
+    'Σας ενημερώνουμε ότι το ραντεβού που είχαμε ορίσει ακυρώθηκε.',
+    '',
+    `Ημερομηνία: ${formatDate(task.dueDate)}`,
+  ];
+  if (task.dueTime) lines.push(`Ώρα: ${task.dueTime}`);
+  lines.push('');
+  lines.push('Θα επικοινωνήσουμε μαζί σας για να ορίσουμε νέα ημερομηνία αν χρειαστεί.');
+  lines.push('');
+  lines.push('Με εκτίμηση');
+  return lines.join('\n');
 }
 
 type GroupKey = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later';
@@ -105,6 +143,13 @@ export default function AppointmentsPage() {
   const [proposalEmailCopied, setProposalEmailCopied] = useState(false);
   const [proposalEmailManualCopyVisible, setProposalEmailManualCopyVisible] = useState(false);
 
+  // Cancellation state
+  const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
+  const [cancelResult, setCancelResult] = useState<{ task: Task; customer: Customer | null; isFuture: boolean } | null>(null);
+  const [cancelEmailState, setCancelEmailState] = useState<'idle' | 'sending' | 'sent' | 'missing_config' | 'error'>('idle');
+  const [cancelEmailCopied, setCancelEmailCopied] = useState(false);
+  const [cancelEmailManualVisible, setCancelEmailManualVisible] = useState(false);
+
   useEffect(() => {
     const state = loadState();
     const tasks = (state.tasks ?? [])
@@ -136,6 +181,7 @@ export default function AppointmentsPage() {
 
   function handleCreate() {
     if (!selectedCustomer || !apptDate || !apptTime) return;
+    setCancelResult(null);
     const now = new Date().toISOString();
     const taskId = crypto.randomUUID();
     const task: Task = {
@@ -210,8 +256,63 @@ export default function AppointmentsPage() {
     }
   }
 
+  function handleCancelConfirm(task: Task) {
+    const customer = task.customerId ? customers.find((c) => c.id === task.customerId) ?? null : null;
+    const isFuture = isFutureAppointment(task);
+    const now = new Date().toISOString();
+    const label = formatTimestamp(now);
+    const noteAppend = `Ακύρωση ραντεβού: ${label}.`;
+    const updatedNote = task.note ? `${task.note}\n${noteAppend}` : noteAppend;
+    const updated: Task = { ...task, status: 'cancelled' as Task['status'], updatedAt: now, note: updatedNote };
+    updateTask(updated);
+    setAppointments((prev) => prev.filter((t) => t.id !== task.id));
+    setCancelResult({ task: updated, customer, isFuture });
+    setCancelEmailState('idle');
+    setCancelEmailCopied(false);
+    setCancelEmailManualVisible(false);
+    setCancellingTaskId(null);
+  }
+
+  async function handleSendCancellationEmail() {
+    if (!cancelResult?.customer?.email) return;
+    setCancelEmailState('sending');
+    const text = buildCancellationEmailText(cancelResult.customer, cancelResult.task);
+    try {
+      const res = await fetch('/api/email/send-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: cancelResult.customer.email, subject: 'Ακύρωση ραντεβού', text }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (data.ok) {
+        setCancelEmailState('sent');
+      } else if (data.error === 'missing_email_config') {
+        setCancelEmailState('missing_config');
+      } else {
+        setCancelEmailState('error');
+      }
+    } catch {
+      setCancelEmailState('error');
+    }
+  }
+
+  function handleCopyCancellationEmail() {
+    if (!cancelResult) return;
+    const text = buildCancellationEmailText(cancelResult.customer, cancelResult.task);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(
+        () => { setCancelEmailCopied(true); setTimeout(() => setCancelEmailCopied(false), 2500); },
+        () => setCancelEmailManualVisible(true)
+      );
+    } else {
+      setCancelEmailManualVisible(true);
+    }
+  }
+
   function openForm() {
     setJustCreated(false);
+    setCancellingTaskId(null);
+    setCancelResult(null);
     setFormOpen(true);
   }
 
@@ -459,6 +560,91 @@ export default function AppointmentsPage() {
         </div>
       )}
 
+      {/* Cancellation result */}
+      {cancelResult && (
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 space-y-3">
+          <p className="text-sm font-medium text-zinc-800">Το ραντεβού ακυρώθηκε.</p>
+          {!cancelResult.isFuture ? (
+            <p className="text-xs text-zinc-400">
+              Το ραντεβού δεν ήταν μελλοντικό, οπότε δεν γίνεται αποστολή email ακύρωσης.
+            </p>
+          ) : !cancelResult.customer?.email ? (
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-400">
+                Δεν υπάρχει email πελάτη για αποστολή ακύρωσης. Αντέγραψε το κείμενο και ενημέρωσε τον πελάτη χειροκίνητα.
+              </p>
+              <textarea
+                readOnly
+                rows={5}
+                value={buildCancellationEmailText(cancelResult.customer, cancelResult.task)}
+                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+              />
+              <button
+                type="button"
+                onClick={handleCopyCancellationEmail}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${cancelEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+              >
+                {cancelEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+              </button>
+            </div>
+          ) : cancelEmailState === 'sent' ? (
+            <p className="text-xs font-medium text-green-700">Στάλθηκε email ακύρωσης.</p>
+          ) : (cancelEmailState === 'missing_config' || cancelEmailState === 'error') ? (
+            <div className="space-y-2">
+              <p className="text-xs text-amber-700">
+                {cancelEmailState === 'missing_config'
+                  ? 'Δεν έχει ρυθμιστεί αποστολή email στον server, οπότε δεν στάλθηκε email. Μπορείς να αντιγράψεις το κείμενο και να το στείλεις χειροκίνητα.'
+                  : 'Σφάλμα αποστολής. Αντέγραψε το κείμενο για χειροκίνητη αποστολή.'}
+              </p>
+              <textarea
+                readOnly
+                rows={5}
+                value={buildCancellationEmailText(cancelResult.customer, cancelResult.task)}
+                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+              />
+              <button
+                type="button"
+                onClick={handleCopyCancellationEmail}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${cancelEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+              >
+                {cancelEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-zinc-500">
+                Αν η αποστολή email είναι ρυθμισμένη στον server, αυτό θα στείλει ειδοποίηση ακύρωσης στον πελάτη ({cancelResult.customer.email}).
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleSendCancellationEmail}
+                  disabled={cancelEmailState === 'sending'}
+                  className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                >
+                  {cancelEmailState === 'sending' ? 'Αποστολή...' : 'Αποστολή email ακύρωσης'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCopyCancellationEmail}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${cancelEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                >
+                  {cancelEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+                </button>
+              </div>
+              {cancelEmailManualVisible && (
+                <textarea
+                  readOnly
+                  rows={5}
+                  value={buildCancellationEmailText(cancelResult.customer, cancelResult.task)}
+                  className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                />
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Disclaimer */}
       <div className="rounded-xl bg-amber-50 px-4 py-2.5 ring-1 ring-amber-200">
         <p className="text-xs text-amber-700">
@@ -505,35 +691,69 @@ export default function AppointmentsPage() {
                     key={task.id}
                     className={`rounded-2xl ring-1 ${key === 'overdue' ? 'bg-red-50 ring-red-200' : 'bg-white ring-zinc-100 shadow-sm'}`}
                   >
-                    <Link href={primaryHref} className="flex min-w-0 flex-1 flex-col gap-1 p-4">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className={`text-xs font-semibold ${key === 'overdue' ? 'text-red-700' : 'text-indigo-700'}`}>
-                          {formatDate(task.dueDate)}
-                          {task.dueTime && <span className="ml-1.5 font-normal text-zinc-500">{task.dueTime}</span>}
+                    {cancellingTaskId === task.id ? (
+                      <div className="p-4 space-y-3">
+                        <p className="text-sm font-semibold text-zinc-800">Επιβεβαίωση ακύρωσης ραντεβού</p>
+                        <p className="text-sm text-zinc-600">
+                          {formatDate(task.dueDate)}{task.dueTime ? `, ${task.dueTime}` : ''}.
                         </p>
-                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}`}>
-                          {status.label}
-                        </span>
+                        <div className="flex flex-col gap-2 sm:flex-row">
+                          <button
+                            type="button"
+                            onClick={() => handleCancelConfirm(task)}
+                            className="flex-1 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+                          >
+                            Ναι, ακύρωση
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setCancellingTaskId(null)}
+                            className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                          >
+                            Πίσω
+                          </button>
+                        </div>
                       </div>
-                      <p className="text-sm font-semibold text-zinc-900 truncate">{task.title}</p>
-                      {(customerName || offer) && (
-                        <p className="text-xs text-zinc-500 truncate">
-                          {customerName && <span>{customerName}</span>}
-                          {customerName && offer && <span className="mx-1">·</span>}
-                          {offer && <span>{offer.offerNumber}</span>}
-                        </p>
-                      )}
-                    </Link>
-                    <div className="flex flex-wrap gap-2 border-t border-zinc-100 px-4 py-2">
-                      <Link href={`/tasks?taskId=${task.id}`} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition">
-                        Άνοιγμα task →
-                      </Link>
-                      {offer && (
-                        <Link href={`/offers/${task.offerId}`} className="text-xs font-medium text-zinc-500 hover:text-zinc-700 transition">
-                          Προσφορά →
+                    ) : (
+                      <>
+                        <Link href={primaryHref} className="flex min-w-0 flex-1 flex-col gap-1 p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className={`text-xs font-semibold ${key === 'overdue' ? 'text-red-700' : 'text-indigo-700'}`}>
+                              {formatDate(task.dueDate)}
+                              {task.dueTime && <span className="ml-1.5 font-normal text-zinc-500">{task.dueTime}</span>}
+                            </p>
+                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}`}>
+                              {status.label}
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-zinc-900 truncate">{task.title}</p>
+                          {(customerName || offer) && (
+                            <p className="text-xs text-zinc-500 truncate">
+                              {customerName && <span>{customerName}</span>}
+                              {customerName && offer && <span className="mx-1">·</span>}
+                              {offer && <span>{offer.offerNumber}</span>}
+                            </p>
+                          )}
                         </Link>
-                      )}
-                    </div>
+                        <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-4 py-2">
+                          <Link href={`/tasks?taskId=${task.id}`} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition">
+                            Άνοιγμα task →
+                          </Link>
+                          {offer && (
+                            <Link href={`/offers/${task.offerId}`} className="text-xs font-medium text-zinc-500 hover:text-zinc-700 transition">
+                              Προσφορά →
+                            </Link>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => { setCancelResult(null); setCancellingTaskId(task.id); }}
+                            className="ml-auto text-xs font-medium text-red-600 hover:text-red-700 transition"
+                          >
+                            Ακύρωση
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </li>
                 );
               })}
