@@ -145,6 +145,7 @@ export default function CustomerProfile({ customerId }: Props) {
   const [aiTranscriptionText, setAiTranscriptionText] = useState('');
   const [summaryCopied, setSummaryCopied] = useState(false);
   // Refs for scroll-to-section when quick action buttons are tapped
+  const appointmentsSectionRef = useRef<HTMLDivElement>(null);
   const tasksSectionRef = useRef<HTMLDivElement>(null);
   const offersSectionRef = useRef<HTMLDivElement>(null);
   // Highlight banners shown near sections after tapping quick action
@@ -164,6 +165,16 @@ export default function CustomerProfile({ customerId }: Props) {
   const openTasks = useMemo(
     () => customerTasks.filter((t) => t.status === 'open'),
     [customerTasks]
+  );
+
+  const appointmentTasks = useMemo(
+    () => openTasks.filter((t) => t.type === 'book_appointment' || t.type === 'visit_customer'),
+    [openTasks]
+  );
+
+  const internalTasks = useMemo(
+    () => openTasks.filter((t) => t.type !== 'book_appointment' && t.type !== 'visit_customer'),
+    [openTasks]
   );
 
   // Call records that have a manual brief summary.
@@ -1112,6 +1123,74 @@ export default function CustomerProfile({ customerId }: Props) {
         </p>
       </section>
 
+      {/* Appointments */}
+      <section ref={appointmentsSectionRef} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Ραντεβού
+          </h2>
+          <Link href="/appointments" className="text-xs text-indigo-600 hover:text-indigo-700">
+            Διαχείριση →
+          </Link>
+        </div>
+        {appointmentTasks.length === 0 ? (
+          <p className="text-sm text-zinc-400">Δεν υπάρχουν ανοιχτά ραντεβού.</p>
+        ) : (
+          <ul className="space-y-2">
+            {appointmentTasks.map((task) => {
+              const eff = getEffectiveStatus(task);
+              const isOverdue = eff === 'overdue';
+              const isToday = eff === 'due_today';
+              const note = task.note ?? '';
+              const responseBadge: { label: string; className: string } = note.includes('Αποδοχή ραντεβού από πελάτη:')
+                ? { label: 'Αποδεκτό', className: 'bg-green-100 text-green-700' }
+                : note.includes('Αδυναμία παρουσίας πελάτη:')
+                ? { label: 'Αδυναμία', className: 'bg-amber-100 text-amber-700' }
+                : note.includes('Πρόταση αλλαγής από πελάτη:')
+                ? { label: 'Εναλλακτική', className: 'bg-indigo-100 text-indigo-700' }
+                : { label: 'Αναμονή', className: 'bg-zinc-100 text-zinc-500' };
+              return (
+                <li
+                  key={task.id}
+                  className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
+                    isOverdue
+                      ? 'bg-red-50 ring-1 ring-red-200'
+                      : isToday
+                      ? 'bg-amber-50 ring-1 ring-amber-200'
+                      : 'bg-zinc-50 ring-1 ring-zinc-100'
+                  }`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className={`font-medium ${isOverdue ? 'text-red-900' : 'text-zinc-800'}`}>
+                      {task.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-500">
+                      {task.dueDate}
+                      {task.dueTime ? ` ${task.dueTime}` : ''}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 flex-col items-end gap-1">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${responseBadge.className}`}>
+                      {responseBadge.label}
+                    </span>
+                    {isOverdue && (
+                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                        Εκπρόθεσμο
+                      </span>
+                    )}
+                    {isToday && (
+                      <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-700">
+                        Σήμερα
+                      </span>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
       {/* Open tasks */}
       <section ref={tasksSectionRef} className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
         {taskHighlight && (
@@ -1166,11 +1245,11 @@ export default function CustomerProfile({ customerId }: Props) {
             </button>
           </div>
         )}
-        {openTasks.length === 0 ? (
+        {internalTasks.length === 0 ? (
           <p className="text-sm text-zinc-400">Δεν υπάρχουν ανοιχτά tasks.</p>
         ) : (
           <ul className="space-y-2">
-            {openTasks.map((task) => {
+            {internalTasks.map((task) => {
               const eff = getEffectiveStatus(task);
               const isOverdue = eff === 'overdue';
               const isToday = eff === 'due_today';
