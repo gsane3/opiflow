@@ -158,6 +158,9 @@ export default function CustomerProfile({ customerId }: Props) {
   const [lastCancelledApptTitle, setLastCancelledApptTitle] = useState<string | null>(null);
   // Email draft copy
   const [emailDraftCopied, setEmailDraftCopied] = useState(false);
+  // Intake link copy
+  const [intakeLinkCopied, setIntakeLinkCopied] = useState(false);
+  const [intakeLinkFallbackVisible, setIntakeLinkFallbackVisible] = useState(false);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -420,6 +423,18 @@ export default function CustomerProfile({ customerId }: Props) {
     } else {
       setEmailDraftCopied(true);
       setTimeout(() => setEmailDraftCopied(false), 2500);
+    }
+  }
+
+  function handleCopyIntakeLink() {
+    const link = `${window.location.origin}/customer-intake/${customerId}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(
+        () => { setIntakeLinkCopied(true); setTimeout(() => setIntakeLinkCopied(false), 2500); },
+        () => setIntakeLinkFallbackVisible(true)
+      );
+    } else {
+      setIntakeLinkFallbackVisible(true);
     }
   }
 
@@ -859,7 +874,37 @@ export default function CustomerProfile({ customerId }: Props) {
           ) : (
             <DisabledAction label="Email draft" note="Δεν υπάρχει email" />
           )}
+
+          {/* Intake link */}
+          <button
+            type="button"
+            onClick={handleCopyIntakeLink}
+            className={`flex flex-col items-center gap-1.5 rounded-2xl px-3 py-4 text-sm font-semibold ring-1 transition min-h-[72px] ${
+              intakeLinkCopied
+                ? 'bg-green-50 text-green-700 ring-green-200'
+                : 'bg-zinc-50 text-zinc-700 ring-zinc-200 hover:bg-zinc-100'
+            }`}
+          >
+            <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+            </svg>
+            <span className="text-center leading-tight">{intakeLinkCopied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή link στοιχείων'}</span>
+            <span className="text-[10px] font-normal text-center leading-tight opacity-60">Link πελάτη</span>
+          </button>
         </div>
+
+        {intakeLinkFallbackVisible && (
+          <div className="mt-3 space-y-1.5">
+            <p className="text-xs text-zinc-500">Αντέγραψε τον σύνδεσμο χειροκίνητα:</p>
+            <input
+              readOnly
+              type="text"
+              value={`${window.location.origin}/customer-intake/${customerId}`}
+              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono"
+            />
+            <p className="text-xs text-zinc-400">Ο σύνδεσμος λειτουργεί μόνο στον browser όπου είναι αποθηκευμένο το demo CRM.</p>
+          </div>
+        )}
       </div>
 
       {/*__DEAD_START__
