@@ -500,6 +500,26 @@ export default function AiReviewPage() {
           updatedAt: now,
         };
         addOffer(offer);
+        // Auto-create a follow-up task to review and send this offer,
+        // unless the AI result already includes a send_offer task.
+        const hasSendOfferTask = tasks.some((t) => t.type === 'send_offer');
+        if (!hasSendOfferTask) {
+          const offerFollowUpTask: Task = {
+            id: crypto.randomUUID(),
+            customerId,
+            offerId: offer.id,
+            title: 'Έλεγχος και αποστολή προσφοράς',
+            type: 'send_offer',
+            status: 'open',
+            priority: 'normal',
+            dueDate: todayStr,
+            note: 'Δημιουργήθηκε αυτόματα επειδή το AI brief περιλαμβάνει προσφορά. Έλεγξε την προσφορά πριν τη στείλεις.',
+            createdFromAi: true,
+            createdAt: now,
+            updatedAt: now,
+          };
+          addTask(offerFollowUpTask);
+        }
       }
     }
 
