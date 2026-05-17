@@ -4,6 +4,7 @@ import { parseAiResponse } from '@/lib/ai/schema';
 import type { BusinessType } from '@/lib/types';
 
 const AI_PROVIDER_TIMEOUT_MS = 20_000;
+const AI_REVIEW_MAX_BODY_BYTES = 32_000;
 
 // MVP-only in-memory rate limiter. Resets on cold start; not shared across
 // multiple serverless instances. Sufficient for protecting the API key in MVP.
@@ -33,6 +34,19 @@ export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
   if (isRateLimited(ip)) {
     return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
+
+  const contentType = request.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    return NextResponse.json({ error: 'unsupported_content_type' }, { status: 415 });
+  }
+
+  const contentLengthRaw = request.headers.get('content-length');
+  if (contentLengthRaw !== null) {
+    const contentLength = parseInt(contentLengthRaw, 10);
+    if (!isNaN(contentLength) && contentLength > AI_REVIEW_MAX_BODY_BYTES) {
+      return NextResponse.json({ error: 'payload_too_large' }, { status: 413 });
+    }
   }
 
   // API key is server-only — never sent to client
