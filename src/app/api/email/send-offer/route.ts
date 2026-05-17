@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const MAX_BODY_BYTES = 32_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_PROVIDER_TIMEOUT_MS = 15_000;
 
 // MVP-only in-memory rate limiter. Not persistent across instances or restarts.
 const RATE_LIMIT = 5;
@@ -79,9 +80,12 @@ export async function POST(req: NextRequest) {
   const replyTo = process.env.EMAIL_REPLY_TO;
   if (replyTo) payload.reply_to = replyTo;
 
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), EMAIL_PROVIDER_TIMEOUT_MS);
   try {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
@@ -100,7 +104,12 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ ok: true, id: data.id });
-  } catch {
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return NextResponse.json({ ok: false, error: 'email_timeout' }, { status: 504 });
+    }
     return NextResponse.json({ ok: false, error: 'network_error' }, { status: 502 });
+  } finally {
+    clearTimeout(timeoutId);
   }
 }
