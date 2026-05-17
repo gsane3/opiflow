@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { Task } from '@/lib/types';
 
 interface DuplicateGroup {
@@ -53,6 +54,8 @@ interface Props {
 
 export default function DuplicateTasksPanel({ tasks, onDeleteMany }: Props) {
   const groups = findDuplicateGroups(tasks);
+  const [confirmingTaskGroupId, setConfirmingTaskGroupId] = useState<string | null>(null);
+
   if (groups.length === 0) return null;
 
   const totalDuplicates = groups.reduce((n, g) => n + g.duplicateIds.length, 0);
@@ -73,29 +76,50 @@ export default function DuplicateTasksPanel({ tasks, onDeleteMany }: Props) {
         {groups.map((group) => (
           <li
             key={group.primaryId}
-            className="flex items-center justify-between gap-3 rounded-xl bg-white px-3 py-2.5 ring-1 ring-amber-200"
+            className="rounded-xl bg-white px-3 py-2.5 ring-1 ring-amber-200"
           >
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-zinc-800">{group.title}</p>
-              <p className="text-xs text-zinc-500">
-                {group.duplicateIds.length} διπλό{group.duplicateIds.length === 1 ? '' : 'ά'} — το παλαιότερο διατηρείται
-              </p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-zinc-800">{group.title}</p>
+                <p className="text-xs text-zinc-500">
+                  {group.duplicateIds.length} διπλό{group.duplicateIds.length === 1 ? '' : 'ά'} — το παλαιότερο διατηρείται
+                </p>
+              </div>
+              {confirmingTaskGroupId !== group.primaryId && (
+                <button
+                  type="button"
+                  onClick={() => setConfirmingTaskGroupId(group.primaryId)}
+                  className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                >
+                  Διαγραφή διπλών
+                </button>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (
-                  window.confirm(
-                    `Διαγραφή ${group.duplicateIds.length} διπλού/ών task για "${group.title}"; Η ενέργεια δεν αναιρείται.`
-                  )
-                ) {
-                  onDeleteMany(group.duplicateIds);
-                }
-              }}
-              className="shrink-0 rounded-xl border border-red-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-            >
-              Διαγραφή διπλών
-            </button>
+            {confirmingTaskGroupId === group.primaryId && (
+              <div className="mt-2.5 space-y-1.5">
+                <p className="text-xs font-medium text-zinc-700">Να γίνει συγχώνευση των duplicate tasks;</p>
+                <p className="text-xs text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onDeleteMany(group.duplicateIds);
+                      setConfirmingTaskGroupId(null);
+                    }}
+                    className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+                  >
+                    Ναι, συνέχισε
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingTaskGroupId(null)}
+                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Πίσω
+                  </button>
+                </div>
+              </div>
+            )}
           </li>
         ))}
       </ul>

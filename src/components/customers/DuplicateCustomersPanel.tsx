@@ -62,6 +62,7 @@ export default function DuplicateCustomersPanel({ customers, onMerge }: Props) {
   const groups = findDuplicateCustomerGroups(customers);
   // selectedIds[groupIndex] = chosen primary id
   const [selectedIds, setSelectedIds] = useState<Record<number, string>>({});
+  const [confirmingGroupIndex, setConfirmingGroupIndex] = useState<number | null>(null);
 
   if (groups.length === 0) return null;
 
@@ -72,12 +73,6 @@ export default function DuplicateCustomersPanel({ customers, onMerge }: Props) {
   function handleMergeGroup(groupIndex: number, group: Customer[]) {
     const primaryId = getSelectedId(groupIndex, group);
     const duplicates = group.filter((c) => c.id !== primaryId);
-    if (
-      !window.confirm(
-        `Να συγχωνευτούν οι διπλές καρτέλες στην επιλεγμένη βασική καρτέλα; ${duplicates.length} διπλή/ές θα διαγραφ${duplicates.length === 1 ? 'εί' : 'ούν'}. Δεν υπάρχει undo.`
-      )
-    )
-      return;
     for (const dup of duplicates) {
       onMerge(primaryId, dup.id);
     }
@@ -192,13 +187,39 @@ export default function DuplicateCustomersPanel({ customers, onMerge }: Props) {
               );
             })()}
 
-            <button
-              type="button"
-              onClick={() => handleMergeGroup(i, group)}
-              className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-50"
-            >
-              Συγχώνευση επιλεγμένων
-            </button>
+            {confirmingGroupIndex !== i ? (
+              <button
+                type="button"
+                onClick={() => setConfirmingGroupIndex(i)}
+                className="w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-50"
+              >
+                Συγχώνευση επιλεγμένων
+              </button>
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-zinc-700">Να γίνει συγχώνευση των duplicate πελατών;</p>
+                <p className="text-xs text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleMergeGroup(i, group);
+                      setConfirmingGroupIndex(null);
+                    }}
+                    className="rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-800"
+                  >
+                    Ναι, συνέχισε
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingGroupIndex(null)}
+                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Πίσω
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
