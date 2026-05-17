@@ -778,6 +778,44 @@ export default function DemoPage() {
         </ol>
       </div>
 
+      {/* New features: AI cmd + Appointments */}
+      <div className="border-t border-zinc-100 pt-5 space-y-4">
+        <div>
+          <h2 className="text-base font-bold text-zinc-900">Νέα σημεία για demo</h2>
+          <p className="mt-0.5 text-xs text-zinc-400">
+            Ενότητες που προστέθηκαν μετά τον βασικό οδηγό.
+          </p>
+        </div>
+        <div className="space-y-2">
+          {[
+            {
+              href: '/cmd',
+              title: 'AI εντολές',
+              learn: 'Δοκίμασε εντολές για tasks, ραντεβού, draft προσφορές και ακύρωση ραντεβού με επιβεβαίωση.',
+            },
+            {
+              href: '/appointments',
+              title: 'Ραντεβού',
+              learn: 'Δες το εσωτερικό πρόγραμμα ραντεβού και το inline cancel flow.',
+            },
+          ].map(({ href, title, learn }) => (
+            <Link
+              key={href}
+              href={href}
+              className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-100 transition hover:ring-indigo-200"
+            >
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-zinc-900">{title}</p>
+                <p className="text-xs text-zinc-400">{learn}</p>
+              </div>
+              <svg className="ml-auto h-4 w-4 shrink-0 self-center text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+              </svg>
+            </Link>
+          ))}
+        </div>
+      </div>
+
       {/* Step 144: Pilot entry point — improved sequence card */}
       <div className="border-t border-zinc-100 pt-6 space-y-4">
         <div>
