@@ -66,9 +66,6 @@ const fields: Array<{
 export default function BusinessProfileForm({ value, onChange }: Props) {
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-zinc-500">
-        Αυτά τα στοιχεία θα εμφανίζονται στις προσφορές σου.
-      </p>
       {fields.map((field) => (
         <div key={field.key}>
           <label className="mb-1 block text-sm font-medium text-zinc-700">
