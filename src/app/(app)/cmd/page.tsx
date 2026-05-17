@@ -36,10 +36,54 @@ function addDaysStr(n: number): string {
   return d.toISOString().split('T')[0];
 }
 
-function matchCustomer(name: string | undefined, customers: Customer[]): Customer | null {
-  if (!name?.trim()) return null;
+function findCustomerCandidates(name: string | undefined, customers: Customer[]): Customer[] {
+  if (!name?.trim()) return [];
   const q = name.trim().toLowerCase();
-  return customers.find((c) => c.name.toLowerCase().includes(q)) ?? null;
+  return customers.filter((c) => c.name.toLowerCase().includes(q));
+}
+
+function CustomerCandidatePicker({
+  candidates,
+  selectedId,
+  onSelect,
+  onContinueWithout,
+}: {
+  candidates: Customer[];
+  selectedId?: string;
+  onSelect: (c: Customer) => void;
+  onContinueWithout: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <p className="text-xs font-medium text-zinc-600">Βρέθηκαν πολλοί πελάτες. Διάλεξε τον σωστό:</p>
+      <div className="space-y-1.5">
+        {candidates.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => onSelect(c)}
+            className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
+              c.id === selectedId
+                ? 'border-indigo-300 bg-indigo-50'
+                : 'border-zinc-200 bg-white hover:border-indigo-200 hover:bg-indigo-50'
+            }`}
+          >
+            <p className="font-semibold text-zinc-800">{c.name}</p>
+            {(c.mobilePhone || c.phone) && <p className="text-xs text-zinc-500">{c.mobilePhone || c.phone}</p>}
+            {c.email && <p className="text-xs text-zinc-500">{c.email}</p>}
+            {c.address && <p className="text-xs text-zinc-400">{c.address}</p>}
+          </button>
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onContinueWithout}
+        className="text-xs text-zinc-400 hover:text-zinc-600 transition"
+      >
+        Συνέχεια χωρίς σύνδεση πελάτη
+      </button>
+    </div>
+  );
 }
 
 function fmtEur(n: number): string {
@@ -77,6 +121,8 @@ export default function CmdPage() {
   const [queryAppointments, setQueryAppointments] = useState<(Task & { customerName?: string })[]>([]);
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
   const [noCustomerMatch, setNoCustomerMatch] = useState(false);
+  const [customerCandidates, setCustomerCandidates] = useState<Customer[]>([]);
+  const [customerMatchResolved, setCustomerMatchResolved] = useState(false);
 
   const [offerPreviewData, setOfferPreviewData] = useState<{
     validItems: { description: string; quantity: number; unitPrice: number }[];
@@ -200,6 +246,8 @@ export default function CmdPage() {
     setQueryAppointments([]);
     setMatchedCustomer(null);
     setNoCustomerMatch(false);
+    setCustomerCandidates([]);
+    setCustomerMatchResolved(false);
     setOfferPreviewData(null);
 
     try {
@@ -238,9 +286,29 @@ export default function CmdPage() {
       }
 
       if (r.intent === 'create_task' || r.intent === 'create_appointment' || r.intent === 'create_offer') {
-        const matched = matchCustomer(r.params.customerName, customers);
-        setMatchedCustomer(matched);
-        setNoCustomerMatch(!!r.params.customerName?.trim() && !matched);
+        const hasName = !!r.params.customerName?.trim();
+        const candidates = findCustomerCandidates(r.params.customerName, customers);
+        if (!hasName) {
+          setCustomerCandidates([]);
+          setMatchedCustomer(null);
+          setNoCustomerMatch(false);
+          setCustomerMatchResolved(true);
+        } else if (candidates.length === 0) {
+          setCustomerCandidates([]);
+          setMatchedCustomer(null);
+          setNoCustomerMatch(true);
+          setCustomerMatchResolved(true);
+        } else if (candidates.length === 1) {
+          setCustomerCandidates([]);
+          setMatchedCustomer(candidates[0]);
+          setNoCustomerMatch(false);
+          setCustomerMatchResolved(true);
+        } else {
+          setCustomerCandidates(candidates);
+          setMatchedCustomer(null);
+          setNoCustomerMatch(false);
+          setCustomerMatchResolved(false);
+        }
       }
 
       if (r.intent === 'create_offer') {
@@ -259,6 +327,7 @@ export default function CmdPage() {
 
   function handleSaveTask() {
     if (!result) return;
+    if (customerCandidates.length > 1 && !customerMatchResolved) return;
     const now = new Date().toISOString();
     const today = todayStr();
     const task: Task = {
@@ -281,6 +350,7 @@ export default function CmdPage() {
 
   function handleSaveAppointment() {
     if (!result) return;
+    if (customerCandidates.length > 1 && !customerMatchResolved) return;
     const now = new Date().toISOString();
     const today = todayStr();
     const defaultTitle = matchedCustomer
@@ -306,6 +376,7 @@ export default function CmdPage() {
 
   function handleSaveOffer() {
     if (!result || !offerPreviewData || offerPreviewData.validItems.length === 0) return;
+    if (customerCandidates.length > 1 && !customerMatchResolved) return;
     const now = new Date().toISOString();
     const today = todayStr();
     const { validItems, subtotal, vatAmount, total, vatRate } = offerPreviewData;
@@ -375,6 +446,8 @@ export default function CmdPage() {
     setQueryAppointments([]);
     setMatchedCustomer(null);
     setNoCustomerMatch(false);
+    setCustomerCandidates([]);
+    setCustomerMatchResolved(false);
     setOfferPreviewData(null);
   }
 
@@ -530,7 +603,20 @@ export default function CmdPage() {
               <div className="space-y-1.5 text-sm text-zinc-700">
                 <p><span className="font-medium">Τίτλος:</span> {result.params.title || 'Νέο task'}</p>
                 {matchedCustomer && (
-                  <p><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                    {customerCandidates.length > 1 && customerMatchResolved && (
+                      <button type="button" onClick={() => setCustomerMatchResolved(false)} className="text-xs text-indigo-600 hover:text-indigo-700 transition">Αλλαγή</button>
+                    )}
+                  </div>
+                )}
+                {customerCandidates.length > 1 && !customerMatchResolved && (
+                  <CustomerCandidatePicker
+                    candidates={customerCandidates}
+                    selectedId={matchedCustomer?.id}
+                    onSelect={(c) => { setMatchedCustomer(c); setCustomerMatchResolved(true); }}
+                    onContinueWithout={() => { setMatchedCustomer(null); setCustomerMatchResolved(true); }}
+                  />
                 )}
                 {noCustomerMatch && (
                   <p className="text-xs text-amber-600">
@@ -551,10 +637,14 @@ export default function CmdPage() {
                   <p><span className="font-medium">Σημείωση:</span> {result.params.note}</p>
                 )}
               </div>
+              {customerCandidates.length > 1 && !customerMatchResolved && (
+                <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
+              )}
               <button
                 type="button"
                 onClick={handleSaveTask}
-                className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                disabled={customerCandidates.length > 1 && !customerMatchResolved}
+                className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
               >
                 Δημιουργία task
               </button>
@@ -583,7 +673,20 @@ export default function CmdPage() {
                     (matchedCustomer ? `Ραντεβού με ${matchedCustomer.name}` : 'Νέο ραντεβού')}
                 </p>
                 {matchedCustomer && (
-                  <p><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                  <div className="flex items-center gap-2">
+                    <p><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                    {customerCandidates.length > 1 && customerMatchResolved && (
+                      <button type="button" onClick={() => setCustomerMatchResolved(false)} className="text-xs text-indigo-600 hover:text-indigo-700 transition">Αλλαγή</button>
+                    )}
+                  </div>
+                )}
+                {customerCandidates.length > 1 && !customerMatchResolved && (
+                  <CustomerCandidatePicker
+                    candidates={customerCandidates}
+                    selectedId={matchedCustomer?.id}
+                    onSelect={(c) => { setMatchedCustomer(c); setCustomerMatchResolved(true); }}
+                    onContinueWithout={() => { setMatchedCustomer(null); setCustomerMatchResolved(true); }}
+                  />
                 )}
                 {noCustomerMatch && (
                   <p className="text-xs text-amber-600">
@@ -609,10 +712,14 @@ export default function CmdPage() {
                   Το ραντεβού αποθηκεύεται μόνο στο εσωτερικό CRM. Δεν γίνεται αποστολή σε εξωτερικό calendar.
                 </p>
               </div>
+              {customerCandidates.length > 1 && !customerMatchResolved && (
+                <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
+              )}
               <button
                 type="button"
                 onClick={handleSaveAppointment}
-                className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                disabled={customerCandidates.length > 1 && !customerMatchResolved}
+                className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
               >
                 Δημιουργία ραντεβού
               </button>
@@ -640,7 +747,20 @@ export default function CmdPage() {
                 Draft προσφορά (προεπισκόπηση)
               </p>
               {matchedCustomer && (
-                <p className="text-sm text-zinc-700"><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-zinc-700"><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                  {customerCandidates.length > 1 && customerMatchResolved && (
+                    <button type="button" onClick={() => setCustomerMatchResolved(false)} className="text-xs text-indigo-600 hover:text-indigo-700 transition">Αλλαγή</button>
+                  )}
+                </div>
+              )}
+              {customerCandidates.length > 1 && !customerMatchResolved && (
+                <CustomerCandidatePicker
+                  candidates={customerCandidates}
+                  selectedId={matchedCustomer?.id}
+                  onSelect={(c) => { setMatchedCustomer(c); setCustomerMatchResolved(true); }}
+                  onContinueWithout={() => { setMatchedCustomer(null); setCustomerMatchResolved(true); }}
+                />
               )}
               {noCustomerMatch && (
                 <p className="text-xs text-amber-600">
@@ -702,10 +822,14 @@ export default function CmdPage() {
                       Θα δημιουργηθεί draft προσφοράς στο CRM. Δεν γίνεται αποστολή στον πελάτη.
                     </p>
                   </div>
+                  {customerCandidates.length > 1 && !customerMatchResolved && (
+                    <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
+                  )}
                   <button
                     type="button"
                     onClick={handleSaveOffer}
-                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                    disabled={customerCandidates.length > 1 && !customerMatchResolved}
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                   >
                     Δημιουργία draft προσφοράς
                   </button>
