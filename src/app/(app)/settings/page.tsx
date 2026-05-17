@@ -71,6 +71,7 @@ export default function SettingsPage() {
   const [csvImportCount, setCsvImportCount] = useState(0);
   const [csvImportConfirming, setCsvImportConfirming] = useState(false);
   const [csvImportMeta, setCsvImportMeta] = useState<{ validCount: number; dupCount: number } | null>(null);
+  const [csvImportError, setCsvImportError] = useState<string | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSection | null>(null);
 
   // Auto-open demo section when arriving via demoStep=seed URL
@@ -233,9 +234,11 @@ export default function SettingsPage() {
     setCsvImportCount(0);
     setCsvImportConfirming(false);
     setCsvImportMeta(null);
+    setCsvImportError(null);
   }
 
   function handleCsvImportClick() {
+    setCsvImportError(null);
     if (!csvPreview || !csvImportText) return;
     const state = loadState();
     const headers = csvPreview.columns.map(c => c.header);
@@ -245,7 +248,7 @@ export default function SettingsPage() {
     const dupCount = dupIndices.size;
     const validRows = rows.filter((_, i) => !dupIndices.has(i) && rows[i].name?.trim());
     if (validRows.length === 0) {
-      alert('Δεν υπάρχουν έγκυρες γραμμές για εισαγωγή' + (dupCount > 0 ? ` (${dupCount} διπλότυπα).` : '.'));
+      setCsvImportError('Δεν υπάρχουν έγκυρες γραμμές για εισαγωγή' + (dupCount > 0 ? ` (${dupCount} διπλότυπα).` : '.'));
       return;
     }
     setCsvImportMeta({ validCount: validRows.length, dupCount });
@@ -295,6 +298,7 @@ export default function SettingsPage() {
     setCsvImportText('');
     setCsvImportConfirming(false);
     setCsvImportMeta(null);
+    setCsvImportError(null);
     setCsvImportDone(true);
   }
 
@@ -639,6 +643,11 @@ export default function SettingsPage() {
                   Πίσω
                 </button>
               </div>
+            </div>
+          )}
+          {csvImportError && (
+            <div className="rounded-xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
+              <p className="text-sm font-medium text-red-700">{csvImportError}</p>
             </div>
           )}
           {csvImportDone && (
