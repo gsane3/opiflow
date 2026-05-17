@@ -60,6 +60,7 @@ export default function OfferPreview({ offerId }: Props) {
   const [appointmentEmailState, setAppointmentEmailState] = useState<'idle' | 'sending' | 'sent' | 'missing_config' | 'error'>('idle');
   const [appointmentEmailCopied, setAppointmentEmailCopied] = useState(false);
   const [appointmentEmailManualCopyVisible, setAppointmentEmailManualCopyVisible] = useState(false);
+  const [confirmedAppointmentTaskId, setConfirmedAppointmentTaskId] = useState('');
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -213,8 +214,9 @@ export default function OfferPreview({ offerId }: Props) {
     );
     if (hasDup) { setAcceptTaskState('duplicate'); return; }
     const now = new Date().toISOString();
+    const taskId = crypto.randomUUID();
     addTask({
-      id: crypto.randomUUID(),
+      id: taskId,
       customerId: offer.customerId,
       offerId: offer.id,
       title: `Ραντεβού, προσφορά ${offer.offerNumber}`,
@@ -231,6 +233,7 @@ export default function OfferPreview({ offerId }: Props) {
     setAcceptTaskKind('appointment');
     setConfirmedAppointmentDate(appointmentDate);
     setConfirmedAppointmentTime(appointmentTime);
+    setConfirmedAppointmentTaskId(taskId);
     setAcceptTaskState('created');
     setAppointmentFormOpen(false);
   }
@@ -238,15 +241,22 @@ export default function OfferPreview({ offerId }: Props) {
   function buildAppointmentEmailText(): string {
     const greeting = customer?.name ? `Αγαπητέ/ή ${customer.name},` : 'Αγαπητέ/ή πελάτη,';
     const businessLine = bp?.businessName ? `\n${bp.businessName}` : '';
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const responseLink = confirmedAppointmentTaskId
+      ? `${origin}/appointment-response/${confirmedAppointmentTaskId}`
+      : '';
     return [
       greeting,
       '',
-      `Σας επιβεβαιώνουμε το ραντεβού μας σχετικά με την προσφορά ${offer?.offerNumber ?? ''}, την οποία αποδεχτήκατε.`,
+      `Σας προτείνουμε ραντεβού σχετικά με την προσφορά ${offer?.offerNumber ?? ''}, την οποία αποδεχτήκατε.`,
       '',
-      `Ημερομηνία ραντεβού: ${confirmedAppointmentDate}`,
+      `Ημερομηνία: ${confirmedAppointmentDate}`,
       `Ώρα: ${confirmedAppointmentTime}`,
       '',
-      'Αν χρειαστεί να αλλάξετε ώρα ή ημερομηνία, επικοινωνήστε μαζί μας.',
+      'Παρακαλούμε επιβεβαιώστε ή προτείνετε εναλλακτική ημερομηνία μέσω του παρακάτω συνδέσμου:',
+      responseLink,
+      '',
+      'Σημείωση: Ο σύνδεσμος λειτουργεί μόνο στον browser όπου δημιουργήθηκε η προσφορά. Τα δεδομένα αποθηκεύονται τοπικά.',
       '',
       `Με εκτίμηση,${businessLine}`,
     ].join('\n');
@@ -255,7 +265,7 @@ export default function OfferPreview({ offerId }: Props) {
   async function handleSendAppointmentEmail() {
     if (!customer?.email || !offer) return;
     setAppointmentEmailState('sending');
-    const subject = `Επιβεβαίωση ραντεβού, προσφορά ${offer.offerNumber}`;
+    const subject = `Πρόταση ραντεβού, προσφορά ${offer.offerNumber}`;
     const text = buildAppointmentEmailText();
     try {
       const res = await fetch('/api/email/send-offer', {
@@ -662,11 +672,11 @@ export default function OfferPreview({ offerId }: Props) {
               </p>
               {acceptTaskKind === 'appointment' && confirmedAppointmentDate && (
                 <div className="rounded-xl border border-green-200 bg-white p-3 space-y-2">
-                  <p className="text-xs font-semibold text-zinc-600">Επιβεβαίωση ραντεβού στον πελάτη</p>
+                  <p className="text-xs font-semibold text-zinc-600">Πρόταση ραντεβού, αναμονή απάντησης</p>
                   {!customer?.email ? (
                     <p className="text-xs text-zinc-400">Δεν υπάρχει email πελάτη για αποστολή επιβεβαίωσης.</p>
                   ) : appointmentEmailState === 'sent' ? (
-                    <p className="text-xs font-medium text-green-700">Στάλθηκε email επιβεβαίωσης.</p>
+                    <p className="text-xs font-medium text-green-700">Στάλθηκε email πρότασης ραντεβού.</p>
                   ) : (appointmentEmailState === 'missing_config' || appointmentEmailState === 'error') ? (
                     <div className="space-y-2">
                       <p className="text-xs text-amber-700">
@@ -700,7 +710,7 @@ export default function OfferPreview({ offerId }: Props) {
                           disabled={appointmentEmailState === 'sending'}
                           className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                         >
-                          {appointmentEmailState === 'sending' ? 'Αποστολή...' : 'Αποστολή επιβεβαίωσης'}
+                          {appointmentEmailState === 'sending' ? 'Αποστολή...' : 'Αποστολή πρότασης'}
                         </button>
                         <button
                           type="button"
