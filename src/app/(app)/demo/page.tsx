@@ -710,51 +710,51 @@ export default function DemoPage() {
           {[
             {
               n: 1,
-              title: 'Ετοίμασε demo δεδομένα',
-              learn: 'Επαναφορά Rich Pilot Demo για πλήρη ροή.',
-              href: '/settings?demoStep=seed',
-            },
-            {
-              n: 2,
               title: 'Δες το dashboard',
               learn: 'Tasks, χαμένες κλήσεις, ανοιχτές προσφορές.',
               href: '/dashboard?demoStep=dashboard',
             },
             {
-              n: 3,
+              n: 2,
               title: 'Δοκίμασε AI review',
               learn: 'Υπαγόρευση brief και δημιουργία στοιχείων από AI.',
               href: '/ai-review?demoStep=review',
             },
             {
-              n: 4,
+              n: 3,
               title: 'Άνοιξε καρτέλα πελάτη',
               learn: 'Ιστορικό, tasks, προσφορές, timeline.',
               href: '/customers/demo-karagiannis?demoStep=customer',
             },
             {
+              n: 4,
+              title: 'Tasks',
+              learn: 'Εσωτερική λίστα εργασιών: κλήσεις, αποστολές, follow-ups.',
+              href: '/tasks?demoStep=tasks',
+            },
+            {
               n: 5,
+              title: 'Ραντεβού',
+              learn: 'Εσωτερικό πρόγραμμα ραντεβού. Χωρίς εξωτερικό ημερολόγιο.',
+              href: '/appointments?demoStep=appointments',
+            },
+            {
+              n: 6,
               title: 'Άνοιξε προσφορά',
               learn: 'Print PDF, copy Viber/email draft, demo response link.',
               href: '/offers/demo-offer-1?demoStep=offer',
             },
             {
-              n: 6,
+              n: 7,
               title: 'Απάντησε σαν πελάτης',
               learn: 'Αποδοχή ή απόρριψη — αποθηκεύεται τοπικά.',
               href: '/offer-response/demo-offer-1?demoStep=response',
             },
             {
-              n: 7,
-              title: 'Δημιούργησε follow-up task',
+              n: 8,
+              title: 'Follow-up task',
               learn: 'Επόμενο βήμα μετά αποδοχή — στο CRM offer.',
               href: '/offers/demo-offer-1?demoStep=followup',
-            },
-            {
-              n: 8,
-              title: 'Στείλε feedback',
-              learn: 'Copy report και στείλε χειροκίνητα.',
-              href: '/demo/pilot-feedback?demoStep=feedback',
             },
           ].map(({ n, title, learn, href }) => (
             <li key={n}>
@@ -792,11 +792,6 @@ export default function DemoPage() {
               href: '/cmd',
               title: 'AI εντολές',
               learn: 'Δοκίμασε εντολές για tasks, ραντεβού, draft προσφορές και ακύρωση ραντεβού με επιβεβαίωση.',
-            },
-            {
-              href: '/appointments',
-              title: 'Ραντεβού',
-              learn: 'Δες το εσωτερικό πρόγραμμα ραντεβού και το inline cancel flow.',
             },
           ].map(({ href, title, learn }) => (
             <Link

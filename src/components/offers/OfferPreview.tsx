@@ -378,7 +378,7 @@ export default function OfferPreview({ offerId }: Props) {
       />
       <GuidedDemoBanner
         step="offer"
-        stepNum={4}
+        stepNum={6}
         title="Προσφορά — preview, print, link αποδοχής"
         whatYouSee="Preview προσφοράς, print/PDF, copy draft για Viber/email, link αποδοχής πελάτη."
         whatToDo="Δοκίμασε print ή copy draft. Βρες την ενότητα 'Link αποδοχής πελάτη' και πάτα 'Άνοιγμα demo link πελάτη'."
@@ -387,13 +387,14 @@ export default function OfferPreview({ offerId }: Props) {
       />
       <GuidedDemoBanner
         step="followup"
-        stepNum={6}
+        stepNum={8}
         title="Follow-up task — μετά την αποδοχή"
         whatYouSee="Ενότητα 'Επόμενο βήμα' με κουμπί δημιουργίας task προγραμματισμού."
         whatToDo="Πάτα 'Δημιούργησε task προγραμματισμού' για να δημιουργηθεί task στο CRM."
         whyItMatters="Κάθε αποδεκτή προσφορά γίνεται task. Στο τελικό προϊόν, αυτό θα γίνεται αυτόματα μετά την αποδοχή."
         canManualComplete={false}
         isCompleted={acceptTaskState === 'created' || acceptTaskState === 'duplicate'}
+        isFinalStep={true}
       />
       {/* Back + actions */}
       <div className="flex items-center justify-between gap-3 print:hidden">

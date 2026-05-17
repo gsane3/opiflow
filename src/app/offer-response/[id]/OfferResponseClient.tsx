@@ -192,7 +192,7 @@ export default function OfferResponseClient({ offerId }: Props) {
         />
         <GuidedDemoBanner
           step="response"
-          stepNum={5}
+          stepNum={7}
           title="Απάντηση πελάτη — αποδοχή ή απόρριψη"
           whatYouSee="Αυτό βλέπει ο πελάτης: preview προσφοράς, κουμπί αποδοχής/απόρριψης."
           whatToDo="Πάτα 'Αποδοχή προσφοράς' και επιβεβαίωσε. Με την αποδοχή το CRM ενημερώνεται."
