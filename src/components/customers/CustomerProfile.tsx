@@ -161,6 +161,8 @@ export default function CustomerProfile({ customerId }: Props) {
   // Intake link copy
   const [intakeLinkCopied, setIntakeLinkCopied] = useState(false);
   const [intakeLinkFallbackVisible, setIntakeLinkFallbackVisible] = useState(false);
+  // Customer delete confirmation
+  const [confirmingCustomerDelete, setConfirmingCustomerDelete] = useState(false);
 
   // Auto-clear undo banner after 8 seconds.
   useEffect(() => {
@@ -482,9 +484,6 @@ export default function CustomerProfile({ customerId }: Props) {
   }
 
   function handleDelete() {
-    if (!window.confirm(`Διαγραφή πελάτη "${customer?.name}"; Αυτή η ενέργεια δεν αναιρείται.`)) {
-      return;
-    }
     deleteCustomer(customerId);
     router.push('/customers');
   }
@@ -1744,13 +1743,36 @@ export default function CustomerProfile({ customerId }: Props) {
         <p className="mb-3 text-xs text-zinc-500">
           Η διαγραφή πελάτη αφαιρεί μόνο τα τοπικά δεδομένα.
         </p>
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-        >
-          Διαγραφή πελάτη
-        </button>
+        {confirmingCustomerDelete ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-zinc-800">Να διαγραφεί αυτός ο πελάτης;</p>
+            <p className="text-xs text-zinc-500">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                Ναι, διαγραφή
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingCustomerDelete(false)}
+                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Πίσω
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingCustomerDelete(true)}
+            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+          >
+            Διαγραφή πελάτη
+          </button>
+        )}
       </section>
     </div>
   );
