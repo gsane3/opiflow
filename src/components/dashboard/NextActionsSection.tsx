@@ -199,12 +199,6 @@ const TONE_ROW: Record<ActionItem['tone'], string> = {
   indigo: 'bg-indigo-50 ring-indigo-200',
 };
 
-const TONE_LINK: Record<ActionItem['tone'], string> = {
-  red: 'text-red-700 hover:text-red-900',
-  amber: 'text-amber-700 hover:text-amber-900',
-  indigo: 'text-indigo-700 hover:text-indigo-900',
-};
-
 const TONE_DOT: Record<ActionItem['tone'], string> = {
   red: 'bg-red-500',
   amber: 'bg-amber-500',
@@ -342,26 +336,31 @@ export default function NextActionsSection({
             {visible.map((item) => (
               <li
                 key={item.id}
-                className={`rounded-2xl p-3 ring-1 ${TONE_ROW[item.tone]}`}
+                className={`rounded-2xl ring-1 ${TONE_ROW[item.tone]}`}
               >
-                <div className="flex items-start gap-2.5">
-                  <span
-                    className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${TONE_DOT[item.tone]}`}
-                  />
-                  <div className="min-w-0 flex-1">
-                    {item.customerName && (
-                      <p className="truncate text-xs font-medium text-zinc-500">
-                        {item.customerName}
+                <div className="flex items-start">
+                  <Link
+                    href={item.href}
+                    className="flex min-w-0 flex-1 items-start gap-2.5 p-3"
+                  >
+                    <span
+                      className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${TONE_DOT[item.tone]}`}
+                    />
+                    <div className="min-w-0 flex-1">
+                      {item.customerName && (
+                        <p className="truncate text-xs font-medium text-zinc-500">
+                          {item.customerName}
+                        </p>
+                      )}
+                      <p className="truncate text-sm font-semibold text-zinc-800">
+                        {item.title}
                       </p>
-                    )}
-                    <p className="truncate text-sm font-semibold text-zinc-800">
-                      {item.title}
-                    </p>
-                    {item.detail && (
-                      <p className="text-xs text-zinc-500">{item.detail}</p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1">
+                      {item.detail && (
+                        <p className="text-xs text-zinc-500">{item.detail}</p>
+                      )}
+                    </div>
+                  </Link>
+                  <div className="flex shrink-0 flex-col items-end gap-1 py-3 pr-3">
                     {item.taskId && onCompleteTask && (
                       <button
                         type="button"
@@ -408,12 +407,6 @@ export default function NextActionsSection({
                         </button>
                       ) : null
                     )}
-                    <Link
-                      href={item.href}
-                      className={`text-xs font-medium transition ${TONE_LINK[item.tone]}`}
-                    >
-                      Άνοιγμα
-                    </Link>
                   </div>
                 </div>
               </li>
