@@ -3,6 +3,8 @@ import { buildPrompt } from '@/lib/ai/prompt';
 import { parseAiResponse } from '@/lib/ai/schema';
 import type { BusinessType } from '@/lib/types';
 
+const AI_PROVIDER_TIMEOUT_MS = 20_000;
+
 // MVP-only in-memory rate limiter. Resets on cold start; not shared across
 // multiple serverless instances. Sufficient for protecting the API key in MVP.
 const AI_REVIEW_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -64,9 +66,12 @@ export async function POST(request: NextRequest) {
   });
 
   let rawText: string;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), AI_PROVIDER_TIMEOUT_MS);
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
+      signal: controller.signal,
       headers: {
         'content-type': 'application/json',
         'x-api-key': apiKey,
@@ -88,8 +93,13 @@ export async function POST(request: NextRequest) {
     const data = await res.json() as { content?: Array<{ text?: string }> };
     rawText = data?.content?.[0]?.text ?? '';
   } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      return NextResponse.json({ error: 'ai_timeout' }, { status: 504 });
+    }
     console.error('Anthropic fetch error:', err);
     return NextResponse.json({ error: 'ai_failed' }, { status: 502 });
+  } finally {
+    clearTimeout(timeoutId);
   }
 
   let parsed: unknown;
