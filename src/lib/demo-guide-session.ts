@@ -6,6 +6,8 @@ export type DemoGuideStep =
   | 'dashboard'
   | 'review'
   | 'customer'
+  | 'tasks'
+  | 'appointments'
   | 'offer'
   | 'response'
   | 'followup'
@@ -23,15 +25,17 @@ export interface DemoGuideSession {
 // ── Step order and hrefs ──────────────────────────────────────────────────────
 
 const STEP_ORDER: DemoGuideStep[] = [
-  'seed', 'dashboard', 'review', 'customer', 'offer', 'response', 'followup', 'feedback',
+  'seed', 'dashboard', 'review', 'customer', 'tasks', 'appointments', 'offer', 'response', 'followup',
 ];
 
 const STEP_HREFS: Record<DemoGuideStep, string> = {
   seed:      '/demo',
   dashboard: '/dashboard?demoStep=dashboard&guide=1',
   review:    '/ai-review?demoStep=review&guide=1',
-  customer:  '/customers/demo-karagiannis?demoStep=customer&guide=1',
-  offer:     '/offers/demo-offer-1?demoStep=offer&guide=1',
+  customer:     '/customers/demo-karagiannis?demoStep=customer&guide=1',
+  tasks:        '/tasks?demoStep=tasks&guide=1',
+  appointments: '/appointments?demoStep=appointments&guide=1',
+  offer:        '/offers/demo-offer-1?demoStep=offer&guide=1',
   response:  '/offer-response/demo-offer-1?demoStep=response&guide=1',
   followup:  '/offers/demo-offer-1?demoStep=followup&guide=1',
   feedback:  '/demo/pilot-feedback?demoStep=feedback&guide=1',
@@ -152,8 +156,10 @@ const STEP_PATHNAMES: Partial<Record<DemoGuideStep, string>> = {
   seed:      '/demo',
   dashboard: '/dashboard',
   review:    '/ai-review',
-  customer:  '/customers/demo-karagiannis',
-  offer:     '/offers/demo-offer-1',
+  customer:     '/customers/demo-karagiannis',
+  tasks:        '/tasks',
+  appointments: '/appointments',
+  offer:        '/offers/demo-offer-1',
   response:  '/offer-response/demo-offer-1',
   followup:  '/offers/demo-offer-1',
   feedback:  '/demo/pilot-feedback',
@@ -167,8 +173,10 @@ export function getStepPathname(step: DemoGuideStep): string {
 export const STEP_DISPLAY_TITLES: Partial<Record<DemoGuideStep, string>> = {
   dashboard: 'Dashboard',
   review:    'AI Review',
-  customer:  'Καρτέλα πελάτη',
-  offer:     'Προσφορά',
+  customer:     'Καρτέλα πελάτη',
+  tasks:        'Tasks',
+  appointments: 'Ραντεβού',
+  offer:        'Προσφορά',
   response:  'Απάντηση πελάτη',
   followup:  'Follow-up task',
   feedback:  'Feedback',

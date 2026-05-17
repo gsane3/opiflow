@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { loadState, addTask, updateTask } from '@/lib/storage';
 import type { Task, Offer, Customer } from '@/lib/types';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('el-GR', {
@@ -351,6 +352,15 @@ export default function AppointmentsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+      <GuidedDemoBanner
+        step="appointments"
+        stepNum={5}
+        title="Δες τα ραντεβού"
+        whatYouSee="Εσωτερικό πρόγραμμα ραντεβού με book_appointment και visit_customer tasks ταξινομημένα χρονολογικά."
+        whatToDo="Κοίτα τα demo ραντεβού και δοκίμασε την inline ακύρωση αν θέλεις."
+        whyItMatters="Είναι πρόγραμμα CRM μέσα στο MVP. Δεν συνδέεται με εξωτερικό ημερολόγιο."
+        canManualComplete={true}
+      />
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>

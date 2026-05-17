@@ -11,6 +11,7 @@ import TaskForm from '@/components/tasks/TaskForm';
 import DuplicateTasksPanel from '@/components/tasks/DuplicateTasksPanel';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 import PageHelp from '@/components/common/PageHelp';
+import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 
 type TabId = 'due_today' | 'upcoming' | 'overdue' | 'completed';
 
@@ -283,6 +284,15 @@ export default function TasksPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
+      <GuidedDemoBanner
+        step="tasks"
+        stepNum={4}
+        title="Οργάνωσε τα tasks"
+        whatYouSee="Εκκρεμή tasks: κλήσεις, αποστολές προσφορών και follow-ups. Τα ραντεβού έχουν δική τους ενότητα."
+        whatToDo="Κοίτα τις κατηγορίες και άλλαξε status σε ένα task αν θέλεις."
+        whyItMatters="Τα tasks είναι η εσωτερική γραμμή εργασίας μετά από κάθε κλήση ή AI review."
+        canManualComplete={true}
+      />
       <div className="mb-4">
         <PageHelp title="Τι βλέπω εδώ;">
           <p className="text-sm text-zinc-600">
