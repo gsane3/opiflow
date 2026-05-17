@@ -105,7 +105,7 @@ export default function DashboardPage() {
   // Stable loading shell - identical on server and first client render.
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
+      <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
         <div>
           <h1 className="text-lg font-semibold text-zinc-900">
             Καλημέρα. Τι πρέπει να γίνει σήμερα;
@@ -278,7 +278,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 px-4 py-5">
+    <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
       <DemoStepBanner
         step="dashboard"
         stepNum={2}
@@ -346,8 +346,6 @@ export default function DashboardPage() {
         onKeepDraft={handleKeepSmsIntakeDraft}
       />
 
-      <DataQualityWidget customers={customers} />
-
       <NextActionsSection
         customers={customers}
         tasks={tasks}
@@ -358,6 +356,9 @@ export default function DashboardPage() {
         onMarkOfferSent={handleMarkOfferSent}
         onCreateOfferFollowUpTask={handleCreateOfferFollowUpTask}
       />
+
+      {/* Data quality — secondary, shown only when needed */}
+      <DataQualityWidget customers={customers} />
 
       {/* App menu */}
       <ActionSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Μενού">
