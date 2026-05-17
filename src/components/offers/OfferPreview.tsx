@@ -54,6 +54,12 @@ export default function OfferPreview({ offerId }: Props) {
     return d.toISOString().split('T')[0];
   });
   const [appointmentTime, setAppointmentTime] = useState('10:00');
+  const [acceptTaskKind, setAcceptTaskKind] = useState<'appointment' | 'generic' | null>(null);
+  const [confirmedAppointmentDate, setConfirmedAppointmentDate] = useState('');
+  const [confirmedAppointmentTime, setConfirmedAppointmentTime] = useState('');
+  const [appointmentEmailState, setAppointmentEmailState] = useState<'idle' | 'sending' | 'sent' | 'missing_config' | 'error'>('idle');
+  const [appointmentEmailCopied, setAppointmentEmailCopied] = useState(false);
+  const [appointmentEmailManualCopyVisible, setAppointmentEmailManualCopyVisible] = useState(false);
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -189,6 +195,7 @@ export default function OfferPreview({ offerId }: Props) {
       createdAt: now,
       updatedAt: now,
     });
+    setAcceptTaskKind('generic');
     setAcceptTaskState('created');
   }
 
@@ -221,8 +228,65 @@ export default function OfferPreview({ offerId }: Props) {
       createdAt: now,
       updatedAt: now,
     });
+    setAcceptTaskKind('appointment');
+    setConfirmedAppointmentDate(appointmentDate);
+    setConfirmedAppointmentTime(appointmentTime);
     setAcceptTaskState('created');
     setAppointmentFormOpen(false);
+  }
+
+  function buildAppointmentEmailText(): string {
+    const greeting = customer?.name ? `Αγαπητέ/ή ${customer.name},` : 'Αγαπητέ/ή πελάτη,';
+    const businessLine = bp?.businessName ? `\n${bp.businessName}` : '';
+    return [
+      greeting,
+      '',
+      `Σας επιβεβαιώνουμε το ραντεβού μας σχετικά με την προσφορά ${offer?.offerNumber ?? ''}, την οποία αποδεχτήκατε.`,
+      '',
+      `Ημερομηνία ραντεβού: ${confirmedAppointmentDate}`,
+      `Ώρα: ${confirmedAppointmentTime}`,
+      '',
+      'Αν χρειαστεί να αλλάξετε ώρα ή ημερομηνία, επικοινωνήστε μαζί μας.',
+      '',
+      `Με εκτίμηση,${businessLine}`,
+    ].join('\n');
+  }
+
+  async function handleSendAppointmentEmail() {
+    if (!customer?.email || !offer) return;
+    setAppointmentEmailState('sending');
+    const subject = `Επιβεβαίωση ραντεβού, προσφορά ${offer.offerNumber}`;
+    const text = buildAppointmentEmailText();
+    try {
+      const res = await fetch('/api/email/send-offer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: customer.email, subject, text }),
+      });
+      const data = (await res.json()) as { ok: boolean; error?: string };
+      if (data.ok) {
+        setAppointmentEmailState('sent');
+      } else if (data.error === 'missing_email_config') {
+        setAppointmentEmailState('missing_config');
+      } else {
+        setAppointmentEmailState('error');
+      }
+    } catch {
+      setAppointmentEmailState('error');
+    }
+  }
+
+  function handleCopyAppointmentEmail() {
+    if (!offer) return;
+    const text = buildAppointmentEmailText();
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(
+        () => { setAppointmentEmailCopied(true); setTimeout(() => setAppointmentEmailCopied(false), 2500); },
+        () => setAppointmentEmailManualCopyVisible(true)
+      );
+    } else {
+      setAppointmentEmailManualCopyVisible(true);
+    }
   }
 
   // Step 132: suggest follow-up task after rejected offer
@@ -592,7 +656,73 @@ export default function OfferPreview({ offerId }: Props) {
             Επόμενο βήμα
           </p>
           {acceptTaskState === 'created' ? (
-            <p className="text-sm font-medium text-green-700">✓ Το task ραντεβού δημιουργήθηκε.</p>
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-green-700">
+                {acceptTaskKind === 'appointment' ? '✓ Το task ραντεβού δημιουργήθηκε.' : '✓ Το task δημιουργήθηκε.'}
+              </p>
+              {acceptTaskKind === 'appointment' && confirmedAppointmentDate && (
+                <div className="rounded-xl border border-green-200 bg-white p-3 space-y-2">
+                  <p className="text-xs font-semibold text-zinc-600">Επιβεβαίωση ραντεβού στον πελάτη</p>
+                  {!customer?.email ? (
+                    <p className="text-xs text-zinc-400">Δεν υπάρχει email πελάτη για αποστολή επιβεβαίωσης.</p>
+                  ) : appointmentEmailState === 'sent' ? (
+                    <p className="text-xs font-medium text-green-700">Στάλθηκε email επιβεβαίωσης.</p>
+                  ) : (appointmentEmailState === 'missing_config' || appointmentEmailState === 'error') ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-amber-700">
+                        {appointmentEmailState === 'missing_config'
+                          ? 'Δεν έχει ρυθμιστεί αποστολή email στον server, οπότε δεν στάλθηκε email. Μπορείς να αντιγράψεις το κείμενο και να το στείλεις χειροκίνητα.'
+                          : 'Σφάλμα αποστολής. Αντέγραψε το κείμενο για χειροκίνητη αποστολή.'}
+                      </p>
+                      <textarea
+                        readOnly
+                        rows={5}
+                        value={buildAppointmentEmailText()}
+                        className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleCopyAppointmentEmail}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${appointmentEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                      >
+                        {appointmentEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <p className="text-xs text-zinc-500">
+                        Αν η αποστολή email είναι ρυθμισμένη στον server, αυτό θα στείλει επιβεβαίωση ραντεβού στον πελάτη ({customer.email}).
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSendAppointmentEmail}
+                          disabled={appointmentEmailState === 'sending'}
+                          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                        >
+                          {appointmentEmailState === 'sending' ? 'Αποστολή...' : 'Αποστολή επιβεβαίωσης'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleCopyAppointmentEmail}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${appointmentEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                        >
+                          {appointmentEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
+                        </button>
+                      </div>
+                      {appointmentEmailManualCopyVisible && (
+                        <textarea
+                          readOnly
+                          rows={5}
+                          value={buildAppointmentEmailText()}
+                          className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           ) : acceptTaskState === 'duplicate' ? (
             <p className="text-sm text-zinc-500">Υπάρχει ήδη σχετικό task.</p>
           ) : appointmentFormOpen ? (
