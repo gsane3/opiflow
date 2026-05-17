@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import Link from 'next/link';
 import type { Offer, OfferStatus } from '@/lib/types';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
@@ -44,10 +45,10 @@ const ALL_STATUSES: OfferStatus[] = [
 ];
 
 export default function OfferCard({ offer, customerName, onStatusChange, onDelete }: Props) {
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+
   function handleDelete() {
-    if (window.confirm(`Διαγραφή προσφοράς ${offer.offerNumber};`)) {
-      onDelete(offer.id);
-    }
+    onDelete(offer.id);
   }
 
   const expiryState = getExpiryState(offer);
@@ -108,14 +109,38 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
           ))}
         </select>
 
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="rounded-xl border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:text-red-600 hover:bg-zinc-50"
-        >
-          Διαγραφή
-        </button>
+        {!confirmingDelete && (
+          <button
+            type="button"
+            onClick={() => setConfirmingDelete(true)}
+            className="rounded-xl border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:text-red-600 hover:bg-zinc-50"
+          >
+            Διαγραφή
+          </button>
+        )}
       </div>
+      {confirmingDelete && (
+        <div className="mt-2 space-y-1.5">
+          <p className="text-xs font-medium text-zinc-700">Να διαγραφεί αυτή η προσφορά;</p>
+          <p className="text-xs text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+            >
+              Ναι, διαγραφή
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmingDelete(false)}
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Πίσω
+            </button>
+          </div>
+        </div>
+      )}
 
       {offer.status === 'sent_manually' && (
         <p className="mt-2 text-xs text-zinc-400">

@@ -46,6 +46,8 @@ export default function OfferPreview({ offerId }: Props) {
   const [rejectTaskState, setRejectTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
   // Step 137: demo response undo state
   const [undoResponseState, setUndoResponseState] = useState<'idle' | 'done'>('idle');
+  const [confirmingOfferDelete, setConfirmingOfferDelete] = useState(false);
+  const [confirmingUndoResponse, setConfirmingUndoResponse] = useState(false);
   // Appointment form state for accepted-offer task creation
   const [appointmentFormOpen, setAppointmentFormOpen] = useState(false);
   const [appointmentDate, setAppointmentDate] = useState(() => {
@@ -126,7 +128,6 @@ export default function OfferPreview({ offerId }: Props) {
 
   function handleDelete() {
     if (!offer) return;
-    if (!window.confirm(`Διαγραφή προσφοράς ${offer.offerNumber};`)) return;
     deleteOffer(offerId);
     router.push('/offers');
   }
@@ -134,12 +135,6 @@ export default function OfferPreview({ offerId }: Props) {
   // Step 137: reset demo response — for demo retry only
   function handleUndoResponse() {
     if (!offer) return;
-    if (
-      !window.confirm(
-        'Επαναφορά απάντησης demo; Η προσφορά θα επιστρέψει σε status "Στάλθηκε χειροκίνητα". Χρήσιμο μόνο για επανάληψη demo.'
-      )
-    )
-      return;
     const now = new Date().toISOString();
     const cleanedNotes = (offer.notes ?? '')
       .split('\n')
@@ -643,11 +638,34 @@ export default function OfferPreview({ offerId }: Props) {
                   Το demo link λειτουργεί μόνο στον ίδιο browser.
                 </p>
               </div>
+            ) : confirmingUndoResponse ? (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-zinc-700">Επαναφορά απάντησης demo;</p>
+                <p className="text-xs text-zinc-400">
+                  Η προσφορά θα επιστρέψει σε status &quot;Στάλθηκε χειροκίνητα&quot;. Μόνο για επανάληψη demo.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { setConfirmingUndoResponse(false); handleUndoResponse(); }}
+                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Ναι, επαναφορά
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingUndoResponse(false)}
+                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50"
+                  >
+                    Πίσω
+                  </button>
+                </div>
+              </div>
             ) : (
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={handleUndoResponse}
+                  onClick={() => setConfirmingUndoResponse(true)}
                   className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
                 >
                   Επαναφορά απάντησης demo
@@ -853,13 +871,36 @@ export default function OfferPreview({ offerId }: Props) {
           Ζώνη κινδύνου
         </h2>
         <p className="mb-3 text-xs text-zinc-500">Η διαγραφή αφαιρεί μόνο τοπικά δεδομένα.</p>
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-        >
-          Διαγραφή προσφοράς
-        </button>
+        {confirmingOfferDelete ? (
+          <div className="space-y-2">
+            <p className="text-sm font-medium text-zinc-800">Να διαγραφεί αυτή η προσφορά;</p>
+            <p className="text-xs text-zinc-500">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleDelete}
+                className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
+              >
+                Ναι, διαγραφή
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmingOfferDelete(false)}
+                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Πίσω
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmingOfferDelete(true)}
+            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+          >
+            Διαγραφή προσφοράς
+          </button>
+        )}
       </section>
     </div>
   );
