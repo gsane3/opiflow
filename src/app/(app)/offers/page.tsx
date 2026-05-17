@@ -253,14 +253,14 @@ export default function OffersPage() {
 
       {/* List */}
       {offers.length === 0 ? (
-        <div className="py-12 text-center">
+        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
           <p className="text-sm font-medium text-zinc-500">Δεν υπάρχουν προσφορές ακόμα.</p>
           <p className="mt-1 text-sm text-zinc-400">
-            Μπορείς να δημιουργήσεις προσφορά με υπαγόρευση ή με το κουμπί παραπάνω.
+            Δημιούργησε προσφορά με το κουμπί + παραπάνω ή με υπαγόρευση.
           </p>
         </div>
       ) : filteredOffers.length === 0 ? (
-        <div className="py-12 text-center">
+        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
           <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
           <p className="mt-1 text-sm text-zinc-400">Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό.</p>
         </div>

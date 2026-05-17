@@ -588,7 +588,7 @@ export default function AiReviewPage() {
       {/* Header */}
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-1">
-          <h1 className="text-lg font-semibold text-zinc-900">Έλεγξε πριν αποθηκευτεί</h1>
+          <h1 className="text-lg font-semibold text-zinc-900">AI Review</h1>
           {resultSource === 'ai' ? (
             <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
               AI αποτέλεσμα
@@ -600,7 +600,7 @@ export default function AiReviewPage() {
           )}
         </div>
         <p className="text-sm text-zinc-500">
-          Το yorgos.ai ετοίμασε τα παρακάτω. Μπορείς να τα διορθώσεις πριν αποθηκευτούν στο CRM.
+          Μετά την κλήση, το AI ετοιμάζει brief για CRM, tasks και draft προσφοράς. Μπορείς να διορθώσεις πριν αποθηκευτεί.
         </p>
       </div>
 

@@ -223,11 +223,13 @@ export default function CustomersPage() {
 
       {/* Customer list */}
       {customers.length === 0 ? (
-        <div className="py-10 space-y-4 text-center">
-          <p className="text-sm font-medium text-zinc-500">Δεν έχεις πελάτες ακόμα.</p>
-          <p className="text-sm text-zinc-400">
-            Πρόσθεσε έναν πελάτη με το κουμπί παραπάνω ή δοκίμασε ένα από τα παρακάτω:
-          </p>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100 space-y-4">
+          <div>
+            <p className="text-sm font-medium text-zinc-500">Δεν έχεις πελάτες ακόμα.</p>
+            <p className="mt-1 text-sm text-zinc-400">
+              Πρόσθεσε έναν πελάτη ή φόρτωσε demo δεδομένα για να δοκιμάσεις.
+            </p>
+          </div>
           <div className="flex flex-wrap justify-center gap-2">
             <button
               type="button"
@@ -237,21 +239,15 @@ export default function CustomersPage() {
               + Νέος πελάτης
             </button>
             <Link
-              href="/ai-review"
-              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
-            >
-              Δοκίμασε AI review
-            </Link>
-            <Link
               href="/settings"
-              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
             >
-              Επαναφορά demo δεδομένων
+              Φόρτωση demo δεδομένων
             </Link>
           </div>
         </div>
       ) : filtered.length === 0 ? (
-        <div className="py-12 text-center">
+        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
           <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
           <p className="mt-1 text-sm text-zinc-400">
             Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό φίλτρων.

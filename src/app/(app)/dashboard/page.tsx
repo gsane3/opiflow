@@ -14,6 +14,7 @@ import DemoStepBanner from '@/components/common/DemoStepBanner';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import DashboardSmartCards from '@/components/dashboard/DashboardSmartCards';
 import ActionSheet from '@/components/common/ActionSheet';
+import NextActionCard from '@/components/dashboard/NextActionCard';
 
 const LEAD_STATUSES = new Set<string>([
   'new_lead',
@@ -315,6 +316,15 @@ export default function DashboardPage() {
           </svg>
         </button>
       </div>
+
+      {/* Primary next action */}
+      <NextActionCard
+        urgentTasks={urgentTasks}
+        calls={calls}
+        leads={leads}
+        openOffers={openOffers}
+        customerMap={customerMap}
+      />
 
       {/* 6-card control center */}
       <DashboardSmartCards

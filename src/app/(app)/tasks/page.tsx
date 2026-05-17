@@ -428,9 +428,25 @@ export default function TasksPage() {
 
       {/* Task list */}
       {filteredTasks.length === 0 ? (
-        <p className="py-10 text-center text-sm text-zinc-400">
-          {hasTaskFilter ? 'Δεν βρέθηκαν αποτελέσματα για αυτά τα φίλτρα.' : EMPTY_STATES[activeTab]}
-        </p>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
+          <p className="text-sm font-medium text-zinc-500">
+            {hasTaskFilter ? 'Δεν βρέθηκαν αποτελέσματα για αυτά τα φίλτρα.' : EMPTY_STATES[activeTab]}
+          </p>
+          {!hasTaskFilter && activeTab !== 'completed' && (
+            <p className="mt-1 text-sm text-zinc-400">
+              Πρόσθεσε task με το κουμπί + παραπάνω.
+            </p>
+          )}
+          {hasTaskFilter && (
+            <button
+              type="button"
+              onClick={clearTaskFilters}
+              className="mt-3 rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-600 ring-1 ring-zinc-200 transition hover:ring-indigo-300"
+            >
+              Καθαρισμός φίλτρων
+            </button>
+          )}
+        </div>
       ) : (
         <ul className="space-y-2">
           {filteredTasks.map((task) => (
