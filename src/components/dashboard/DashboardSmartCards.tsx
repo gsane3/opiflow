@@ -8,7 +8,7 @@ import ActionSheet from '@/components/common/ActionSheet';
 import { getCustomerStatusLabel, getOfferStatusLabel } from '@/lib/ui-labels';
 import { fmtEur } from '@/lib/offer-calculations';
 
-type SheetId = 'tasks' | 'leads' | 'offers' | 'missed' | 'customers' | 'stats' | null;
+type SheetId = 'tasks' | 'leads' | 'offers' | 'missed' | 'customers' | null;
 
 interface Props {
   urgentTasks: Task[];
@@ -28,22 +28,21 @@ interface DashboardCardProps {
   hint: string;
   urgent?: boolean;
   active?: boolean;
+  href?: string;
   onOpen: (id: SheetId) => void;
 }
 
-function DashboardCard({ id, icon, title, count, urgent, active, onOpen }: DashboardCardProps) {
-  return (
-    <button
-      type="button"
-      onClick={() => onOpen(id)}
-      className={`flex flex-col items-center gap-1.5 rounded-2xl p-3 text-center ring-1 shadow-sm transition min-h-[84px] ${
-        urgent && Number(count) > 0
-          ? 'bg-red-50 ring-red-200 hover:ring-red-300'
-          : active && Number(count) > 0
-          ? 'bg-white ring-indigo-200 hover:ring-indigo-300'
-          : 'bg-white ring-zinc-100 hover:ring-indigo-200'
-      } active:bg-zinc-50`}
-    >
+function DashboardCard({ id, icon, title, count, urgent, active, href, onOpen }: DashboardCardProps) {
+  const cls = `flex flex-col items-center gap-1.5 rounded-2xl p-3 text-center ring-1 shadow-sm transition min-h-[84px] ${
+    urgent && Number(count) > 0
+      ? 'bg-red-50 ring-red-200 hover:ring-red-300'
+      : active && Number(count) > 0
+      ? 'bg-white ring-indigo-200 hover:ring-indigo-300'
+      : 'bg-white ring-zinc-100 hover:ring-indigo-200'
+  } active:bg-zinc-50`;
+
+  const inner = (
+    <>
       <div className={`flex h-9 w-9 items-center justify-center rounded-full ${
         urgent && Number(count) > 0 ? 'bg-red-100' : active && Number(count) > 0 ? 'bg-indigo-100' : 'bg-zinc-100'
       }`}>
@@ -53,6 +52,15 @@ function DashboardCard({ id, icon, title, count, urgent, active, onOpen }: Dashb
         urgent && Number(count) > 0 ? 'text-red-700' : active && Number(count) > 0 ? 'text-indigo-700' : 'text-zinc-400'
       }`}>{count}</p>
       <p className="text-xs font-semibold text-zinc-700 leading-tight">{title}</p>
+    </>
+  );
+
+  if (href) {
+    return <Link href={href} className={cls}>{inner}</Link>;
+  }
+  return (
+    <button type="button" onClick={() => onOpen(id)} className={cls}>
+      {inner}
     </button>
   );
 }
@@ -148,14 +156,16 @@ export default function DashboardSmartCards({
             }
           />
           <DashboardCard
-            id="stats"
-            title="Στατιστικά"
-            count="→"
-            hint="Τοπικά δεδομένα"
+            id={null}
+            title="Κλήσεις"
+            count={calls === undefined ? '—' : calls.length}
+            hint="Ιστορικό & ενέργειες"
+            href="/calls"
+            active={(calls?.length ?? 0) > 0}
             onOpen={setActiveSheet}
             icon={
-              <svg className="h-5 w-5 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+              <svg className={`h-5 w-5 ${(calls?.length ?? 0) > 0 ? 'text-indigo-600' : 'text-zinc-400'}`} fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
               </svg>
             }
           />
@@ -356,32 +366,6 @@ export default function DashboardSmartCards({
         </Link>
       </ActionSheet>
 
-      {/* ── Stats sheet ── */}
-      <ActionSheet
-        open={activeSheet === 'stats'}
-        onClose={close}
-        title="Στατιστικά"
-        subtitle="Τοπικά δεδομένα μόνο. Δεν υπάρχει tracking."
-      >
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Πελάτες', value: customers.length },
-            { label: 'Tasks σήμερα', value: urgentTasks.length },
-            { label: 'Ανοιχτές προσφορές', value: openOffers.length },
-            { label: 'Για follow-up', value: leads.length },
-            { label: 'Αξία ανοιχτών', value: fmtEur(openOffersValue) },
-            { label: 'Εκπρόθεσμα', value: overdueCount },
-          ].map(({ label, value }) => (
-            <div key={label} className="rounded-2xl bg-zinc-50 px-4 py-3 text-center ring-1 ring-zinc-100">
-              <p className="text-lg font-bold text-zinc-900">{value}</p>
-              <p className="text-xs text-zinc-400">{label}</p>
-            </div>
-          ))}
-        </div>
-        <p className="mt-2 text-center text-xs text-zinc-400">
-          Τοπικά στατιστικά μόνο. Δεν υπάρχει tracking ή cloud sync στο MVP.
-        </p>
-      </ActionSheet>
     </>
   );
 }
