@@ -216,6 +216,10 @@ export default function SendEmailSection({
           χειροκίνητα.
         </p>
 
+        <p className="text-xs text-zinc-400">
+          Αν η αποστολή email είναι ρυθμισμένη στον server, το κουμπί θα στείλει πραγματικό email στη διεύθυνση παραλήπτη.
+        </p>
+
         {state === 'error' && (
           <p className="text-sm text-red-600">Σφάλμα αποστολής: {errorMsg}</p>
         )}
