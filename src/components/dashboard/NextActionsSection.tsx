@@ -47,6 +47,30 @@ interface ActionItem {
   taskId?: string; // set only for task items to enable inline completion
   offerId?: string; // set only for offer items
   hasExistingTask?: boolean; // true when a follow-up task already exists in localStorage tasks
+  quickHref?: string; // context-aware quick action route
+  quickLabel?: string; // label for the quick action button
+}
+
+const CALL_TASK_TYPES = new Set(['call_back']);
+const OFFER_TASK_TYPES = new Set(['send_offer', 'follow_up_offer']);
+
+function getTaskQuickAction(
+  task: Task,
+  offers: Offer[]
+): { quickHref: string; quickLabel: string } | null {
+  if (CALL_TASK_TYPES.has(task.type)) {
+    return { quickHref: '/call/mock', quickLabel: 'Κλήση' };
+  }
+  if (OFFER_TASK_TYPES.has(task.type) && task.customerId) {
+    const draft = offers.find(
+      (o) => o.customerId === task.customerId && o.status === 'draft'
+    );
+    return {
+      quickHref: draft ? `/offers/${draft.id}` : '/offers',
+      quickLabel: 'Προσφορά',
+    };
+  }
+  return null;
 }
 
 function buildActions(
@@ -71,6 +95,7 @@ function buildActions(
     .filter((t) => t.status === 'open' && getEffectiveStatus(t) === 'overdue')
     .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
   for (const task of overdueTasks) {
+    const quick = getTaskQuickAction(task, offers);
     items.push({
       id: task.id,
       category: 'task_overdue',
@@ -80,6 +105,7 @@ function buildActions(
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
       href: task.customerId ? `/customers/${task.customerId}` : `/tasks?taskId=${task.id}`,
       taskId: task.id,
+      ...(quick ?? {}),
     });
   }
 
@@ -88,6 +114,7 @@ function buildActions(
     .filter((t) => t.status === 'open' && getEffectiveStatus(t) === 'due_today')
     .sort((a, b) => (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1));
   for (const task of todayTasks) {
+    const quick = getTaskQuickAction(task, offers);
     items.push({
       id: task.id,
       category: 'task_today',
@@ -97,6 +124,7 @@ function buildActions(
       customerName: task.customerId ? customerMap[task.customerId] : undefined,
       href: task.customerId ? `/customers/${task.customerId}` : `/tasks?taskId=${task.id}`,
       taskId: task.id,
+      ...(quick ?? {}),
     });
   }
 
@@ -342,6 +370,14 @@ export default function NextActionsSection({
                       >
                         Ολοκλήρωση
                       </button>
+                    )}
+                    {item.quickHref && item.quickLabel && (
+                      <Link
+                        href={item.quickHref}
+                        className="rounded-lg bg-indigo-600 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-indigo-700"
+                      >
+                        {item.quickLabel}
+                      </Link>
                     )}
                     {item.category === 'offer_ready' && item.offerId && onMarkOfferSent && (
                       <button
