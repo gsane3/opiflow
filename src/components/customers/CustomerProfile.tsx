@@ -151,6 +151,8 @@ export default function CustomerProfile({ customerId }: Props) {
   // Highlight banners shown near sections after tapping quick action
   const [taskHighlight, setTaskHighlight] = useState(false);
   const [offerHighlight, setOfferHighlight] = useState(false);
+  // Focused appointment id from ?focusAppointment= query param
+  const [focusedAppointmentId, setFocusedAppointmentId] = useState<string | null>(null);
   // Email draft copy
   const [emailDraftCopied, setEmailDraftCopied] = useState(false);
 
@@ -160,6 +162,23 @@ export default function CustomerProfile({ customerId }: Props) {
     const timer = window.setTimeout(() => setLastCompletedTask(null), 8000);
     return () => window.clearTimeout(timer);
   }, [lastCompletedTask]);
+
+  // Scroll to and highlight a specific appointment from ?focusAppointment= query param.
+  useEffect(() => {
+    if (!hydrated) return;
+    const focusId = new URLSearchParams(window.location.search).get('focusAppointment');
+    if (!focusId) return;
+    const timer = window.setTimeout(() => {
+      setFocusedAppointmentId(focusId);
+      const el = document.getElementById(`appointment-${focusId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        appointmentsSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [hydrated]);
 
   // Open tasks derived from all customer tasks (used in the open tasks section).
   const openTasks = useMemo(
@@ -1149,11 +1168,15 @@ export default function CustomerProfile({ customerId }: Props) {
                 : note.includes('Πρόταση αλλαγής από πελάτη:')
                 ? { label: 'Εναλλακτική', className: 'bg-indigo-100 text-indigo-700' }
                 : { label: 'Αναμονή', className: 'bg-zinc-100 text-zinc-500' };
+              const isFocused = task.id === focusedAppointmentId;
               return (
                 <li
                   key={task.id}
+                  id={`appointment-${task.id}`}
                   className={`flex items-start gap-2 rounded-xl p-3 text-sm ${
-                    isOverdue
+                    isFocused
+                      ? 'bg-indigo-50 ring-2 ring-indigo-300'
+                      : isOverdue
                       ? 'bg-red-50 ring-1 ring-red-200'
                       : isToday
                       ? 'bg-amber-50 ring-1 ring-amber-200'
@@ -1161,7 +1184,7 @@ export default function CustomerProfile({ customerId }: Props) {
                   }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <p className={`font-medium ${isOverdue ? 'text-red-900' : 'text-zinc-800'}`}>
+                    <p className={`font-medium ${isFocused ? 'text-indigo-900' : isOverdue ? 'text-red-900' : 'text-zinc-800'}`}>
                       {task.title}
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-500">

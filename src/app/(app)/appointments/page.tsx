@@ -495,7 +495,9 @@ export default function AppointmentsPage() {
               {group.map((task) => {
                 const customerName = task.customerId ? customerMap[task.customerId] : undefined;
                 const offer = task.offerId ? offerMap[task.offerId] : undefined;
-                const primaryHref = task.customerId ? `/customers/${task.customerId}` : `/tasks?taskId=${task.id}`;
+                const primaryHref = task.customerId
+                  ? `/customers/${task.customerId}?focusAppointment=${task.id}`
+                  : `/tasks?taskId=${task.id}`;
                 const status = getResponseStatus(task.note);
 
                 return (
