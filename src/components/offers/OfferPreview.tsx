@@ -46,6 +46,14 @@ export default function OfferPreview({ offerId }: Props) {
   const [rejectTaskState, setRejectTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
   // Step 137: demo response undo state
   const [undoResponseState, setUndoResponseState] = useState<'idle' | 'done'>('idle');
+  // Appointment form state for accepted-offer task creation
+  const [appointmentFormOpen, setAppointmentFormOpen] = useState(false);
+  const [appointmentDate, setAppointmentDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    return d.toISOString().split('T')[0];
+  });
+  const [appointmentTime, setAppointmentTime] = useState('10:00');
 
   // Load localStorage after mount to avoid hydration mismatch.
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
@@ -182,6 +190,39 @@ export default function OfferPreview({ offerId }: Props) {
       updatedAt: now,
     });
     setAcceptTaskState('created');
+  }
+
+  function handleCreateAppointmentTask() {
+    if (!offer) return;
+    const state = loadState();
+    const hasDup = (state.tasks ?? []).some(
+      (t) =>
+        t.status === 'open' &&
+        (t.offerId === offer.id ||
+          (offer.customerId &&
+            t.customerId === offer.customerId &&
+            offer.offerNumber &&
+            t.title.includes(offer.offerNumber)))
+    );
+    if (hasDup) { setAcceptTaskState('duplicate'); return; }
+    const now = new Date().toISOString();
+    addTask({
+      id: crypto.randomUUID(),
+      customerId: offer.customerId,
+      offerId: offer.id,
+      title: `Ραντεβού, προσφορά ${offer.offerNumber}`,
+      type: 'book_appointment',
+      status: 'open',
+      priority: 'high',
+      dueDate: appointmentDate,
+      dueTime: appointmentTime,
+      note: `Η προσφορά έγινε αποδεκτή. Ραντεβού: ${appointmentDate} ${appointmentTime}.`,
+      createdFromAi: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    setAcceptTaskState('created');
+    setAppointmentFormOpen(false);
   }
 
   // Step 132: suggest follow-up task after rejected offer
@@ -550,21 +591,73 @@ export default function OfferPreview({ offerId }: Props) {
           <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-green-600">
             Επόμενο βήμα
           </p>
-          <p className="text-sm text-zinc-700 mb-3">
-            Δημιούργησε task για προγραμματισμό εργασίας.
-          </p>
           {acceptTaskState === 'created' ? (
-            <p className="text-sm font-medium text-green-700">✓ Το task δημιουργήθηκε.</p>
+            <p className="text-sm font-medium text-green-700">✓ Το task ραντεβού δημιουργήθηκε.</p>
           ) : acceptTaskState === 'duplicate' ? (
             <p className="text-sm text-zinc-500">Υπάρχει ήδη σχετικό task.</p>
+          ) : appointmentFormOpen ? (
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-700">Επέλεξε ημερομηνία και ώρα ραντεβού:</p>
+              <div className="flex flex-wrap gap-3">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">Ημερομηνία</label>
+                  <input
+                    type="date"
+                    value={appointmentDate}
+                    onChange={(e) => setAppointmentDate(e.target.value)}
+                    className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600">Ώρα</label>
+                  <input
+                    type="time"
+                    value={appointmentTime}
+                    onChange={(e) => setAppointmentTime(e.target.value)}
+                    className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                  />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleCreateAppointmentTask}
+                  disabled={!appointmentDate || !appointmentTime}
+                  className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                >
+                  Δημιουργία task ραντεβού
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAppointmentFormOpen(false)}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                >
+                  Ακύρωση
+                </button>
+              </div>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={handleCreateAcceptTask}
-              className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700"
-            >
-              Δημιουργία task
-            </button>
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-700">
+                Ορίσε ραντεβού με τον πελάτη ή δημιούργησε γενικό task εκτέλεσης.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAppointmentFormOpen(true)}
+                  className="rounded-xl bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700"
+                >
+                  Ορισμός ραντεβού
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateAcceptTask}
+                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                >
+                  Χωρίς ραντεβού τώρα
+                </button>
+              </div>
+            </div>
           )}
         </section>
       )}
