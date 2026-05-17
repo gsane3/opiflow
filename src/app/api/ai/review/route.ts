@@ -10,7 +10,7 @@ const AI_REVIEW_MAX_BODY_BYTES = 32_000;
 // multiple serverless instances. Sufficient for protecting the API key in MVP.
 const AI_REVIEW_RATE_LIMIT_WINDOW_MS = 60_000;
 const AI_REVIEW_RATE_LIMIT_MAX = 10;
-const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+const aiReviewRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
 function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get('x-forwarded-for');
@@ -20,9 +20,9 @@ function getClientIp(request: NextRequest): string {
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
-  const entry = rateLimitStore.get(ip);
+  const entry = aiReviewRateLimitStore.get(ip);
   if (!entry || now >= entry.resetAt) {
-    rateLimitStore.set(ip, { count: 1, resetAt: now + AI_REVIEW_RATE_LIMIT_WINDOW_MS });
+    aiReviewRateLimitStore.set(ip, { count: 1, resetAt: now + AI_REVIEW_RATE_LIMIT_WINDOW_MS });
     return false;
   }
   if (entry.count >= AI_REVIEW_RATE_LIMIT_MAX) return true;

@@ -1,15 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const MAX_BODY_BYTES = 32_000;
+const EMAIL_SEND_MAX_BODY_BYTES = 32_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const EMAIL_PROVIDER_TIMEOUT_MS = 15_000;
 
-// MVP-only in-memory rate limiter. Not persistent across instances or restarts.
-const RATE_LIMIT = 5;
-const RATE_WINDOW_MS = 60_000;
-const ipMap = new Map<string, { count: number; resetAt: number }>();
+// MVP-only in-memory rate limiter. Resets on cold start; not shared across
+// multiple serverless instances.
+const EMAIL_SEND_RATE_LIMIT_MAX = 5;
+const EMAIL_SEND_RATE_LIMIT_WINDOW_MS = 60_000;
+const emailSendRateLimitStore = new Map<string, { count: number; resetAt: number }>();
 
-function getIp(req: NextRequest): string {
+function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
   if (forwarded) return forwarded.split(',')[0].trim();
   return 'unknown';
@@ -17,18 +18,18 @@ function getIp(req: NextRequest): string {
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
-  const entry = ipMap.get(ip);
+  const entry = emailSendRateLimitStore.get(ip);
   if (!entry || now >= entry.resetAt) {
-    ipMap.set(ip, { count: 1, resetAt: now + RATE_WINDOW_MS });
+    emailSendRateLimitStore.set(ip, { count: 1, resetAt: now + EMAIL_SEND_RATE_LIMIT_WINDOW_MS });
     return false;
   }
-  if (entry.count >= RATE_LIMIT) return true;
+  if (entry.count >= EMAIL_SEND_RATE_LIMIT_MAX) return true;
   entry.count += 1;
   return false;
 }
 
 export async function POST(req: NextRequest) {
-  if (isRateLimited(getIp(req))) {
+  if (isRateLimited(getClientIp(req))) {
     return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
   }
 
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   const contentLengthRaw = req.headers.get('content-length');
   if (contentLengthRaw !== null) {
     const contentLength = parseInt(contentLengthRaw, 10);
-    if (!isNaN(contentLength) && contentLength > MAX_BODY_BYTES) {
+    if (!isNaN(contentLength) && contentLength > EMAIL_SEND_MAX_BODY_BYTES) {
       return NextResponse.json({ ok: false, error: 'payload_too_large' }, { status: 413 });
     }
   }
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
   let body: unknown;
   try {
     const raw = await req.text();
-    if (raw.length > MAX_BODY_BYTES) {
+    if (raw.length > EMAIL_SEND_MAX_BODY_BYTES) {
       return NextResponse.json({ ok: false, error: 'payload_too_large' }, { status: 413 });
     }
     body = JSON.parse(raw);
