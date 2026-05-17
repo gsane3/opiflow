@@ -3,7 +3,36 @@ import { buildPrompt } from '@/lib/ai/prompt';
 import { parseAiResponse } from '@/lib/ai/schema';
 import type { BusinessType } from '@/lib/types';
 
+// MVP-only in-memory rate limiter. Resets on cold start; not shared across
+// multiple serverless instances. Sufficient for protecting the API key in MVP.
+const AI_REVIEW_RATE_LIMIT_WINDOW_MS = 60_000;
+const AI_REVIEW_RATE_LIMIT_MAX = 10;
+const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+function getClientIp(request: NextRequest): string {
+  const forwarded = request.headers.get('x-forwarded-for');
+  if (forwarded) return forwarded.split(',')[0].trim();
+  return 'unknown';
+}
+
+function isRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitStore.get(ip);
+  if (!entry || now >= entry.resetAt) {
+    rateLimitStore.set(ip, { count: 1, resetAt: now + AI_REVIEW_RATE_LIMIT_WINDOW_MS });
+    return false;
+  }
+  if (entry.count >= AI_REVIEW_RATE_LIMIT_MAX) return true;
+  entry.count++;
+  return false;
+}
+
 export async function POST(request: NextRequest) {
+  const ip = getClientIp(request);
+  if (isRateLimited(ip)) {
+    return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
+  }
+
   // API key is server-only — never sent to client
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
