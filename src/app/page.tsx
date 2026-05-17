@@ -10,7 +10,7 @@ export default function RootPage() {
   useEffect(() => {
     const state = loadState();
     if (!state.userProfile) {
-      router.replace('/login');
+      router.replace('/demo');
     } else if (!state.userProfile.onboardingCompleted) {
       router.replace('/onboarding');
     } else {
