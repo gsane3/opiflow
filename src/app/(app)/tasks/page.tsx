@@ -62,6 +62,8 @@ export default function TasksPage() {
     } else {
       nextTasks = state.tasks;
     }
+    // Appointment tasks belong to /appointments, not /tasks.
+    nextTasks = nextTasks.filter((t) => t.type !== 'book_appointment');
 
     // Determine if we should focus a specific task from the URL param.
     const pid =
