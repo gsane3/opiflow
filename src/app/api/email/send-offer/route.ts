@@ -32,6 +32,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
   }
 
+  const contentType = req.headers.get('content-type') ?? '';
+  if (!contentType.includes('application/json')) {
+    return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });
+  }
+
+  const contentLengthRaw = req.headers.get('content-length');
+  if (contentLengthRaw !== null) {
+    const contentLength = parseInt(contentLengthRaw, 10);
+    if (!isNaN(contentLength) && contentLength > MAX_BODY_BYTES) {
+      return NextResponse.json({ ok: false, error: 'payload_too_large' }, { status: 413 });
+    }
+  }
+
   const apiKey = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
 
