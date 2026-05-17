@@ -55,13 +55,22 @@ Add each variable in Vercel Project Settings, under Environment Variables. Do no
 
 **Real email mode.** Add `RESEND_API_KEY` and `EMAIL_FROM` only if you accept that any visitor who reaches the UI can trigger real email sends, limited only by the in-memory rate limiter (5 requests per IP per 60 seconds, per serverless instance). There is no auth backend yet. Consider this only after auth is added or access is restricted.
 
-### AI route timeout on Vercel Hobby
+### Vercel function duration vs. app timeouts
 
-The AI route uses a 20-second `AbortController` timeout. Vercel Hobby serverless functions have a shorter default execution limit. If Vercel kills the function first, the response will be a Vercel error rather than the app's `ai_timeout` response. Before deploying, decide one of:
+The app has its own provider timeouts:
 
-- Lower `AI_PROVIDER_TIMEOUT_MS` to stay under the plan limit.
-- Add `export const maxDuration` to the route if the plan supports it.
-- Use a plan with a function duration that covers 20 seconds or more.
+- AI route waits up to 20 seconds (`AI_PROVIDER_TIMEOUT_MS = 20_000`).
+- Email route waits up to 15 seconds (`EMAIL_PROVIDER_TIMEOUT_MS = 15_000`).
+
+Vercel's function execution limit depends on the project plan and the current Function Max Duration setting. Before deploying, check the Function Max Duration value in Vercel Project Settings for the target environment. If it is lower than the app's provider timeout, the function may be killed by Vercel before the app's own timeout response (`ai_timeout` or `email_timeout`) is returned. In that case the caller sees a generic Vercel error instead.
+
+Pick one of the following before deploy:
+
+- Confirm the project's Function Max Duration is at least 20 seconds (covers both routes).
+- Lower the app timeouts in `src/app/api/ai/review/route.ts` and `src/app/api/email/send-offer/route.ts` to stay under the Vercel limit.
+- Add `export const maxDuration = <seconds>` to the route handler files. Next.js App Router supports this on route handlers; the effective value is still capped by the plan and the project setting.
+
+Document the chosen approach before deploy so it does not need to be re-decided later.
 
 ---
 

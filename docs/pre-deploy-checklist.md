@@ -43,6 +43,17 @@ Configure in Vercel Project Settings > Environment Variables.
 
 ---
 
+## Vercel function duration
+
+The app's provider timeouts are: AI route 20 seconds, email route 15 seconds. Vercel's actual function execution limit depends on the project plan and the current Function Max Duration setting.
+
+- [ ] Check the Function Max Duration value in Vercel Project Settings for the target environment.
+- [ ] Confirm it is at least 20 seconds, OR lower the app timeouts in the route files, OR set `export const maxDuration = <seconds>` on the route handlers (subject to plan caps). Document the chosen mitigation.
+
+If the Vercel limit is lower than the app timeout and no mitigation is applied, the function may be killed by Vercel and the caller will see a generic Vercel error instead of the app's `ai_timeout` or `email_timeout` response.
+
+---
+
 ## Backend route checks
 
 Test locally against `http://localhost:3000` before deploying.
