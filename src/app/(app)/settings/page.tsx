@@ -69,6 +69,8 @@ export default function SettingsPage() {
   const csvImportRef = useRef<HTMLInputElement>(null);
   const [csvImportDone, setCsvImportDone] = useState(false);
   const [csvImportCount, setCsvImportCount] = useState(0);
+  const [csvImportConfirming, setCsvImportConfirming] = useState(false);
+  const [csvImportMeta, setCsvImportMeta] = useState<{ validCount: number; dupCount: number } | null>(null);
   const [activeSection, setActiveSection] = useState<SettingsSection | null>(null);
 
   // Auto-open demo section when arriving via demoStep=seed URL
@@ -229,9 +231,11 @@ export default function SettingsPage() {
     setCsvImportText('');
     setCsvImportDone(false);
     setCsvImportCount(0);
+    setCsvImportConfirming(false);
+    setCsvImportMeta(null);
   }
 
-  function handleCsvImport() {
+  function handleCsvImportClick() {
     if (!csvPreview || !csvImportText) return;
     const state = loadState();
     const headers = csvPreview.columns.map(c => c.header);
@@ -244,10 +248,19 @@ export default function SettingsPage() {
       alert('Δεν υπάρχουν έγκυρες γραμμές για εισαγωγή' + (dupCount > 0 ? ` (${dupCount} διπλότυπα).` : '.'));
       return;
     }
-    const msg = dupCount > 0
-      ? `Βρέθηκαν ${dupCount} διπλότυπα που θα παραλειφθούν. Εισαγωγή ${validRows.length} πελατών; Δεν υπάρχει undo.`
-      : `Εισαγωγή ${validRows.length} πελατών; Δεν υπάρχει undo.`;
-    if (!window.confirm(msg)) return;
+    setCsvImportMeta({ validCount: validRows.length, dupCount });
+    setCsvImportConfirming(true);
+  }
+
+  function handleCsvImport() {
+    if (!csvPreview || !csvImportText) return;
+    const state = loadState();
+    const headers = csvPreview.columns.map(c => c.header);
+    const rows = parseCsvToRows(csvImportText, headers);
+    const existing = state.customers ?? [];
+    const dupIndices = detectCrmDuplicates(rows, existing);
+    const validRows = rows.filter((_, i) => !dupIndices.has(i) && rows[i].name?.trim());
+    if (validRows.length === 0) return;
     const now = new Date().toISOString();
     let allCustomers = [...existing];
     const newCustomers: Customer[] = validRows.map(row => {
@@ -280,6 +293,8 @@ export default function SettingsPage() {
     setCsvImportCount(newCustomers.length);
     setCsvPreview(null);
     setCsvImportText('');
+    setCsvImportConfirming(false);
+    setCsvImportMeta(null);
     setCsvImportDone(true);
   }
 
@@ -594,10 +609,37 @@ export default function SettingsPage() {
               <p className="text-xs text-zinc-400">Προεπισκόπηση μόνο. Χρησιμοποίησε το κουμπί εισαγωγής παρακάτω για αποθήκευση.</p>
             </div>
           )}
-          {csvPreview && !csvImportDone && (
-            <button type="button" onClick={handleCsvImport} className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+          {csvPreview && !csvImportDone && !csvImportConfirming && (
+            <button type="button" onClick={handleCsvImportClick} className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
               Εισαγωγή πελατών
             </button>
+          )}
+          {csvImportConfirming && csvImportMeta && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-2">
+              <p className="text-sm font-medium text-zinc-700">
+                Να γίνει εισαγωγή {csvImportMeta.validCount} πελατών;
+              </p>
+              {csvImportMeta.dupCount > 0 && (
+                <p className="text-xs text-zinc-500">{csvImportMeta.dupCount} διπλότυπα θα παραλειφθούν.</p>
+              )}
+              <p className="text-xs text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM. Δεν υπάρχει undo.</p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={handleCsvImport}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+                >
+                  Ναι, συνέχισε
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setCsvImportConfirming(false); setCsvImportMeta(null); }}
+                  className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                >
+                  Πίσω
+                </button>
+              </div>
+            </div>
           )}
           {csvImportDone && (
             <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200">
