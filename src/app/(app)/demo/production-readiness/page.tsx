@@ -26,6 +26,9 @@ const GAP_TABLE: GapRow[] = [
   { area: 'Data encryption', mvpState: 'None (plaintext localStorage)', productionNeed: 'Encryption at rest and in transit', priority: 'high' },
   { area: 'Offer e-signature', mvpState: 'Demo acceptance link only', productionNeed: 'Real e-signature or PDF with timestamp', priority: 'medium' },
   { area: 'AI API key', mvpState: 'Server-side ANTHROPIC_API_KEY required for provider calls. Missing key returns 503 no_api_key; route does not fall back to demo output.', productionNeed: 'Server-side key management, rate limiting', priority: 'medium' },
+  { area: 'Lead source integrations', mvpState: 'Manual entry and CSV import. Source field (facebook_ads, google_ads, website_form etc.) exists in data model. No live connections.', productionNeed: 'OAuth or API connections to Meta, Google, TikTok, website form. Webhook receiver or polling, deduplication, source mapping. Requires cloud backend.', priority: 'high' },
+  { area: 'Business phone provisioning', mvpState: 'Demo/mock calls only (isMock: true hardcoded). Native tel: links for outbound. No number purchase or real VoIP.', productionNeed: 'VoIP provider API, number provisioning, call routing, forwarding rules, working hours, missed-call webhooks, consent-first recording design. Legal review required.', priority: 'high' },
+  { area: 'Business email domain', mvpState: 'Sending via configured Resend endpoint from yorgos.ai address. Copy-paste draft when not configured. User business email not used as FROM.', productionNeed: 'Domain verification or OAuth email integration (Gmail, M365, or managed sending domain). Sender identity, reply-to, send logs, deliverability setup.', priority: 'medium' },
   { area: 'Analytics', mvpState: 'Local browser counts only', productionNeed: 'Server-side reporting, dashboards', priority: 'low' },
 ];
 
@@ -336,6 +339,8 @@ export default function ProductionReadinessPage() {
               { n: 5, text: 'Email offer delivery: backend route exists (POST /api/email/send-offer). Remaining work is auth, quota safety, audit logging, and deciding when to enable real email mode in deployed instances.' },
               { n: 6, text: 'Team / multi-user support. Required for business use beyond single owner.' },
               { n: 7, text: 'Audit logging. Required for compliance and support.' },
+              { n: 8, text: 'Lead source integrations (Meta, Google, TikTok, website form). Cloud backend, OAuth/API connections, webhook receiver, deduplication. Source field already exists in Customer data model.' },
+              { n: 9, text: 'Business email domain. Domain verification so emails send FROM the business address, not yorgos.ai. Separate from the existing Resend route which already handles offer email delivery.' },
             ].map(({ n, text }) => (
               <li key={n} className="flex items-start gap-3 text-sm text-zinc-700">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
