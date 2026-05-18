@@ -686,6 +686,37 @@ export default function SettingsPage() {
             </div>
           ))}
         </div>
+
+        <div className="space-y-3 border-t border-zinc-100 pt-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Σύντομα</p>
+          {[
+            {
+              label: 'Επαγγελματικός αριθμός',
+              desc: 'Αγορά επαγγελματικού αριθμού, προώθηση κλήσεων και αυτόματος εντοπισμός χαμένων κλήσεων.',
+              helper: 'Απαιτεί cloud backend και σύνδεση με VoIP provider.',
+            },
+            {
+              label: 'Αποστολή email από τον τομέα σου',
+              desc: 'Επαλήθευση τομέα για αποστολή προσφορών και ραντεβού από τη δική σου επαγγελματική διεύθυνση.',
+              helper: 'Σήμερα η αποστολή γίνεται μόνο όταν είναι ρυθμισμένο το υπάρχον email endpoint.',
+            },
+            {
+              label: 'Πηγές leads',
+              desc: 'Σύνδεση Meta, Google, TikTok και φόρμας ιστότοπου για αυτόματη εισαγωγή leads στο CRM.',
+              helper: 'Απαιτεί cloud backend και σύνδεση με API κάθε πλατφόρμας.',
+            },
+          ].map(p => (
+            <div key={p.label} className="rounded-xl bg-white px-4 py-3 ring-1 ring-zinc-100 space-y-1">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-zinc-800">{p.label}</span>
+                <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">Σύντομα</span>
+              </div>
+              <p className="text-xs text-zinc-400">{p.desc}</p>
+              <p className="text-xs text-zinc-300">{p.helper}</p>
+            </div>
+          ))}
+        </div>
+
         <Link href="/demo/production-readiness" className="inline-flex items-center gap-1.5 text-xs text-indigo-600 hover:text-indigo-700">
           Τεχνική ετοιμότητα για production →
         </Link>
