@@ -7,8 +7,8 @@
 - Main AppShell: not backend-aware. All routing still uses localStorage userProfile.
 - Do not claim backend is connected to the main app. Standalone test pages only.
 - This document defines the target v2 backend direction and is the handoff reference for backend implementation.
-- Private beta v1 target now includes Voice/SMS automatic call-to-CRM. See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the detailed architecture reference.
-- Voice/SMS pipeline is not implemented. Blocked by: CRM backend schema (Phase 3), provider selection, webhook infrastructure, transcription jobs, AI brief jobs, and legal/consent gate.
+- Private beta v1 target includes Voice with automatic AI call brief and Viber intake link delivery. SMS is fallback/v1.1, not the primary v1 messaging channel. See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the detailed architecture and Viber intake flow reference.
+- Voice pipeline and Viber intake link delivery are not implemented. Blocked by: CRM backend schema (Phase 3), provider selection, webhook infrastructure, transcription jobs, AI brief jobs, Viber provider approval, and legal/consent gate.
 
 ### Implemented backend foundation (manually verified)
 
@@ -263,7 +263,9 @@ Blocked by: CRM backend schema (Phase 3), provider selection, webhook infrastruc
 
 **Do not build recording or transcription until consent design and legal review are complete.**
 
-See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the full architecture, database model, API plan, AI brief pipeline, and legal/consent gate requirements.
+See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the full architecture, database model, API plan, AI brief pipeline, Viber intake link delivery plan, and legal/consent gate requirements.
+
+After the AI call brief, if required customer fields are missing, the system creates a secure intake link and delivers it via Viber (planned, not implemented). SMS is fallback/v1.1 for intake link delivery.
 
 ### Phase 6 sequence (phone foundation)
 1. Define `PhoneProvider` interface (Twilio/Vonage/placeholder implementations).
@@ -347,13 +349,13 @@ See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the full archit
 - Not yet: Recording download and storage. Transcription. AI brief. SMS messages.
 - Blocked until: Provider selected. Consent announcement reviewed by lawyer.
 
-### Phase 7 -- Voice/SMS to CRM pipeline (v1 track, required for private beta)
-- Goal: Full call-to-CRM flow. Recording download. Transcription jobs. AI brief jobs. ai_draft task creation. Inbound SMS capture. Customer timeline UI with calls, transcripts, and briefs.
-- Allowed areas: `src/app/api/jobs/`, `src/app/api/calls/`, `src/app/api/sms/`, supabase migrations, customer profile UI.
-- Validation: Real call ends. Brief appears in CRM within acceptable latency. User can confirm or dismiss brief. ai_draft tasks visible. Inbound SMS appears in customer timeline.
-- Not yet: Outbound SMS (v1.1).
-- Blocked until: Phase 6 complete. Transcription provider DPA signed. AI model DPA signed. Legal/consent gate complete before production recording.
-- See: [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for database model, API plan, AI brief pipeline, and legal gate details.
+### Phase 7 -- Voice to CRM pipeline with Viber intake link delivery (v1 track, required for private beta)
+- Goal: Full call-to-CRM flow. Recording download. Transcription jobs. AI brief jobs. ai_draft task creation. Customer intake link schema and API. Viber intake link delivery. Customer timeline UI with calls, transcripts, briefs, and intake link status.
+- Allowed areas: `src/app/api/jobs/`, `src/app/api/calls/`, `src/app/api/customer-intake-links/`, `src/app/api/viber/`, `src/lib/viber/`, supabase migrations, customer profile UI.
+- Validation: Real call ends. Brief appears in CRM within acceptable latency. User can confirm or dismiss brief. ai_draft tasks visible. Intake link created and Viber message sent via manual approval. Customer opens intake form and submits. Customer profile updated.
+- Not yet: Outbound SMS (v1.1 fallback). Inbound SMS (v1.1 fallback).
+- Blocked until: Phase 6 complete. Transcription provider DPA signed. AI model DPA signed. Viber provider approved and DPA signed. Legal/consent gate complete before production recording or Viber messaging.
+- See: [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for database model, API plan, AI brief pipeline, Viber intake delivery, and legal gate details.
 
 ---
 

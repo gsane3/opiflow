@@ -4,24 +4,32 @@
 
 - Not implemented yet.
 - Required for working private beta v1.
-- Backend foundation exists, but voice/SMS capture, recording, transcription, AI brief pipeline, CRM timeline, and provider integration are not implemented yet.
-- Provider availability, Greek numbers, SMS rules, pricing, DPA, and legal consent must be verified before production.
+- Backend foundation exists, but voice capture, recording, transcription, AI brief pipeline, CRM timeline, Viber intake link delivery, and provider integration are not implemented yet.
+- Provider availability, Greek numbers, Viber Business approval, SMS rules, pricing, DPA, and legal consent must be verified before production.
+- Viber intake link delivery is planned for v1 as the primary post-call messaging channel.
+- Viber provider approval, one-way mode, template/link rules, delivery reports, pricing, and DPA must be verified before production.
+- SMS is no longer the primary v1 intake channel. SMS is fallback/v1.1.
 
 ---
 
 ## v1 Product Requirement
 
-Business phone and SMS must feed the CRM automatically. Manual call logging is not required for the core flow.
+Business phone must feed the CRM automatically via automatic call transcription and AI brief. After a call brief, if required customer fields are missing, the system delivers a secure intake link via Viber. Manual call logging is not required for the core flow.
 
 Requirements:
-- Every business managed by yorgos.ai must be able to receive calls and SMS through a provider-managed number that routes to the CRM.
+- Every business managed by yorgos.ai must be able to receive calls through a provider-managed number that routes to the CRM.
 - When a call ends, the system must retrieve the recording and transcribe it without manual action by the user.
 - The backend generates an AI brief from the transcript and saves it automatically as pending review.
 - No manual call summary is required for the core flow. The brief is ready for the user to review, edit, confirm, or dismiss.
 - Task creation from a call is allowed only as ai_draft status and only when confidence and next action are clear.
+- After AI brief, if required customer fields are missing, the backend creates a secure customer intake link.
+- The intake link is delivered via Viber using a central approved business sender (for example "Yorgos AI").
+- The professional's name appears inside the Viber message body as a dynamic signature, not as the sender name.
+- Customer replies via Viber are not handled in v1.
 - Offers must not be auto-created from a brief. The user must initiate offer creation.
-- Outbound SMS sends must not be auto-sent. The user must approve all outbound messages.
+- Viber message send must not be auto-sent without user confirmation in v1 unless provider approval and legal rules are confirmed. See the Viber Intake Link Delivery section.
 - Customer status changes proposed by AI must be confirmed by the user before taking effect.
+- SMS is fallback/v1.1, not the primary v1 messaging channel.
 
 ---
 
@@ -42,7 +50,13 @@ Requirements:
 13. AI brief job runs after transcript is ready: transcript is submitted to the AI model, structured brief is generated.
 14. Brief is saved to the CRM as ai_brief with status pending_review.
 15. ai_draft tasks are created automatically only when confidence score meets threshold and next action is unambiguous.
-16. User opens the customer timeline and sees the call, transcript, AI brief, and any draft tasks ready for review.
+16. Brief is checked for missing required customer fields (name, email, address, or other configured fields).
+17. If missing fields are detected, backend creates a customer_intake_link with a secure token, expiry, and references to business_id, customer_id, call_id, ai_brief_id, and phone_e164.
+18. Backend prepares a Viber message with the intake link and a dynamic professional signature. The message does not include sensitive AI brief content.
+19. Viber message is queued or sent via the central approved business sender, subject to user confirmation rules for v1 (pending provider approval).
+20. Customer opens the intake link, fills in the required fields, and submits the form.
+21. Backend validates the submission, updates the customer profile, and writes a timeline activity record.
+22. User opens the customer timeline and sees the call, transcript, AI brief, draft tasks, and intake link status.
 
 ---
 
@@ -125,7 +139,7 @@ All tables follow the existing RLS pattern: business_id on every row, policy enf
 
 - Purpose: CRM contacts. Must include phone and mobile_phone for call/SMS matching.
 - Essential additions for voice: phone (E.164 normalized), mobile_phone (E.164), intake_status.
-- Relationships: linked to calls, communications, sms_messages, tasks, ai_briefs.
+- Relationships: linked to calls, communications, sms_messages, tasks, ai_briefs, customer_intake_links.
 - RLS: business_members_only.
 - Indexes: (business_id, phone), (business_id, mobile_phone), (business_id, email).
 - v1 required.
@@ -133,7 +147,7 @@ All tables follow the existing RLS pattern: business_id on every row, policy enf
 ### communications (Phase 3, extended for voice)
 
 - Purpose: Outbound/inbound communication log. Entries for calls, SMS, email.
-- Essential columns: id, business_id, customer_id, channel (call/sms/email), direction (inbound/outbound), status, phone, summary, created_at.
+- Essential columns: id, business_id, customer_id, channel (call/sms/viber/email), direction (inbound/outbound), status, phone, summary, created_at.
 - Relationships: linked to customers, calls, sms_messages.
 - RLS: business_members_only.
 - Indexes: (business_id, customer_id, channel).
@@ -191,14 +205,14 @@ All tables follow the existing RLS pattern: business_id on every row, policy enf
 - Indexes: (business_id), (number).
 - v1 required.
 
-### sms_messages (Phase 6)
+### sms_messages (Phase 6, fallback/v1.1)
 
-- Purpose: Inbound and outbound SMS log.
+- Purpose: Inbound and outbound SMS log. SMS is fallback/v1.1. Not the primary v1 intake channel.
 - Essential columns: id, business_id, customer_id, communication_id, provider, provider_message_sid, direction, from_number, to_number, body, status, sent_at, delivered_at, created_at.
 - Relationships: customers, communications.
 - RLS: business_members_only.
 - Indexes: (business_id, customer_id), (business_id, from_number).
-- v1 required (inbound). Outbound: v1.1.
+- v1.1 (fallback only). Not required for core v1.
 
 ### provider_webhook_events (Phase 6)
 
@@ -227,6 +241,33 @@ All tables follow the existing RLS pattern: business_id on every row, policy enf
 - Indexes: (status, job_type), (entity_id, entity_type).
 - v1 required.
 
+### customer_intake_links (Phase 8, after AI brief)
+
+- Purpose: Secure one-time intake links created after an AI brief detects missing customer fields.
+- Essential columns: id, business_id, customer_id, call_id, ai_brief_id, phone_e164, token (secure random, unique), status (pending/sent/opened/submitted/expired/revoked), expires_at, created_at, sent_at, opened_at, submitted_at.
+- Relationships: businesses, customers, calls, ai_briefs.
+- RLS: business_members_only for authenticated read/update. Public read via token only (token is the auth for the public intake form, no Supabase session required).
+- Indexes: (business_id, customer_id), (token) unique, (status), (expires_at).
+- v1 required.
+
+### customer_intake_submissions (Phase 8, after AI brief)
+
+- Purpose: Stores the data submitted by the customer via the public intake form.
+- Essential columns: id, intake_link_id, business_id, customer_id, submitted_fields (jsonb), ip_address_hash, submitted_at.
+- Relationships: customer_intake_links, customers.
+- RLS: business_members_only for read. Service role for write (form submission is unauthenticated but processed server-side).
+- Indexes: (business_id, customer_id), (intake_link_id).
+- v1 required.
+
+### viber_messages (Phase 9, Viber intake delivery)
+
+- Purpose: Log of Viber messages sent from the platform for intake link delivery.
+- Essential columns: id, business_id, customer_id, intake_link_id, provider, provider_message_id, to_number, body_template, status (queued/sent/delivered/seen/failed), sent_at, delivered_at, seen_at, error_message, created_at.
+- Relationships: businesses, customers, customer_intake_links.
+- RLS: business_members_only.
+- Indexes: (business_id, customer_id), (intake_link_id), (provider_message_id).
+- v1 required (outbound send). Inbound Viber replies not stored in v1.
+
 ---
 
 ## API and Webhook Proposal
@@ -239,8 +280,9 @@ All tables follow the existing RLS pattern: business_id on every row, policy enf
 | POST /api/webhooks/voice/status | Call status updates (ringing, answered, ended) | Provider signature verified | Idempotent on provider event ID | Yes |
 | POST /api/webhooks/voice/recording | Recording ready notification | Provider signature verified | Idempotent on recording SID | Yes |
 | POST /api/webhooks/voice/transcription | Provider-native transcription ready (if used) | Provider signature verified | Idempotent on transcription ID | Optional |
-| POST /api/webhooks/sms/inbound | Inbound SMS received | Provider signature verified | Idempotent on message SID | Yes |
+| POST /api/webhooks/sms/inbound | Inbound SMS received | Provider signature verified | Idempotent on message SID | v1.1 fallback |
 | POST /api/webhooks/sms/status | Outbound SMS delivery status | Provider signature verified | Idempotent on message SID | v1.1 |
+| POST /api/webhooks/viber/status | Viber delivery and seen status update | Provider signature verified | Idempotent on provider event ID | Optional (if provider supports) |
 
 ### Internal Job Endpoints
 
@@ -265,8 +307,12 @@ All tables follow the existing RLS pattern: business_id on every row, policy enf
 | GET /api/tasks | List tasks | Bearer token, business scope | N/A | Yes (Phase 3) |
 | POST /api/tasks | Create task | Bearer token, business scope | N/A | Yes (Phase 3) |
 | PATCH /api/tasks/[id] | Update task status or fields | Bearer token, business scope | N/A | Yes (Phase 3) |
-| GET /api/sms | List SMS messages | Bearer token, business scope | N/A | Yes |
+| GET /api/sms | List SMS messages | Bearer token, business scope | N/A | v1.1 fallback |
 | POST /api/sms/send | Send outbound SMS | Bearer token, user-approved only | Idempotent on message ID | v1.1 |
+| POST /api/customer-intake-links | Create intake link for customer after AI brief | Bearer token, business scope | Idempotent on (customer_id, call_id) | Yes |
+| GET /api/customer-intake/[token] | Public intake form: load customer fields by token | Token auth only (no Bearer required) | N/A | Yes |
+| POST /api/customer-intake/[token] | Public intake form: submit customer fields | Token auth only (no Bearer required) | Idempotent on token (one-time use) | Yes |
+| POST /api/viber/send-intake-link | Send Viber message with intake link | Bearer token, business scope | Idempotent on intake_link_id | Yes |
 | PATCH /api/businesses | Update business settings | Bearer token, owner only | N/A | Yes |
 | POST /api/businesses/phone-numbers | Provision or register a number | Bearer token, owner only | Idempotent on number/provider SID | Yes |
 | GET /api/businesses/phone-numbers | List provisioned numbers | Bearer token, owner only | N/A | Yes |
@@ -293,6 +339,8 @@ The AI brief job receives the full transcript text from call_transcripts along w
   "next_action_type": "call_back | send_offer | follow_up | book_appointment | none | unclear",
   "confidence": 0.0,
   "proposed_status_change": "string | null",
+  "missing_customer_fields": ["name | email | address | phone"],
+  "intake_recommended": true,
   "proposed_tasks": [
     {
       "title": "string",
@@ -330,8 +378,16 @@ The AI brief job receives the full transcript text from call_transcripts along w
 ### What Not to Auto-Create
 
 - Offers: never auto-created from a brief. User must initiate offer creation manually.
-- Outbound SMS: never auto-sent. User must compose and approve.
+- Outbound Viber or SMS messages: never auto-sent in v1 without user confirmation. Automatic send requires Viber provider approval, approved template, and legal confirmation.
 - Customer status changes: proposed in brief JSON only, never applied automatically.
+
+### Intake Link Creation
+
+- AI output may include missing_customer_fields (list of field names) and intake_recommended (boolean).
+- The AI does not decide to send a Viber message. That decision is a product-level rule, not an AI decision.
+- System may auto-create a customer_intake_link when missing_customer_fields is non-empty and the call has a valid customer phone number.
+- Viber message send is manual approval in v1 by default. Automatic send requires Viber provider approval, approved message template, and explicit product decision to enable.
+- No sensitive call summary text or transcript content may be included in the Viber message body.
 
 ### Error States
 
@@ -355,9 +411,82 @@ The AI brief job receives the full transcript text from call_transcripts along w
 
 ---
 
-## SMS Capture Plan
+## Viber Intake Link Delivery
 
-### Inbound SMS Flow
+Viber is the primary v1 channel for delivering customer intake links after an AI call brief. Viber is not implemented yet. Provider approval and DPA are required before production.
+
+### Sender
+
+- One central approved Viber Business sender is used for all messages from the platform.
+- Suggested sender name: "Yorgos AI" or an equivalent platform-level approved name.
+- The professional's name (for example "Μανώλης Μαραγκός") appears inside the message body as a dynamic signature, not as the Viber sender ID.
+- The message must clearly state it is sent by Yorgos AI on behalf of the named professional.
+
+### Message Rules
+
+- The message must contain a clear "sent on behalf of" statement.
+- The message must include the secure intake link.
+- The message must include a dynamic professional signature at the end.
+- No sensitive AI brief content (call summary, transcript excerpts, financial details) may appear in the message body.
+- One-way send is the desired v1 mode. If the provider supports one-way only, use it. If not, incoming replies must be ignored or bounced with an automated notice.
+- Customer replies are not handled in v1.
+
+### Example Message (Greek)
+
+```
+Καλησπέρα, είμαι το Yorgos AI και σας στέλνω αυτό το link εκ μέρους του/της Μανώλης Μαραγκός.
+
+Για να συμπληρωθεί σωστά η καρτέλα σας, παρακαλώ βάλτε τα στοιχεία σας εδώ:
+https://app.yorgos.ai/customer-intake/example-token
+
+Φιλικά,
+Μανώλης Μαραγκός
+```
+
+This example is for reference only. The actual message template must be approved by the Viber provider and reviewed before production use.
+
+### Delivery and Seen Reports
+
+- Store delivery and seen reports if the provider supports them.
+- Update viber_messages.status on each status webhook callback.
+- Seen status is optional but useful for intake link follow-up logic.
+
+### Secure Token Link
+
+- Each intake link is a one-time-use secure token.
+- Token is bound to business_id, customer_id, call_id, ai_brief_id, and phone_e164.
+- Token has a configurable expiry (for example 48 or 72 hours from creation).
+- Expired tokens return a clear message to the customer.
+- Submitted tokens are not reusable.
+- The intake form at the token URL does not require Supabase auth. The token itself is the auth.
+- Token is generated server-side with a cryptographically secure random value.
+
+### Send Behavior in v1
+
+- Manual approval mode: user sees the prepared Viber message in the app, reviews it, and clicks send.
+- Automatic mode: system sends immediately after brief is created, without user action. Automatic mode requires Viber provider approval, legal review of the message template, and an explicit product decision to enable.
+- Default for v1: manual approval. Automatic mode is a later configuration option.
+
+### Fallback
+
+- If Viber send fails (provider error, recipient not reachable), log the failure in viber_messages with status failed.
+- The intake link URL is always available to copy and share manually from the app.
+- SMS fallback: if SMS provider is configured and Viber fails, system may attempt SMS delivery. SMS fallback is v1.1 unless confirmed before v1 launch.
+
+### Provider Approval and DPA
+
+- Viber Business sender must be approved by the Viber provider before sending.
+- Approval process includes business verification, use case review, and template approval.
+- A DPA with the Viber provider is required before production.
+- Provider approval status is not verified. This is a production gate.
+
+---
+
+## Messaging Capture Plan
+
+Viber is the primary v1 channel for intake link delivery. SMS is fallback/v1.1 and is not the core v1 intake channel. Inbound Viber replies are not handled in v1. Inbound SMS is not core v1 unless the provider decision changes.
+
+### Inbound SMS Flow (fallback/v1.1)
 
 1. Customer sends SMS to the business provider number.
 2. Provider fires inbound SMS webhook to POST /api/webhooks/sms/inbound.
@@ -446,10 +575,22 @@ Onboarding must create a real Supabase-backed business record, not just a localS
 The customer profile page must be extended to show:
 - calls list with status and duration
 - transcript view (expandable, lazy loaded)
-- AI brief with confirm/edit/dismiss actions
+- AI brief with confirm/edit/dismiss actions, and missing fields indicator if brief detects them
+- intake link status badge and send/copy action on AI brief card
 - ai_draft tasks from calls
-- SMS messages in chronological order
+- Viber message sent events in the customer timeline
+- intake link submission events in the customer timeline
+- SMS messages in chronological order (fallback/v1.1)
 - all existing offer and task views
+
+### Customer Profile: Intake Link Card
+
+- When an AI brief includes missing_customer_fields, the brief card shows which fields are missing.
+- Button: "Create intake link" triggers POST /api/customer-intake-links.
+- Button: "Send via Viber" (direct send mode) or "Copy Viber message" (manual copy mode), depending on the v1 send behavior configured.
+- Intake link status badge: pending, sent, opened, submitted, expired, revoked.
+- Customer timeline shows when the intake link was sent and when the customer submitted the form.
+- Public intake form collects: name, surname, address, email (configurable per business).
 
 ### Calls Page
 
@@ -464,7 +605,9 @@ A calls page or section within the main app shows:
 Dashboard stats should eventually include:
 - calls today
 - calls pending brief review
-- new inbound SMS
+- intake links pending submission
+- new inbound Viber messages (v1.1 if replies are handled)
+- new inbound SMS (v1.1 fallback)
 
 ### Tasks
 
@@ -476,6 +619,7 @@ Settings must include:
 - phone number management (provisioned numbers list)
 - recording on/off toggle (off by default, gated by consent review)
 - call recording announcement text (read only, set by platform after legal review)
+- Viber intake delivery settings: enable/disable, sender name display
 - provider status and number status
 
 ### Onboarding: Business Phone Setup
@@ -527,35 +671,40 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Dependencies: Phase 6. Transcription provider selected and DPA signed.
 - Blockers: DPA with transcription provider required. Greek transcription quality must be evaluated in sandbox before production rollout.
 
-### Phase 8: AI brief jobs
-- Deliverable: ai_briefs table. AI brief job runs after transcript complete. Brief saved as pending_review. Task confidence scoring. ai_draft tasks created when threshold met.
+### Phase 8: AI brief jobs and customer intake link schema
+- Deliverable: ai_briefs table. AI brief job runs after transcript complete. Brief saved as pending_review. Task confidence scoring. ai_draft tasks created when threshold met. customer_intake_links and customer_intake_submissions tables. POST /api/customer-intake-links route. Public intake form routes GET /api/customer-intake/[token] and POST /api/customer-intake/[token].
 - Dependencies: Phase 7.
 - Blockers: AI model DPA required. Brief JSON schema validated. Confidence threshold calibrated.
 
-### Phase 9: Customer timeline UI
-- Deliverable: customer profile extended with calls, transcripts, briefs, ai_draft tasks. Confirm/edit/dismiss brief actions wired to PATCH /api/calls/[id]/brief.
+### Phase 9: Viber intake link delivery (v1 messaging)
+- Deliverable: viber_messages table. POST /api/viber/send-intake-link route. POST /api/webhooks/viber/status webhook (if provider supports delivery and seen reports). Viber provider abstraction module (proposed: src/lib/viber/). Manual approval UI for reviewing and sending the Viber intake link message from the brief card.
+- Dependencies: Phase 8. Viber Business sender approved. DPA with Viber provider signed. Message template approved.
+- Blockers: Viber provider not selected. Sender approval not started. Template approval unknown. DPA not signed. This phase cannot go to production without provider and legal gates.
+
+### Phase 10: Customer timeline UI
+- Deliverable: customer profile extended with calls, transcripts, briefs, ai_draft tasks, and intake link status. Confirm/edit/dismiss brief actions wired to PATCH /api/calls/[id]/brief. Intake link create and send actions visible on brief card.
 - Dependencies: Phase 8. Phase 3 (AppShell auth).
 - Blockers: AppShell Readiness Gate must be satisfied.
 
-### Phase 10: SMS inbound
-- Deliverable: sms_messages table. Inbound SMS webhook flow. SMS appears in customer timeline.
+### Phase 11: SMS inbound (v1.1 fallback)
+- Deliverable: sms_messages table. Inbound SMS webhook flow. SMS appears in customer timeline. SMS is fallback/v1.1 only.
 - Dependencies: Phase 5 (webhook infrastructure). Phase 4 (provider abstraction).
 - Blockers: provider must support SMS. Greek SMS rules and registration requirements must be confirmed.
 
-### Phase 11: Outbound SMS (v1.1)
+### Phase 12: Outbound SMS (v1.1)
 - Deliverable: POST /api/sms/send route. User-initiated SMS send with manual approval. Delivery status callback.
-- Dependencies: Phase 10. Legal rules for outbound SMS confirmed.
+- Dependencies: Phase 11. Legal rules for outbound SMS confirmed.
 - Blockers: outbound SMS requires commercial SMS registration in Greece (sender ID rules apply). Do not build until rules are confirmed.
 
-### Phase 12: Legal and consent gate before production recording
-- Deliverable: consent announcement text reviewed and approved. Privacy policy updated. DPA with all subprocessors. Audit log for recording and transcript access. Opt-out mechanism. Retention policy implemented.
+### Phase 13: Legal and consent gate before production recording and Viber messaging
+- Deliverable: consent announcement text reviewed and approved. Privacy policy updated. DPA with all subprocessors including Viber provider. Audit log for recording and transcript access. Opt-out mechanism. Retention policy implemented.
 - Dependencies: all phases above.
-- Blockers: legal counsel must complete review. This phase cannot be skipped for production recording.
+- Blockers: legal counsel must complete review. This phase cannot be skipped for production recording or Viber messaging.
 
-### Phase 13: Private beta deployment QA
-- Deliverable: end-to-end test with real phone call. Brief appears in CRM within acceptable latency. Task created if confidence threshold met. User can confirm or dismiss brief. No auto-sends, no auto-offers.
-- Dependencies: all phases above including Phase 12.
-- Blockers: Phase 12 must be complete. Staging environment must mirror production config.
+### Phase 14: Private beta deployment QA
+- Deliverable: end-to-end test with real phone call. Brief appears in CRM within acceptable latency. Task created if confidence threshold met. Customer intake link created. Viber message sent via manual approval. Customer opens intake form and submits. Customer profile updated. User can confirm or dismiss brief. No auto-sends, no auto-offers.
+- Dependencies: all phases above including Phase 13.
+- Blockers: Phase 13 must be complete. Staging environment must mirror production config.
 
 ---
 
@@ -574,6 +723,14 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Fallback if recording fails: recording may fail due to provider error or consent announcement failure. Call should still be logged. User should see call without transcript.
 - Fallback if AI fails: transcription or AI brief job may fail. Call and transcript should still be accessible. User should see a failure indicator and be able to trigger retry.
 - Mobile and PWA implications: the main app is PWA-friendly. Recording and transcript playback on mobile must be tested. Signed URL audio playback in PWA requires testing.
+- Viber Business approval: the application process for a Viber Business sender is not started. Approval timeline is unknown and may be a private beta blocker.
+- Viber one-way mode availability: not all Viber provider APIs guarantee one-way messaging. Incoming replies must be handled or suppressed if one-way is not supported.
+- Viber template and link rules: Viber may have restrictions on sending links or on message template content. These must be verified with the provider before implementation.
+- Viber delivery report availability: delivery and seen reports are not guaranteed for all Viber provider tiers. Availability must be confirmed before building status update logic.
+- Viber pricing: per-message costs for Viber Business are not evaluated. Verify before selecting provider and before enabling automatic send.
+- Customer trust when sender is Yorgos AI: customers receiving a Viber message from "Yorgos AI" on behalf of a professional may be skeptical. Message copy and brand positioning must be considered before launch.
+- Opt-out and consent for Viber messaging: GDPR and Greek law may require consent before sending unsolicited business messages via Viber. Legal review is required before production.
+- Fallback if Viber is unavailable: if the customer does not have Viber installed, the message will not be delivered. SMS fallback or manual intake link copy must be available as alternatives.
 
 ---
 
@@ -587,10 +744,16 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Transcript retention period: may differ from recording retention. Define separately.
 - Whether outbound SMS is v1 or v1.1: default is v1.1. Revisit if provider and legal situation is resolved before v1 launch.
 - Whether provider number is new, forwarded, or ported: a new provider-assigned number keeps setup simple. Number forwarding or porting requires additional coordination. Decide before Phase 4.
-- Legal review owner: who is responsible for reviewing the consent announcement, privacy policy, DPAs, and GDPR compliance before production? Must be assigned before Phase 12.
+- Legal review owner: who is responsible for reviewing the consent announcement, privacy policy, DPAs, and GDPR compliance before production? Must be assigned before Phase 13.
+- Viber provider choice: which Viber Business API provider to use (Sinch, Infobip, direct Rakuten Viber API, or another). Decision needed before Phase 9.
+- Viber one-way only vs replies webhook: if the provider supports replies, decide whether to implement a webhook handler or ignore/bounce replies in v1.
+- Central sender name: confirm "Yorgos AI" or another platform-level name for the Viber sender. Must match the name approved in the Viber provider application.
+- Template approval requirements: confirm whether the Viber provider requires pre-approved message templates for messages containing links. Affects Phase 9 deliverables.
+- Manual copy vs automatic Viber send for v1: default is manual approval. Decide whether automatic send can be enabled for v1 after provider approval and legal review, or whether it is strictly v1.1.
+- SMS fallback timing: decide whether SMS fallback for Viber failures is v1 or v1.1. Default is v1.1.
 
 ---
 
 *This document is an internal technical reference for the yorgos.ai Voice/SMS architecture.*
 *It does not constitute legal advice.*
-*Legal counsel must verify all Greece and EU requirements before any production recording or SMS sending begins.*
+*Legal counsel must verify all Greece and EU requirements before any production recording, Viber messaging, or SMS sending begins.*
