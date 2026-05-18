@@ -21,11 +21,24 @@ interface Business {
 
 const EMPTY = 'Δεν έχει συμπληρωθεί';
 
+const TYPE_LABELS: Record<string, string> = {
+  technical_services: 'Τεχνικές υπηρεσίες',
+  sales_services: 'Πωλήσεις / υπηρεσίες',
+  projects_construction: 'Έργα / κατασκευές',
+  other: 'Άλλο',
+};
+
+const CONTACT_LABELS: Record<string, string> = {
+  phone: 'Τηλέφωνο',
+  email: 'Email',
+  viber: 'Viber',
+};
+
 function Field({ label, value }: { label: string; value: string | number | null | undefined }) {
   return (
-    <div className="flex flex-col sm:flex-row sm:gap-4 py-2.5 border-b border-zinc-100 last:border-0">
-      <dt className="text-xs font-medium text-zinc-500 sm:w-44 shrink-0">{label}</dt>
-      <dd className="text-sm text-zinc-900 mt-0.5 sm:mt-0 break-all">
+    <div className="grid grid-cols-1 gap-1 border-b border-zinc-100 py-2.5 sm:grid-cols-[9rem_1fr] sm:gap-4 last:border-0">
+      <dt className="text-xs font-medium text-zinc-500">{label}:</dt>
+      <dd className="text-sm text-zinc-900 break-all">
         {value !== null && value !== undefined && value !== '' ? String(value) : EMPTY}
       </dd>
     </div>
@@ -146,14 +159,14 @@ export default function BusinessBackendPage() {
             <h2 className="text-base font-semibold text-zinc-900 mb-3">Backend επιχείρηση</h2>
             <dl>
               <Field label="Όνομα" value={business.name} />
-              <Field label="Τύπος" value={business.type} />
+              <Field label="Τύπος" value={business.type ? (TYPE_LABELS[business.type] ?? business.type) : null} />
               <Field label="Τηλέφωνο" value={business.phone} />
               <Field label="Email" value={business.email} />
               <Field label="Διεύθυνση" value={business.address} />
               <Field label="ΑΦΜ" value={business.vat_number} />
               <Field label="ΔΟΥ" value={business.tax_office} />
               <Field label="ΦΠΑ %" value={business.default_vat_rate} />
-              <Field label="Επαφή" value={business.preferred_contact_method} />
+              <Field label="Επαφή" value={business.preferred_contact_method ? (CONTACT_LABELS[business.preferred_contact_method] ?? business.preferred_contact_method) : null} />
               <Field label="ID" value={business.id} />
             </dl>
           </div>
