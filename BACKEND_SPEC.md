@@ -7,6 +7,8 @@
 - Main AppShell: not backend-aware. All routing still uses localStorage userProfile.
 - Do not claim backend is connected to the main app. Standalone test pages only.
 - This document defines the target v2 backend direction and is the handoff reference for backend implementation.
+- Private beta v1 target now includes Voice/SMS automatic call-to-CRM. See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the detailed architecture reference.
+- Voice/SMS pipeline is not implemented. Blocked by: CRM backend schema (Phase 3), provider selection, webhook infrastructure, transcription jobs, AI brief jobs, and legal/consent gate.
 
 ### Implemented backend foundation (manually verified)
 
@@ -88,52 +90,52 @@
 All tables (except auth system tables) include `business_id` for multi-tenancy.
 Tables are introduced in phases. Do not build all at once.
 
-### `businesses` — Phase 1
+### `businesses` - Phase 1
 - Purpose: One row per business account.
 - Key fields: `id`, `owner_id` (references auth.users), `name`, `type`, `phone`, `email`, `address`, `vat_number`, `default_vat_rate`, `sending_domain` (future), `sending_from_email` (future), `business_phone_number` (future).
 - Constraint: `owner_id` unique (one business per user in Phase 1).
 - Index: `owner_id`.
 
-### `business_users` — Phase 1 (owner only), Phase 4 (teams)
+### `business_users` - Phase 1 (owner only), Phase 4 (teams)
 - Purpose: Links users to businesses with a role. Enables future team support.
 - Key fields: `business_id`, `user_id`, `role` (owner/admin/member), `invited_at`, `accepted_at`.
 - Constraint: PRIMARY KEY (`business_id`, `user_id`).
 - Phase 1: insert only owner row on business creation. No invitation UI yet.
 
-### `customers` — Phase 3
+### `customers` - Phase 3
 - Purpose: CRM contacts. Replaces localStorage customers array.
 - Key fields: `id`, `business_id`, `crm_number`, `name`, `company_name`, `phone`, `mobile_phone`, `email`, `address`, `source`, `external_lead_id` (future: Meta/Google ID for dedupe), `status`, `opportunity_value`, `needs_summary`, `notes`, `last_contact_at`, `intake_status`.
 - Index: `(business_id, phone)`, `(business_id, email)`.
 - RLS: users can only see rows where `business_id` matches their business.
 
-### `tasks` — Phase 3
+### `tasks` - Phase 3
 - Purpose: Follow-up tasks, appointments, send-offer reminders. Replaces localStorage tasks array.
 - Key fields: `id`, `business_id`, `customer_id`, `offer_id`, `title`, `type`, `status`, `priority`, `due_date`, `due_time`, `note`, `created_from_ai`, `completed_at`.
 - Index: `(business_id, customer_id, status)`.
 
-### `offers` — Phase 3
+### `offers` - Phase 3
 - Purpose: Price proposals sent to customers. Replaces localStorage offers array.
 - Key fields: `id`, `business_id`, `customer_id`, `offer_number`, `status`, `offer_date`, `valid_until`, `items` (jsonb), `subtotal`, `vat_rate`, `vat_amount`, `total`, `notes`, `terms`, `acceptance_text`, `created_from_ai`.
 - Index: `(business_id, customer_id, status)`.
 
-### `communications` — Phase 3
+### `communications` - Phase 3
 - Purpose: Outbound/inbound communication log (SMS, call summaries, email records).
 - Key fields: `id`, `business_id`, `customer_id`, `channel`, `direction`, `status`, `phone`, `summary`, `created_at`.
 - Note: call records will no longer be hardcoded as mock once real calls are implemented (Phase 6).
 
-### `email_send_logs` — Phase 4
+### `email_send_logs` - Phase 4
 - Purpose: Audit log for every email sent via `/api/email/send-offer`.
 - Key fields: `id`, `business_id`, `customer_id`, `offer_id`, `from_address`, `reply_to`, `to_address`, `subject`, `status`, `provider_id` (Resend message ID), `sent_at`, `error_message`.
 - Index: `(business_id, offer_id)`.
 - Note: Enables right-to-erasure audit and retry logic.
 
-### `lead_source_connections` — Phase 5
+### `lead_source_connections` - Phase 5
 - Purpose: Stores OAuth tokens and webhook config for lead source integrations.
 - Key fields: `id`, `business_id`, `source_type` (meta/google/tiktok/website_form), `access_token_encrypted`, `refresh_token_encrypted`, `page_or_form_id`, `webhook_secret`, `is_active`, `last_synced_at`.
 - Security: tokens must be encrypted at rest (server-side encryption key, not stored in Postgres plaintext).
 - Phase 5 only. Do not build OAuth flows until provider app reviews are approved.
 
-### `business_phone_numbers` — Phase 6
+### `business_phone_numbers` - Phase 6
 - Purpose: Tracks provisioned VoIP numbers.
 - Key fields: `id`, `business_id`, `number`, `provider`, `provider_sid`, `status`, `forward_to`, `working_hours` (jsonb), `created_at`.
 - Phase 6 only. Do not build until consent design and legal review are complete.
@@ -255,9 +257,15 @@ Body: { name, phone, email, source, notes, external_lead_id }
 
 ## Business Phone Plan
 
-**Do not build phone provisioning until consent design and legal review are complete.**
+Business phone and SMS automatic call-to-CRM is required for private beta v1. It is not implemented yet.
 
-### Phase 6 sequence
+Blocked by: CRM backend schema (Phase 3), provider selection, webhook infrastructure, transcription jobs, AI brief jobs, and legal/consent gate.
+
+**Do not build recording or transcription until consent design and legal review are complete.**
+
+See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the full architecture, database model, API plan, AI brief pipeline, and legal/consent gate requirements.
+
+### Phase 6 sequence (phone foundation)
 1. Define `PhoneProvider` interface (Twilio/Vonage/placeholder implementations).
 2. Create `business_phone_numbers` table.
 3. Build number provisioning UI in Settings (purchase flow via provider API).
@@ -333,10 +341,19 @@ Body: { name, phone, email, source, notes, external_lead_id }
 - Not yet: Meta/Google OAuth (provider app review required), TikTok, polling.
 
 ### Phase 6 -- Business phone foundation (after legal/provider decisions)
-- Goal: `PhoneProvider` abstraction. `business_phone_numbers` table. Number provisioning UI.
-- Allowed areas: `src/lib/phone-provider.ts`, `src/app/api/phone/`, supabase migrations.
-- Validation: Sandbox number provisioned, forwarding config saved.
-- Not yet: Recording, transcription, voicemail, real PSTN termination.
+- Goal: `PhoneProvider` abstraction. `business_phone_numbers` table. Number provisioning UI. Call capture. Recording metadata (no audio yet). Webhook infrastructure. Provider event log. Consent events.
+- Allowed areas: `src/lib/phone/`, `src/app/api/webhooks/voice/`, `src/app/api/webhooks/sms/`, supabase migrations.
+- Validation: Sandbox number provisioned. Inbound call webhook received and stored. Customer matched or created from caller number.
+- Not yet: Recording download and storage. Transcription. AI brief. SMS messages.
+- Blocked until: Provider selected. Consent announcement reviewed by lawyer.
+
+### Phase 7 -- Voice/SMS to CRM pipeline (v1 track, required for private beta)
+- Goal: Full call-to-CRM flow. Recording download. Transcription jobs. AI brief jobs. ai_draft task creation. Inbound SMS capture. Customer timeline UI with calls, transcripts, and briefs.
+- Allowed areas: `src/app/api/jobs/`, `src/app/api/calls/`, `src/app/api/sms/`, supabase migrations, customer profile UI.
+- Validation: Real call ends. Brief appears in CRM within acceptable latency. User can confirm or dismiss brief. ai_draft tasks visible. Inbound SMS appears in customer timeline.
+- Not yet: Outbound SMS (v1.1).
+- Blocked until: Phase 6 complete. Transcription provider DPA signed. AI model DPA signed. Legal/consent gate complete before production recording.
+- See: [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for database model, API plan, AI brief pipeline, and legal gate details.
 
 ---
 
