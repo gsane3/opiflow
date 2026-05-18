@@ -12,6 +12,7 @@ import DuplicateTasksPanel from '@/components/tasks/DuplicateTasksPanel';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 import PageHelp from '@/components/common/PageHelp';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 
 type TabId = 'due_today' | 'upcoming' | 'overdue' | 'completed';
 
@@ -284,6 +285,15 @@ export default function TasksPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
+      <DemoStepBanner
+        step="tasks"
+        stepNum={4}
+        title="Tasks -- εκκρεμείς εργασίες"
+        body="Κοίτα τα ανοιχτά tasks, τις κατηγορίες και τα εκπρόθεσμα. Τα ραντεβού έχουν δική τους ενότητα."
+        watchLabel="Tasks δημιουργούνται από AI review ή χειροκίνητα."
+        actionLabel="Επόμενο: Ραντεβού"
+        actionHref="/appointments?demoStep=appointments"
+      />
       <GuidedDemoBanner
         step="tasks"
         stepNum={4}

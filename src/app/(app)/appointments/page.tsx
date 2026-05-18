@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { loadState, addTask, updateTask } from '@/lib/storage';
 import type { Task, Offer, Customer } from '@/lib/types';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
+import DemoStepBanner from '@/components/common/DemoStepBanner';
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('el-GR', {
@@ -352,6 +353,15 @@ export default function AppointmentsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+      <DemoStepBanner
+        step="appointments"
+        stepNum={5}
+        title="Ραντεβού -- εσωτερικό πρόγραμμα"
+        body="Κοίτα τα demo ραντεβού ταξινομημένα χρονολογικά. Τοπικό πρόγραμμα CRM χωρίς εξωτερικό ημερολόγιο."
+        watchLabel="Δοκίμασε inline ακύρωση αν θέλεις."
+        actionLabel="Επόμενο: Προσφορά"
+        actionHref="/offers/demo-offer-1?demoStep=offer"
+      />
       <GuidedDemoBanner
         step="appointments"
         stepNum={5}

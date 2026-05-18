@@ -290,7 +290,7 @@ export default function DashboardPage() {
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
       <DemoStepBanner
         step="dashboard"
-        stepNum={2}
+        stepNum={1}
         title="Dashboard - εκκρεμότητες της ημέρας"
         body="Κοίτα tasks εκπρόθεσμα, ανοιχτές προσφορές και τοπική εικόνα στο κάτω μέρος."
         watchLabel="Αν δεν βλέπεις στοιχεία, γύρνα στο Mission 1 και επαναφέρε Rich demo."

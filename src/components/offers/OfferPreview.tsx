@@ -360,7 +360,7 @@ export default function OfferPreview({ offerId }: Props) {
       {/* Step 165: Demo mission banners */}
       <DemoStepBanner
         step="offer"
-        stepNum={5}
+        stepNum={6}
         title="Προσφορά -- preview, print, copy draft"
         body="Δοκίμασε print PDF, αντιγραφή Viber/email draft και άνοιξε το demo response link παρακάτω."
         watchLabel="Ενότητα 'Link αποδοχής πελάτη' -- πάτα 'Άνοιγμα demo link πελάτη'."
@@ -369,12 +369,12 @@ export default function OfferPreview({ offerId }: Props) {
       />
       <DemoStepBanner
         step="followup"
-        stepNum={7}
+        stepNum={8}
         title="Follow-up task -- μετά την αποδοχή"
         body="Η προσφορά αποδέχτηκε. Δημιούργησε task για προγραμματισμό εργασίας."
         watchLabel="Ενότητα 'Επόμενο βήμα' -- πάτα 'Δημιουργία task'."
-        actionLabel="Επόμενο: Feedback"
-        actionHref="/demo/pilot-feedback?demoStep=feedback"
+        actionLabel="Πίσω στο Demo"
+        actionHref="/demo"
       />
       <GuidedDemoBanner
         step="offer"

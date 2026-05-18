@@ -575,12 +575,12 @@ export default function CustomerProfile({ customerId }: Props) {
       {/* Step 165: Demo mission banner */}
       <DemoStepBanner
         step="customer"
-        stepNum={4}
+        stepNum={3}
         title="Καρτέλα πελάτη -- ιστορικό και επόμενες ενέργειες"
         body="Κοίτα τη σύνοψη, τα ανοιχτά tasks και το timeline. Δες πώς συνδέεται με τις προσφορές."
         watchLabel="Timeline κάτω, ανοιχτά tasks, σύνοψη δραστηριότητας."
-        actionLabel="Επόμενο: Προσφορά"
-        actionHref="/offers/demo-offer-1?demoStep=offer"
+        actionLabel="Επόμενο: Tasks"
+        actionHref="/tasks?demoStep=tasks"
       />
       <GuidedDemoBanner
         step="customer"

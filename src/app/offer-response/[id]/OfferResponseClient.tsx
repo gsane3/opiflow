@@ -183,7 +183,7 @@ export default function OfferResponseClient({ offerId }: Props) {
         {/* Step 168: Demo mission banner */}
         <DemoStepBanner
           step="response"
-          stepNum={6}
+          stepNum={7}
           title="Απάντηση σαν πελάτης"
           body="Αυτό βλέπει ο πελάτης. Πάτα 'Αποδοχή προσφοράς' και επιβεβαίωσε. Μετά γύρνα στο CRM για followup."
           watchLabel="Δεν γίνεται πραγματική αποστολή -- αποθηκεύεται τοπικά μόνο."
@@ -380,10 +380,10 @@ export default function OfferResponseClient({ offerId }: Props) {
           {(action === 'accepted' || action === 'rejected') && (
             <DemoStepBanner
               step="response"
-              stepNum={6}
+              stepNum={7}
               title="Τέλεια! Η απάντηση αποθηκεύτηκε."
               body="Γύρνα τώρα στο CRM offer για να δεις το status και να δημιουργήσεις follow-up task."
-              watchLabel="Mission 7: follow-up task μετά αποδοχή."
+              watchLabel="Mission 8: follow-up task μετά αποδοχή."
               actionLabel="CRM offer + followup"
               actionHref={`/offers/${offerId}?demoStep=followup`}
             />

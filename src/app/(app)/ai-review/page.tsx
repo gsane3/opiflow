@@ -589,7 +589,7 @@ export default function AiReviewPage() {
       {/* Step 165: Demo mission banner */}
       <DemoStepBanner
         step="review"
-        stepNum={3}
+        stepNum={2}
         title="AI review -- δημιουργία στοιχείων από AI"
         body="Επέλεξε ένα παράδειγμα υπαγόρευσης ή γράψε δικό σου κείμενο. Πάτα 'Δημιούργησε με AI'."
         watchLabel="Το AI προτείνει -- εσύ αποφασίζεις τι αποθηκεύεται."
