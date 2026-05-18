@@ -524,3 +524,11 @@ When moving beyond MVP, likely backend needs:
 - Audit trail for sensitive changes
 
 Do not build this in MVP unless explicitly approved.
+
+## Backend v2 direction
+
+The v2 backend direction is documented in `BACKEND_SPEC.md` at the project root.
+
+That document defines the recommended stack, production schema, auth plan, migration plan, email sending foundation, lead intake foundation, business phone foundation, privacy boundaries, and phased roadmap.
+
+This data model document remains the MVP localStorage reference. For backend implementation decisions, use `BACKEND_SPEC.md`.

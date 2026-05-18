@@ -158,3 +158,11 @@ These decisions are important and should not be changed without approval:
 - Viber and email drafts are copied manually
 - PDF-style preview only in MVP
 - Business type selected during onboarding controls tone and task logic
+
+## Backend v2 note
+
+The localStorage and mock-auth constraints in this document apply to the MVP.
+
+Backend v2 is explicitly approved and documented in `BACKEND_SPEC.md` at the project root.
+
+This context document remains the product direction and MVP product rules reference. For backend implementation decisions, use `BACKEND_SPEC.md`.
