@@ -687,6 +687,11 @@ export default function SettingsPage() {
           ))}
         </div>
 
+        <div className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500 ring-1 ring-zinc-100 space-y-1">
+          <p>Σήμερα, η αποστολή email λειτουργεί μόνο όταν είναι ρυθμισμένο το υπάρχον email endpoint. Αν δεν είναι ρυθμισμένο, χρησιμοποιείς αντιγραφή email draft και αποστολή από το δικό σου email client.</p>
+          <p>Η αποστολή από δικό σου επαγγελματικό domain είναι μελλοντική λειτουργία.</p>
+        </div>
+
         <div className="space-y-3 border-t border-zinc-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Σύντομα</p>
           {[
