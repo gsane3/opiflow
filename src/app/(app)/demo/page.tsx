@@ -464,6 +464,43 @@ export default function DemoPage() {
         )}
       </div>
 
+      {/* How the product works */}
+      <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <h2 className="text-base font-bold text-zinc-900">Πώς λειτουργεί</h2>
+        <ol className="space-y-4">
+          {[
+            {
+              n: 1,
+              title: 'Λαμβάνεις επαφή ή lead',
+              body: 'Καταχώρησε πελάτη, υπαγόρευσε brief μετά από επαφή, ή χρησιμοποίησε AI εντολές.',
+            },
+            {
+              n: 2,
+              title: 'Το AI οργανώνει',
+              body: 'Το AI review δημιουργεί καρτέλα πελάτη, tasks, ραντεβού και draft προσφοράς. Εσύ αποφασίζεις τι αποθηκεύεται.',
+            },
+            {
+              n: 3,
+              title: 'Εσύ στέλνεις και παρακολουθείς',
+              body: 'Η προσφορά στέλνεται χειροκίνητα ή μέσω email όταν είναι ρυθμισμένο. Μετά την απάντηση πελάτη, το CRM μένει ενημερωμένο.',
+            },
+          ].map(({ n, title, body }) => (
+            <li key={n} className="flex items-start gap-3">
+              <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-xs font-bold text-white">
+                {n}
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-zinc-900">{title}</p>
+                <p className="mt-0.5 text-xs text-zinc-500">{body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+        <p className="text-xs text-zinc-400">
+          Τοπική αποθήκευση στον browser. Χωρίς πραγματική κλήση, SMS ή cloud sync στο MVP.
+        </p>
+      </div>
+
       {/* "Τι θα δεις σε 5 λεπτά" card */}
       <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
         <h2 className="text-base font-bold text-zinc-900">Τι θα δεις σε 5 λεπτά</h2>
