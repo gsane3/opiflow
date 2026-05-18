@@ -379,28 +379,28 @@ export default function DemoPage() {
         {guideDone ? (
           <div className="space-y-2 text-center">
             <p className="text-sm font-semibold text-green-700">
-              Το guided demo ολοκληρωθηκε!
+              Το guided demo ολοκληρώθηκε!
             </p>
             <p className="text-xs text-zinc-500">
-              Μπορεις να χρησιμοποιησεις ελευθερα την εφαρμογη ή να ξεκινησεις ξανα.
+              Μπορείς να χρησιμοποιήσεις ελεύθερα την εφαρμογή ή να ξεκινήσεις ξανά.
             </p>
             <button
               type="button"
               onClick={handleStartGuide}
               className="rounded-xl border border-zinc-200 px-4 py-2 text-xs font-semibold text-zinc-600 transition hover:bg-zinc-50"
             >
-              Ξεκινα ξανα guided demo
+              Ξεκίνα ξανά guided demo
             </button>
           </div>
         ) : guideActive ? (
           <div className="space-y-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
-                Guided demo ενεργο
+                Guided demo ενεργό
               </p>
-              <p className="text-sm font-bold text-zinc-900">Συνεχισε απο εκει που εμεινες</p>
+              <p className="text-sm font-bold text-zinc-900">Συνέχισε από εκεί που έμεινες</p>
               <p className="text-xs text-zinc-500 mt-0.5">
-                Ο οδηγος θυμαται το βημα σου σε αυτο το tab.
+                Ο οδηγός θυμάται το βήμα σου σε αυτό το tab.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -409,14 +409,14 @@ export default function DemoPage() {
                 onClick={handleContinueGuide}
                 className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
               >
-                Συνεχεια guided demo &rarr;
+                Συνέχεια guided demo &rarr;
               </button>
               <button
                 type="button"
                 onClick={handleExitGuide}
                 className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-500 transition hover:bg-zinc-50"
               >
-                Εξοδος απο guided demo
+                Έξοδος από guided demo
               </button>
             </div>
             {confirmingDemoExit && (
@@ -447,10 +447,10 @@ export default function DemoPage() {
               <p className="text-xs font-semibold uppercase tracking-widest text-indigo-500 mb-1">
                 Για reviewers
               </p>
-              <p className="text-sm font-bold text-zinc-900">Ξεκινα guided demo</p>
+              <p className="text-sm font-bold text-zinc-900">Ξεκίνα guided demo</p>
               <p className="text-xs text-zinc-500 mt-0.5">
-                Ο οδηγος θα σε παει βημα-βημα και θα σου λεει τι να πατησεις.
-                Μπορεις να βγεις οποτε θελεις.
+                Ο οδηγός θα σε πάει βήμα-βήμα και θα σου λέει τι να πατήσεις.
+                Μπορείς να βγεις οπότε θέλεις.
               </p>
             </div>
             <button
@@ -458,7 +458,7 @@ export default function DemoPage() {
               onClick={handleStartGuide}
               className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
             >
-              Ξεκινα guided demo &rarr;
+              Ξεκίνα guided demo &rarr;
             </button>
           </div>
         )}

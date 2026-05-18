@@ -149,7 +149,7 @@ Demo/MVP only. No customer PII included.`;
           step="feedback"
           stepNum={8}
           title="Τελευταίο βήμα -- Feedback!"
-          body="Συμπλήρωσε τις ερωτήσεις, πάτα 'Αντιγραφή πλήρους pilot report' και στείλε το στον George."
+          body="Συμπλήρωσε τις ερωτήσεις, πάτα 'Αντιγραφή πλήρους pilot report' και στείλε το στον υπεύθυνο pilot."
           watchLabel="Χωρίς αυτόματη αποστολή -- copy-paste μόνο."
         />
         <h1 className="text-xl font-bold text-zinc-900">Feedback reviewer</h1>
