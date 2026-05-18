@@ -2,10 +2,38 @@
 
 ## Status
 
-- Current app: localStorage MVP. No database, no server-side auth, no persistent storage.
-- Backend: not implemented yet.
+- Current production app flow: localStorage MVP. No database-backed CRM data in the main app. No server-side auth in AppShell or app pages.
+- Backend foundation: partially implemented and isolated from the MVP app. Standalone backend test surfaces exist and have been manually verified.
+- Main AppShell: not backend-aware. All routing still uses localStorage userProfile.
+- Do not claim backend is connected to the main app. Standalone test pages only.
 - This document defines the target v2 backend direction and is the handoff reference for backend implementation.
-- Do not make product claims based on this document. Nothing here is live.
+
+### Implemented backend foundation (manually verified)
+
+- Supabase package installed (`@supabase/supabase-js`)
+- Supabase browser helper (`createBrowserSupabaseClient`)
+- Supabase server helper (`createServerSupabaseClient`, service role, server-only)
+- Initial schema migration: `supabase/migrations/001_initial.sql` (businesses + business_users + RLS)
+- Data API grants migration: `supabase/migrations/002_grants.sql`
+- `GET /api/businesses/me` -- reads authenticated user's business via bearer token
+- `POST /api/businesses` -- creates business + business_users row via bearer token
+- `/register` -- standalone Supabase Auth sign up page
+- `/login/backend` -- standalone Supabase Auth sign in page + logout
+- `/auth/confirm` -- standalone email confirmation callback (verifyOtp + exchangeCodeForSession)
+- `/onboarding/backend` -- standalone session test: POST /api/businesses
+- `/business/backend` -- standalone session test: GET /api/businesses/me
+- `/backend` -- standalone developer hub linking all backend test pages
+- Logout implemented on all session-bearing standalone backend pages
+
+### Still standalone / not integrated
+
+- AppShell is still localStorage-only. Zero Supabase imports.
+- MVP `/login` remains mock (name + email, no password, no Supabase)
+- MVP `/onboarding` remains localStorage-only
+- Customers, tasks, and offers remain localStorage-only
+- No backend data migration from browser storage yet
+- No main app backend routing yet (AppShell integration blocked -- see AppShell Readiness Gate section)
+- No password reset flow yet
 
 ---
 
@@ -266,23 +294,25 @@ Body: { name, phone, email, source, notes, external_lead_id }
 
 ## Phased Roadmap
 
-### Phase 0 -- Backend docs and project setup
+### Phase 0 -- Backend docs and project setup [COMPLETE]
 - Goal: Architecture decisions documented. Supabase project created (manual). Env vars planned.
 - Allowed areas: docs, `.env.example`, Supabase project dashboard (not code).
 - Validation: This document exists. Supabase project URL and anon key are available.
-- Not yet: Any code changes, any database tables, any auth.
+- Status: Complete. Supabase project created. `.env.local` configured locally. `.env.example` updated.
 
-### Phase 1 -- Supabase client, env setup, initial schema
-- Goal: `src/lib/supabase.ts` helper. `.env.example` updated. First migration SQL for `businesses` and `business_users` tables.
-- Allowed areas: `src/lib/supabase.ts`, `.env.example`, `supabase/migrations/`.
-- Validation: Supabase client connects. Migration runs on Supabase dashboard.
-- Not yet: Auth UI, customer/task tables, any CRUD, any migration tool.
+### Phase 1 -- Supabase client, env setup, initial schema [COMPLETE]
+- Goal: Supabase client helpers. `.env.example` updated. First migration SQL for `businesses` and `business_users` tables. Business profile API.
+- Allowed areas: `src/lib/supabase/client.ts`, `src/lib/supabase/server.ts`, `.env.example`, `supabase/migrations/`, `src/app/api/businesses/`.
+- Validation: Supabase client connects. Migrations applied on Supabase dashboard. `GET /api/businesses/me` and `POST /api/businesses` manually verified end-to-end.
+- Status: Complete. Browser and server helpers implemented. `001_initial.sql` and `002_grants.sql` applied. Business profile API routes verified with real Supabase project.
+- Not yet: Auth UI in main app, customer/task tables, migration tool.
 
-### Phase 2 -- Auth and business account
+### Phase 2 -- Auth and business account [PARTIALLY COMPLETE -- standalone only]
 - Goal: Login, register, onboarding pages. AppShell reads Supabase session. `/demo` stays open.
 - Allowed areas: `src/app/login/`, `src/app/register/`, `src/app/onboarding/`, `src/components/layout/AppShell.tsx`.
 - Validation: User can register, log in, see their business name. Logout works.
-- Not yet: Customer/task tables, migration tool, email logs.
+- Status: Standalone backend auth pages exist and are manually verified (`/register`, `/login/backend`, `/auth/confirm`, `/onboarding/backend`, `/business/backend`, `/backend` hub). Logout works on all session-bearing pages. AppShell integration is blocked until the AppShell Readiness Gate (see below) is fully satisfied. MVP `/login` and `/onboarding` remain mock/localStorage.
+- Not yet: AppShell backend session awareness. Main app login for backend users. Password reset flow. Customer/task tables, migration tool, email logs.
 
 ### Phase 3 -- Database-backed CRM, tasks, offers
 - Goal: customers, tasks, offers, communications tables. CRUD via API routes. localStorage becomes secondary.
@@ -307,6 +337,21 @@ Body: { name, phone, email, source, notes, external_lead_id }
 - Allowed areas: `src/lib/phone-provider.ts`, `src/app/api/phone/`, supabase migrations.
 - Validation: Sandbox number provisioned, forwarding config saved.
 - Not yet: Recording, transcription, voicemail, real PSTN termination.
+
+---
+
+## AppShell Readiness Gate
+
+Before editing `src/components/layout/AppShell.tsx`, all of the following must be satisfied:
+
+- **Backend/localStorage mode separation**: The app must know which mode a given session is in. If both a Supabase session and a localStorage userProfile exist simultaneously, a defined priority rule must exist.
+- **Backend-aware login strategy**: The main `/login` is still mock MVP login (name + email, no password). A backend user must never be redirected there. Either a combined login page or a clear routing rule must exist before AppShell routes backend users.
+- **Async session loading state**: AppShell currently redirects synchronously. Adding `getSession()` (async) requires a loading state that holds all redirects until the session check resolves. Without it, a valid backend user may be redirected to `/demo` on first render.
+- **Missing Supabase config fallback**: If `createBrowserSupabaseClient()` throws (missing env vars), AppShell must catch it and fall back to localStorage-only behavior. It must not crash or redirect incorrectly.
+- **Logout path inside main app**: A logout action must exist in the main app UI (sidebar, settings, or BottomNav) for backend users. Logout from the main app must cleanly reset session state.
+- **Token expiry/refresh behavior**: Defined behavior when a session expires mid-use. Options: silent redirect to `/login/backend`, or inline session-expired error. Must not redirect to the mock `/login`.
+- **Browser localStorage migration strategy**: A backend-logged-in user entering the main app will see empty data. The localStorage migration flow (Phase 4) must be built, or the empty-state UX must be clearly designed, before AppShell routes backend users into the app.
+- **Manual QA**: After AppShell changes, confirm that `/demo` remains public, localStorage MVP users are unaffected, missing Supabase config falls back gracefully, and backend session + localStorage data coexist without conflict.
 
 ---
 
