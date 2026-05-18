@@ -497,7 +497,7 @@ export default function ProductionReadinessPage() {
               'Demo VoIP keypad on /call/mock clearly says "Στο MVP δεν γίνεται πραγματική κλήση."',
               '"Demo κλήση" button shows disclaimer, not a fake connected/answered state.',
               'Native tel: link (if shown) labelled as "Άνοιγμα native κλήσης (συσκευή)", not in-app VoIP.',
-              'Mobile bottom nav: 7 items (Αρχική, AI, Κλήσεις, Πελάτες, Ραντεβού, Tasks, Προσφορές).',
+              'Mobile bottom nav: 5 visible items (Αρχική, Πελάτες, AI, Ραντεβού, Περισσότερα). Περισσότερα opens sheet with Tasks, Προσφορές, Κλήσεις, Ρυθμίσεις, Demo.',
               'No native dialogs: window.confirm, confirm(), window.alert, alert() return zero grep matches across src/. Destructive actions (delete, merge, CSV import, demo exit) use inline confirmation panels.',
             ].map((c) => (
               <p key={c} className="flex items-start gap-1.5 text-xs text-zinc-500">
