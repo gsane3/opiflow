@@ -32,6 +32,19 @@ function safeField(obj: unknown, ...keys: string[]): unknown {
   return cur;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Returns payload.data[0] if data is a non-empty array whose first element is an object.
+// Confirmed Apifon shape: { request_id, data: [{ message_id, status: { code, text }, ... }], account_id, type }
+function getFirstDataObject(payload: unknown): unknown {
+  if (!isRecord(payload)) return undefined;
+  const data = payload['data'];
+  if (!Array.isArray(data) || data.length === 0) return undefined;
+  return isRecord(data[0]) ? data[0] : undefined;
+}
+
 function parseFormBody(raw: string): Record<string, string> {
   const result: Record<string, string> = {};
   new URLSearchParams(raw).forEach((value, key) => {
@@ -42,29 +55,79 @@ function parseFormBody(raw: string): Record<string, string> {
 
 type Summary = Record<string, string | number | boolean | null>;
 
-function extractSummary(src: unknown): Summary {
-  // Apifon callback payload shape is not confirmed yet.
-  // Fields are probed at common top-level keys and camelCase variants.
-  // Full schema mapping and persistence come when the actual payload shape is confirmed.
-  return {
-    request_id:   safeScalar(safeField(src, 'request_id'))   ?? safeScalar(safeField(src, 'requestId'))   ?? null,
-    message_id:   safeScalar(safeField(src, 'message_id'))   ?? safeScalar(safeField(src, 'messageId'))   ?? null,
-    custom_id:    safeScalar(safeField(src, 'custom_id'))    ?? safeScalar(safeField(src, 'customId'))    ?? null,
-    reference:    safeScalar(safeField(src, 'reference'))                                                  ?? null,
-    recipient:    safeStr(safeField(src, 'recipient'))
-                  ?? safeStr(safeField(src, 'number'))
-                  ?? safeStr(safeField(src, 'msisdn'))                                                     ?? null,
-    status:       safeScalar(safeField(src, 'status'))                                                     ?? null,
-    status_code:  safeScalar(safeField(src, 'status_code'))  ?? safeScalar(safeField(src, 'statusCode'))  ?? null,
-    description:  safeStr(safeField(src, 'description'))                                                   ?? null,
-    event_type:   safeScalar(safeField(src, 'event_type'))   ?? safeScalar(safeField(src, 'eventType'))   ?? null,
-    delivered_at: safeStr(safeField(src, 'delivered_at'))    ?? safeStr(safeField(src, 'deliveredAt'))    ?? null,
-    seen_at:      safeStr(safeField(src, 'seen_at'))         ?? safeStr(safeField(src, 'seenAt'))         ?? null,
-    read_at:      safeStr(safeField(src, 'read_at'))         ?? safeStr(safeField(src, 'readAt'))         ?? null,
-    timestamp:    safeScalar(safeField(src, 'timestamp'))                                                  ?? null,
-    created_at:   safeStr(safeField(src, 'created_at'))      ?? safeStr(safeField(src, 'createdAt'))      ?? null,
-    updated_at:   safeStr(safeField(src, 'updated_at'))      ?? safeStr(safeField(src, 'updatedAt'))      ?? null,
+function extractSummary(root: unknown): Summary {
+  // Use data[0] for message-level fields when the confirmed Apifon envelope shape is present.
+  // Fall back to root directly for generic or unrecognised payload shapes.
+  const msg = getFirstDataObject(root);
+  const src = msg ?? root;
+
+  // Top-level envelope fields (root only).
+  const request_id = safeScalar(safeField(root, 'request_id')) ?? null;
+  const account_id = safeScalar(safeField(root, 'account_id')) ?? null;
+  const type       = safeStr(safeField(root, 'type'))          ?? null;
+
+  // array_count from root.data when it is an array.
+  let array_count: number | null = null;
+  if (isRecord(root) && Array.isArray(root['data'])) {
+    array_count = (root['data'] as unknown[]).length;
+  }
+
+  // Message-level fields from data[0] when present, otherwise from root.
+  const message_id  = safeScalar(safeField(src, 'message_id'))  ?? safeScalar(safeField(src, 'messageId'))  ?? null;
+  const custom_id   = safeScalar(safeField(src, 'custom_id'))   ?? safeScalar(safeField(src, 'customId'))   ?? null;
+  const from_sender = safeStr(safeField(src, 'from'))                                                       ?? null;
+  const recipient   = safeStr(safeField(src, 'to'))
+                      ?? safeStr(safeField(src, 'recipient'))
+                      ?? safeStr(safeField(src, 'number'))
+                      ?? safeStr(safeField(src, 'msisdn'))                                                   ?? null;
+
+  // status.text (confirmed nested shape) with fallback to status as a direct scalar.
+  const status      = safeStr(safeField(src, 'status', 'text'))
+                      ?? safeScalar(safeField(src, 'status'))                                                ?? null;
+
+  // status.code (confirmed nested shape) with fallback to status_code as a direct field.
+  const status_code = safeScalar(safeField(src, 'status', 'code'))
+                      ?? safeScalar(safeField(src, 'status_code'))
+                      ?? safeScalar(safeField(src, 'statusCode'))                                            ?? null;
+
+  const price        = safeScalar(safeField(src, 'price'))                                                  ?? null;
+  const vat          = safeScalar(safeField(src, 'vat'))                                                    ?? null;
+  const timestamp    = safeScalar(safeField(src, 'timestamp'))                                              ?? null;
+  const delivered_at = safeStr(safeField(src, 'delivered_at')) ?? safeStr(safeField(src, 'deliveredAt'))   ?? null;
+  const seen_at      = safeStr(safeField(src, 'seen_at'))      ?? safeStr(safeField(src, 'seenAt'))        ?? null;
+  const read_at      = safeStr(safeField(src, 'read_at'))      ?? safeStr(safeField(src, 'readAt'))        ?? null;
+
+  // Retained for fallback compatibility with other payload shapes.
+  const reference   = safeScalar(safeField(src, 'reference'))                                               ?? null;
+  const description = safeStr(safeField(src, 'description'))                                                ?? null;
+  const event_type  = safeScalar(safeField(src, 'event_type')) ?? safeScalar(safeField(src, 'eventType'))  ?? null;
+
+  const summary: Summary = {
+    request_id,
+    account_id,
+    type,
+    message_id,
+    custom_id,
+    from: from_sender,
+    recipient,
+    status,
+    status_code,
+    price,
+    vat,
+    timestamp,
+    delivered_at,
+    seen_at,
+    read_at,
+    reference,
+    description,
+    event_type,
   };
+
+  if (array_count !== null) {
+    summary['array_count'] = array_count;
+  }
+
+  return summary;
 }
 
 export async function GET() {
@@ -113,19 +176,11 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // If the payload is an array, extract summary from the first element.
-  // array_count is included in summary so the shape can be confirmed during testing.
-  let extractFrom: unknown = body;
-  let arrayCount: number | null = null;
-  if (Array.isArray(body)) {
-    arrayCount = body.length;
-    extractFrom = body.length > 0 ? body[0] : {};
-  }
+  // If body itself is an array, wrap it so extractSummary can treat it uniformly
+  // via the root.data[] path. This preserves backward compatibility.
+  const root: unknown = Array.isArray(body) ? { data: body } : body;
 
-  const summary: Summary = extractSummary(extractFrom);
-  if (arrayCount !== null) {
-    summary['array_count'] = arrayCount;
-  }
+  const summary = extractSummary(root);
 
   return NextResponse.json({ ok: true, received: true, summary });
 }
