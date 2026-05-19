@@ -7,8 +7,10 @@
 - Main AppShell: not backend-aware. All routing still uses localStorage userProfile.
 - Do not claim backend is connected to the main app. Standalone test pages only.
 - This document defines the target v2 backend direction and is the handoff reference for backend implementation.
-- Private beta v1 target includes Voice with automatic AI call brief and Viber intake link delivery. SMS is fallback/v1.1, not the primary v1 messaging channel. See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the detailed architecture and Viber intake flow reference.
-- Voice pipeline and Viber intake link delivery are not implemented. Blocked by: CRM backend schema (Phase 3), provider selection, webhook infrastructure, transcription jobs, AI brief jobs, Viber provider approval, and legal/consent gate.
+- Private beta v1 target includes Voice with automatic AI call brief and Viber intake link delivery. SMS is fallback/v1.1, not the primary v1 messaging channel. See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the detailed architecture, Inter Telecom/PBX voice strategy, and Apifon Viber intake flow reference.
+- Voice pipeline and Viber intake link delivery are not implemented. Blocked by: CRM backend schema (Phase 3), Inter Telecom SIP/PBX feasibility confirmation, webhook infrastructure, transcription jobs, AI brief jobs, Apifon production sender activation, and legal/consent gate.
+- Voice provider strategy: Inter Telecom is now the primary Greek number/SIP candidate. Telnyx is paused as primary v1 provider. Provider-test webhook endpoints exist for both: `/api/webhooks/voice/telnyx` and `/api/webhooks/apifon/status`.
+- Apifon Viber integration: OAuth, Viber send, Greek UTF-8, and callback_url are confirmed working in manual testing with test sender "Apifon Demo" (cap limit 20). Production sender not yet activated.
 
 ### Implemented backend foundation (manually verified)
 
@@ -26,6 +28,10 @@
 - `/business/backend` -- standalone session test: GET /api/businesses/me
 - `/backend` -- standalone developer hub linking all backend test pages
 - Logout implemented on all session-bearing standalone backend pages
+- `GET /api/webhooks/voice/telnyx` -- health check (provider test endpoint, no DB writes)
+- `POST /api/webhooks/voice/telnyx` -- receives Telnyx Voice API events, verifies Ed25519 signature, returns summary (provider test endpoint, no DB writes)
+- `GET /api/webhooks/apifon/status` -- health check (provider test endpoint, no DB writes)
+- `POST /api/webhooks/apifon/status` -- receives Apifon Viber status callbacks, parses confirmed payload shape, returns summary (provider test endpoint, no DB writes)
 
 ### Still standalone / not integrated
 
@@ -259,21 +265,21 @@ Body: { name, phone, email, source, notes, external_lead_id }
 
 Business phone and SMS automatic call-to-CRM is required for private beta v1. It is not implemented yet.
 
-Blocked by: CRM backend schema (Phase 3), provider selection, webhook infrastructure, transcription jobs, AI brief jobs, and legal/consent gate.
+Voice provider strategy: Inter Telecom is the primary Greek number/SIP candidate. Telnyx is paused. See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the voice provider strategy, Inter Telecom/PBX architecture plan, and Apifon Viber intake delivery status.
+
+Blocked by: CRM backend schema (Phase 3), Inter Telecom SIP/PBX feasibility confirmation, webhook infrastructure, transcription jobs, AI brief jobs, Apifon production sender activation, and legal/consent gate.
 
 **Do not build recording or transcription until consent design and legal review are complete.**
 
-See [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for the full architecture, database model, API plan, AI brief pipeline, Viber intake link delivery plan, and legal/consent gate requirements.
+After the AI call brief, if required customer fields are missing, the system creates a secure intake link and delivers it via Viber (planned, not implemented in production). Apifon is the primary Viber provider for first implementation tests. SMS is fallback/v1.1 for intake link delivery.
 
-After the AI call brief, if required customer fields are missing, the system creates a secure intake link and delivers it via Viber (planned, not implemented). SMS is fallback/v1.1 for intake link delivery.
-
-### Phase 6 sequence (phone foundation)
-1. Define `PhoneProvider` interface (Twilio/Vonage/placeholder implementations).
-2. Create `business_phone_numbers` table.
-3. Build number provisioning UI in Settings (purchase flow via provider API).
-4. Build call routing and forwarding config.
+### Phase 6 sequence (phone foundation, after provider and PBX architecture decision)
+1. Confirm Inter Telecom SIP trunk and PBX mode, or select alternative provider.
+2. Define `PhoneProvider` interface (CPaaS or SIP/PBX adapter implementations).
+3. Create `business_phone_numbers` table.
+4. Build call routing and forwarding config (CPaaS or PBX bridge).
 5. Build call log (real calls, not mock).
-6. Recording: only after consent flow design and legal review.
+6. Recording: only after consent flow design, legal review, and PBX recording rights confirmed.
 
 ### What is in current MVP
 - `CallRecord.isMock: true` hardcoded. All calls are mock/demo.
@@ -350,12 +356,12 @@ After the AI call brief, if required customer fields are missing, the system cre
 - Blocked until: Provider selected. Consent announcement reviewed by lawyer.
 
 ### Phase 7 -- Voice to CRM pipeline with Viber intake link delivery (v1 track, required for private beta)
-- Goal: Full call-to-CRM flow. Recording download. Transcription jobs. AI brief jobs. ai_draft task creation. Customer intake link schema and API. Viber intake link delivery. Customer timeline UI with calls, transcripts, briefs, and intake link status.
-- Allowed areas: `src/app/api/jobs/`, `src/app/api/calls/`, `src/app/api/customer-intake-links/`, `src/app/api/viber/`, `src/lib/viber/`, supabase migrations, customer profile UI.
-- Validation: Real call ends. Brief appears in CRM within acceptable latency. User can confirm or dismiss brief. ai_draft tasks visible. Intake link created and Viber message sent via manual approval. Customer opens intake form and submits. Customer profile updated.
+- Goal: Full call-to-CRM flow (Inter Telecom SIP/PBX or CPaaS provider). Recording download. Transcription jobs. AI brief jobs. ai_draft task creation. Customer intake link schema and API. Viber intake link delivery via Apifon. Customer timeline UI with calls, transcripts, briefs, and intake link status.
+- Allowed areas: `src/app/api/jobs/`, `src/app/api/calls/`, `src/app/api/customer-intake-links/`, `src/app/api/viber/`, `src/lib/viber/`, `src/lib/phone/`, supabase migrations, customer profile UI.
+- Validation: Real call ends. Brief appears in CRM within acceptable latency. User can confirm or dismiss brief. ai_draft tasks visible. Intake link created and Viber message sent via Apifon manual approval. Customer opens intake form and submits. Customer profile updated.
 - Not yet: Outbound SMS (v1.1 fallback). Inbound SMS (v1.1 fallback).
-- Blocked until: Phase 6 complete. Transcription provider DPA signed. AI model DPA signed. Viber provider approved and DPA signed. Legal/consent gate complete before production recording or Viber messaging.
-- See: [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for database model, API plan, AI brief pipeline, Viber intake delivery, and legal gate details.
+- Blocked until: Phase 6 complete (Inter Telecom SIP/PBX confirmed). Transcription provider DPA signed. AI model DPA signed. Apifon production sender activated and DPA signed. Legal/consent gate complete before production recording or Viber messaging.
+- See: [VOICE_SMS_ARCHITECTURE.md](./VOICE_SMS_ARCHITECTURE.md) for database model, API plan, AI brief pipeline, Inter Telecom/PBX strategy, Apifon Viber intake delivery, and legal gate details.
 
 ---
 
@@ -393,7 +399,8 @@ These must be resolved before starting Phase 1 implementation:
 - **Supabase region**: EU (eu-central-1 Frankfurt recommended for GDPR compliance). Confirm before creating project.
 - **Deployment target**: choose after backend foundation and pilot requirements are clear.
 - **Email provider final setup**: Resend is integrated. Decide whether to stay on Resend or evaluate alternatives before Phase 4 domain verification.
-- **Phone provider**: Twilio vs Vonage vs local Greek carrier. Decide before Phase 6. Do not build until decided.
+- **Phone provider/PBX architecture**: Inter Telecom is the primary candidate for Greek number/SIP. Telnyx is paused. Decide between Inter Telecom SIP/PBX mode and CPaaS mode (Telnyx or similar) before Phase 6. Do not build PBX infrastructure until Inter Telecom feasibility is confirmed. The Telnyx test webhook endpoint is available for CPaaS pattern testing in the meantime.
+- **Viber intake provider**: Apifon is active for testing (OAuth and send confirmed). Confirm Apifon production sender activation, DPA, and pricing before Phase 7 Viber delivery. Yuboto is the backup option.
 - **Legal review owner**: Who reviews privacy policy, DPA, GDPR compliance, and recording consent design? Must be assigned before commercial launch.
 - **Production privacy policy**: Not yet written. Required before any real user data is collected.
 - **Pilot data migration**: Decide whether pilot user browser data should be migrated to the backend, or whether pilot users start fresh on the backend. Both options are valid. Document the decision.

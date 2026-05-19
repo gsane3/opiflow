@@ -2,9 +2,14 @@
 
 ## Status
 
-- Not implemented yet.
+- Not implemented yet (full voice pipeline and production Viber delivery).
 - Required for working private beta v1.
 - Backend foundation exists, but voice capture, recording, transcription, AI brief pipeline, CRM timeline, Viber intake link delivery, and provider integration are not implemented yet.
+- Voice provider strategy changed. See the Voice Provider Strategy section below.
+- Telnyx is paused as primary Greek number provider. Greek number purchase requires heavier verification and available numbers are limited.
+- Inter Telecom is now the primary Greek number/SIP candidate for v1. Inter Telecom integration is not implemented yet.
+- Apifon is the primary Viber/intake delivery provider for first implementation tests.
+- Apifon production sender ("Yorgos AI" or equivalent approved name) is not activated yet. Current access is account-provided test/free access with sender "Apifon Demo" and cap limit 20.
 - Provider availability, Greek numbers, Viber Business approval, SMS rules, pricing, DPA, and legal consent must be verified before production.
 - Viber intake link delivery is planned for v1 as the primary post-call messaging channel.
 - Viber provider approval, one-way mode, template/link rules, delivery reports, pricing, and DPA must be verified before production.
@@ -40,8 +45,8 @@ Requirements:
 3. A consent announcement plays before recording begins (required by applicable law).
 4. Call is connected to the business owner's device and recorded if consent rules allow it.
 5. Call ends.
-6. Provider sends a call status webhook and a recording-ready webhook when the recording is available.
-7. Backend receives the webhook and stores the raw provider event idempotently using the provider event ID.
+6. Provider or PBX/SIP middleware sends a call completed event and a recording-ready event when the recording is available. The event source depends on the voice architecture mode (CPaaS programmable provider or SIP/PBX middleware layer).
+7. Backend receives the event and stores the raw provider event idempotently using the provider event ID.
 8. Backend matches the caller phone number (normalized to E.164) against existing customers, or creates a new customer record with status pending.
 9. Backend creates a call record and a communication record linked to that customer.
 10. Backend stores recording metadata (duration, provider recording ID, consent status, not raw audio yet).
@@ -106,9 +111,82 @@ Live transcription (Option 2) is v1.1 or later.
 
 ---
 
+## Voice Provider Strategy: Inter Telecom First
+
+### Reason for pivot from Telnyx
+
+Telnyx offered Greek local numbers at $1/month and has good EU infrastructure. However, during first testing:
+- Greek number purchase on Telnyx requires identity verification and business documentation.
+- Available Greek numbers in the Telnyx portal were limited at the time of testing.
+- Verification friction makes Telnyx a poor fit for quick v1 private beta setup.
+
+Telnyx remains useful as a programmable voice test route and may be reconsidered for later phases or as a CPaaS fallback. The Telnyx webhook endpoint at `/api/webhooks/voice/telnyx` was implemented for provider testing and is kept for that purpose.
+
+### Inter Telecom expected role
+
+Inter Telecom is a Greek telecoms provider the user already uses. This gives:
+- Easier access to Greek numbers (existing customer relationship).
+- More available Greek numbers.
+- Local support and local carrier knowledge.
+- Lower regulatory friction for a Greek-registered or Greek-operating business.
+
+Inter Telecom is expected to provide:
+- Greek phone number (local or mobile).
+- SIP trunk for our PBX layer to connect to.
+
+Inter Telecom does not appear to offer a CPaaS-style programmable webhook API based on public documentation. Confirm with Inter Telecom before implementing any API integration.
+
+### Our system expected role (SIP/PBX middleware mode)
+
+In this mode, our backend acts as a PBX layer between the SIP trunk and the professional's mobile phone:
+
+1. Incoming call arrives on the Inter Telecom SIP trunk.
+2. PBX answers the call, plays a consent announcement, and bridges the call to the professional's mobile.
+3. PBX records the call (if consent rules allow).
+4. Call ends.
+5. PBX produces a call-completed event and a recording-ready event.
+6. Backend receives the event, processes it, and runs the transcription and AI brief pipeline.
+7. CRM is updated.
+
+PBX options being evaluated (not selected yet):
+- Asterisk or FreePBX (self-hosted, full control, significant ops burden).
+- FreeSWITCH (flexible, developer-friendly, self-hosted).
+- Managed PBX with API/webhook (reduces ops burden but may limit control).
+
+### What must be confirmed with Inter Telecom before implementation
+
+- SIP trunk availability and onboarding process.
+- Recording rights: does the SIP trunk allow our PBX to record audio?
+- Outbound forwarding: can the SIP trunk forward calls to external Greek mobile numbers?
+- Concurrent call limits for the SIP trunk.
+- Caller ID behavior when forwarding to professional mobile (does the caller's number pass through?).
+- Data Processing Agreement (DPA) availability.
+- Per-minute and monthly costs.
+- Technical contact for SIP trunk configuration.
+
+### PBX hosting and operational requirements
+
+- PBX must be hosted on a server with a public IP, TLS, and SRTP for secure SIP.
+- NAT/firewall rules must allow SIP traffic.
+- Recording files produced by PBX must be stored securely and accessible to the backend for transcription.
+- PBX logs and events must be forwarded to the backend webhook endpoint.
+- Ops burden for PBX maintenance must be factored into v1 timeline.
+
+Do not build PBX infrastructure until Inter Telecom SIP trunk feasibility is confirmed.
+
+---
+
 ## Provider Abstraction
 
 Provider-specific code must not be scattered across the codebase. All provider interaction must go through a normalized abstraction layer.
+
+Two possible voice modes are supported by the abstraction design:
+
+Mode 1: CPaaS programmable voice provider (for example Telnyx). Provider sends webhooks directly to the backend with signature headers. This is the classic programmable voice pattern.
+
+Mode 2: SIP/PBX middleware mode. A Greek SIP provider (for example Inter Telecom) provides a SIP trunk. Our system acts as a PBX layer (using Asterisk, FreePBX, FreeSWITCH, or similar) to bridge calls, forward to the professional's mobile, record, and post a call-completed event to the backend after the call ends.
+
+Both modes normalize to the same internal event format before business logic runs.
 
 Requirements:
 - Normalize provider events to a shared internal event format before any business logic runs.
@@ -121,13 +199,13 @@ Proposed module structure (these files are proposed, not implemented):
 
 - `src/lib/phone/types.ts`: shared types: NormalizedCallEvent, NormalizedSmsEvent, CallStatus, ProviderEvent
 - `src/lib/phone/provider.ts`: PhoneProvider interface definition
-- `src/lib/phone/twilio.ts`: Twilio implementation, signature verification, event normalization
-- `src/lib/phone/vonage.ts`: Vonage implementation, signature verification, event normalization
-- `src/lib/phone/telnyx.ts`: Telnyx implementation, signature verification, event normalization
+- `src/lib/phone/telnyx.ts`: Telnyx CPaaS implementation, signature verification, event normalization
+- `src/lib/phone/sip.ts`: SIP/PBX middleware interface and event adapter
+- `src/lib/phone/pbx.ts`: PBX recording/event helpers for self-managed or managed PBX integration
 - `src/lib/phone/normalize.ts`: maps provider-specific fields to NormalizedCallEvent and NormalizedSmsEvent
 - `src/lib/phone/signatures.ts`: signature verification utilities, provider-specific HMAC/header logic
 
-These files are proposed, not implemented.
+These files are proposed, not implemented. The Telnyx webhook endpoint at `/api/webhooks/voice/telnyx` is implemented for provider testing but does not mean Telnyx is selected for v1. Telnyx is paused as primary Greek number provider until number availability and verification friction are resolved.
 
 ---
 
@@ -276,13 +354,16 @@ All tables follow the existing RLS pattern: business_id on every row, policy enf
 
 | Method + Path | Purpose | Auth/Security | Idempotency | v1 Required |
 |---|---|---|---|---|
-| POST /api/webhooks/voice/inbound | Provider notifies of incoming call | Provider signature header verified | Store raw event, check provider event ID | Yes |
-| POST /api/webhooks/voice/status | Call status updates (ringing, answered, ended) | Provider signature verified | Idempotent on provider event ID | Yes |
-| POST /api/webhooks/voice/recording | Recording ready notification | Provider signature verified | Idempotent on recording SID | Yes |
+| POST /api/webhooks/voice/telnyx | Telnyx Voice webhook receiver (implemented, provider test only, no DB writes) | Ed25519 signature verified | Idempotent on provider event ID | Provider test only |
+| POST /api/webhooks/apifon/status | Apifon Viber delivery/status callback (implemented, provider test only, no DB writes) | Optional shared secret | Idempotent on request_id + message_id | Provider test only |
+| POST /api/webhooks/voice/inbound | Generic CPaaS provider: incoming call notification | Provider signature header verified | Store raw event, check provider event ID | Yes (proposed) |
+| POST /api/webhooks/voice/status | Generic CPaaS provider: call status updates | Provider signature verified | Idempotent on provider event ID | Yes (proposed) |
+| POST /api/webhooks/voice/recording | Generic CPaaS provider: recording ready notification | Provider signature verified | Idempotent on recording SID | Yes (proposed) |
 | POST /api/webhooks/voice/transcription | Provider-native transcription ready (if used) | Provider signature verified | Idempotent on transcription ID | Optional |
+| POST /api/webhooks/voice/pbx/call-completed | PBX middleware: call ended event with metadata | Internal PBX secret or IP allowlist | Idempotent on call ID | Yes if PBX mode (proposed) |
+| POST /api/webhooks/voice/pbx/recording-ready | PBX middleware: recording file available for download | Internal PBX secret or IP allowlist | Idempotent on recording ID | Yes if PBX mode (proposed) |
 | POST /api/webhooks/sms/inbound | Inbound SMS received | Provider signature verified | Idempotent on message SID | v1.1 fallback |
 | POST /api/webhooks/sms/status | Outbound SMS delivery status | Provider signature verified | Idempotent on message SID | v1.1 |
-| POST /api/webhooks/viber/status | Viber delivery and seen status update | Provider signature verified | Idempotent on provider event ID | Optional (if provider supports) |
 
 ### Internal Job Endpoints
 
@@ -480,6 +561,79 @@ This example is for reference only. The actual message template must be approved
 - A DPA with the Viber provider is required before production.
 - Provider approval status is not verified. This is a production gate.
 
+### Yuboto as Backup Provider
+
+Yuboto is a viable backup Viber provider. Notes confirmed:
+- One-way messaging is possible if the account is opened as one-way from the start.
+- Delivery and seen/read reports are supported.
+- DPA is available if cooperation proceeds.
+- No setup fee.
+- Transactional message templates do not allow dynamic link values in dynamic template fields. If using Yuboto for intake link delivery, a workaround is required: place a static base URL in the template and append a dynamic access code as a query parameter so the full token URL is not placed in a dynamic field.
+- This workaround must be confirmed with Yuboto before selecting it for v1.
+
+---
+
+## Apifon Viber Intake Delivery Status
+
+Apifon is the primary Viber/intake delivery provider for first implementation tests. The following results have been manually confirmed.
+
+### Confirmed test results (manual testing)
+
+- OAuth client credentials flow: works.
+- `POST https://ars.apifon.com/services/api/v1/im/send`: works.
+- Sender used in test: "Apifon Demo".
+- Access type: account-provided free/test access. Cap limit: 20 messages.
+- Greek UTF-8 in message body: works when request body is sent as UTF-8.
+- Plain URL inside Viber text: works and is clickable by the recipient.
+- `callback_url` parameter: works. Apifon delivers status callbacks to the configured URL.
+
+### Confirmed callback payload shape
+
+The real Apifon status callback is a JSON object:
+
+```json
+{
+  "request_id": "string",
+  "data": [
+    {
+      "from": "sender name",
+      "to": "recipient phone",
+      "message_id": "string",
+      "custom_id": "your reference",
+      "status": { "code": 10, "text": "seen" },
+      "price": "0.025",
+      "vat": "0",
+      "timestamp": 1234567890,
+      "metadata": {}
+    }
+  ],
+  "account_id": 12345,
+  "type": "VIBER"
+}
+```
+
+Fields confirmed present:
+- `request_id`, `account_id`, `type` at root.
+- `data[0].from`, `data[0].to`, `data[0].message_id`, `data[0].custom_id`.
+- `data[0].status.code`, `data[0].status.text`.
+- `data[0].price`, `data[0].vat`, `data[0].timestamp`.
+
+### Implemented provider-test endpoints
+
+Two minimal provider-test endpoints are implemented:
+- `GET /api/webhooks/apifon/status` (health check)
+- `POST /api/webhooks/apifon/status` (receives and acknowledges Apifon callbacks, parses confirmed payload shape, returns summary)
+
+These are provider-test endpoints only. No database persistence yet. Full Viber message persistence and send abstraction come in a later phase.
+
+### What remains required before production
+
+- Production Viber sender activation (sender "Yorgos AI" or equivalent approved name). Not yet activated.
+- DPA with Apifon.
+- Pricing confirmation beyond test access.
+- Legal review of consent/opt-in model for Viber messaging.
+- Template/link policy confirmed for production sender.
+
 ---
 
 ## Messaging Capture Plan
@@ -651,10 +805,11 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Dependencies: Phase 2 (CRM schema and APIs).
 - Blockers: All AppShell Readiness Gate items listed in BACKEND_SPEC.md.
 
-### Phase 4: Provider abstraction
-- Deliverable: src/lib/phone/ modules. PhoneProvider interface. Provider implementations. Signature verification. Event normalization.
-- Dependencies: Provider must be selected. Provider developer account must exist.
-- Blockers: provider choice not made. Greek number availability unverified. Provider pricing not confirmed.
+### Phase 4: Voice provider and PBX/SIP feasibility
+- Deliverable: Inter Telecom SIP trunk feasibility confirmed (SIP trunk details, recording rights, forwarding rights, concurrent call limits, DPA, costs). PBX/SIP middleware mode vs CPaaS mode decision made. src/lib/phone/ module structure defined (types, interface, SIP/PBX adapter, normalize).
+- Dependencies: Direct contact with Inter Telecom technical team.
+- Blockers: Inter Telecom technical confirmation not received. Do not build more Telnyx-specific code or PBX infrastructure until this phase is resolved. The Telnyx test webhook endpoint is sufficient for CPaaS pattern testing in the meantime.
+- Next step: Contact Inter Telecom, confirm SIP trunk access, recording rights, and forwarding capabilities.
 
 ### Phase 5: Webhook simulation and provider event log
 - Deliverable: provider_webhook_events table. All voice/SMS webhook endpoints receiving and storing raw events. Signature verification active. Idempotency on event ID.
@@ -676,10 +831,11 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Dependencies: Phase 7.
 - Blockers: AI model DPA required. Brief JSON schema validated. Confidence threshold calibrated.
 
-### Phase 9: Viber intake link delivery (v1 messaging)
-- Deliverable: viber_messages table. POST /api/viber/send-intake-link route. POST /api/webhooks/viber/status webhook (if provider supports delivery and seen reports). Viber provider abstraction module (proposed: src/lib/viber/). Manual approval UI for reviewing and sending the Viber intake link message from the brief card.
-- Dependencies: Phase 8. Viber Business sender approved. DPA with Viber provider signed. Message template approved.
-- Blockers: Viber provider not selected. Sender approval not started. Template approval unknown. DPA not signed. This phase cannot go to production without provider and legal gates.
+### Phase 9: Viber intake link delivery (v1 messaging, Apifon)
+- Deliverable: viber_messages table. POST /api/viber/send-intake-link route. Apifon send abstraction (proposed: src/lib/viber/apifon.ts). Delivery/status persistence wired to the confirmed Apifon callback shape. Manual approval UI for reviewing and sending the Viber intake link message from the brief card.
+- Dependencies: Phase 8. Apifon production sender activated and approved. DPA with Apifon signed. Message template confirmed with provider.
+- Blockers: Apifon production sender not yet activated (current access is test/free, cap limit 20). DPA not signed. Template approval status unknown. Legal review of consent model required before production messaging.
+- Note: Apifon OAuth and test send are confirmed working. The status webhook at /api/webhooks/apifon/status is implemented for provider testing. Next Viber step is persistence and send abstraction after docs update.
 
 ### Phase 10: Customer timeline UI
 - Deliverable: customer profile extended with calls, transcripts, briefs, ai_draft tasks, and intake link status. Confirm/edit/dismiss brief actions wired to PATCH /api/calls/[id]/brief. Intake link create and send actions visible on brief card.
@@ -731,12 +887,20 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Customer trust when sender is Yorgos AI: customers receiving a Viber message from "Yorgos AI" on behalf of a professional may be skeptical. Message copy and brand positioning must be considered before launch.
 - Opt-out and consent for Viber messaging: GDPR and Greek law may require consent before sending unsolicited business messages via Viber. Legal review is required before production.
 - Fallback if Viber is unavailable: if the customer does not have Viber installed, the message will not be delivered. SMS fallback or manual intake link copy must be available as alternatives.
+- Inter Telecom may not provide programmable webhooks: public documentation suggests SIP/PBX orientation, not a CPaaS-style webhook API. A self-managed PBX layer may be required. This adds significant infrastructure and ops complexity.
+- PBX infrastructure risks: self-managed PBX (Asterisk/FreePBX/FreeSWITCH) requires a stable server with public IP, SIP/TLS/SRTP configuration, NAT/firewall setup, and ongoing maintenance. A hosted or managed PBX reduces ops burden but may limit recording and event control.
+- Caller ID when forwarding to professional mobile: forwarding via a PBX/SIP layer may alter caller ID display on the professional's mobile. This affects caller identification and trust. Must be tested.
+- Concurrent call limits: Inter Telecom SIP trunk concurrent call capacity is not confirmed. Must verify before production.
+- Recording consent announcement via PBX: the consent announcement must play before recording starts, driven by PBX logic. This must be designed before PBX implementation.
+- Apifon cap limit 20 for current test sender: "Apifon Demo" sender is limited to 20 messages on the current test access. Do not exhaust this for non-essential tests.
+- Apifon production sender activation: pending. Timeline is unknown. This blocks production Viber intake delivery.
 
 ---
 
 ## Open Decisions
 
-- Provider choice: Twilio, Vonage, Telnyx, or a Greek local provider. Decision needed before Phase 4. Greek number availability is the primary constraint.
+- Voice provider/PBX architecture: Inter Telecom is the current primary candidate for Greek number/SIP. Telnyx is paused. A decision on Inter Telecom SIP trunk feasibility and PBX architecture (Asterisk/FreePBX/managed PBX/CPaaS) must be made before Phase 4. If Inter Telecom is not viable, revisit Telnyx or a managed PBX service with Greek number support.
+- PBX mode vs CPaaS mode: decide between self-managed SIP/PBX (more ops, more control) and CPaaS programmable voice (less ops, less control, higher per-minute cost). Decide after Inter Telecom feasibility is confirmed.
 - Recording after call vs live transcription: recommendation is recording after call for v1. Confirm this decision before Phase 6.
 - Transcription provider: OpenAI Whisper, provider-native, or a dedicated multilingual API. Decision needed before Phase 7.
 - AI model for brief: which Claude model or other model to use for AI brief generation. Cost per brief must be estimated. Decision needed before Phase 8.
@@ -745,7 +909,7 @@ These phases apply specifically to the voice/SMS architecture. They depend on an
 - Whether outbound SMS is v1 or v1.1: default is v1.1. Revisit if provider and legal situation is resolved before v1 launch.
 - Whether provider number is new, forwarded, or ported: a new provider-assigned number keeps setup simple. Number forwarding or porting requires additional coordination. Decide before Phase 4.
 - Legal review owner: who is responsible for reviewing the consent announcement, privacy policy, DPAs, and GDPR compliance before production? Must be assigned before Phase 13.
-- Viber provider choice: which Viber Business API provider to use (Sinch, Infobip, direct Rakuten Viber API, or another). Decision needed before Phase 9.
+- Viber provider choice: Apifon is the current primary candidate (OAuth and test send confirmed). Yuboto is the backup (one-way confirmed, but dynamic link workaround required). Infobip is enterprise fallback. Confirm Apifon production sender activation, DPA, and pricing before committing to Apifon for v1 production.
 - Viber one-way only vs replies webhook: if the provider supports replies, decide whether to implement a webhook handler or ignore/bounce replies in v1.
 - Central sender name: confirm "Yorgos AI" or another platform-level name for the Viber sender. Must match the name approved in the Viber provider application.
 - Template approval requirements: confirm whether the Viber provider requires pre-approved message templates for messages containing links. Affects Phase 9 deliverables.
