@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
@@ -145,14 +146,23 @@ export default function CommunicationsBackendPage() {
                 <p className="text-xs text-zinc-500">
                   {item.channel} · {item.direction} · {item.status}
                 </p>
-                <p className="text-xs text-zinc-500">
-                  Customer: {customerTitle(item.customer)}
-                </p>
                 {item.customer ? (
-                  <p className="text-xs text-zinc-400">
-                    {item.customer.crmNumber ?? 'No CRM number'} | {item.customer.source ?? 'no source'} | {item.customer.status ?? 'no status'}
+                  <>
+                    <Link
+                      href={`/customers/backend/${item.customer.id}`}
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
+                    >
+                      Customer: {customerTitle(item.customer)}
+                    </Link>
+                    <p className="text-xs text-zinc-400">
+                      {item.customer.crmNumber ?? 'No CRM number'} | {item.customer.source ?? 'no source'} | {item.customer.status ?? 'no status'}
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-xs text-zinc-500">
+                    Customer: {customerTitle(item.customer)}
                   </p>
-                ) : null}
+                )}
                 {item.summary ? (
                   <p className="break-words text-xs text-zinc-400">{item.summary}</p>
                 ) : null}
