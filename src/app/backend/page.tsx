@@ -27,6 +27,11 @@ const LINKS = [
     description: 'Read-only PBX call viewer through GET /api/communications.',
   },
   {
+    href: '/customers/backend',
+    title: 'Backend customers test',
+    description: 'Read-only Supabase customer list through GET /api/customers.',
+  },
+  {
     href: '/auth/confirm',
     title: 'Backend email confirmation',
     description: 'Χειρισμός Supabase confirmation callback.',
