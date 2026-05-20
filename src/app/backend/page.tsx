@@ -22,6 +22,11 @@ const LINKS = [
     description: 'Ανάγνωση business μέσω GET /api/businesses/me.',
   },
   {
+    href: '/communications/backend',
+    title: 'Backend communications test',
+    description: 'Read-only PBX call viewer through GET /api/communications.',
+  },
+  {
     href: '/auth/confirm',
     title: 'Backend email confirmation',
     description: 'Χειρισμός Supabase confirmation callback.',
