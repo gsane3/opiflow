@@ -312,6 +312,10 @@ export async function POST(request: NextRequest) {
     let intakeTokenId: string | null = null;
     let viberSendStatus: string | null = null;
     let viberMessageId: string | null = null;
+    let viberRequestId: string | null = null;
+    let viberReferenceId: string | null = null;
+    let viberResponseBody: unknown = null;
+    let viberSendError: string | null = null;
 
     if (customerLink.customerId) {
       try {
@@ -324,17 +328,22 @@ export async function POST(request: NextRequest) {
         intakeUrl = intakeToken.intakeUrl;
         intakeTokenId = intakeToken.row.id;
 
+        const viberRef = uniqueId ? `pbx:${uniqueId}` : null;
+        viberReferenceId = viberRef;
+
         const viberResult = await sendIntakeViberMessage({
           phone: normalizePhone(callerNumber),
           intakeUrl: intakeToken.intakeUrl,
           customerId: customerLink.customerId,
           tokenId: intakeToken.row.id,
-          referenceId: uniqueId ? `pbx:${uniqueId}` : null,
+          referenceId: viberRef,
         });
 
         if (viberResult.ok) {
           viberSendStatus = 'sent';
           viberMessageId = viberResult.messageId;
+          viberRequestId = viberResult.requestId;
+          viberResponseBody = viberResult.responseBody;
 
           await markIntakeTokenSent({
             tokenId: intakeToken.row.id,
@@ -345,6 +354,8 @@ export async function POST(request: NextRequest) {
           viberSendStatus = `skipped:${viberResult.reason}`;
         } else {
           viberSendStatus = `failed:${viberResult.error}`;
+          viberSendError = viberResult.error;
+          viberResponseBody = viberResult.responseBody;
         }
 
         await supabase
@@ -376,7 +387,7 @@ export async function POST(request: NextRequest) {
       recordingPath ? `recording_path=${recordingPath}` : null,
     ].filter(Boolean).join(' ');
 
-    const { error: communicationError } = await supabase
+    const { data: communicationRow, error: communicationError } = await supabase
       .from('communications')
       .insert({
         business_id: businessId,
@@ -386,7 +397,9 @@ export async function POST(request: NextRequest) {
         status: 'completed',
         phone: normalizePhone(callerNumber),
         summary: summaryParts,
-      });
+      })
+      .select('id')
+      .single();
 
     if (communicationError) {
       await supabase
@@ -397,6 +410,45 @@ export async function POST(request: NextRequest) {
         .eq('id', webhookEventId);
 
       return NextResponse.json({ ok: false, error: 'communication_store_failed' }, { status: 500 });
+    }
+
+    // Insert viber_messages row if a Viber send was attempted or skipped.
+    // Non-fatal: failure here does not roll back the communication row.
+    if (viberSendStatus !== null) {
+      const viberNow = new Date().toISOString();
+      const simpleViberStatus =
+        viberSendStatus === 'sent' ? 'sent'
+        : viberSendStatus.startsWith('skipped') ? 'skipped'
+        : viberSendStatus.startsWith('failed') ? 'failed'
+        : 'created';
+      const senderIdEnv =
+        process.env.APIFON_VIBER_SENDER_ID?.trim() ||
+        process.env.APIFON_SENDER_ID?.trim() ||
+        null;
+      const commId =
+        (communicationRow as unknown as { id: string } | null)?.id ?? null;
+      const { error: viberRowError } = await supabase
+        .from('viber_messages')
+        .insert({
+          business_id: businessId,
+          customer_id: customerLink.customerId,
+          communication_id: commId,
+          intake_token_id: intakeTokenId,
+          provider: 'apifon',
+          provider_request_id: viberRequestId,
+          provider_message_id: viberMessageId,
+          reference_id: viberReferenceId,
+          recipient_phone: normalizePhone(callerNumber),
+          sender_id: senderIdEnv,
+          status: simpleViberStatus,
+          raw_send_response: isRecord(viberResponseBody) ? viberResponseBody : null,
+          error: viberSendError,
+          sent_at: simpleViberStatus === 'sent' ? viberNow : null,
+          failed_at: simpleViberStatus === 'failed' ? viberNow : null,
+        });
+      if (viberRowError) {
+        console.error('viber_messages insert failed (non-fatal):', viberRowError.message);
+      }
     }
 
     await supabase

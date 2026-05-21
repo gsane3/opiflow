@@ -1,8 +1,9 @@
-// First integration endpoint for Apifon Viber delivery and status callbacks.
-// Receives and acknowledges webhook events only.
-// No database writes here. Viber message persistence comes in a later phase.
+// Apifon Viber delivery and status callback receiver.
+// Stores raw Apifon status events into provider_webhook_events and updates
+// matching viber_messages rows (status, timestamps, raw payload) when found.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
 
@@ -130,6 +131,49 @@ function extractSummary(root: unknown): Summary {
   return summary;
 }
 
+type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
+
+interface ViberMessageMatch {
+  id: string;
+  delivered_at: string | null;
+  failed_at: string | null;
+}
+
+async function findViberMessageRow(
+  supabase: SupabaseClient,
+  msgId: string | null,
+  reqId: string | null,
+  refId: string | null
+): Promise<ViberMessageMatch | null> {
+  if (msgId) {
+    const { data } = await supabase
+      .from('viber_messages')
+      .select('id, delivered_at, failed_at')
+      .eq('provider', 'apifon')
+      .eq('provider_message_id', msgId)
+      .maybeSingle();
+    if (data) return data as unknown as ViberMessageMatch;
+  }
+  if (reqId) {
+    const { data } = await supabase
+      .from('viber_messages')
+      .select('id, delivered_at, failed_at')
+      .eq('provider', 'apifon')
+      .eq('provider_request_id', reqId)
+      .maybeSingle();
+    if (data) return data as unknown as ViberMessageMatch;
+  }
+  if (refId) {
+    const { data } = await supabase
+      .from('viber_messages')
+      .select('id, delivered_at, failed_at')
+      .eq('reference_id', refId)
+      .maybeSingle();
+    if (data) return data as unknown as ViberMessageMatch;
+  }
+  return null;
+}
+
 export async function GET() {
   return NextResponse.json({ ok: true, endpoint: 'apifon_status_webhook' });
 }
@@ -182,5 +226,121 @@ export async function POST(request: NextRequest) {
 
   const summary = extractSummary(root);
 
-  return NextResponse.json({ ok: true, received: true, summary });
+  // ---------------------------------------------------------------------------
+  // Persist to DB (non-fatal: errors here do not affect the 200 response to Apifon).
+  // ---------------------------------------------------------------------------
+  let matched = false;
+
+  try {
+    const supabase = createServerSupabaseClient();
+
+    // Build a deterministic event_id: request_id + message_id + status_code.
+    // Different status events for the same message have different status_code values,
+    // so this key is unique per status transition.
+    const reqIdStr = typeof summary.request_id === 'string' ? summary.request_id : '';
+    const msgIdStr = summary.message_id !== null && summary.message_id !== undefined
+      ? String(summary.message_id) : '';
+    const scodeStr = summary.status_code !== null && summary.status_code !== undefined
+      ? String(summary.status_code) : '';
+    const rawEventId = [reqIdStr, msgIdStr, scodeStr].filter(s => s.length > 0).join(':');
+    const apifonEventId = rawEventId.length > 0 ? rawEventId : null;
+
+    // Idempotency: skip insert if this exact event was already stored.
+    let providerEventId: string | null = null;
+    if (apifonEventId) {
+      const { data: existing } = await supabase
+        .from('provider_webhook_events')
+        .select('id')
+        .eq('provider', 'apifon')
+        .eq('event_id', apifonEventId)
+        .maybeSingle();
+      if (existing) {
+        providerEventId = (existing as unknown as { id: string }).id;
+      }
+    }
+
+    if (!providerEventId) {
+      const eventTypeStr = typeof summary.type === 'string' ? summary.type : 'viber_status';
+      const { data: inserted } = await supabase
+        .from('provider_webhook_events')
+        .insert({
+          provider: 'apifon',
+          event_id: apifonEventId,
+          event_type: eventTypeStr,
+          payload: root,
+          processed: false,
+        })
+        .select('id')
+        .single();
+      if (inserted) {
+        providerEventId = (inserted as unknown as { id: string }).id;
+      }
+    }
+
+    // Find matching viber_messages row using a priority fallback chain:
+    // provider_message_id > provider_request_id > reference_id.
+    const msgIdForMatch = typeof summary.message_id === 'string' ? summary.message_id : null;
+    const reqIdForMatch = typeof summary.request_id === 'string' ? summary.request_id : null;
+    // summary.reference echoes the reference_id sent in the Apifon request body.
+    const refIdForMatch = typeof summary.reference === 'string' ? summary.reference : null;
+
+    const viberRow = await findViberMessageRow(
+      supabase,
+      msgIdForMatch,
+      reqIdForMatch,
+      refIdForMatch
+    );
+
+    if (viberRow) {
+      const statusText = typeof summary.status === 'string' ? summary.status : null;
+      const statusCode = summary.status_code !== null && summary.status_code !== undefined
+        ? String(summary.status_code) : null;
+      const statusLower = statusText?.toLowerCase() ?? '';
+      const isDelivered = ['delivered', 'seen', 'read'].includes(statusLower);
+      const isFailed = [
+        'failed', 'rejected', 'undelivered', 'error', 'not_delivered',
+      ].includes(statusLower);
+      const normalizedStatus = isDelivered ? 'delivered'
+        : isFailed ? 'failed'
+        : (statusText ?? 'unknown');
+
+      const now = new Date().toISOString();
+      const viberUpdate: Record<string, unknown> = {
+        status: normalizedStatus,
+        status_code: statusCode,
+        status_text: statusText,
+        raw_status_payload: root,
+        last_provider_event_id: providerEventId,
+        updated_at: now,
+      };
+
+      // Set delivered_at only on first delivery event.
+      if (isDelivered && !viberRow.delivered_at) {
+        viberUpdate.delivered_at = now;
+      }
+      // Set failed_at only on first failure event.
+      if (isFailed && !viberRow.failed_at) {
+        viberUpdate.failed_at = now;
+      }
+
+      await supabase
+        .from('viber_messages')
+        .update(viberUpdate)
+        .eq('id', viberRow.id);
+
+      // Mark provider event processed once viber_messages is updated.
+      if (providerEventId) {
+        await supabase
+          .from('provider_webhook_events')
+          .update({ processed: true, processed_at: now })
+          .eq('id', providerEventId);
+      }
+
+      matched = true;
+    }
+  } catch {
+    // DB errors are non-fatal for Apifon status callbacks.
+  }
+
+  return NextResponse.json({ ok: true, received: true, summary, matched });
 }
