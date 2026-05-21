@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { loadState } from '@/lib/storage';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { norm } from '@/lib/search';
-import type { CallRecord, Customer } from '@/lib/types';
+import type { Customer } from '@/lib/types';
 
-// ─── Types ────────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 
 type Tab = 'keypad' | 'recent' | 'customers' | 'sms';
 
@@ -21,6 +23,29 @@ const CALL_DIRECTION_LABEL: Record<string, string> = {
   inbound: 'Εισερχόμενη',
   outbound: 'Εξερχόμενη',
 };
+
+// Backend communication shape from /api/communications.
+interface BackendCallCustomer {
+  id: string;
+  crmNumber: string | null;
+  name: string | null;
+  companyName: string | null;
+  phone: string | null;
+  source: string | null;
+  status: string | null;
+}
+
+interface BackendCall {
+  id: string;
+  customerId: string | null;
+  channel: string;
+  direction: string;
+  status: string;
+  phone: string | null;
+  summary: string | null;
+  createdAt: string;
+  customer: BackendCallCustomer | null;
+}
 
 interface SmsTemplate {
   key: string;
@@ -51,14 +76,9 @@ const SMS_TEMPLATES: SmsTemplate[] = [
   },
 ];
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function fmtDuration(secs: number): string {
-  if (secs < 60) return `${secs}″`;
-  const m = Math.floor(secs / 60);
-  const s = secs % 60;
-  return s > 0 ? `${m}′ ${s}″` : `${m}′`;
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function fmtDate(iso: string): string {
   try {
@@ -73,7 +93,35 @@ function fmtDate(iso: string): string {
   }
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// Map backend customer API response to the local Customer type.
+function mapCustomer(d: Record<string, unknown>): Customer {
+  const now = new Date().toISOString();
+  return {
+    id: d.id as string,
+    name:
+      (d.name as string | null) ??
+      (d.companyName as string | null) ??
+      (d.crmNumber as string | null) ??
+      'Πελάτης',
+    companyName: (d.companyName as string | null) ?? '',
+    phone: (d.phone as string | null) ?? '',
+    email: (d.email as string | null) ?? '',
+    address: (d.address as string | null) ?? '',
+    source: (d.source as Customer['source']) ?? 'manual_entry',
+    status: (d.status as Customer['status']) ?? 'new_lead',
+    preferredContactMethod:
+      (d.preferredContactMethod as Customer['preferredContactMethod']) ?? 'phone',
+    needsSummary: (d.needsSummary as string | null) ?? '',
+    notes: (d.notes as string | null) ?? '',
+    createdAt: (d.createdAt as string) ?? now,
+    updatedAt: (d.updatedAt as string) ?? now,
+    crmNumber: (d.crmNumber as string | null) ?? undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
 
 function PhoneIcon({ className }: { className?: string }) {
   return (
@@ -83,7 +131,9 @@ function PhoneIcon({ className }: { className?: string }) {
   );
 }
 
-// ─── Keypad Tab ───────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Keypad Tab
+// ---------------------------------------------------------------------------
 
 const KEYPAD_KEYS = [
   ['1', '2', '3'],
@@ -149,32 +199,32 @@ function KeypadTab() {
         </button>
       )}
 
-      {/* Call button */}
+      {/* Demo call button */}
       <Link
         href="/call/mock"
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-green-600 py-4 text-base font-semibold text-white transition hover:bg-green-700 active:bg-green-800"
       >
         <PhoneIcon className="h-5 w-5" />
-        Κλήση (Demo)
+        Demo κλήση
       </Link>
 
-      {/* MVP disclaimer */}
+      {/* Honest disclaimer */}
       <p className="text-center text-xs text-zinc-400">
-        Demo κλήση. Δεν γίνεται πραγματική τηλεφωνική κλήση στο MVP.
+        Δεν γίνεται πραγματική τηλεφωνική κλήση. Πατώντας ανοίγει το demo περιβάλλον κλήσης.
       </p>
     </div>
   );
 }
 
-// ─── Recent Tab ───────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Recent Tab - uses real backend communications
+// ---------------------------------------------------------------------------
 
 function RecentTab({
   calls,
-  customerMap,
   onSwitchToSms,
 }: {
-  calls: CallRecord[];
-  customerMap: Record<string, string>;
+  calls: BackendCall[];
   onSwitchToSms: () => void;
 }) {
   const sorted = [...calls].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20);
@@ -185,16 +235,16 @@ function RecentTab({
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
           <PhoneIcon className="h-6 w-6 text-indigo-400" />
         </div>
-        <p className="text-sm font-medium text-zinc-600">Δεν υπάρχουν πρόσφατες κλήσεις ακόμα.</p>
+        <p className="text-sm font-medium text-zinc-600">Δεν έχουν καταγραφεί ακόμα πραγματικές PBX κλήσεις.</p>
         <p className="mt-1 text-sm text-zinc-400">
-          Δοκίμασε μια demo κλήση για να δεις το AI review.
+          Οι κλήσεις εμφανίζονται εδώ αφού καταγραφούν από το PBX.
         </p>
-        <Link
-          href="/call/mock"
-          className="mt-4 inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
-        >
-          Νέα demo κλήση
-        </Link>
+        <p className="mt-3 text-xs text-zinc-400">
+          <Link href="/call/mock" className="text-indigo-500 hover:underline">
+            Demo κλήση
+          </Link>
+          {' '}για δοκιμή του AI review flow.
+        </p>
       </div>
     );
   }
@@ -202,20 +252,27 @@ function RecentTab({
   return (
     <ul className="space-y-2">
       {sorted.map((call) => {
-        const name = call.customerId ? customerMap[call.customerId] : null;
+        const linkedCustomer = call.customer;
+        const displayName =
+          linkedCustomer?.name ??
+          linkedCustomer?.companyName ??
+          (call.phone ? `****${call.phone.slice(-4)}` : null) ??
+          'Άγνωστος / Νέος';
         const isMissed = call.status === 'missed';
-        const isNew = !call.customerId;
+        const hasCustomer = !!call.customerId;
         return (
           <li key={call.id} className={`rounded-2xl px-4 py-3 ring-1 shadow-sm space-y-2 ${isMissed ? 'bg-red-50 ring-red-100' : 'bg-white ring-zinc-100'}`}>
             {/* Row 1: name + date */}
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className={`text-sm font-semibold truncate ${isMissed ? 'text-red-800' : 'text-zinc-900'}`}>
-                  {name ?? 'Άγνωστος / Νέος'}
+                  {displayName}
                 </p>
+                {linkedCustomer?.companyName && linkedCustomer.companyName !== displayName && (
+                  <p className="text-xs text-zinc-400 truncate">{linkedCustomer.companyName}</p>
+                )}
                 <p className="mt-0.5 text-xs text-zinc-500">
                   {CALL_DIRECTION_LABEL[call.direction] ?? call.direction}
-                  {call.durationSeconds > 0 && ` · ${fmtDuration(call.durationSeconds)}`}
                 </p>
               </div>
               <p className="shrink-0 text-[10px] text-zinc-400 whitespace-nowrap">{fmtDate(call.createdAt)}</p>
@@ -223,30 +280,44 @@ function RecentTab({
             {/* Row 2: status chips */}
             <div className="flex flex-wrap gap-1.5">
               {isMissed && <span className="rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-semibold text-red-700">Χαμένη</span>}
-              {isNew
-                ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Νέος αριθμός</span>
-                : <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">Υπάρχων πελάτης</span>
+              {hasCustomer
+                ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">Υπάρχων πελάτης</span>
+                : <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Νέος αριθμός</span>
               }
               <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">CRM</span>
-              <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">AI brief</span>
+              {call.summary && (
+                <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">Σύνοψη</span>
+              )}
             </div>
             {/* Row 3: quick actions */}
             <div className="flex flex-wrap gap-2">
               {call.customerId && (
-                <Link href={`/customers/${call.customerId}`}
-                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 min-h-[32px] flex items-center">
+                <Link
+                  href={`/customers/backend/${call.customerId}`}
+                  className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 min-h-[32px] flex items-center"
+                >
                   Άνοιγμα πελάτη
                 </Link>
               )}
-              <Link href="/call/mock"
-                className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[32px] flex items-center">
-                Κλήση ξανά
+              <Link
+                href="/call/mock"
+                className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[32px] flex items-center"
+                title="Demo κλήση"
+              >
+                Demo κλήση
               </Link>
-              <button type="button" onClick={onSwitchToSms}
-                className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[32px] flex items-center">
+              <button
+                type="button"
+                onClick={onSwitchToSms}
+                className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 min-h-[32px] flex items-center"
+              >
                 SMS
               </button>
             </div>
+            {/* Summary if available */}
+            {call.summary && (
+              <p className="text-xs text-zinc-500 line-clamp-2">{call.summary}</p>
+            )}
           </li>
         );
       })}
@@ -254,7 +325,9 @@ function RecentTab({
   );
 }
 
-// ─── Customers Tab ────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Customers Tab - uses real backend customers
+// ---------------------------------------------------------------------------
 
 function CustomersTab({
   customers,
@@ -293,7 +366,7 @@ function CustomersTab({
             {search.trim() ? 'Δεν βρέθηκαν αποτελέσματα.' : 'Δεν υπάρχουν πελάτες ακόμα.'}
           </p>
           {!search.trim() && (
-            <Link href="/customers" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">
+            <Link href="/customers/backend" className="mt-3 inline-block text-sm text-indigo-600 hover:underline">
               Πήγαινε στους Πελάτες →
             </Link>
           )}
@@ -312,7 +385,7 @@ function CustomersTab({
                 <Link
                   href="/call/mock"
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-green-50 text-green-600 ring-1 ring-green-200 transition hover:bg-green-100"
-                  title="Κλήση"
+                  title="Demo κλήση"
                 >
                   <PhoneIcon className="h-3.5 w-3.5" />
                 </Link>
@@ -327,7 +400,7 @@ function CustomersTab({
                   </svg>
                 </button>
                 <Link
-                  href={`/customers/${c.id}`}
+                  href={`/customers/backend/${c.id}`}
                   className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-50 text-zinc-600 ring-1 ring-zinc-200 transition hover:bg-zinc-100"
                   title="Άνοιγμα"
                 >
@@ -344,7 +417,9 @@ function CustomersTab({
   );
 }
 
-// ─── SMS Tab ──────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// SMS Tab
+// ---------------------------------------------------------------------------
 
 function SmsTab({ preselectedCustomer, customers }: { preselectedCustomer: Customer | null; customers: Customer[] }) {
   const [selectedCustomerId, setSelectedCustomerId] = useState(preselectedCustomer?.id ?? '');
@@ -381,7 +456,7 @@ function SmsTab({ preselectedCustomer, customers }: { preselectedCustomer: Custo
       {/* Disclaimer */}
       <div className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
         <p className="text-xs text-zinc-500">
-          Δεν αποστέλλεται αυτόματα. Το μήνυμα αντιγράφεται για να το στείλεις εσύ.
+          Το μήνυμα αντιγράφεται για να το στείλεις εσύ χειροκίνητα. Δεν αποστέλλεται αυτόματα.
         </p>
       </div>
 
@@ -396,7 +471,7 @@ function SmsTab({ preselectedCustomer, customers }: { preselectedCustomer: Custo
             onChange={(e) => setSelectedCustomerId(e.target.value)}
             className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
           >
-            <option value="">— Χωρίς πελάτη —</option>
+            <option value=""> -  Χωρίς πελάτη  - </option>
             {customers.map((c) => (
               <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
             ))}
@@ -478,13 +553,18 @@ function SmsTab({ preselectedCustomer, customers }: { preselectedCustomer: Custo
   );
 }
 
-// ─── After-call product story card ────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// After-call product story card
+// ---------------------------------------------------------------------------
 
 function AfterCallStoryCard() {
   return (
     <div className="rounded-2xl bg-indigo-50 px-4 py-4 ring-1 ring-indigo-100 space-y-3">
       <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
         Τι γίνεται μετά από κλήση
+      </p>
+      <p className="text-xs text-indigo-700">
+        Όταν υπάρχει πραγματική PBX κλήση, αποθηκεύεται ως επικοινωνία CRM.
       </p>
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
@@ -507,35 +587,83 @@ function AfterCallStoryCard() {
         </div>
       </div>
       <p className="text-[10px] text-indigo-500">
-        Εξήγηση προϊόντος — όχι υλοποιημένο ακόμα στο MVP.
+        Εξήγηση προϊόντος. Ενεργοποιείται όταν συνδεθεί πραγματικό PBX.
       </p>
     </div>
   );
 }
 
-// ─── Main page ────────────────────────────────────────────────────────────────
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
 
 export default function CallsPage() {
   const [hydrated, setHydrated] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>('keypad');
-  const [calls, setCalls] = useState<CallRecord[]>([]);
+  const [calls, setCalls] = useState<BackendCall[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerMap, setCustomerMap] = useState<Record<string, string>>({});
   const [smsPreselect, setSmsPreselect] = useState<Customer | null>(null);
+  const tokenRef = useRef<string | null>(null);
+
+  const loadData = useCallback(async (token: string) => {
+    const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+    try {
+      const [commsResp, customersResp] = await Promise.all([
+        fetch('/api/communications?channel=call&limit=100', { headers }),
+        fetch('/api/customers?limit=100', { headers }),
+      ]);
+
+      if (!commsResp.ok || !customersResp.ok) {
+        setActionError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+        return;
+      }
+
+      const [commsData, customersData] = await Promise.all([
+        commsResp.json(),
+        customersResp.json(),
+      ]);
+
+      const rawComms: BackendCall[] = Array.isArray(commsData)
+        ? commsData
+        : (commsData.communications ?? []);
+
+      const rawCustomers: Record<string, unknown>[] = Array.isArray(customersData)
+        ? customersData
+        : (customersData.customers ?? []);
+
+      setCalls(rawComms);
+      setCustomers(rawCustomers.map(mapCustomer));
+      setHydrated(true);
+    } catch {
+      setActionError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+      setHydrated(true);
+    }
+  }, []);
 
   useEffect(() => {
-    const state = loadState();
-    const allCalls: CallRecord[] = state.calls ?? [];
-    const allCustomers: Customer[] = state.customers ?? [];
-    const map = Object.fromEntries(allCustomers.map((c) => [c.id, c.name]));
-    const timer = window.setTimeout(() => {
-      setCalls(allCalls);
-      setCustomers(allCustomers);
-      setCustomerMap(map);
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    async function init() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          setAuthRequired(true);
+          setHydrated(true);
+          return;
+        }
+        tokenRef.current = session.access_token;
+        await loadData(session.access_token);
+      } catch {
+        setActionError('Αποτυχία σύνδεσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+      }
+    }
+    init();
+  }, [loadData]);
 
   function switchToSms(customer?: Customer) {
     if (customer) setSmsPreselect(customer);
@@ -552,7 +680,30 @@ export default function CallsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
-      {/* ── Header ── */}
+
+      {/* Error banner */}
+      {actionError && (
+        <div className="rounded-xl bg-red-50 px-4 py-2.5 ring-1 ring-red-200">
+          <p className="text-sm text-red-700">{actionError}</p>
+        </div>
+      )}
+
+      {/* Auth required notice */}
+      {authRequired && (
+        <div className="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+          <p className="text-sm text-amber-700">
+            Συνδέσου για να φορτωθούν οι πραγματικές κλήσεις και οι πελάτες.
+          </p>
+          <Link
+            href="/login/backend"
+            className="mt-2 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Σύνδεση
+          </Link>
+        </div>
+      )}
+
+      {/* Header */}
       <div>
         <h1 className="text-lg font-semibold text-zinc-900">Κλήσεις</h1>
         <p className="mt-0.5 text-sm text-zinc-500">
@@ -560,7 +711,7 @@ export default function CallsPage() {
         </p>
       </div>
 
-      {/* ── Business number card ── */}
+      {/* Business number card */}
       <div className="rounded-2xl bg-white px-4 py-3 ring-1 ring-zinc-100 shadow-sm space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -568,22 +719,20 @@ export default function CallsPage() {
               <PhoneIcon className="h-4 w-4 text-indigo-600" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-zinc-700">Ψηφιακός αριθμός</p>
-              <p className="text-sm font-medium text-zinc-500">Demo αριθμός</p>
+              <p className="text-xs font-semibold text-zinc-700">PBX κλήσεις CRM</p>
+              <p className="text-sm font-medium text-zinc-500">Πραγματικές εισερχόμενες από PBX</p>
             </div>
           </div>
           <div className="flex flex-wrap justify-end gap-1.5">
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold text-amber-700">Demo</span>
             <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-[10px] font-medium text-indigo-700">CRM logging</span>
-            <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700">AI brief</span>
           </div>
         </div>
         <p className="text-xs text-zinc-400">
-          Στο MVP δεν γίνεται πραγματική τηλεφωνική κλήση ή ηχογράφηση.
+          Οι κλήσεις καταγράφονται από το PBX. Δεν γίνεται in-app εξερχόμενη κλήση.
         </p>
       </div>
 
-      {/* ── Segmented tabs ── */}
+      {/* Segmented tabs */}
       <div className="grid grid-cols-4 gap-1 rounded-xl bg-zinc-100 p-1">
         {TABS.map((t) => (
           <button
@@ -601,7 +750,7 @@ export default function CallsPage() {
         ))}
       </div>
 
-      {/* ── Tab content ── */}
+      {/* Tab content */}
       {tab === 'keypad' && (
         <div className="space-y-4">
           <KeypadTab />
@@ -612,7 +761,6 @@ export default function CallsPage() {
       {tab === 'recent' && (
         <RecentTab
           calls={calls}
-          customerMap={customerMap}
           onSwitchToSms={() => switchToSms()}
         />
       )}
