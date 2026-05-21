@@ -2,7 +2,7 @@
 
 import { FormEvent, useEffect, useState } from 'react';
 
-interface IntakeCustomer {
+export interface IntakeCustomer {
   crmNumber: string | null;
   displayName: string;
   phoneMasked: string | null;
@@ -19,19 +19,36 @@ interface IntakeApiResponse {
   error?: string;
 }
 
-export default function IntakeFormClient({ token }: { token: string }) {
-  const [customer, setCustomer] = useState<IntakeCustomer | null>(null);
+interface IntakeFormClientProps {
+  token: string;
+  initialCustomer?: IntakeCustomer | null;
+  initialError?: string | null;
+}
+
+export default function IntakeFormClient({
+  token,
+  initialCustomer = null,
+  initialError = null,
+}: IntakeFormClientProps) {
+  const [customer, setCustomer] = useState<IntakeCustomer | null>(initialCustomer);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
-  const [email, setEmail] = useState('');
-  const [address, setAddress] = useState('');
+  const [email, setEmail] = useState(initialCustomer?.email ?? '');
+  const [address, setAddress] = useState(initialCustomer?.address ?? '');
   const [comments, setComments] = useState('');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!initialCustomer && !initialError);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [message, setMessage] = useState('Φορτώνουμε τη φόρμα...');
+  const [message, setMessage] = useState(
+    initialError ??
+      (initialCustomer
+        ? 'Συμπληρώστε τα στοιχεία σας για να ολοκληρώσουμε την καρτέλα.'
+        : 'Φορτώνουμε τη φόρμα...')
+  );
 
   useEffect(() => {
+    if (initialCustomer || initialError) return;
+
     let cancelled = false;
 
     async function load() {
@@ -69,7 +86,7 @@ export default function IntakeFormClient({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [token, initialCustomer, initialError]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
