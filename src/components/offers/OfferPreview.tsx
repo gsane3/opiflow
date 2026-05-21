@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadState, updateOffer, deleteOffer, addTask } from '@/lib/storage';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Offer, OfferStatus, Task, Customer, BusinessProfile } from '@/lib/types';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
@@ -29,6 +30,87 @@ function formatDate(dateStr: string): string {
   });
 }
 
+// ---------------------------------------------------------------------------
+// Backend mapping helpers
+// ---------------------------------------------------------------------------
+
+function mapBackendOffer(d: Record<string, unknown>): Offer {
+  return {
+    id: d.id as string,
+    customerId: (d.customerId as string | null) ?? undefined,
+    relatedTaskId: (d.relatedTaskId as string | null) ?? undefined,
+    offerNumber: d.offerNumber as string,
+    status: d.status as OfferStatus,
+    offerDate: d.offerDate as string,
+    // Map null validUntil to offerDate to avoid Invalid Date in the UI.
+    validUntil: (d.validUntil as string | null) ?? (d.offerDate as string),
+    items: (d.items as unknown as Offer['items']) ?? [],
+    subtotal: d.subtotal as number,
+    vatRate: d.vatRate as number,
+    vatAmount: d.vatAmount as number,
+    total: d.total as number,
+    notes: (d.notes as string | null) ?? '',
+    terms: (d.terms as string | null) ?? '',
+    acceptanceText: (d.acceptanceText as string | null) ?? '',
+    createdFromAi: (d.createdFromAi as boolean) ?? false,
+    createdAt: d.createdAt as string,
+    updatedAt: d.updatedAt as string,
+  };
+}
+
+function mapBackendCustomer(d: Record<string, unknown>): Customer {
+  const now = new Date().toISOString();
+  return {
+    id: d.id as string,
+    name:
+      (d.name as string | null) ??
+      (d.companyName as string | null) ??
+      (d.crmNumber as string | null) ??
+      'Πελάτης',
+    companyName: (d.companyName as string | null) ?? '',
+    phone: (d.phone as string | null) ?? '',
+    email: (d.email as string | null) ?? '',
+    address: (d.address as string | null) ?? '',
+    source: (d.source as Customer['source']) ?? 'manual_entry',
+    status: (d.status as Customer['status']) ?? 'new_lead',
+    preferredContactMethod:
+      (d.preferredContactMethod as Customer['preferredContactMethod']) ?? 'phone',
+    needsSummary: (d.needsSummary as string | null) ?? '',
+    notes: (d.notes as string | null) ?? '',
+    createdAt: (d.createdAt as string) ?? now,
+    updatedAt: (d.updatedAt as string) ?? now,
+    crmNumber: (d.crmNumber as string | null) ?? undefined,
+    mobilePhone: (d.mobilePhone as string | null) ?? undefined,
+    landlinePhone: (d.landlinePhone as string | null) ?? undefined,
+    opportunityValue: (d.opportunityValue as number | null) ?? undefined,
+  };
+}
+
+function mapBackendBusiness(d: Record<string, unknown>): BusinessProfile {
+  const now = new Date().toISOString();
+  return {
+    id: (d.id as string) ?? '',
+    businessName: (d.name as string | null) ?? '',
+    businessType: ((d.type as string | null) ?? 'other') as BusinessProfile['businessType'],
+    ownerName: '',
+    phone: (d.phone as string | null) ?? '',
+    email: (d.email as string | null) ?? '',
+    address: (d.address as string | null) ?? '',
+    vatNumber: (d.vat_number as string | null) ?? '',
+    taxOffice: (d.tax_office as string | null) ?? '',
+    logoDataUrl: (d.logo_url as string | null) ?? '',
+    defaultVatRate: (d.default_vat_rate as number | null) ?? 24,
+    defaultOfferTerms: (d.default_offer_terms as string | null) ?? '',
+    defaultAcceptanceText: (d.default_acceptance_text as string | null) ?? '',
+    preferredContactMethod:
+      ((d.preferred_contact_method as string | null) ?? 'phone') as BusinessProfile['preferredContactMethod'],
+    createdAt: (d.created_at as string) ?? now,
+    updatedAt: (d.updated_at as string) ?? now,
+  };
+}
+
+// ---------------------------------------------------------------------------
+
 interface Props {
   offerId: string;
 }
@@ -41,6 +123,10 @@ export default function OfferPreview({ offerId }: Props) {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [bp, setBp] = useState<BusinessProfile | null>(null);
+  // Backend mode: set when offer was loaded from the real API.
+  const [loadedFromBackend, setLoadedFromBackend] = useState(false);
+  const tokenRef = useRef<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   // Steps 131+132: task suggestion state
   const [acceptTaskState, setAcceptTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
   const [rejectTaskState, setRejectTaskState] = useState<'idle' | 'created' | 'duplicate'>('idle');
@@ -64,75 +150,197 @@ export default function OfferPreview({ offerId }: Props) {
   const [appointmentEmailManualCopyVisible, setAppointmentEmailManualCopyVisible] = useState(false);
   const [confirmedAppointmentTaskId, setConfirmedAppointmentTaskId] = useState('');
 
-  // Load localStorage after mount to avoid hydration mismatch.
-  // setState calls are deferred into a timer so they are not synchronous in the effect body.
+  // Try backend first. Fall back to localStorage for demo/local offers.
   useEffect(() => {
-    const state = loadState();
-    const foundOffer = (state.offers ?? []).find((o) => o.id === offerId) ?? null;
-    const foundCustomer = foundOffer?.customerId
-      ? (state.customers ?? []).find((c) => c.id === foundOffer.customerId) ?? null
-      : null;
-    const foundBp = state.businessProfile ?? null;
-    const timer = window.setTimeout(() => {
-      setOffer(foundOffer);
-      setCustomer(foundCustomer);
-      setBp(foundBp);
-      setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    let cancelled = false;
+
+    async function init() {
+      // Backend path: try session + API fetch.
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (session) {
+          tokenRef.current = session.access_token;
+          const headers: HeadersInit = { Authorization: `Bearer ${session.access_token}` };
+
+          const offerResp = await fetch(`/api/offers/${offerId}`, { headers });
+          if (offerResp.ok) {
+            const offerData = await offerResp.json();
+            const backendOffer = mapBackendOffer(offerData.offer as Record<string, unknown>);
+
+            let backendCustomer: Customer | null = null;
+            if (backendOffer.customerId) {
+              try {
+                const custResp = await fetch(
+                  `/api/customers/${backendOffer.customerId}`,
+                  { headers }
+                );
+                if (custResp.ok) {
+                  const custData = await custResp.json();
+                  backendCustomer = mapBackendCustomer(
+                    custData.customer as Record<string, unknown>
+                  );
+                }
+              } catch { /* non-fatal */ }
+            }
+
+            let backendBp: BusinessProfile | null = null;
+            try {
+              const bpResp = await fetch('/api/businesses/me', { headers });
+              if (bpResp.ok) {
+                const bpData = await bpResp.json();
+                backendBp = mapBackendBusiness(bpData.business as Record<string, unknown>);
+              }
+            } catch { /* non-fatal */ }
+
+            if (!cancelled) {
+              setOffer(backendOffer);
+              setCustomer(backendCustomer);
+              setBp(backendBp);
+              setLoadedFromBackend(true);
+              setHydrated(true);
+            }
+            return;
+          }
+          // Offer not found in backend (e.g. UUID not found, 404) - fall through to localStorage.
+        }
+      } catch { /* fall through to localStorage */ }
+
+      // Fallback: localStorage (keeps demo routes working).
+      const state = loadState();
+      const foundOffer = (state.offers ?? []).find((o) => o.id === offerId) ?? null;
+      const foundCustomer = foundOffer?.customerId
+        ? (state.customers ?? []).find((c) => c.id === foundOffer.customerId) ?? null
+        : null;
+      const foundBp = state.businessProfile ?? null;
+      if (!cancelled) {
+        setOffer(foundOffer);
+        setCustomer(foundCustomer);
+        setBp(foundBp);
+        setHydrated(true);
+      }
+    }
+
+    init();
+    return () => { cancelled = true; };
   }, [offerId]);
 
-  function handleStatusChange(status: OfferStatus) {
+  async function handleStatusChange(status: OfferStatus) {
     if (!offer) return;
-    const updated = { ...offer, status, updatedAt: new Date().toISOString() };
-    updateOffer(updated);
-    setOffer(updated);
+    if (loadedFromBackend) {
+      const token = tokenRef.current;
+      if (!token) return;
+      setActionError(null);
+      const resp = await fetch(`/api/offers/${offer.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setOffer(mapBackendOffer(data.offer as Record<string, unknown>));
+      } else {
+        setActionError('Αποτυχία αλλαγής status. Δοκίμασε ξανά.');
+      }
+    } else {
+      const updated = { ...offer, status, updatedAt: new Date().toISOString() };
+      updateOffer(updated);
+      setOffer(updated);
+    }
   }
 
   function handleUpdateOffer(updated: Offer) {
+    // Only called from OfferAcceptanceDemoSection, which is hidden for backend offers.
     updateOffer(updated);
     setOffer(updated);
   }
 
-  function handleMarkSent() {
+  async function handleMarkSent() {
     if (!offer) return;
-    const updated: Offer = {
-      ...offer,
-      status: 'sent_manually',
-      updatedAt: new Date().toISOString(),
-    };
-    updateOffer(updated);
-    setOffer(updated);
+    if (loadedFromBackend) {
+      const token = tokenRef.current;
+      if (!token) return;
+      setActionError(null);
+      const resp = await fetch(`/api/offers/${offer.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'sent_manually' }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setOffer(mapBackendOffer(data.offer as Record<string, unknown>));
+      } else {
+        setActionError('Αποτυχία ενημέρωσης. Δοκίμασε ξανά.');
+      }
+    } else {
+      const updated: Offer = {
+        ...offer,
+        status: 'sent_manually',
+        updatedAt: new Date().toISOString(),
+      };
+      updateOffer(updated);
+      setOffer(updated);
+    }
   }
 
-  function handleCreateFollowUpTask() {
+  async function handleCreateFollowUpTask() {
     if (!offer) return;
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
     const now = new Date().toISOString();
-    const task: Task = {
-      id: crypto.randomUUID(),
-      customerId: offer.customerId,
-      title: `Follow-up προσφοράς ${offer.offerNumber}`,
-      type: 'follow_up_offer',
-      status: 'open',
-      priority: 'normal',
-      dueDate: dueDate.toISOString().split('T')[0],
-      note: 'Follow-up μετά την αποστολή της προσφοράς μέσω email.',
-      createdFromAi: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(task);
+
+    if (loadedFromBackend) {
+      const token = tokenRef.current;
+      if (!token) return;
+      await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: offer.customerId ?? null,
+          offerId: offer.id,
+          title: `Follow-up προσφοράς ${offer.offerNumber}`,
+          type: 'follow_up_offer',
+          status: 'open',
+          priority: 'normal',
+          dueDate: dueDate.toISOString().split('T')[0],
+          note: 'Follow-up μετά την αποστολή της προσφοράς μέσω email.',
+          createdFromAi: false,
+        }),
+      });
+    } else {
+      const task: Task = {
+        id: crypto.randomUUID(),
+        customerId: offer.customerId,
+        title: `Follow-up προσφοράς ${offer.offerNumber}`,
+        type: 'follow_up_offer',
+        status: 'open',
+        priority: 'normal',
+        dueDate: dueDate.toISOString().split('T')[0],
+        note: 'Follow-up μετά την αποστολή της προσφοράς μέσω email.',
+        createdFromAi: false,
+        createdAt: now,
+        updatedAt: now,
+      };
+      addTask(task);
+    }
   }
 
   function handleDelete() {
     if (!offer) return;
+    if (loadedFromBackend) {
+      // No DELETE API exists yet.
+      setActionError('Η διαγραφή προσφοράς δεν είναι διαθέσιμη ακόμα.');
+      setConfirmingOfferDelete(false);
+      return;
+    }
     deleteOffer(offerId);
     router.push('/offers');
   }
 
-  // Step 137: reset demo response — for demo retry only
+  // Step 137: reset demo response  -  for demo retry only
   function handleUndoResponse() {
     if (!offer) return;
     const now = new Date().toISOString();
@@ -160,10 +368,42 @@ export default function OfferPreview({ offerId }: Props) {
   }
 
   // Step 131: suggest work-scheduling task after accepted offer
-  function handleCreateAcceptTask() {
+  async function handleCreateAcceptTask() {
     if (!offer) return;
+
+    if (loadedFromBackend) {
+      const token = tokenRef.current;
+      if (!token) return;
+      setActionError(null);
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const resp = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: offer.customerId ?? null,
+          offerId: offer.id,
+          title: `Προγραμμάτισε εργασία για προσφορά ${offer.offerNumber}`,
+          type: 'other',
+          status: 'open',
+          priority: 'high',
+          dueDate: tomorrow.toISOString().split('T')[0],
+          note: `Η προσφορά ${offer.offerNumber} έγινε αποδεκτή. Προγραμμάτισε την εκτέλεση.`,
+          createdFromAi: false,
+        }),
+      });
+      if (resp.ok) {
+        setAcceptTaskKind('generic');
+        setAcceptTaskState('created');
+      } else {
+        setActionError('Αποτυχία δημιουργίας task. Δοκίμασε ξανά.');
+      }
+      return;
+    }
+
+    // Local/demo path
     const state = loadState();
-    // Step 140: improved duplicate detection — check offerId or same customer + offerNumber in title
+    // Step 140: improved duplicate detection
     const hasDup = (state.tasks ?? []).some(
       (t) =>
         t.status === 'open' &&
@@ -195,8 +435,47 @@ export default function OfferPreview({ offerId }: Props) {
     setAcceptTaskState('created');
   }
 
-  function handleCreateAppointmentTask() {
+  async function handleCreateAppointmentTask() {
     if (!offer) return;
+
+    if (loadedFromBackend) {
+      const token = tokenRef.current;
+      if (!token) return;
+      setActionError(null);
+      const resp = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: offer.customerId ?? null,
+          offerId: offer.id,
+          title: `Ραντεβού, προσφορά ${offer.offerNumber}`,
+          type: 'book_appointment',
+          status: 'open',
+          priority: 'high',
+          dueDate: appointmentDate,
+          dueTime: appointmentTime,
+          note: `Η προσφορά έγινε αποδεκτή. Ραντεβού: ${appointmentDate} ${appointmentTime}.`,
+          createdFromAi: false,
+        }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const taskId =
+          ((data.task as Record<string, unknown>)?.id as string | undefined) ??
+          crypto.randomUUID();
+        setAcceptTaskKind('appointment');
+        setConfirmedAppointmentDate(appointmentDate);
+        setConfirmedAppointmentTime(appointmentTime);
+        setConfirmedAppointmentTaskId(taskId);
+        setAcceptTaskState('created');
+        setAppointmentFormOpen(false);
+      } else {
+        setActionError('Αποτυχία δημιουργίας task ραντεβού. Δοκίμασε ξανά.');
+      }
+      return;
+    }
+
+    // Local/demo path
     const state = loadState();
     const hasDup = (state.tasks ?? []).some(
       (t) =>
@@ -295,8 +574,39 @@ export default function OfferPreview({ offerId }: Props) {
   }
 
   // Step 132: suggest follow-up task after rejected offer
-  function handleCreateRejectTask() {
+  async function handleCreateRejectTask() {
     if (!offer) return;
+
+    if (loadedFromBackend) {
+      const token = tokenRef.current;
+      if (!token) return;
+      setActionError(null);
+      const in3days = new Date();
+      in3days.setDate(in3days.getDate() + 3);
+      const resp = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: offer.customerId ?? null,
+          offerId: offer.id,
+          title: `Follow-up για απορριφθείσα προσφορά ${offer.offerNumber}`,
+          type: 'follow_up_offer',
+          status: 'open',
+          priority: 'normal',
+          dueDate: in3days.toISOString().split('T')[0],
+          note: `Η προσφορά ${offer.offerNumber} απορρίφθηκε. Σκέψου follow-up ή αναθεώρηση τιμής.`,
+          createdFromAi: false,
+        }),
+      });
+      if (resp.ok) {
+        setRejectTaskState('created');
+      } else {
+        setActionError('Αποτυχία δημιουργίας task. Δοκίμασε ξανά.');
+      }
+      return;
+    }
+
+    // Local/demo path
     const state = loadState();
     // Step 140: improved duplicate detection
     const hasDup = (state.tasks ?? []).some(
@@ -329,7 +639,7 @@ export default function OfferPreview({ offerId }: Props) {
     setRejectTaskState('created');
   }
 
-  // Stable loading shell — identical on server and first client render.
+  // Stable loading shell - identical on server and first client render.
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center">
@@ -357,45 +667,58 @@ export default function OfferPreview({ offerId }: Props) {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-5 space-y-5">
-      {/* Step 165: Demo mission banners */}
-      <DemoStepBanner
-        step="offer"
-        stepNum={6}
-        title="Προσφορά -- preview, print, copy draft"
-        body="Δοκίμασε print PDF, αντιγραφή Viber/email draft και άνοιξε το demo response link παρακάτω."
-        watchLabel="Ενότητα 'Link αποδοχής πελάτη' -- πάτα 'Άνοιγμα demo link πελάτη'."
-        actionLabel="Επόμενο: Απάντηση πελάτη"
-        actionHref={`/offer-response/${offerId}?demoStep=response`}
-      />
-      <DemoStepBanner
-        step="followup"
-        stepNum={8}
-        title="Follow-up task -- μετά την αποδοχή"
-        body="Η προσφορά αποδέχτηκε. Δημιούργησε task για προγραμματισμό εργασίας."
-        watchLabel="Ενότητα 'Επόμενο βήμα' -- πάτα 'Δημιουργία task'."
-        actionLabel="Πίσω στο Demo"
-        actionHref="/demo"
-      />
-      <GuidedDemoBanner
-        step="offer"
-        stepNum={6}
-        title="Προσφορά — preview, print, link αποδοχής"
-        whatYouSee="Preview προσφοράς, print/PDF, copy draft για Viber/email, link αποδοχής πελάτη."
-        whatToDo="Δοκίμασε print ή copy draft. Βρες την ενότητα 'Link αποδοχής πελάτη' και πάτα 'Άνοιγμα demo link πελάτη'."
-        whyItMatters="Στο τελικό προϊόν, το link αποστέλλεται μέσω SMS, Viber ή email ανάλογα με το κανάλι του πελάτη. Στο MVP: copy-paste χειροκίνητα."
-        canManualComplete={true}
-      />
-      <GuidedDemoBanner
-        step="followup"
-        stepNum={8}
-        title="Follow-up task — μετά την αποδοχή"
-        whatYouSee="Ενότητα 'Επόμενο βήμα' με κουμπί δημιουργίας task προγραμματισμού."
-        whatToDo="Πάτα 'Δημιούργησε task προγραμματισμού' για να δημιουργηθεί task στο CRM."
-        whyItMatters="Κάθε αποδεκτή προσφορά γίνεται task. Στο τελικό προϊόν, αυτό θα γίνεται αυτόματα μετά την αποδοχή."
-        canManualComplete={false}
-        isCompleted={acceptTaskState === 'created' || acceptTaskState === 'duplicate'}
-        isFinalStep={true}
-      />
+
+      {/* Action error banner */}
+      {actionError && (
+        <div className="rounded-xl bg-red-50 px-4 py-2.5 ring-1 ring-red-200 print:hidden">
+          <p className="text-sm text-red-700">{actionError}</p>
+        </div>
+      )}
+
+      {/* Step 165: Demo mission banners - only for demo/local offers */}
+      {!loadedFromBackend && (
+        <>
+          <DemoStepBanner
+            step="offer"
+            stepNum={6}
+            title="Προσφορά -- preview, print, copy draft"
+            body="Δοκίμασε print PDF, αντιγραφή Viber/email draft και άνοιξε το demo response link παρακάτω."
+            watchLabel="Ενότητα 'Link αποδοχής πελάτη' -- πάτα 'Άνοιγμα demo link πελάτη'."
+            actionLabel="Επόμενο: Απάντηση πελάτη"
+            actionHref={`/offer-response/${offerId}?demoStep=response`}
+          />
+          <DemoStepBanner
+            step="followup"
+            stepNum={8}
+            title="Follow-up task -- μετά την αποδοχή"
+            body="Η προσφορά αποδέχτηκε. Δημιούργησε task για προγραμματισμό εργασίας."
+            watchLabel="Ενότητα 'Επόμενο βήμα' -- πάτα 'Δημιουργία task'."
+            actionLabel="Πίσω στο Demo"
+            actionHref="/demo"
+          />
+          <GuidedDemoBanner
+            step="offer"
+            stepNum={6}
+            title="Προσφορά  -  preview, print, link αποδοχής"
+            whatYouSee="Preview προσφοράς, print/PDF, copy draft για Viber/email, link αποδοχής πελάτη."
+            whatToDo="Δοκίμασε print ή copy draft. Βρες την ενότητα 'Link αποδοχής πελάτη' και πάτα 'Άνοιγμα demo link πελάτη'."
+            whyItMatters="Στο τελικό προϊόν, το link αποστέλλεται μέσω SMS, Viber ή email ανάλογα με το κανάλι του πελάτη. Στο MVP: copy-paste χειροκίνητα."
+            canManualComplete={true}
+          />
+          <GuidedDemoBanner
+            step="followup"
+            stepNum={8}
+            title="Follow-up task  -  μετά την αποδοχή"
+            whatYouSee="Ενότητα 'Επόμενο βήμα' με κουμπί δημιουργίας task προγραμματισμού."
+            whatToDo="Πάτα 'Δημιούργησε task προγραμματισμού' για να δημιουργηθεί task στο CRM."
+            whyItMatters="Κάθε αποδεκτή προσφορά γίνεται task. Στο τελικό προϊόν, αυτό θα γίνεται αυτόματα μετά την αποδοχή."
+            canManualComplete={false}
+            isCompleted={acceptTaskState === 'created' || acceptTaskState === 'duplicate'}
+            isFinalStep={true}
+          />
+        </>
+      )}
+
       {/* Back + actions */}
       <div className="flex items-center justify-between gap-3 print:hidden">
         <button
@@ -571,11 +894,22 @@ export default function OfferPreview({ offerId }: Props) {
         onCreateFollowUpTask={handleCreateFollowUpTask}
       />
 
-      {/* Acceptance demo */}
-      <OfferAcceptanceDemoSection offer={offer} onUpdateOffer={handleUpdateOffer} />
+      {/* Acceptance link note for real backend offers */}
+      {loadedFromBackend && (
+        <section className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200 print:hidden">
+          <p className="text-xs text-zinc-500">
+            Το δημόσιο link αποδοχής για πραγματικές προσφορές δεν έχει συνδεθεί ακόμα. Για τώρα στείλε την προσφορά χειροκίνητα.
+          </p>
+        </section>
+      )}
 
-      {/* Step 128: Response history card — shown when offer is accepted or rejected */}
-      {offer && (offer.status === 'accepted' || offer.status === 'rejected') && (
+      {/* Acceptance demo - only for demo/local offers */}
+      {!loadedFromBackend && (
+        <OfferAcceptanceDemoSection offer={offer} onUpdateOffer={handleUpdateOffer} />
+      )}
+
+      {/* Step 128: Response history card - only for demo/local offers */}
+      {!loadedFromBackend && offer && (offer.status === 'accepted' || offer.status === 'rejected') && (
         <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
           <div className="mb-3 flex items-center gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
@@ -871,8 +1205,9 @@ export default function OfferPreview({ offerId }: Props) {
         <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-400">
           Ζώνη κινδύνου
         </h2>
-        <p className="mb-3 text-xs text-zinc-500">Η διαγραφή αφαιρεί μόνο τοπικά δεδομένα.</p>
-        {confirmingOfferDelete ? (
+        {loadedFromBackend ? (
+          <p className="text-xs text-zinc-500">Η διαγραφή προσφοράς από τον server δεν είναι διαθέσιμη ακόμα.</p>
+        ) : confirmingOfferDelete ? (
           <div className="space-y-2">
             <p className="text-sm font-medium text-zinc-800">Να διαγραφεί αυτή η προσφορά;</p>
             <p className="text-xs text-zinc-500">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
@@ -894,13 +1229,16 @@ export default function OfferPreview({ offerId }: Props) {
             </div>
           </div>
         ) : (
-          <button
-            type="button"
-            onClick={() => setConfirmingOfferDelete(true)}
-            className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-          >
-            Διαγραφή προσφοράς
-          </button>
+          <>
+            <p className="mb-3 text-xs text-zinc-500">Η διαγραφή αφαιρεί μόνο τοπικά δεδομένα.</p>
+            <button
+              type="button"
+              onClick={() => setConfirmingOfferDelete(true)}
+              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+            >
+              Διαγραφή προσφοράς
+            </button>
+          </>
         )}
       </section>
     </div>
