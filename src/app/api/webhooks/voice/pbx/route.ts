@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { createCustomerIntakeToken, markIntakeTokenSent } from '@/lib/server/intake-tokens';
 import { sendIntakeViberMessage } from '@/lib/server/apifon-viber';
+import { generateCallBrief } from '@/lib/server/call-brief';
 
 export const runtime = 'nodejs';
 
@@ -387,6 +388,31 @@ export async function POST(request: NextRequest) {
       recordingPath ? `recording_path=${recordingPath}` : null,
     ].filter(Boolean).join(' ');
 
+    // Generate a demo-safe AI brief from call metadata only (non-fatal).
+    // Not a transcript -- uses structured metadata to produce a draft for human review.
+    // customers.needs_summary is intentionally NOT updated here.
+    let aiBrief: string | null = null;
+    try {
+      aiBrief = await generateCallBrief({
+        callerNumber: normalizePhone(callerNumber),
+        dialStatus,
+        uniqueId,
+        recordingExists,
+        recordingSizeBytes,
+        recordingFallbackApplied,
+        customerCreated: customerLink.customerCreated,
+        customerMatched: customerLink.customerMatched,
+        intakeUrlCreated: intakeTokenId !== null,
+        viberSendStatus,
+      });
+    } catch {
+      // AI brief failure is non-fatal.
+    }
+
+    const communicationSummary = aiBrief
+      ? `${aiBrief}\n\n---\nPBX metadata:\n${summaryParts}`
+      : summaryParts;
+
     const { data: communicationRow, error: communicationError } = await supabase
       .from('communications')
       .insert({
@@ -396,7 +422,7 @@ export async function POST(request: NextRequest) {
         direction: 'inbound',
         status: 'completed',
         phone: normalizePhone(callerNumber),
-        summary: summaryParts,
+        summary: communicationSummary,
       })
       .select('id')
       .single();
