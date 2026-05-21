@@ -486,7 +486,8 @@ export async function POST(request: NextRequest) {
       })
       .eq('id', webhookEventId);
 
-    return NextResponse.json({ ok: true, received: true, communication_created: true, customer_id: customerLink.customerId, customer_created: customerLink.customerCreated, customer_matched: customerLink.customerMatched });
+    const finalCommId = (communicationRow as unknown as { id: string } | null)?.id ?? null;
+    return NextResponse.json({ ok: true, received: true, communication_created: true, communication_id: finalCommId, customer_id: customerLink.customerId, customer_created: customerLink.customerCreated, customer_matched: customerLink.customerMatched });
   } catch {
     return NextResponse.json({ ok: false, error: 'webhook_store_failed' }, { status: 500 });
   }
