@@ -137,25 +137,6 @@ const navItems = [
       </svg>
     ),
   },
-  {
-    href: '/demo',
-    label: 'Demo',
-    icon: (active: boolean) => (
-      <svg
-        className={`h-5 w-5 shrink-0 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
-        fill="none"
-        strokeWidth={1.5}
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"
-        />
-      </svg>
-    ),
-  },
 ];
 
 const settingsItem = {
@@ -191,9 +172,6 @@ export default function DesktopSidebar() {
       {/* Brand */}
       <div className="flex h-16 items-center gap-2 border-b border-zinc-100 px-5">
         <span className="text-lg font-bold text-zinc-900">yorgos.ai</span>
-        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
-          demo
-        </span>
       </div>
 
       {/* Nav */}
@@ -240,7 +218,7 @@ export default function DesktopSidebar() {
             </Link>
           );
         })()}
-        <p className="mt-2 px-3 text-xs text-zinc-400">Τοπική αποθήκευση · MVP</p>
+        <p className="mt-2 px-3 text-xs text-zinc-400">Εσωτερικό CRM</p>
       </div>
     </aside>
   );
