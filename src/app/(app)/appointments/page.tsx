@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { loadState, addTask, updateTask } from '@/lib/storage';
-import type { Task, Offer, Customer } from '@/lib/types';
-import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
-import DemoStepBanner from '@/components/common/DemoStepBanner';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import type { Task, Customer, TaskBaseStatus, TaskType, TaskPriority } from '@/lib/types';
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function formatDate(dateStr: string): string {
   return new Date(dateStr + 'T00:00:00').toLocaleDateString('el-GR', {
@@ -43,7 +45,7 @@ function buildProposalEmailText(customer: Customer, date: string, time: string, 
     'Παρακαλούμε επιβεβαιώστε ή προτείνετε εναλλακτική ημερομηνία μέσω του παρακάτω συνδέσμου:',
     responseLink,
     '',
-    'Σημείωση: Ο σύνδεσμος λειτουργεί μόνο στον browser όπου δημιουργήθηκε η πρόταση. Τα δεδομένα αποθηκεύονται τοπικά.',
+    'Σημείωση: Ο σύνδεσμος επιτρέπει την απάντηση του πελάτη σε αυτό το ραντεβού.',
     '',
     'Με εκτίμηση',
   ].join('\n');
@@ -120,12 +122,94 @@ function tomorrowDateStr(): string {
 
 const inputCls = 'rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
 
+// ---------------------------------------------------------------------------
+// DTO types and mapping
+// ---------------------------------------------------------------------------
+
+interface TaskDto {
+  id: string;
+  customerId?: string | null;
+  offerId?: string | null;
+  title: string;
+  type: string;
+  status: string;
+  priority: string;
+  dueDate: string;
+  dueTime?: string | null;
+  note?: string | null;
+  createdFromAi?: boolean | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CustomerDto {
+  id: string;
+  crmNumber?: string | null;
+  name?: string | null;
+  companyName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  source?: string | null;
+  status?: string | null;
+  preferredContactMethod?: string | null;
+  needsSummary?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+function mapTask(dto: TaskDto): Task {
+  return {
+    id: dto.id,
+    customerId: dto.customerId ?? undefined,
+    offerId: dto.offerId ?? undefined,
+    title: dto.title,
+    type: (dto.type as TaskType) ?? 'other',
+    status: dto.status as TaskBaseStatus,
+    priority: (dto.priority as TaskPriority) ?? 'normal',
+    dueDate: dto.dueDate ?? new Date().toISOString().split('T')[0],
+    dueTime: dto.dueTime ?? undefined,
+    note: dto.note ?? '',
+    createdFromAi: dto.createdFromAi ?? false,
+    completedAt: dto.completedAt ?? undefined,
+    createdAt: dto.createdAt,
+    updatedAt: dto.updatedAt,
+  };
+}
+
+function mapCustomer(dto: CustomerDto): Customer {
+  const now = new Date().toISOString();
+  return {
+    id: dto.id,
+    name: dto.name ?? dto.companyName ?? dto.crmNumber ?? 'Πελάτης',
+    companyName: dto.companyName ?? '',
+    phone: dto.phone ?? '',
+    email: dto.email ?? '',
+    address: '',
+    source: (dto.source as Customer['source']) ?? 'manual_entry',
+    status: (dto.status as Customer['status']) ?? 'new_lead',
+    preferredContactMethod:
+      (dto.preferredContactMethod as Customer['preferredContactMethod']) ?? 'phone',
+    needsSummary: dto.needsSummary ?? '',
+    notes: dto.notes ?? '',
+    createdAt: dto.createdAt ?? now,
+    updatedAt: dto.updatedAt ?? now,
+    crmNumber: dto.crmNumber ?? undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function AppointmentsPage() {
   const [hydrated, setHydrated] = useState(false);
+  const [noSession, setNoSession] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [appointments, setAppointments] = useState<Task[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [customerMap, setCustomerMap] = useState<Record<string, string>>({});
-  const [offerMap, setOfferMap] = useState<Record<string, Offer>>({});
+  const tokenRef = useRef<string | null>(null);
 
   // New appointment form state
   const [formOpen, setFormOpen] = useState(false);
@@ -135,8 +219,9 @@ export default function AppointmentsPage() {
   const [apptTime, setApptTime] = useState('10:00');
   const [apptNote, setApptNote] = useState('');
   const [justCreated, setJustCreated] = useState(false);
+  const [creating, setCreating] = useState(false);
 
-  // Proposal details after creation (for email/copy section)
+  // Proposal details after creation
   const [proposalTaskId, setProposalTaskId] = useState('');
   const [proposalCustomer, setProposalCustomer] = useState<Customer | null>(null);
   const [proposalDate, setProposalDate] = useState('');
@@ -152,73 +237,138 @@ export default function AppointmentsPage() {
   const [cancelEmailCopied, setCancelEmailCopied] = useState(false);
   const [cancelEmailManualVisible, setCancelEmailManualVisible] = useState(false);
 
-  useEffect(() => {
-    const state = loadState();
-    const tasks = (state.tasks ?? [])
-      .filter((t) => (t.type === 'book_appointment' || t.type === 'visit_customer') && t.status === 'open');
-    const cList = state.customers ?? [];
-    const cMap: Record<string, string> = Object.fromEntries(cList.map((c) => [c.id, c.name]));
-    const oMap: Record<string, Offer> = Object.fromEntries((state.offers ?? []).map((o) => [o.id, o]));
-    const timer = window.setTimeout(() => {
-      setAppointments(sortAppointments(tasks));
-      setCustomers(cList);
-      setCustomerMap(cMap);
-      setOfferMap(oMap);
+  const customerMap = useMemo(
+    () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
+    [customers]
+  );
+
+  const loadData = useCallback(async (token: string) => {
+    setFetchError(null);
+    try {
+      const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+      const [tasksResp, customersResp] = await Promise.all([
+        fetch('/api/tasks?limit=100', { headers }),
+        fetch('/api/customers?limit=100', { headers }),
+      ]);
+
+      if (!tasksResp.ok || !customersResp.ok) {
+        setFetchError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+        return;
+      }
+
+      const tasksData = await tasksResp.json();
+      const customersData = await customersResp.json();
+
+      const rawTasks: TaskDto[] = Array.isArray(tasksData)
+        ? tasksData
+        : (tasksData.tasks ?? []);
+      const rawCustomers: CustomerDto[] = Array.isArray(customersData)
+        ? customersData
+        : (customersData.customers ?? []);
+
+      // Appointments are book_appointment and visit_customer tasks that are open.
+      const appts = sortAppointments(
+        rawTasks
+          .map(mapTask)
+          .filter(
+            (t) =>
+              (t.type === 'book_appointment' || t.type === 'visit_customer') &&
+              t.status === 'open'
+          )
+      );
+
+      setAppointments(appts);
+      setCustomers(rawCustomers.map(mapCustomer));
       setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    } catch {
+      setFetchError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+      setHydrated(true);
+    }
   }, []);
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          setNoSession(true);
+          setHydrated(true);
+          return;
+        }
+        tokenRef.current = session.access_token;
+        await loadData(session.access_token);
+      } catch {
+        setFetchError('Αποτυχία σύνδεσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+      }
+    }
+    init();
+  }, [loadData]);
 
   const norm = (s: string) => s.toLowerCase().trim();
   const searchResults: Customer[] = customerSearch.trim()
-    ? customers.filter((c) => {
-        const q = norm(customerSearch);
-        return (
-          norm(c.name).includes(q) ||
-          norm(c.phone ?? '').includes(q) ||
-          norm(c.email ?? '').includes(q)
-        );
-      }).slice(0, 8)
+    ? customers
+        .filter((c) => {
+          const q = norm(customerSearch);
+          return (
+            norm(c.name).includes(q) ||
+            norm(c.phone ?? '').includes(q) ||
+            norm(c.email ?? '').includes(q)
+          );
+        })
+        .slice(0, 8)
     : [];
 
-  function handleCreate() {
+  async function handleCreate() {
     if (!selectedCustomer || !apptDate || !apptTime) return;
+    const token = tokenRef.current;
+    if (!token) return;
+
+    setCreating(true);
     setCancelResult(null);
-    const now = new Date().toISOString();
-    const taskId = crypto.randomUUID();
-    const task: Task = {
-      id: taskId,
-      customerId: selectedCustomer.id,
-      title: `Ραντεβού με ${selectedCustomer.name}`,
-      type: 'book_appointment',
-      status: 'open',
-      priority: 'normal',
-      dueDate: apptDate,
-      dueTime: apptTime,
-      note: apptNote.trim() || 'Ραντεβού δημιουργήθηκε από το πρόγραμμα ραντεβού.',
-      createdFromAi: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(task);
-    setAppointments((prev) => sortAppointments([...prev, task]));
-    setCustomerMap((prev) => ({ ...prev, [selectedCustomer.id]: selectedCustomer.name }));
-    // Store proposal details before resetting form
-    setProposalTaskId(taskId);
-    setProposalCustomer(selectedCustomer);
-    setProposalDate(apptDate);
-    setProposalTime(apptTime);
-    setProposalEmailState('idle');
-    setProposalEmailCopied(false);
-    setProposalEmailManualCopyVisible(false);
-    // Reset form
-    setFormOpen(false);
-    setCustomerSearch('');
-    setSelectedCustomer(null);
-    setApptDate(tomorrowDateStr());
-    setApptTime('10:00');
-    setApptNote('');
-    setJustCreated(true);
+
+    const note = apptNote.trim() || 'Ραντεβού δημιουργήθηκε από το πρόγραμμα ραντεβού.';
+
+    const resp = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: `Ραντεβού με ${selectedCustomer.name}`,
+        type: 'book_appointment',
+        status: 'open',
+        priority: 'normal',
+        dueDate: apptDate,
+        dueTime: apptTime,
+        note,
+        customerId: selectedCustomer.id,
+      }),
+    });
+
+    setCreating(false);
+
+    if (resp.ok) {
+      const data = await resp.json();
+      const task = mapTask(data.task);
+      setAppointments((prev) => sortAppointments([...prev, task]));
+      setProposalTaskId(task.id);
+      setProposalCustomer(selectedCustomer);
+      setProposalDate(apptDate);
+      setProposalTime(apptTime);
+      setProposalEmailState('idle');
+      setProposalEmailCopied(false);
+      setProposalEmailManualCopyVisible(false);
+      setFormOpen(false);
+      setCustomerSearch('');
+      setSelectedCustomer(null);
+      setApptDate(tomorrowDateStr());
+      setApptTime('10:00');
+      setApptNote('');
+      setJustCreated(true);
+    }
   }
 
   async function handleSendProposalEmail() {
@@ -258,21 +408,35 @@ export default function AppointmentsPage() {
     }
   }
 
-  function handleCancelConfirm(task: Task) {
-    const customer = task.customerId ? customers.find((c) => c.id === task.customerId) ?? null : null;
+  async function handleCancelConfirm(task: Task) {
+    const token = tokenRef.current;
+    if (!token) return;
+
+    const customer = task.customerId
+      ? customers.find((c) => c.id === task.customerId) ?? null
+      : null;
     const isFuture = isFutureAppointment(task);
     const now = new Date().toISOString();
     const label = formatTimestamp(now);
     const noteAppend = `Ακύρωση ραντεβού: ${label}.`;
     const updatedNote = task.note ? `${task.note}\n${noteAppend}` : noteAppend;
-    const updated: Task = { ...task, status: 'cancelled' as Task['status'], updatedAt: now, note: updatedNote };
-    updateTask(updated);
-    setAppointments((prev) => prev.filter((t) => t.id !== task.id));
-    setCancelResult({ task: updated, customer, isFuture });
-    setCancelEmailState('idle');
-    setCancelEmailCopied(false);
-    setCancelEmailManualVisible(false);
-    setCancellingTaskId(null);
+
+    const resp = await fetch(`/api/tasks/${task.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'cancelled', note: updatedNote }),
+    });
+
+    if (resp.ok) {
+      const data = await resp.json();
+      const cancelled = mapTask(data.task);
+      setAppointments((prev) => prev.filter((t) => t.id !== task.id));
+      setCancelResult({ task: cancelled, customer, isFuture });
+      setCancelEmailState('idle');
+      setCancelEmailCopied(false);
+      setCancelEmailManualVisible(false);
+      setCancellingTaskId(null);
+    }
   }
 
   async function handleSendCancellationEmail() {
@@ -327,6 +491,10 @@ export default function AppointmentsPage() {
     setApptNote('');
   }
 
+  // ---------------------------------------------------------------------------
+  // Loading skeleton
+  // ---------------------------------------------------------------------------
+
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center">
@@ -334,6 +502,59 @@ export default function AppointmentsPage() {
       </div>
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // No session
+  // ---------------------------------------------------------------------------
+
+  if (noSession) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Ραντεβού</h1>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+          <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τα ραντεβού.</p>
+          <Link
+            href="/login/backend"
+            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Σύνδεση
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fetch error
+  // ---------------------------------------------------------------------------
+
+  if (fetchError) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Ραντεβού</h1>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+          <p className="mb-4 text-sm text-red-600">{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              const token = tokenRef.current;
+              if (token) {
+                setHydrated(false);
+                loadData(token);
+              }
+            }}
+            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Δοκίμασε ξανά
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main render
+  // ---------------------------------------------------------------------------
 
   const todayStr = new Date().toISOString().split('T')[0];
   const tomorrow = new Date();
@@ -349,28 +570,10 @@ export default function AppointmentsPage() {
   }
 
   const hasAny = appointments.length > 0;
-  const canSave = !!selectedCustomer && !!apptDate && !!apptTime;
+  const canSave = !!selectedCustomer && !!apptDate && !!apptTime && !creating;
 
   return (
     <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
-      <DemoStepBanner
-        step="appointments"
-        stepNum={5}
-        title="Ραντεβού -- εσωτερικό πρόγραμμα"
-        body="Κοίτα τα demo ραντεβού ταξινομημένα χρονολογικά. Τοπικό πρόγραμμα CRM χωρίς εξωτερικό ημερολόγιο."
-        watchLabel="Δοκίμασε inline ακύρωση αν θέλεις."
-        actionLabel="Επόμενο: Προσφορά"
-        actionHref="/offers/demo-offer-1?demoStep=offer"
-      />
-      <GuidedDemoBanner
-        step="appointments"
-        stepNum={5}
-        title="Δες τα ραντεβού"
-        whatYouSee="Εσωτερικό πρόγραμμα ραντεβού με book_appointment και visit_customer tasks ταξινομημένα χρονολογικά."
-        whatToDo="Κοίτα τα demo ραντεβού και δοκίμασε την inline ακύρωση αν θέλεις."
-        whyItMatters="Είναι πρόγραμμα CRM μέσα στο MVP. Δεν συνδέεται με εξωτερικό ημερολόγιο."
-        canManualComplete={true}
-      />
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -486,7 +689,7 @@ export default function AppointmentsPage() {
             disabled={!canSave}
             className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
           >
-            Δημιουργία ραντεβού
+            {creating ? 'Αποθήκευση...' : 'Δημιουργία ραντεβού'}
           </button>
         </div>
       )}
@@ -665,26 +868,19 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Disclaimer */}
-      <div className="rounded-xl bg-amber-50 px-4 py-2.5 ring-1 ring-amber-200">
-        <p className="text-xs text-amber-700">
-          Τοπικό πρόγραμμα CRM. Τα ραντεβού αποθηκεύονται μόνο σε αυτόν τον browser και δεν έχει συνδεθεί εξωτερικό ημερολόγιο.
+      {/* No calendar integration notice */}
+      <div className="rounded-xl bg-zinc-50 px-4 py-2.5 ring-1 ring-zinc-200">
+        <p className="text-xs text-zinc-500">
+          Εσωτερικό πρόγραμμα ραντεβού. Δεν έχει συνδεθεί εξωτερικό ημερολόγιο.
         </p>
       </div>
 
       {/* Empty state */}
       {!hasAny && (
         <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
-          <p className="text-sm font-medium text-zinc-600">Δεν υπάρχουν ραντεβού ακόμα.</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            Πάτα «+ Νέο ραντεβού» ή ορίσε ραντεβού από μια αποδεκτή προσφορά.
+          <p className="text-sm font-medium text-zinc-600">
+            Δεν υπάρχουν ακόμα ραντεβού. Δημιούργησε ένα ραντεβού για πελάτη ή άφησε το AI να προτείνει επόμενο βήμα μετά από κλήση.
           </p>
-          <Link
-            href="/offers"
-            className="mt-4 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
-          >
-            Προσφορές →
-          </Link>
         </div>
       )}
 
@@ -700,9 +896,8 @@ export default function AppointmentsPage() {
             <ul className="space-y-2">
               {group.map((task) => {
                 const customerName = task.customerId ? customerMap[task.customerId] : undefined;
-                const offer = task.offerId ? offerMap[task.offerId] : undefined;
                 const primaryHref = task.customerId
-                  ? `/customers/${task.customerId}?focusAppointment=${task.id}`
+                  ? `/customers/backend/${task.customerId}?focusAppointment=${task.id}`
                   : `/tasks?taskId=${task.id}`;
                 const status = getResponseStatus(task.note);
 
@@ -747,19 +942,15 @@ export default function AppointmentsPage() {
                             </span>
                           </div>
                           <p className="text-sm font-semibold text-zinc-900 truncate">{task.title}</p>
-                          {(customerName || offer) && (
-                            <p className="text-xs text-zinc-500 truncate">
-                              {customerName && <span>{customerName}</span>}
-                              {customerName && offer && <span className="mx-1">·</span>}
-                              {offer && <span>{offer.offerNumber}</span>}
-                            </p>
+                          {customerName && (
+                            <p className="text-xs text-zinc-500 truncate">{customerName}</p>
                           )}
                         </Link>
                         <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-4 py-2">
                           <Link href={`/tasks?taskId=${task.id}`} className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition">
                             Άνοιγμα task →
                           </Link>
-                          {offer && (
+                          {task.offerId && (
                             <Link href={`/offers/${task.offerId}`} className="text-xs font-medium text-zinc-500 hover:text-zinc-700 transition">
                               Προσφορά →
                             </Link>
