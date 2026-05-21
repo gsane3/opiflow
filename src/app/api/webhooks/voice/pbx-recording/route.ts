@@ -103,11 +103,12 @@ export async function POST(request: NextRequest) {
   // ---------------------------------------------------------------------------
   let communicationId: string | null = null;
   let existingSummary: string | null = null;
+  let communicationCustomerId: string | null = null;
 
   if (communicationIdParam) {
     const { data, error } = await supabase
       .from('communications')
-      .select('id, summary')
+      .select('id, summary, customer_id')
       .eq('id', communicationIdParam)
       .eq('business_id', businessId)
       .eq('channel', 'call')
@@ -118,16 +119,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (data) {
-      const row = data as unknown as { id: string; summary: string | null };
+      const row = data as unknown as { id: string; summary: string | null; customer_id: string | null };
       communicationId = row.id;
       existingSummary = row.summary;
+      communicationCustomerId = row.customer_id ?? null;
     }
   }
 
   if (!communicationId && uniqueid) {
     const { data, error } = await supabase
       .from('communications')
-      .select('id, summary')
+      .select('id, summary, customer_id')
       .eq('business_id', businessId)
       .eq('channel', 'call')
       .like('summary', `%uniqueid=${uniqueid}%`)
@@ -140,9 +142,10 @@ export async function POST(request: NextRequest) {
     }
 
     if (data) {
-      const row = data as unknown as { id: string; summary: string | null };
+      const row = data as unknown as { id: string; summary: string | null; customer_id: string | null };
       communicationId = row.id;
       existingSummary = row.summary;
+      communicationCustomerId = row.customer_id ?? null;
     }
   }
 
@@ -175,24 +178,10 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Build updated summary: brief + transcript prepended, existing summary kept
-  // for diagnostics.
-  // ---------------------------------------------------------------------------
-  const updatedSummary = [
-    result.brief,
-    '',
-    'Transcript:',
-    result.transcript,
-    '',
-    '---',
-    'Previous summary:',
-    existingSummary ?? '(none)',
-  ].join('\n');
-
+  // Save only the concise brief. Transcript is intentionally excluded from CRM.
   const { error: updateError } = await supabase
     .from('communications')
-    .update({ summary: updatedSummary })
+    .update({ summary: result.brief })
     .eq('id', communicationId)
     .eq('business_id', businessId);
 
@@ -203,11 +192,52 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Insert ai_draft task if customer is known and task data is available.
+  // Non-blocking: failure here does not affect the communication update result.
+  // ---------------------------------------------------------------------------
+  let taskCreated = false;
+  let taskId: string | null = null;
+  let taskError: string | null = null;
+
+  if (communicationCustomerId && result.taskTitle) {
+    const { data: taskRow, error: taskInsertError } = await supabase
+      .from('tasks')
+      .insert({
+        business_id: businessId,
+        customer_id: communicationCustomerId,
+        offer_id: null,
+        title: result.taskTitle,
+        type: result.taskType,
+        status: 'ai_draft',
+        priority: 'normal',
+        due_date: result.taskDueDate,
+        due_time: null,
+        note: result.taskNote,
+        created_from_ai: true,
+        source_brief_id: communicationId,
+        completed_at: null,
+        updated_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+    if (taskInsertError || !taskRow) {
+      taskError = 'task_create_failed';
+    } else {
+      taskCreated = true;
+      taskId = (taskRow as unknown as { id: string }).id;
+    }
+  }
+
   return NextResponse.json({
     ok: true,
     received: true,
     communication_updated: true,
     communication_id: communicationId,
+    task_created: taskCreated,
+    task_id: taskId,
+    ...(taskError ? { task_error: taskError } : {}),
     transcript_length: result.transcript.length,
     brief_length: result.brief.length,
   });

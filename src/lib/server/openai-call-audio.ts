@@ -21,6 +21,10 @@ export interface TranscribeAndBriefResult {
   brief: string;
   transcriptionModel: string;
   briefModel: string;
+  taskTitle: string;
+  taskNote: string;
+  taskType: 'call_back' | 'follow_up_offer';
+  taskDueDate: string;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -68,27 +72,60 @@ function buildBriefPrompt(
   if (dialStatus) contextLines.push(`Αποτέλεσμα κλήσης: ${dialStatus}`);
 
   const contextSection = contextLines.length > 0
-    ? `Μεταδεδομένα κλήσης:\n${contextLines.join('\n')}\n\n`
+    ? `Μεταδεδομένα: ${contextLines.join(', ')}\n\n`
     : '';
 
   return [
     'Είσαι βοηθός CRM για Έλληνα επαγγελματία.',
-    'Παρακάτω υπάρχει η μεταγραφή τηλεφωνικής κλήσης.',
-    'Χρησιμοποίησε ΤΗΝ ΜΕΤΑΓΡΑΦΗ ως βασική πηγή πληροφοριών.',
-    'Αν η μεταγραφή είναι ασαφής ή ελλιπής, το αναφέρεις ρητά.',
-    'Μην επινοείς δεδομένα που δεν υπάρχουν στη μεταγραφή.',
-    'Γράψε σε επαγγελματικά ελληνικά, χωρίς JSON, χωρίς markdown.',
+    'Βασίσου ΑΠΟΚΛΕΙΣΤΙΚΑ στη μεταγραφή κλήσης παρακάτω.',
+    'Μην επινοείς λεπτομέρειες που δεν υπάρχουν στη μεταγραφή.',
+    'Γράψε πολύ σύντομο CRM brief σε επαγγελματικά ελληνικά, 2-3 γραμμές μόνο.',
     'Ξεκίνα με: AI brief από ηχογράφηση:',
-    '',
-    'Συμπέριλαβε με τη σειρά:',
-    '1. Τι ειπώθηκε - σύντομη περίληψη της κλήσης.',
-    '2. Ανάγκη πελάτη - τι ζήτησε ή χρειάζεται ο πελάτης.',
-    '3. Επόμενη ενέργεια - συγκεκριμένο επόμενο βήμα.',
-    '4. Στοιχεία που λείπουν - τι δεν προέκυψε από τη μεταγραφή.',
+    'Συμπέριλαβε μόνο: τι ζητά ο πελάτης, τυχόν συμφωνηθέν επόμενο βήμα, τι λείπει αν είναι σημαντικό.',
+    'Χωρίς αριθμημένα βήματα, χωρίς τίτλους ενοτήτων, χωρίς μεταγραφή, χωρίς JSON.',
     '',
     `${contextSection}Μεταγραφή:`,
     transcript,
   ].join('\n');
+}
+
+function containsKeyword(text: string, keyword: string): boolean {
+  return text.toLowerCase().includes(keyword.toLowerCase());
+}
+
+function getTomorrow(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toISOString().split('T')[0];
+}
+
+function deriveTask(
+  transcript: string,
+  brief: string
+): { title: string; type: 'call_back' | 'follow_up_offer'; note: string; dueDate: string } {
+  const combined = transcript + ' ' + brief;
+
+  const isAppointment =
+    containsKeyword(combined, 'ραντεβ') ||
+    containsKeyword(combined, 'συνεργει');
+  const isOffer = containsKeyword(combined, 'προσφορ');
+
+  let title: string;
+  let type: 'call_back' | 'follow_up_offer';
+
+  if (isAppointment) {
+    title = 'Επιβεβαίωση ραντεβού με πελάτη';
+    type = 'call_back';
+  } else if (isOffer) {
+    title = 'Προετοιμασία προσφοράς για πελάτη';
+    type = 'follow_up_offer';
+  } else {
+    title = 'Follow up με πελάτη';
+    type = 'call_back';
+  }
+
+  const note = `Draft από AI μετά την κλήση. Να ελεγχθεί πριν από ενέργεια.\n${brief}`;
+  return { title, type, note, dueDate: getTomorrow() };
 }
 
 export async function transcribeAndBriefCallAudio(
@@ -210,5 +247,15 @@ export async function transcribeAndBriefCallAudio(
     clearTimeout(briefTimer);
   }
 
-  return { transcript, brief, transcriptionModel, briefModel };
+  const task = deriveTask(transcript, brief);
+  return {
+    transcript,
+    brief,
+    transcriptionModel,
+    briefModel,
+    taskTitle: task.title,
+    taskNote: task.note,
+    taskType: task.type,
+    taskDueDate: task.dueDate,
+  };
 }
