@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
-import { loadState, saveState, addOffer, updateOffer, deleteOffer } from '@/lib/storage';
-import { generateDemoOffers } from '@/lib/demo-data';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import Link from 'next/link';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Offer, OfferStatus, Customer } from '@/lib/types';
 import { norm } from '@/lib/search';
 import OfferCard from '@/components/offers/OfferCard';
@@ -21,40 +21,153 @@ const SORT_LABELS: Record<SortBy, string> = {
 const selCls =
   'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
 
+// Map backend offer response to the local Offer type.
+// Backend may return null for nullable fields; local type uses non-null strings.
+function mapBackendOffer(d: Record<string, unknown>): Offer {
+  return {
+    id: d.id as string,
+    customerId: (d.customerId as string | null) ?? undefined,
+    relatedTaskId: (d.relatedTaskId as string | null) ?? undefined,
+    offerNumber: d.offerNumber as string,
+    status: d.status as OfferStatus,
+    offerDate: d.offerDate as string,
+    validUntil: (d.validUntil as string | null) ?? (d.offerDate as string),
+    items: (d.items as unknown as Offer['items']) ?? [],
+    subtotal: d.subtotal as number,
+    vatRate: d.vatRate as number,
+    vatAmount: d.vatAmount as number,
+    total: d.total as number,
+    notes: (d.notes as string | null) ?? '',
+    terms: (d.terms as string | null) ?? '',
+    acceptanceText: (d.acceptanceText as string | null) ?? '',
+    createdFromAi: (d.createdFromAi as boolean) ?? false,
+    createdAt: d.createdAt as string,
+    updatedAt: d.updatedAt as string,
+  };
+}
+
+// Minimal mapping from backend customer response to local Customer type.
+function mapBackendCustomer(d: Record<string, unknown>): Customer {
+  const now = new Date().toISOString();
+  return {
+    id: d.id as string,
+    name:
+      (d.name as string | null) ??
+      (d.companyName as string | null) ??
+      (d.crmNumber as string | null) ??
+      'Πελάτης',
+    companyName: (d.companyName as string | null) ?? '',
+    phone: (d.phone as string | null) ?? '',
+    email: (d.email as string | null) ?? '',
+    address: '',
+    source: (d.source as Customer['source']) ?? 'manual_entry',
+    status: (d.status as Customer['status']) ?? 'new_lead',
+    preferredContactMethod:
+      (d.preferredContactMethod as Customer['preferredContactMethod']) ?? 'phone',
+    needsSummary: (d.needsSummary as string | null) ?? '',
+    notes: (d.notes as string | null) ?? '',
+    createdAt: (d.createdAt as string) ?? now,
+    updatedAt: (d.updatedAt as string) ?? now,
+    crmNumber: (d.crmNumber as string | null) ?? undefined,
+  };
+}
+
+// Build request body for POST /api/offers or PATCH /api/offers/[id].
+// Backend recomputes subtotal, vatAmount, total from items and vatRate.
+function buildOfferBody(offer: Offer): Record<string, unknown> {
+  return {
+    offerNumber: offer.offerNumber,
+    status: offer.status,
+    offerDate: offer.offerDate,
+    validUntil: offer.validUntil || null,
+    vatRate: offer.vatRate,
+    // Full items array sent as replacement on every save.
+    items: offer.items.map((item, idx) => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      sortOrder: idx,
+    })),
+    notes: offer.notes,
+    terms: offer.terms,
+    acceptanceText: offer.acceptanceText,
+    createdFromAi: offer.createdFromAi,
+    // Explicitly null-clear customerId if not set, so PATCH can clear it.
+    customerId: offer.customerId ?? null,
+    relatedTaskId: offer.relatedTaskId ?? undefined,
+  };
+}
+
 export default function OffersPage() {
-  // Start with [] so server render and first client render match.
   const [hydrated, setHydrated] = useState(false);
+  const [noSession, setNoSession] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [offers, setOffers] = useState<Offer[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [showForm, setShowForm] = useState(false);
   const [editingOffer, setEditingOffer] = useState<Offer | null>(null);
+  const tokenRef = useRef<string | null>(null);
 
-  // Search + filter state
   const [offerSearch, setOfferSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OfferStatus | ''>('');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
 
-  // Load localStorage after mount to avoid hydration mismatch.
-  // Preserves seeding rule: undefined = seed demo, [] = user cleared intentionally.
-  // setState calls are deferred into a timer so they are not synchronous in the effect body.
-  useEffect(() => {
-    const state = loadState();
-    let nextOffers: Offer[];
-    if (state.offers === undefined) {
-      const seeded = generateDemoOffers();
-      saveState({ offers: seeded });
-      nextOffers = seeded;
-    } else {
-      nextOffers = state.offers;
-    }
-    const nextCustomers: Customer[] = state.customers ?? [];
-    const timer = window.setTimeout(() => {
-      setOffers(nextOffers);
-      setCustomers(nextCustomers);
+  const loadData = useCallback(async (token: string) => {
+    setFetchError(null);
+    try {
+      const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+      const [offersResp, customersResp] = await Promise.all([
+        fetch('/api/offers?limit=100', { headers }),
+        fetch('/api/customers?limit=100', { headers }),
+      ]);
+
+      if (!offersResp.ok || !customersResp.ok) {
+        setFetchError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+        return;
+      }
+
+      const offersData = await offersResp.json();
+      const customersData = await customersResp.json();
+
+      const rawOffers: Record<string, unknown>[] = Array.isArray(offersData)
+        ? offersData
+        : (offersData.offers ?? []);
+      const rawCustomers: Record<string, unknown>[] = Array.isArray(customersData)
+        ? customersData
+        : (customersData.customers ?? []);
+
+      setOffers(rawOffers.map(mapBackendOffer));
+      setCustomers(rawCustomers.map(mapBackendCustomer));
       setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    } catch {
+      setFetchError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+      setHydrated(true);
+    }
   }, []);
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          setNoSession(true);
+          setHydrated(true);
+          return;
+        }
+        tokenRef.current = session.access_token;
+        await loadData(session.access_token);
+      } catch {
+        setFetchError('Αποτυχία σύνδεσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+      }
+    }
+    init();
+  }, [loadData]);
 
   const hasFilter = offerSearch.trim() !== '' || statusFilter !== '';
 
@@ -63,15 +176,19 @@ export default function OffersPage() {
     [customers]
   );
 
+  // Local display estimate for the next offer number to pre-fill OfferForm.
+  // The backend generates the authoritative number on POST; this is a hint only.
   const nextOfferNumber = useMemo(() => {
-    if (offers.length === 0) return '#001';
-    const maxNum = Math.max(
-      ...offers.map((o) => {
-        const match = o.offerNumber.match(/(\d+)$/);
-        return match ? parseInt(match[1]) : 0;
-      })
-    );
-    return `#${String(maxNum + 1).padStart(3, '0')}`;
+    const year = new Date().getFullYear();
+    const prefix = `OFFER-${year}-`;
+    let maxN = 0;
+    for (const o of offers) {
+      if (o.offerNumber.startsWith(prefix)) {
+        const n = parseInt(o.offerNumber.slice(prefix.length), 10);
+        if (!isNaN(n) && n > maxN) maxN = n;
+      }
+    }
+    return `${prefix}${maxN + 1}`;
   }, [offers]);
 
   const filteredOffers = useMemo(() => {
@@ -95,7 +212,7 @@ export default function OffersPage() {
     } else if (sortBy === 'amount_asc') {
       result = [...result].sort((a, b) => a.total - b.total);
     } else {
-      // newest: reverse insertion order
+      // newest: reverse insertion order (offers are returned offer_date DESC from API)
       result = [...result].reverse();
     }
 
@@ -107,29 +224,68 @@ export default function OffersPage() {
     setStatusFilter('');
   }
 
-  function handleSave(offer: Offer) {
+  async function handleSave(offer: Offer) {
+    const token = tokenRef.current;
+    if (!token) return;
+    setActionError(null);
+
+    const body = buildOfferBody(offer);
+
     if (editingOffer) {
-      updateOffer(offer);
-      setOffers((prev) => prev.map((o) => (o.id === offer.id ? offer : o)));
+      const resp = await fetch(`/api/offers/${offer.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const updated = mapBackendOffer(data.offer as Record<string, unknown>);
+        setOffers((prev) => prev.map((o) => (o.id === offer.id ? updated : o)));
+      } else {
+        setActionError('Αποτυχία αποθήκευσης προσφοράς. Δοκίμασε ξανά.');
+        return;
+      }
     } else {
-      addOffer(offer);
-      setOffers((prev) => [...prev, offer]);
+      const resp = await fetch('/api/offers', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        const created = mapBackendOffer(data.offer as Record<string, unknown>);
+        setOffers((prev) => [...prev, created]);
+      } else {
+        setActionError('Αποτυχία δημιουργίας προσφοράς. Δοκίμασε ξανά.');
+        return;
+      }
     }
+
     setShowForm(false);
     setEditingOffer(null);
   }
 
-  function handleStatusChange(id: string, status: OfferStatus) {
-    const offer = offers.find((o) => o.id === id);
-    if (!offer) return;
-    const updated = { ...offer, status, updatedAt: new Date().toISOString() };
-    updateOffer(updated);
-    setOffers((prev) => prev.map((o) => (o.id === id ? updated : o)));
+  async function handleStatusChange(id: string, status: OfferStatus) {
+    const token = tokenRef.current;
+    if (!token) return;
+    setActionError(null);
+    const resp = await fetch(`/api/offers/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const updated = mapBackendOffer(data.offer as Record<string, unknown>);
+      setOffers((prev) => prev.map((o) => (o.id === id ? updated : o)));
+    } else {
+      setActionError('Αποτυχία αλλαγής status. Δοκίμασε ξανά.');
+    }
   }
 
-  function handleDelete(id: string) {
-    deleteOffer(id);
-    setOffers((prev) => prev.filter((o) => o.id !== id));
+  // No DELETE endpoint exists yet; show a soft error instead of silently failing.
+  function handleDelete() {
+    setActionError('Η διαγραφή προσφοράς δεν είναι διαθέσιμη ακόμα.');
   }
 
   function handleCancelForm() {
@@ -137,7 +293,10 @@ export default function OffersPage() {
     setEditingOffer(null);
   }
 
-  // Stable loading shell — identical on server and first client render.
+  // ---------------------------------------------------------------------------
+  // Loading shell - identical on server and first client render.
+  // ---------------------------------------------------------------------------
+
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-5">
@@ -171,6 +330,59 @@ export default function OffersPage() {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // No session
+  // ---------------------------------------------------------------------------
+
+  if (noSession) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Προσφορές</h1>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+          <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τις προσφορές.</p>
+          <Link
+            href="/login/backend"
+            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Σύνδεση
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Fetch error
+  // ---------------------------------------------------------------------------
+
+  if (fetchError) {
+    return (
+      <div className="mx-auto max-w-2xl px-4 py-5">
+        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Προσφορές</h1>
+        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+          <p className="mb-4 text-sm text-red-600">{fetchError}</p>
+          <button
+            type="button"
+            onClick={() => {
+              const token = tokenRef.current;
+              if (token) {
+                setHydrated(false);
+                loadData(token);
+              }
+            }}
+            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Δοκίμασε ξανά
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Main render
+  // ---------------------------------------------------------------------------
+
   return (
     <div className="mx-auto max-w-2xl px-4 py-5">
       {/* Header */}
@@ -183,7 +395,14 @@ export default function OffersPage() {
         </div>
         <button
           type="button"
-          onClick={showForm && !editingOffer ? handleCancelForm : () => { setEditingOffer(null); setShowForm(true); }}
+          onClick={
+            showForm && !editingOffer
+              ? handleCancelForm
+              : () => {
+                  setEditingOffer(null);
+                  setShowForm(true);
+                }
+          }
           className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
             showForm && !editingOffer
               ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
@@ -193,6 +412,13 @@ export default function OffersPage() {
           {showForm && !editingOffer ? 'Ακύρωση' : '+ Νέα προσφορά'}
         </button>
       </div>
+
+      {/* Action error banner */}
+      {actionError && (
+        <div className="mb-4 rounded-xl bg-red-50 px-4 py-2.5 ring-1 ring-red-200">
+          <p className="text-sm text-red-700">{actionError}</p>
+        </div>
+      )}
 
       {/* Analytics */}
       <OfferAnalyticsPanel offers={offers} />
