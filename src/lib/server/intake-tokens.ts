@@ -123,6 +123,30 @@ export async function createCustomerIntakeToken(params: {
   };
 }
 
+export async function markIntakeTokenSent(params: {
+  tokenId: string;
+  sentChannel: 'viber' | 'sms' | 'manual';
+  sentToPhone?: string | null;
+}): Promise<void> {
+  const supabase = createServiceSupabaseClient();
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('customer_intake_tokens')
+    .update({
+      status: 'sent',
+      sent_channel: params.sentChannel,
+      sent_to_phone: params.sentToPhone ?? null,
+      updated_at: now,
+    })
+    .eq('id', params.tokenId)
+    .eq('status', 'pending');
+
+  if (error) {
+    throw new Error(`Failed to mark intake token sent: ${error.message}`);
+  }
+}
+
 export async function findValidIntakeToken(rawToken: string): Promise<IntakeTokenRow | null> {
   const supabase = createServiceSupabaseClient();
   const tokenHash = hashIntakeToken(rawToken);

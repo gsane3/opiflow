@@ -5,6 +5,8 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createCustomerIntakeToken, markIntakeTokenSent } from '@/lib/server/intake-tokens';
+import { sendIntakeViberMessage } from '@/lib/server/apifon-viber';
 
 export const runtime = 'nodejs';
 
@@ -306,6 +308,57 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'customer_link_failed' }, { status: 500 });
     }
 
+    let intakeUrl: string | null = null;
+    let intakeTokenId: string | null = null;
+    let viberSendStatus: string | null = null;
+    let viberMessageId: string | null = null;
+
+    if (customerLink.customerId) {
+      try {
+        const intakeToken = await createCustomerIntakeToken({
+          businessId,
+          customerId: customerLink.customerId,
+          phone: normalizePhone(callerNumber),
+        });
+
+        intakeUrl = intakeToken.intakeUrl;
+        intakeTokenId = intakeToken.row.id;
+
+        const viberResult = await sendIntakeViberMessage({
+          phone: normalizePhone(callerNumber),
+          intakeUrl: intakeToken.intakeUrl,
+          customerId: customerLink.customerId,
+          tokenId: intakeToken.row.id,
+          referenceId: uniqueId ? `pbx:${uniqueId}` : null,
+        });
+
+        if (viberResult.ok) {
+          viberSendStatus = 'sent';
+          viberMessageId = viberResult.messageId;
+
+          await markIntakeTokenSent({
+            tokenId: intakeToken.row.id,
+            sentChannel: 'viber',
+            sentToPhone: normalizePhone(callerNumber),
+          });
+        } else if (viberResult.skipped) {
+          viberSendStatus = `skipped:${viberResult.reason}`;
+        } else {
+          viberSendStatus = `failed:${viberResult.error}`;
+        }
+
+        await supabase
+          .from('customers')
+          .update({
+            intake_status: viberResult.ok ? 'waiting_sms' : 'none',
+          })
+          .eq('id', customerLink.customerId)
+          .eq('business_id', businessId);
+      } catch (err) {
+        viberSendStatus = err instanceof Error ? `failed:${err.message}` : 'failed:unknown_error';
+      }
+    }
+
     const summaryParts = [
       'PBX inbound call completed.',
       uniqueId ? `uniqueid=${uniqueId}` : null,
@@ -316,6 +369,10 @@ export async function POST(request: NextRequest) {
       consentAnnounced !== null ? `consent_announced=${consentAnnounced}` : null,
       customerLink.customerCreated ? 'customer_created=true' : null,
       customerLink.customerMatched ? 'customer_matched=true' : null,
+      intakeUrl ? `intake_url=${intakeUrl}` : null,
+      intakeTokenId ? `intake_token_id=${intakeTokenId}` : null,
+      viberSendStatus ? `viber_send_status=${viberSendStatus}` : null,
+      viberMessageId ? `viber_message_id=${viberMessageId}` : null,
       recordingPath ? `recording_path=${recordingPath}` : null,
     ].filter(Boolean).join(' ');
 
