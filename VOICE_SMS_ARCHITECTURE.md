@@ -651,6 +651,49 @@ Yuboto is a viable backup Viber provider. Notes confirmed:
 ---
 
 ## Apifon Viber Intake Delivery Status
+## Option 2 Real PBX to Viber Intake Completion Status
+
+Status as of 2026-05-21: complete for local/ngrok MVP validation.
+
+Confirmed end-to-end flow:
+
+1. Real inbound PBX call reached the Asterisk VPS through the Inter Telecom trunk.
+2. Asterisk recorded the call and produced a recording file.
+3. VPS post-call webhook posted to `POST /api/webhooks/voice/pbx`.
+4. The app created a call communication and matched the caller to an existing customer.
+5. The app created a customer intake token.
+6. Apifon OAuth client credentials flow sent a real Viber intake link.
+7. The public intake page opened successfully with server-hydrated customer data.
+8. The intake form submitted successfully.
+9. The customer was updated with submitted intake details.
+10. The intake token moved to `submitted` with both `opened_at` and `submitted_at`.
+
+Validation markers from the completed test:
+
+- `real_pbx_call_e2e=PASS`
+- `real_pbx_intake_submit_after_patch=PASS`
+- `final_real_pbx_intake_flow=PASS`
+- Real test call uniqueid used for validation: `1779358690.34`
+- Real recording existed and was linked in the call summary.
+- Real Viber send status was `sent`.
+- Real intake token channel was `viber`.
+- Real customer intake status became `submitted`.
+
+Related commits:
+
+- `b2bc3c9` Wire PBX calls to intake Viber flow
+- `ed4b81f` Use Apifon OAuth client credentials
+- `f81c04c` Server hydrate public intake page
+- `116c3a6` Document Apifon OAuth env mapping
+- `22a99f8` Add robust intake form submit fallback
+
+Important caveats before production:
+
+- Current validation used local development plus ngrok, not a production deployment.
+- Current Viber sender is still the test sender, not the final production sender.
+- Apifon production sender activation, DPA, pricing and message limits still need to be handled.
+- Recording consent, privacy policy wording and legal review remain required before production.
+- The PBX VPS is self-managed infrastructure and needs production hardening, monitoring, backups and security maintenance.
 
 Apifon is the primary Viber/intake delivery provider for first implementation tests. The following results have been manually confirmed.
 
