@@ -6,8 +6,18 @@ const DEFAULT_VIBER_TTL_SECONDS = 86400;
 
 interface ApifonConfig {
   baseUrl: string;
-  apiKey: string;
+  clientId: string;
+  clientSecret: string;
   senderId: string;
+}
+
+interface ApifonTokenResponse {
+  access_token?: string;
+  token_type?: string;
+  expires_in?: number;
+  scope?: string;
+  error?: string;
+  error_description?: string;
 }
 
 interface ApifonSubscriber {
@@ -78,18 +88,20 @@ function normaliseBaseUrl(raw: string | undefined): string {
 }
 
 function getApifonConfig(): ApifonConfig | null {
-  const apiKey = process.env.APIFON_API_KEY?.trim();
+  const clientId = process.env.APIFON_CLIENT_ID?.trim();
+  const clientSecret = process.env.APIFON_API_KEY?.trim();
   const senderId =
     process.env.APIFON_VIBER_SENDER_ID?.trim() ||
     process.env.APIFON_SENDER_ID?.trim();
 
-  if (!apiKey || !senderId) {
+  if (!clientId || !clientSecret || !senderId) {
     return null;
   }
 
   return {
     baseUrl: normaliseBaseUrl(process.env.APIFON_BASE_URL),
-    apiKey,
+    clientId,
+    clientSecret,
     senderId,
   };
 }
@@ -187,6 +199,38 @@ function extractMessageId(body: unknown): string | null {
   return getString(first['message_id']) ?? getString(first['messageId']);
 }
 
+async function getApifonAccessToken(config: ApifonConfig): Promise<string> {
+  const body = new URLSearchParams();
+  body.set('grant_type', 'client_credentials');
+  body.set('client_id', config.clientId);
+  body.set('client_secret', config.clientSecret);
+  body.set('scope', 'accountInfo imGateway');
+
+  const response = await fetch('https://ids.apifon.com/oauth2/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body,
+  });
+
+  const text = await response.text();
+  let parsed: ApifonTokenResponse | null = null;
+
+  if (text) {
+    try {
+      parsed = JSON.parse(text) as ApifonTokenResponse;
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!response.ok || !parsed?.access_token) {
+    const error = parsed?.error_description || parsed?.error || 'apifon_oauth_failed';
+    throw new Error(error);
+  }
+
+  return parsed.access_token;
+}
+
 function buildApifonRequest(
   config: ApifonConfig,
   params: SendIntakeViberParams,
@@ -241,10 +285,12 @@ export async function sendIntakeViberMessage(
   const requestBody = buildApifonRequest(config, params, msisdn);
 
   try {
+    const accessToken = await getApifonAccessToken(config);
+
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${config.apiKey}`,
+        Authorization: `Bearer ${accessToken}`,
         'Content-Type': 'application/json; charset=utf-8',
       },
       body: JSON.stringify(requestBody),
