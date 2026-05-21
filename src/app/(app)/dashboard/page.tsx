@@ -1,18 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { loadState, saveState, updateTask, updateOffer, addTask, updateCustomer, deleteCustomer, saveCustomers, advanceSmsIntakeStatuses, addCommunicationRecord } from '@/lib/storage';
-import { generateDemoTasks } from '@/lib/demo-data';
-import { getSmsPhone } from '@/lib/phone';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
-import SmsIntakeNotificationBar from '@/components/dashboard/SmsIntakeNotificationBar';
 import DataQualityWidget from '@/components/dashboard/DataQualityWidget';
-import DemoStepBanner from '@/components/common/DemoStepBanner';
-import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
 import DashboardSmartCards from '@/components/dashboard/DashboardSmartCards';
 import ActionSheet from '@/components/common/ActionSheet';
 
@@ -34,9 +29,81 @@ interface DashboardData {
   communications: CommunicationRecord[];
 }
 
+// Map backend offer response to local Offer type.
+function mapOffer(d: Record<string, unknown>): Offer {
+  return {
+    id: d.id as string,
+    customerId: (d.customerId as string | null) ?? undefined,
+    relatedTaskId: (d.relatedTaskId as string | null) ?? undefined,
+    offerNumber: d.offerNumber as string,
+    status: d.status as Offer['status'],
+    offerDate: d.offerDate as string,
+    validUntil: (d.validUntil as string | null) ?? (d.offerDate as string),
+    items: (d.items as unknown as Offer['items']) ?? [],
+    subtotal: d.subtotal as number,
+    vatRate: d.vatRate as number,
+    vatAmount: d.vatAmount as number,
+    total: d.total as number,
+    notes: (d.notes as string | null) ?? '',
+    terms: (d.terms as string | null) ?? '',
+    acceptanceText: (d.acceptanceText as string | null) ?? '',
+    createdFromAi: (d.createdFromAi as boolean) ?? false,
+    createdAt: d.createdAt as string,
+    updatedAt: d.updatedAt as string,
+  };
+}
+
+// Map backend task response to local Task type.
+function mapTask(d: Record<string, unknown>): Task {
+  return {
+    id: d.id as string,
+    customerId: (d.customerId as string | null) ?? undefined,
+    offerId: (d.offerId as string | null) ?? undefined,
+    title: d.title as string,
+    type: (d.type as Task['type']) ?? 'other',
+    status: d.status as TaskBaseStatus,
+    priority: (d.priority as Task['priority']) ?? 'normal',
+    dueDate: d.dueDate as string,
+    dueTime: (d.dueTime as string | null) ?? undefined,
+    note: (d.note as string | null) ?? '',
+    createdFromAi: (d.createdFromAi as boolean) ?? false,
+    completedAt: (d.completedAt as string | null) ?? undefined,
+    createdAt: d.createdAt as string,
+    updatedAt: d.updatedAt as string,
+  };
+}
+
+// Map backend customer response to local Customer type.
+function mapCustomer(d: Record<string, unknown>): Customer {
+  const now = new Date().toISOString();
+  return {
+    id: d.id as string,
+    name:
+      (d.name as string | null) ??
+      (d.companyName as string | null) ??
+      (d.crmNumber as string | null) ??
+      'Πελάτης',
+    companyName: (d.companyName as string | null) ?? '',
+    phone: (d.phone as string | null) ?? '',
+    email: (d.email as string | null) ?? '',
+    address: (d.address as string | null) ?? '',
+    source: (d.source as Customer['source']) ?? 'manual_entry',
+    status: (d.status as Customer['status']) ?? 'new_lead',
+    preferredContactMethod:
+      (d.preferredContactMethod as Customer['preferredContactMethod']) ?? 'phone',
+    needsSummary: (d.needsSummary as string | null) ?? '',
+    notes: (d.notes as string | null) ?? '',
+    createdAt: (d.createdAt as string) ?? now,
+    updatedAt: (d.updatedAt as string) ?? now,
+    crmNumber: (d.crmNumber as string | null) ?? undefined,
+  };
+}
+
 export default function DashboardPage() {
   // Start empty so server render and first client render match.
   const [hydrated, setHydrated] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [dashboardData, setDashboardData] = useState<DashboardData>({
     customers: [],
     tasks: [],
@@ -44,6 +111,7 @@ export default function DashboardPage() {
     calls: undefined,
     communications: [],
   });
+  const tokenRef = useRef<string | null>(null);
 
   // Undo state - must be declared before any conditional return.
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
@@ -56,60 +124,74 @@ export default function DashboardPage() {
     return () => clearTimeout(timer);
   }, [lastCompletedTask]);
 
-  // Load localStorage after mount to avoid hydration mismatch.
-  // setState calls are deferred into a timer so they are not synchronous in the effect body.
-  useEffect(() => {
-    const state = loadState();
-    const rawCustomers = state.customers ?? [];
-    const advanced = advanceSmsIntakeStatuses(rawCustomers);
-    const anyChanged = advanced.some((c, i) => c.intakeStatus !== rawCustomers[i]?.intakeStatus);
-    if (anyChanged) saveCustomers(advanced);
+  const loadData = useCallback(async (token: string) => {
+    const headers: HeadersInit = { Authorization: `Bearer ${token}` };
+    try {
+      const [customersResp, tasksResp, offersResp] = await Promise.all([
+        fetch('/api/customers?limit=100', { headers }),
+        fetch('/api/tasks?limit=100', { headers }),
+        fetch('/api/offers?limit=100', { headers }),
+      ]);
 
-    // Log reminder SMS for each waiting_sms -> reminder_sent transition.
-    const now = new Date().toISOString();
-    const reminderComms: CommunicationRecord[] = [];
-    advanced.forEach((after, i) => {
-      const before = rawCustomers[i];
-      if (before?.intakeStatus === 'waiting_sms' && after.intakeStatus === 'reminder_sent') {
-        const phone = getSmsPhone(after) ?? undefined;
-        const rec: CommunicationRecord = {
-          id: crypto.randomUUID(),
-          customerId: after.id,
-          channel: 'sms',
-          direction: 'outbound',
-          status: 'sent',
-          phone,
-          summary: 'Αποστολή δεύτερου SMS υπενθύμισης για στοιχεία πελάτη.',
-          createdAt: now,
-          isMock: true,
-        };
-        addCommunicationRecord(rec);
-        reminderComms.push(rec);
+      if (!customersResp.ok || !tasksResp.ok || !offersResp.ok) {
+        setActionError('Αποτυχία φόρτωσης dashboard. Δοκίμασε ξανά.');
+        setHydrated(true);
+        return;
       }
-    });
 
-    let tasks: Task[];
-    if (state.tasks === undefined) {
-      const seeded = generateDemoTasks();
-      saveState({ tasks: seeded });
-      tasks = seeded;
-    } else {
-      tasks = state.tasks;
-    }
+      const [customersData, tasksData, offersData] = await Promise.all([
+        customersResp.json(),
+        tasksResp.json(),
+        offersResp.json(),
+      ]);
 
-    const nextData: DashboardData = {
-      customers: anyChanged ? advanced : rawCustomers,
-      tasks,
-      offers: state.offers ?? [],
-      calls: state.calls,
-      communications: [...(state.communications ?? []), ...reminderComms],
-    };
-    const timer = window.setTimeout(() => {
-      setDashboardData(nextData);
+      const customers: Customer[] = (
+        Array.isArray(customersData) ? customersData : (customersData.customers ?? [])
+      ).map(mapCustomer);
+
+      const tasks: Task[] = (
+        Array.isArray(tasksData) ? tasksData : (tasksData.tasks ?? [])
+      ).map(mapTask);
+
+      const offers: Offer[] = (
+        Array.isArray(offersData) ? offersData : (offersData.offers ?? [])
+      ).map(mapOffer);
+
+      setDashboardData({
+        customers,
+        tasks,
+        offers,
+        calls: undefined,
+        communications: [],
+      });
       setHydrated(true);
-    }, 0);
-    return () => window.clearTimeout(timer);
+    } catch {
+      setActionError('Αποτυχία φόρτωσης dashboard. Δοκίμασε ξανά.');
+      setHydrated(true);
+    }
   }, []);
+
+  useEffect(() => {
+    async function init() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          setAuthRequired(true);
+          setHydrated(true);
+          return;
+        }
+        tokenRef.current = session.access_token;
+        await loadData(session.access_token);
+      } catch {
+        setActionError('Αποτυχία σύνδεσης. Δοκίμασε ξανά.');
+        setHydrated(true);
+      }
+    }
+    init();
+  }, [loadData]);
 
   // Stable loading shell - identical on server and first client render.
   if (!hydrated) {
@@ -128,108 +210,91 @@ export default function DashboardPage() {
 
   const { customers, tasks, offers, calls } = dashboardData;
 
-  function handleCompleteTask(taskId: string) {
-    const now = new Date().toISOString();
+  async function handleCompleteTask(taskId: string) {
+    const token = tokenRef.current;
     const task = dashboardData.tasks.find((t) => t.id === taskId);
-    if (!task) return;
-    setLastCompletedTask(task);
-    const completed: Task = {
-      ...task,
-      status: 'completed' as TaskBaseStatus,
-      completedAt: now,
-      updatedAt: now,
-    };
-    updateTask(completed);
-    setDashboardData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) => (t.id === taskId ? completed : t)),
-    }));
+    if (!task || !token) return;
+    setActionError(null);
+    const resp = await fetch(`/api/tasks/${taskId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'completed' }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const updated = mapTask(data.task as Record<string, unknown>);
+      setLastCompletedTask(task);
+      setDashboardData((prev) => ({
+        ...prev,
+        tasks: prev.tasks.map((t) => (t.id === taskId ? updated : t)),
+      }));
+    } else {
+      setActionError('Αποτυχία ενημέρωσης task. Δοκίμασε ξανά.');
+    }
   }
 
-  function handleUndoCompleteTask() {
+  async function handleUndoCompleteTask() {
     if (!lastCompletedTask) return;
-    updateTask(lastCompletedTask);
-    setDashboardData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((t) =>
-        t.id === lastCompletedTask.id ? lastCompletedTask : t
-      ),
-    }));
+    const token = tokenRef.current;
+    if (!token) {
+      setLastCompletedTask(null);
+      return;
+    }
+    setActionError(null);
+    const resp = await fetch(`/api/tasks/${lastCompletedTask.id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: lastCompletedTask.status }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const restored = mapTask(data.task as Record<string, unknown>);
+      setDashboardData((prev) => ({
+        ...prev,
+        tasks: prev.tasks.map((t) =>
+          t.id === lastCompletedTask.id ? restored : t
+        ),
+      }));
+    } else {
+      // Restore from in-memory snapshot on API failure.
+      setDashboardData((prev) => ({
+        ...prev,
+        tasks: prev.tasks.map((t) =>
+          t.id === lastCompletedTask.id ? lastCompletedTask : t
+        ),
+      }));
+    }
     setLastCompletedTask(null);
   }
 
-  function handleMarkOfferSent(offerId: string) {
+  async function handleMarkOfferSent(offerId: string) {
+    const token = tokenRef.current;
     const offer = dashboardData.offers.find((o) => o.id === offerId);
-    if (!offer) return;
-    const updated = { ...offer, status: 'sent_manually' as const, updatedAt: new Date().toISOString() };
-    updateOffer(updated);
-    setDashboardData((prev) => ({
-      ...prev,
-      offers: prev.offers.map((o) => (o.id === offerId ? updated : o)),
-    }));
+    if (!offer || !token) return;
+    setActionError(null);
+    const resp = await fetch(`/api/offers/${offerId}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'sent_manually' }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const updated = mapOffer(data.offer as Record<string, unknown>);
+      setDashboardData((prev) => ({
+        ...prev,
+        offers: prev.offers.map((o) => (o.id === offerId ? updated : o)),
+      }));
+    } else {
+      setActionError('Αποτυχία ενημέρωσης προσφοράς. Δοκίμασε ξανά.');
+    }
   }
 
-  function handleDeleteSmsIntakeCustomer(customerId: string) {
-    deleteCustomer(customerId);
-    setDashboardData((prev) => ({
-      ...prev,
-      customers: prev.customers.filter((c) => c.id !== customerId),
-    }));
-  }
-
-  function handleCreateSmsIntakeFollowUp(customerId: string) {
-    const now = new Date().toISOString();
-    const customer = dashboardData.customers.find((c) => c.id === customerId);
-    if (!customer) return;
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const task: Task = {
-      id: crypto.randomUUID(),
-      customerId,
-      title: 'Follow-up για στοιχεία πελάτη',
-      type: 'other',
-      status: 'open',
-      priority: 'normal',
-      dueDate: tomorrow.toISOString().split('T')[0],
-      note: 'Ο πελάτης δεν απάντησε στο SMS στοιχείων.',
-      createdFromAi: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(task);
-    const updated = { ...customer, intakeStatus: 'kept_draft' as const, updatedAt: now };
-    updateCustomer(updated);
-    setDashboardData((prev) => ({
-      ...prev,
-      tasks: [...prev.tasks, task],
-      customers: prev.customers.map((c) => (c.id === customerId ? updated : c)),
-    }));
-  }
-
-  function handleKeepSmsIntakeDraft(customerId: string) {
-    const now = new Date().toISOString();
-    const customer = dashboardData.customers.find((c) => c.id === customerId);
-    if (!customer) return;
-    const updated = {
-      ...customer,
-      intakeStatus: 'kept_draft' as const,
-      notes: customer.notes
-        ? `${customer.notes}\nΚρατήθηκε ως πρόχειρη καρτέλα.`
-        : 'Κρατήθηκε ως πρόχειρη καρτέλα.',
-      updatedAt: now,
-    };
-    updateCustomer(updated);
-    setDashboardData((prev) => ({
-      ...prev,
-      customers: prev.customers.map((c) => (c.id === customerId ? updated : c)),
-    }));
-  }
-
-  function handleCreateOfferFollowUpTask(offerId: string) {
+  async function handleCreateOfferFollowUpTask(offerId: string) {
+    const token = tokenRef.current;
     const offer = dashboardData.offers.find((o) => o.id === offerId);
-    if (!offer || !offer.customerId) return;
+    if (!offer || !offer.customerId || !token) return;
 
-    // Prevent duplicates: skip if an open follow-up task already exists for this offer.
+    // Prevent duplicates using in-memory loaded tasks.
     const alreadyExists = dashboardData.tasks.some(
       (t) =>
         t.type === 'follow_up_offer' &&
@@ -239,28 +304,34 @@ export default function DashboardPage() {
     );
     if (alreadyExists) return;
 
-    const now = new Date().toISOString();
+    setActionError(null);
     const dueDate = new Date();
     dueDate.setDate(dueDate.getDate() + 3);
-    const task: Task = {
-      id: crypto.randomUUID(),
-      customerId: offer.customerId,
-      offerId: offer.id,
-      title: `Follow-up προσφοράς ${offer.offerNumber}`,
-      type: 'follow_up_offer',
-      status: 'open',
-      priority: 'normal',
-      dueDate: dueDate.toISOString().split('T')[0],
-      note: 'Follow-up μετά την αποστολή της προσφοράς.',
-      createdFromAi: false,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(task);
-    setDashboardData((prev) => ({
-      ...prev,
-      tasks: [...prev.tasks, task],
-    }));
+    const resp = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        customerId: offer.customerId,
+        offerId: offer.id,
+        title: `Follow-up προσφοράς ${offer.offerNumber}`,
+        type: 'follow_up_offer',
+        status: 'open',
+        priority: 'normal',
+        dueDate: dueDate.toISOString().split('T')[0],
+        note: 'Follow-up μετά την αποστολή της προσφοράς.',
+        createdFromAi: false,
+      }),
+    });
+    if (resp.ok) {
+      const data = await resp.json();
+      const created = mapTask(data.task as Record<string, unknown>);
+      setDashboardData((prev) => ({
+        ...prev,
+        tasks: [...prev.tasks, created],
+      }));
+    } else {
+      setActionError('Αποτυχία δημιουργίας task. Δοκίμασε ξανά.');
+    }
   }
 
   const leads = customers
@@ -288,24 +359,28 @@ export default function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-5">
-      <DemoStepBanner
-        step="dashboard"
-        stepNum={1}
-        title="Dashboard - εκκρεμότητες της ημέρας"
-        body="Κοίτα tasks εκπρόθεσμα, ανοιχτές προσφορές και τοπική εικόνα στο κάτω μέρος."
-        watchLabel="Αν δεν βλέπεις στοιχεία, γύρνα στο Mission 1 και επαναφέρε Rich demo."
-        actionLabel="Επόμενο: AI review"
-        actionHref="/ai-review?demoStep=review"
-      />
-      <GuidedDemoBanner
-        step="dashboard"
-        stepNum={1}
-        title="Dashboard - κέντρο ελέγχου"
-        whatYouSee="Εκκρεμότητες ημέρας: tasks εκπρόθεσμα, ανοιχτές προσφορές, πρόσφατες απαντήσεις, local analytics."
-        whatToDo="Πάτα ένα εικονίδιο για να δεις λεπτομέρειες χωρίς να φύγεις από την Αρχική."
-        whyItMatters="Στο τελικό προϊόν, εδώ θα βλέπεις τι χρειάζεται follow-up μετά από κλήσεις, SMS, Viber ή email. Στο MVP: τοπικά δεδομένα μόνο."
-        canManualComplete={true}
-      />
+
+      {/* Action error banner */}
+      {actionError && (
+        <div className="rounded-xl bg-red-50 px-4 py-2.5 ring-1 ring-red-200">
+          <p className="text-sm text-red-700">{actionError}</p>
+        </div>
+      )}
+
+      {/* Auth required notice */}
+      {authRequired && (
+        <div className="rounded-xl bg-amber-50 px-4 py-3 ring-1 ring-amber-200">
+          <p className="text-sm text-amber-700">
+            Συνδέσου για να φορτωθούν τα πραγματικά δεδομένα του dashboard.
+          </p>
+          <Link
+            href="/login/backend"
+            className="mt-2 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Σύνδεση
+          </Link>
+        </div>
+      )}
 
       {/* Header: greeting + menu icon */}
       <div className="flex items-center justify-between gap-3">
@@ -343,12 +418,7 @@ export default function DashboardPage() {
 
       <QuickAssistantInput />
 
-      <SmsIntakeNotificationBar
-        customers={customers}
-        onDeleteCustomer={handleDeleteSmsIntakeCustomer}
-        onCreateFollowUp={handleCreateSmsIntakeFollowUp}
-        onKeepDraft={handleKeepSmsIntakeDraft}
-      />
+      {/* SmsIntakeNotificationBar omitted: SMS intake is handled via Viber/public intake. */}
 
       <NextActionsSection
         customers={customers}
@@ -361,17 +431,14 @@ export default function DashboardPage() {
         onCreateOfferFollowUpTask={handleCreateOfferFollowUpTask}
       />
 
-      {/* Data quality — secondary, shown only when needed */}
+      {/* Data quality - secondary, shown only when needed */}
       <DataQualityWidget customers={customers} />
 
       {/* App menu */}
       <ActionSheet open={menuOpen} onClose={() => setMenuOpen(false)} title="Μενού">
         <div className="space-y-2">
           {[
-            { href: '/settings', label: 'Ρυθμίσεις', subtitle: 'Επιχείρηση, backup, demo δεδομένα' },
-            { href: '/demo', label: 'Demo', subtitle: 'Guided demo και πληροφορίες pilot' },
-            { href: '/demo/privacy', label: 'Απόρρητο demo', subtitle: 'Τι αποθηκεύεται και τι όχι' },
-            { href: '/demo/production-readiness', label: 'Τεχνική ετοιμότητα', subtitle: 'Checklist πριν το Vercel' },
+            { href: '/settings', label: 'Ρυθμίσεις', subtitle: 'Επιχείρηση, backup, ρυθμίσεις' },
           ].map(({ href, label, subtitle }) => (
             <Link
               key={href}
