@@ -389,17 +389,21 @@ export default function AiReviewPage() {
         return;
       }
       const customersData = (await customersRes.json()) as {
-        customers?: Array<{ id: string; name: string; phone?: string }>;
+        customers?: Array<{ id: string; name: string | null; phone?: string | null }>;
       };
       const allCustomers = customersData.customers ?? [];
+      const normalizeExistingName = (value: string | null | undefined) =>
+        (value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+      const normalizeExistingPhone = (value: string | null | undefined) =>
+        (value ?? '').trim();
 
       let existingCustomer: { id: string } | undefined;
       if (phone) {
-        existingCustomer = allCustomers.find((c) => c.phone === phone);
+        existingCustomer = allCustomers.find((c) => normalizeExistingPhone(c.phone) === phone);
       }
       if (!existingCustomer && normalizedName) {
         existingCustomer = allCustomers.find(
-          (c) => c.name.trim().toLowerCase().replace(/\s+/g, ' ') === normalizedName
+          (c) => normalizeExistingName(c.name) === normalizedName
         );
       }
 
