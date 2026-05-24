@@ -977,9 +977,6 @@ export default function AppointmentsPage() {
                               Προσφορά →
                             </Link>
                           )}
-                          <Link href={`/tasks?taskId=${task.id}`} className="text-xs text-zinc-400 hover:text-zinc-500 transition">
-                            Task record
-                          </Link>
                           <button
                             type="button"
                             onClick={() => { setCancelResult(null); setCancellingTaskId(task.id); }}
@@ -1050,12 +1047,6 @@ export default function AppointmentsPage() {
                     Προφίλ πελάτη
                   </Link>
                 )}
-                <Link
-                  href={`/tasks?taskId=${selectedAppointment.id}`}
-                  className="self-center text-xs text-zinc-400 transition hover:text-zinc-500"
-                >
-                  Άνοιγμα task record
-                </Link>
               </div>
             </div>
           </>
