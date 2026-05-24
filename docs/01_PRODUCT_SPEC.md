@@ -1,320 +1,271 @@
 # yorgos.ai Product Spec
 
+Last refreshed: 2026-05-24
+Current scope: backend-backed AI phone assistant pilot.
+
 ## Product summary
 
-yorgos.ai is a mobile-first AI assistant for professionals in Greece. It helps users handle calls, missed calls, leads, CRM notes, follow-ups and offers without heavy manual admin.
+yorgos.ai helps Greek professionals who handle many phone calls turn conversations into customer history, tasks, appointments, offers and follow-up messages.
 
-The MVP should prove one main idea:
+The product should prove one main idea:
 
-A professional can speak naturally in Greek, or finish a customer call, and yorgos.ai creates the useful business output: CRM summary, tasks, next best action, offer draft and Viber/email draft.
+A professional can run their phone-driven business through an AI assistant that listens, summarizes, organizes and prepares actions for review.
 
 ## Product pillars
 
 ### 1. Assistant-first, not CRM-first
 
-The product should feel like a personal assistant, not like software admin.
-
 The user should think:
 
-What do I need to do now?
+> What needs to happen next?
 
 Not:
 
-I need to update my CRM.
+> I need to update my CRM.
 
-### 2. Mobile-first for professionals on the road
+CRM exists under the hood. The user experience should feel like a business assistant.
 
-The main use case is mobile. The user may be driving, walking between jobs or talking to customers.
+### 2. Phone-first
 
-The UI must be fast, clear and usable from a phone.
+Calls are the strongest product wedge.
 
-### 3. Calls and conversations become business actions
+The product should treat every call as a business event:
+- who called
+- when they called
+- what they asked
+- what must happen next
+- whether they need an offer
+- whether they need an appointment
+- whether they need follow-up
 
-The app turns conversations into structured action:
+### 3. Mobile-first
 
-- CRM summary
-- Customer needs
-- Follow-up tasks
-- Next best action
-- Offer draft
-- Communication draft
+The first real use case is a professional on the road.
 
-### 4. Review before save
+The app must work well on a phone:
+- fast
+- simple
+- thumb-friendly
+- readable
+- minimal admin
+- clear next action
 
-AI never writes final CRM data automatically. The user reviews and edits everything before saving.
+### 4. Sector-aware
 
-### 5. Consent-first recording architecture
+The user chooses a sector during setup.
 
-Call recording is a core future selling point, but it must be designed with clear notice and consent.
+The sector controls:
+- terminology
+- default task types
+- offer style
+- customer fields
+- automation suggestions
+- message templates
+- AI tone
 
-No hidden recording.
+First sector:
+- technical services and call-heavy professionals.
 
-### 6. Generic product with profession-specific setup
+Later sectors:
+- accountants
+- real estate agents
+- spare parts businesses
+- doctors
+- takeaway
+- construction
+- other local service businesses
 
-The MVP should not be locked to one industry, but it should not be vague.
+### 5. Review-first AI
 
-The user chooses a profession/business type during onboarding. The app adapts tone, task suggestions and offer drafts accordingly.
+AI can suggest. The user approves.
 
-## MVP scope
+Default:
+- no automatic CRM save without review
+- no automatic provider send without review
+- no automatic appointment confirmation without review
 
-### Real in MVP
+Later:
+- explicit automation rules may allow auto-send for selected workflows.
 
-- Greek UI
-- Mock login/register
-- Onboarding with business type selection
-- Business profile settings
-- Logo preview upload
-- Local storage for CRM/tasks/offers/settings
+### 6. Consent-first call recording
+
+Call recording is core, but must not be hidden.
+
+The product must support clear notice or consent depending on legal and provider setup.
+
+No legal compliance claim should be made before legal review.
+
+## V1 live pilot scope
+
+### Core live features
+
+- Register and business setup
+- Sector selection
+- Business profile
+- Managed business phone number flow
+- Incoming call log
+- Date and time per call
+- Customer matching by phone
+- New customer creation from call
+- AI call brief
+- Customer workspace
+- Tasks
+- Appointments
+- Offers
+- Offer response links
+- Appointment response links
+- AI Assistant commands
+- Viber intake for new customer details
+- Email/Viber message drafts or provider-gated sends
+- Review-first action flow
+- Backend-backed data
+
+### Current backend-backed surfaces
+
 - Dashboard
-- CRM list
-- Customer profile
-- Manual lead creation
-- Missed calls section, mocked
-- Leads waiting to call
-- Tasks page
-- Offers page
-- Mock app call screen
-- Mock recording indicator
-- Demo call transcripts
-- AI review screen
-- Real AI API processing through backend/API route
-- Real speech-to-text for Greek where browser supports it
-- Manual text fallback
-- PDF-style offer preview
-- Copy Viber message
-- Copy email draft
-- Google Maps open link
-- Search/filter with Greek-friendly normalization
-- Mock workspace/team indicator
-- Mock CRM import placeholder
+- Customers
+- Customer detail
+- Calls
+- Tasks
+- Appointments
+- Offers
+- Offer preview
+- Settings
+- Public offer response
+- Public appointment response
+- Intake token flow
 
-### Mock in MVP
+### Planned live features
 
-- Real VoIP number purchase
-- Real call recording
-- Real inbound calls
-- Real outbound telecom calls
-- Real call log from carrier phone
-- Real Viber integration
-- Real email sending
-- Real PDF export/download
-- Real CRM import parser
-- Google Ads import
-- Meta Ads import
-- Real teams and sharing
-- Calendar integration
-- Invoicing integration
+- Fully backend-backed Customer Workspace with editable sections
+- Fully backend-backed AI Assistant
+- Reject client action
+- Email provider integration
+- Viber provider hardening
+- Google Calendar integration
+- Apple Calendar integration or calendar export/feed
+- Lead automation through generic webhooks
+- WordPress forms lead intake
+- Meta, Google and TikTok leads later
+- Provider connection settings
+- Automation rule builder
 
-### Explicit non-goals for MVP
+## Core workflows
 
-- No hidden call recording
-- No native iOS/Android app
-- No real authentication
-- No database
-- No user roles
-- No paid billing
-- No production legal compliance claims
-- No automatic sending of offers
-- No automatic CRM save without user review
+### New incoming caller
 
-## Post-MVP scope
+1. Caller calls the business number.
+2. yorgos.ai receives the call event.
+3. Call is logged with date, time and phone number.
+4. If the customer is unknown, a customer record is created or suggested.
+5. AI creates a short brief after the call.
+6. Viber or message intake link is sent or drafted to collect details.
+7. Customer submits details.
+8. Customer workspace updates.
 
-### MVP 2
+### Existing client call
 
-- Real VoIP partner integration
-- Buy or connect a business number
-- Real in-app calling through VoIP
-- Consent notice before recording
-- Real call recording
-- Real transcription
-- Real yorgos.ai call log
-- Improved AI call summaries
+1. Existing customer calls.
+2. Call is matched to customer.
+3. AI creates a short call brief.
+4. AI suggests tasks, appointments, offer or follow-up.
+5. User reviews.
+6. Approved items are saved to the customer workspace.
 
-### MVP 3
+### AI Assistant command
 
-- Google Ads lead import
-- Meta Ads lead import
-- Website form lead import
-- Real CRM import from XLS/CSV
-- Email integration
-- Calendar integration
-- Invoicing integration
-- Real PDF export
-- Team sharing
-- Roles and permissions
-- Database and auth
+Examples:
+- “Στείλε προσφορά στον Παπαδόπουλο για 450 ευρώ.”
+- “Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10.”
+- “Απέρριψε τον πελάτη ευγενικά.”
+- “Θύμισέ μου να καλέσω τη Μαρία την Παρασκευή.”
+- “Ποιοι πελάτες περιμένουν απάντηση;”
+
+Flow:
+1. User speaks or types.
+2. AI Assistant parses intent.
+3. App shows review screen.
+4. User edits and approves.
+5. Backend action is saved or message is sent if provider is enabled and approved.
+
+### Offer flow
+
+1. Offer is created from AI Assistant, call review or customer workspace.
+2. User reviews offer.
+3. Offer response link is generated.
+4. Customer can accept or reject.
+5. Response is recorded.
+6. Timeline and offer status update.
+
+### Appointment flow
+
+1. Appointment is created from AI Assistant, call review or customer workspace.
+2. User reviews details.
+3. Appointment response link is generated.
+4. Customer can accept, reject or request time change.
+5. Time change can include plus or minus suggestion.
+6. Internal appointment remains source of truth.
+7. Calendar sync is planned.
+
+### Reject client flow
+
+1. User clicks `Reject client`.
+2. App shows a polite message draft.
+3. User reviews.
+4. If email/Viber provider is enabled, send after confirmation.
+5. If not, create a copyable draft.
+6. Customer timeline records the action.
+
+### Out-of-hours flow
+
+1. Call comes outside business hours.
+2. Customer receives an automatic or reviewed message.
+3. Message asks for details and preferred contact time.
+4. A task is created for follow-up.
+
+## V1, soon, later
+
+### V1
+
+- Managed number first
+- Backend customer workspace
+- Call log and AI brief
+- AI Assistant review-first actions
+- Offers and appointments with response links
+- Viber intake for new customers
+- Reject client draft/send flow
+- Provider-gated email/Viber sends
+- Generic webhook lead intake
+
+### Soon
+
+- Google Calendar
+- Apple Calendar support through appropriate integration or calendar export
+- Meta leads
+- Google leads
+- WordPress plugin or webhook presets
+- WhatsApp exploration
+- Better automation rule builder
+- Basic analytics
 
 ### Later
 
-- Real-time sales objection coaching
-- Live call transcription
-- AI suggested replies during calls
-- Advanced pipeline analytics
-- Mobile native apps if validated
+- Number portability
+- Existing number forwarding support after testing
+- Sector-specific advanced modules
+- Billing
+- Teams and roles
+- Native iOS and Android apps
+- Advanced call analytics
+- Live call coaching
+- More provider integrations
 
-## Key features
+## Explicit non-goals for current pilot
 
-### Dashboard
-
-Assistant-focused home page.
-
-Sections:
-
-- Urgent missed calls
-- Leads waiting to call
-- Today tasks
-- Open offers
-- Recent calls
-- Quick actions
-
-### CRM
-
-Customer list with:
-
-- Name
-- Status
-- Source
-- Opportunity value
-- Next task
-- Last communication
-
-Customer profile with:
-
-- Basic info
-- Source
-- Opportunity value
-- Preferred communication method
-- Status
-- Customer needs
-- Call history summary
-- Tasks
-- Offers
-- Notes
-- Google Maps action
-
-### Tasks
-
-Tasks include:
-
-- Title
-- Customer
-- Date
-- Time
-- Priority
-- Type
-- Status
-- Related call/customer/offer
-- Note
-
-Task types:
-
-- Call back
-- Send offer
-- Follow up offer
-- Ask for photos/documents
-- Book appointment
-- Visit customer
-- Wait for reply
-- Other
-
-Statuses:
-
-- Open
-- Due today
-- Overdue
-- Completed
-- Cancelled
-
-### Offers
-
-Offer statuses:
-
-- Draft
-- Ready to send
-- Sent manually
-- Accepted
-- Rejected
-- Expired
-
-Offer fields:
-
-- Customer
-- Related task
-- Offer number
-- Offer date
-- Valid until
-- Line items
-- Quantity
-- Unit price
-- Net amount
-- VAT 24 percent by default
-- Total
-- Notes
-- Terms
-- Acceptance text
-
-### AI review
-
-Every AI result must show a review screen before save.
-
-Sections:
-
-- Customer
-- Summary
-- Customer needs
-- Tasks
-- Offer, if relevant
-- Status update
-- Warnings needing confirmation
-
-Full transcript is not stored. Only final result and summary are stored after approval.
-
-### Dictation
-
-The user presses microphone and speaks in Greek.
-
-Examples:
-
-- Κράτα σημείωση ότι ο Παπαδόπουλος θέλει ραντεβού την Παρασκευή.
-- Θύμισέ μου να καλέσω τον Καραγιάννη αύριο στις 11.
-- Φτιάξε προσφορά 100 ευρώ εργασία και 50 ευρώ υλικά στον Καραγιάννη.
-- Βάλε στον Δημητρίου ότι ήρθε από Facebook και η αξία είναι περίπου 800 ευρώ.
-
-The app detects intent and prepares the right result for review.
-
-### Mock call flow
-
-The user chooses call type:
-
-- Inbound from new customer
-- Inbound from existing customer
-- Outbound to new lead
-- Outbound to existing customer
-
-Then:
-
-Customer → Call → mocked call screen → End call → demo transcript → AI processing → Review → Save → success screen with quick actions
-
-## Success metrics for testing
-
-The first MVP should be judged by whether target users understand the value quickly.
-
-Suggested validation metrics:
-
-- Can a user understand the product within 30 seconds?
-- Can a user create a CRM update from dictation without help?
-- Can a user create an offer draft from voice command?
-- Does the review screen feel trustworthy?
-- Does the dashboard make the next action obvious?
-- Do users ask for real VoIP recording after seeing the demo?
-- Do users say they would pay for this if it worked with their real calls?
-
-## Main product risk
-
-The biggest risk is overbuilding.
-
-The product includes many directions: CRM, calls, AI, offers, tasks, recording, ads, import, teams.
-
-The MVP must focus on the magic loop:
-
-Conversation → AI review → CRM/tasks/offer → quick action
+- No hidden recording
+- No fake provider sends
+- No fake legal compliance claims
+- No automatic AI save without review
+- No automatic send unless provider is implemented and explicitly approved
+- No unsupported claim that forwarded calls preserve caller ID
+- No visible demo/local product experience

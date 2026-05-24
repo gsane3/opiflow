@@ -1,502 +1,303 @@
 # yorgos.ai Build Prompt
 
-Use this prompt for the future coding agent.
-
-## Scope
-
-This prompt applies to the yorgos.ai localStorage MVP phase only.
-
-The constraints in this document, including no database, mock auth, and local storage only, are correct for MVP coding agents building the initial prototype.
-
-For backend v2 implementation, see `BACKEND_SPEC.md` at the project root. That document is the approved backend direction and supersedes the database and auth constraints below for v2 work.
+Last refreshed: 2026-05-24
+Use this prompt and protocol for future coding agents.
 
 ## Role
 
-You are building yorgos.ai, a mobile-first AI assistant for Greek professionals who work on the road and need help turning calls and voice commands into CRM updates, tasks, offer drafts and communication drafts.
+You are building yorgos.ai, a backend-backed AI phone assistant and CRM automation platform for Greek professionals who handle many calls.
 
 Build step by step. Do not overbuild.
 
-## Product rules
+## Current product direction
 
-- Documentation first.
-- Mobile-first responsive web app/PWA.
-- Desktop/browser compatible.
-- Greek-only UI for MVP.
-- The app is assistant-first, not CRM-first.
-- The user chooses profession/business type during onboarding.
-- Profession affects AI tone, tasks, summaries and offer drafts.
+yorgos.ai is not a traditional CRM.
+
+It is:
+- AI phone assistant
+- managed business phone workflow
+- call brief system
+- customer workspace
+- task and appointment assistant
+- offer assistant
+- response link system
+- provider automation platform
+- sector-aware business assistant
+
+First sector:
+- technical services and Greek call-heavy professionals
+
+Later sectors:
+- accountants
+- real estate
+- spare parts
+- doctors
+- takeaway
+- construction
+- other services
+
+## Current implementation assumptions
+
+Use the newest `Yorgosai_pN_handoff.md` for implementation state.
+
+As of p12:
+- repo path is `E:\yorgos`
+- backend pilot surfaces exist
+- visible demo/local call entry points were removed from main app surfaces
+- hidden demo/local code may still exist
+- product direction is to remove demo/local fully
+- `/cmd` AI Assistant is core and should become backend-backed
+- customer workspace is core and should become backend-backed and editable
+
+## Critical product rules
+
+- Greek-first UI.
+- Mobile-first.
+- Assistant-first, not CRM-first.
+- Calls are core.
 - No hidden call recording.
-- Call recording is a core future selling point, but real recording is not built in MVP.
-- Mock calls must be labelled as mock/demo.
-- Real AI processing is required through a backend/API proxy.
-- Real speech-to-text should be attempted in browser for Greek.
-- Manual text fallback is required.
-- No automatic save from AI.
-- Every AI result must show review screen before save.
-- No automatic sending of offers or messages.
-- Viber/email drafts are copied manually.
-- PDF-style offer preview only in MVP.
-- Local storage only for app data.
-- Mock auth only.
-- Mock workspace/team only.
-- Mock CRM import only.
-- No database unless explicitly approved.
-- No real integrations unless explicitly approved.
+- No fake provider claims.
+- No automatic AI save without review by default.
+- No automatic message sending unless provider flow is implemented, connected and explicitly approved.
+- Review-first AI actions.
+- Auto-send only with explicit automation rule.
+- Do not build new live features on localStorage.
+- Do not show visible demo/local MVP copy in live product surfaces.
+- Do not assume forwarded calls preserve original caller ID until provider testing proves it.
+- Do not claim legal compliance without legal review.
+- Preserve Greek UTF-8.
 
-## Tech stack
+## Development protocol for Claude/code agents
 
-Preferred stack:
+CRITICAL RULES:
+1. DO NOT run commands.
+2. No git status.
+3. No git diff.
+4. No npm run lint.
+5. No npm run build.
+6. No PowerShell.
+7. No shell.
+8. No terminal commands.
+9. The user runs all commands manually.
+10. Read files only when needed.
+11. Edit only files explicitly listed in the prompt.
+12. Make targeted edits only.
+13. Do not refactor unrelated code.
+14. Do not rewrite whole files unless explicitly requested.
+15. Preserve Greek UTF-8.
+16. If you see mojibake or corrupted Greek text, STOP and report the exact file and area.
+17. Do not use scripts or encoding conversion to fix Greek text unless explicitly approved.
+18. Do not create stray files.
+19. Do not add packages unless explicitly approved.
+20. Do not touch secrets or env values.
+21. Do not include raw tokens, passwords, SIP credentials, provider credentials, private URLs or full phone numbers.
+22. Do not use em dash characters. Use a comma or a period instead.
 
-- Next.js
-- TypeScript
-- Tailwind CSS
-- Component-based UI
-- Local storage for MVP data
-- API route for AI proxy
-- Browser SpeechRecognition or compatible fallback
+At the end of every code-agent task, report:
+- files changed
+- summary by file
+- what was intentionally not changed
+- assumptions
+- questions
+- manual validation commands for George
 
-If the existing project already has a stack, follow it unless it conflicts with these rules.
+## ChatGPT PowerShell protocol
 
-## File structure suggestion
+Every PowerShell block given to George must start with:
 
-Suggested structure:
+```powershell
+Clear-Host
+Set-Location E:\yorgos
+```
+
+George runs:
+- PowerShell
+- git
+- npm
+- lint
+- build
+- VPS commands
+- provider commands
+
+ChatGPT reviews output and responds with:
+- PASS or STOP
+- short diagnosis
+- next safest step
+
+## Git protocol
+
+- Commit only after validation passes.
+- Use exact file paths in `git add`.
+- Never use broad `git add .`.
+- For paths with brackets such as `[id]` or `[token]`, use literal path handling.
+- CRLF warnings are usually OK unless lint, build or `git diff --check` fails.
+- Remove stray files before commit.
+
+## Validation protocol
+
+For docs-only changes:
+- `git status --short --untracked-files=all`
+- `git diff --stat`
+- `git diff --check`
+- UTF-8/mojibake scan
+- em dash scan
+- final `git status`
+
+For code changes:
+- `git status --short --untracked-files=all`
+- `git diff --stat`
+- `git diff --check`
+- targeted ESLint for changed code files
+- full `npm run lint` when appropriate
+- full `npm run build` before important commits
+- browser or production smoke when route behavior changes
+
+## Build sequence from current state
+
+### Step 1. Documentation refresh
+
+Update source docs to backend pilot truth.
+
+### Step 2. Backend-backed Customer Workspace
+
+Build customer detail as central workspace.
+
+Allowed features:
+- edit customer details
+- calls and call briefs
+- timeline
+- notes
+- files metadata
+- tasks
+- appointments
+- offers
+- messages
+- reject client
+- next best action
+
+Rules:
+- backend-backed only
+- no localStorage live path
+- no demo copy
+- review-first for AI actions
+- timeline/audit record for important changes
+
+### Step 3. Remove demo/local code
+
+Remove or archive:
+- `/demo`
+- `/call/mock`
+- demo banners
+- local demo fallbacks
+- unused legacy CustomerProfile code if replaced
+- localStorage live dependencies
+
+Rules:
+- do not break live routes
+- do not remove test utilities without confirming they are unused
+- validate routes after deletion
+
+### Step 4. Backend-backed AI Assistant
+
+Make `/cmd` live.
+
+Supported intents:
+- query customers
+- query calls
+- create task
+- create appointment
+- create offer
+- draft/send message
+- reject client
+- summarize day
+- find pending actions
+
+Rules:
+- review-first
+- customer disambiguation
+- backend writes only after approval
+- provider sends only after confirmation and only if implemented
+- timeline records output
+
+### Step 5. Reject client action
+
+Implement:
+- customer action button
+- AI/professional message draft
+- review modal
+- provider send if enabled
+- copyable draft fallback
+- status update
+- timeline event
+
+### Step 6. Provider readiness
+
+Work on:
+- PBX hardening
+- SIP firewall
+- recording notice/consent
+- Viber provider hardening
+- email provider
+- delivery status
+- retries
+- monitoring
+- retention policy
+
+### Step 7. Calendar integration
+
+Support:
+- Google Calendar
+- Apple Calendar or practical ICS/calendar feed path
+- internal appointment source of truth
+
+### Step 8. Lead automations
+
+Start with:
+- generic webhook
+- WordPress forms
+
+Later:
+- Meta
+- Google
+- TikTok
+
+### Step 9. Sector profiles
+
+Start with:
+- technical services
+
+Later:
+- accounting
+- real estate
+- spare parts
+- doctors
+- takeaway
+- construction
+
+## Example Claude prompt header
 
 ```text
-app/
-  login/
-  onboarding/
-  dashboard/
-  customers/
-  customers/[id]/
-  tasks/
-  offers/
-  offers/[id]/
-  call/mock/
-  ai-review/
-  settings/
-  api/ai/process/
-components/
-  layout/
-  dashboard/
-  customers/
-  tasks/
-  offers/
-  calls/
-  ai/
-  settings/
-lib/
-  storage.ts
-  types.ts
-  demo-data.ts
-  search.ts
-  ai-schema.ts
-  offer-calculations.ts
-  maps.ts
-  text-normalization.ts
+You are editing the yorgos.ai Next.js project.
+
+CRITICAL RULES:
+1. DO NOT run commands. No git, npm, PowerShell, shell or terminal commands.
+2. The user runs all commands manually.
+3. Edit only the files explicitly listed in this prompt.
+4. Make targeted edits only.
+5. Preserve Greek UTF-8.
+6. Stop on mojibake or corrupted Greek text.
+7. Do not create stray files.
+8. Do not add packages unless explicitly approved.
+9. Do not include secrets.
+10. Do not make fake provider claims.
+11. AI actions are review-first by default.
+12. Do not build new live features on localStorage.
 ```
 
-Adjust to the existing project structure if needed.
-
-## Data model
-
-Use the data model from `docs/04_DATA_MODEL.md`.
-
-Core entities:
-
-- UserProfile
-- BusinessProfile
-- Workspace, mock only
-- Customer
-- CustomerSummary
-- CallRecord
-- DictationCommand
-- AiResult
-- Task
-- Offer
-- OfferItem
-- CommunicationDraft
-- MissedCall
-
-Use local storage namespace:
-
-yorgos_ai_mvp_state
-
-## Build sequence
-
-### Step 1, App shell and mock onboarding
-
-Build:
-
-- Mock login/register
-- Onboarding
-- Business type selection
-- Business profile form
-- Logo preview
-- Default VAT
-- Default offer terms
-- App shell
-- Mobile bottom nav
-- Floating + New Action
-
-Do not build AI yet.
-
-Validate:
-
-- Mobile layout
-- Desktop layout
-- Local storage save/load
-
-### Step 2, Dashboard and demo data
-
-Build:
-
-- Dashboard
-- Missed calls section
-- Leads waiting to call
-- Today tasks
-- Open offers
-- Recent calls
-- Demo data
-
-Validate:
-
-- Dashboard explains value in under 30 seconds
-- Missed calls are visually urgent
-- Leads and tasks are clear
-
-### Step 3, CRM
-
-Build:
-
-- Customer list
-- Customer cards
-- Customer profile
-- Manual customer/lead creation
-- Source
-- Opportunity value
-- Status
-- Preferred communication method
-- Open in Google Maps link
-
-Validate:
-
-- Customer can be created, viewed and edited locally
-- Maps link opens correctly
-
-### Step 4, Tasks
-
-Build:
-
-- Tasks page
-- Today view
-- Upcoming/overdue/completed filters
-- Task creation/editing
-- Task completion
-
-Validate:
-
-- Task date and time work
-- Customer relationship works
-
-### Step 5, Offers
-
-Build:
-
-- Offers list
-- Offer editor
-- Offer line items
-- VAT calculation
-- Offer statuses
-- PDF-style preview
-- Copy Viber draft
-- Copy email draft
-
-Validate:
-
-- Totals calculate correctly
-- Preview looks clean on mobile and desktop
-- Copy actions work
-
-### Step 6, Mock call flow
-
-Build:
-
-- Call type selector
-- Mock call screen
-- Mock recording indicator
-- Duration timer
-- End call action
-- Demo transcript/scenario selection
-
-Validate:
-
-- Mock labels are clear
-- Flow leads to AI review placeholder
-
-### Step 7, AI review screen
-
-Build:
-
-- AI review screen UI
-- Editable sections
-- Customer section
-- Summary section
-- Needs section
-- Tasks section
-- Offer section
-- Status update
-- Warnings
-- Save action
-- Success screen with quick actions
-
-Validate:
-
-- Nothing saves before review
-- User can edit proposed output
-- Save updates local CRM/tasks/offers
-
-### Step 8, AI API proxy
-
-Build:
-
-- Backend/API route for AI processing
-- Structured input payload
-- Structured JSON output
-- Error handling
-- Prompt context includes business type and business settings
-
-Do not expose API key in frontend.
-
-AI route should handle:
-
-- dictation command
-- demo call transcript
-
-Output structure should include:
-
-- intent
-- customer
-- summary
-- customerNeeds
-- tasks
-- offer
-- statusUpdate
-- messages
-- nextBestAction
-- warnings
-
-Validate:
-
-- API route returns valid structured JSON
-- UI handles errors
-- UI handles missing fields
-
-### Step 9, Speech-to-text
-
-Build:
-
-- Microphone button
-- Browser speech-to-text for Greek if supported
-- Permission handling
-- Manual text fallback
-- Submit text to AI processing
-
-Validate:
-
-- Works where supported
-- Fallback is obvious where unsupported
-- No raw audio is stored
-
-### Step 10, Search and filters
-
-Build:
-
-- CRM search
-- Accent-insensitive normalization
-- Case-insensitive matching
-- Basic greeklish matching
-- Basic fuzzy matching
-- Filters by status, source, open task and open offer
-
-Validate:
-
-- Greek names with and without accents work
-- Greeklish approximations work
-- Phone search works
-
-### Step 11, Settings and mock import
-
-Build:
-
-- Business settings
-- Logo settings
-- VAT settings
-- Offer terms
-- Communication defaults
-- Mock workspace panel
-- Mock CRM import panel
-
-Validate:
-
-- Settings update offer preview
-- Import is clearly labelled as coming soon/mock
-
-## AI prompt rules
-
-The AI should return structured JSON only.
-
-The AI should write in Greek.
-
-The AI should adapt tone and tasks based on business type.
-
-The AI should be practical and concise.
-
-The AI should warn when uncertain.
-
-The AI should not claim that an offer was sent.
-
-The AI should not create legal claims.
-
-The AI should not store or return unnecessary transcript text.
-
-## Example AI input
-
-```json
-{
-  "sourceType": "dictation",
-  "businessType": "technical_services",
-  "businessProfile": {
-    "businessName": "Demo Business",
-    "defaultVatRate": 24
-  },
-  "existingCustomers": [],
-  "inputText": "Φτιάξε προσφορά στον Καραγιάννη με 100 ευρώ εργασία και 50 ευρώ υλικά"
-}
-```
-
-## Example AI output
-
-```json
-{
-  "intent": "create_offer",
-  "customer": {
-    "name": "Καραγιάννης",
-    "preferredContactMethod": "viber"
-  },
-  "summary": "Ο χρήστης ζήτησε να δημιουργηθεί προσφορά για τον Καραγιάννη.",
-  "customerNeeds": "Χρειάζεται προσφορά για εργασία και υλικά.",
-  "tasks": [
-    {
-      "title": "Έλεγχος και αποστολή προσφοράς στον Καραγιάννη",
-      "type": "send_offer",
-      "dueDate": "",
-      "dueTime": "",
-      "priority": "normal",
-      "note": "Να ελεγχθούν τα ποσά πριν σταλεί."
-    }
-  ],
-  "offer": {
-    "shouldCreate": true,
-    "items": [
-      {
-        "description": "Εργασία",
-        "quantity": 1,
-        "unitPrice": 100
-      },
-      {
-        "description": "Υλικά",
-        "quantity": 1,
-        "unitPrice": 50
-      }
-    ],
-    "notes": "Οι τιμές δεν περιλαμβάνουν αλλαγές εκτός συμφωνημένου αντικειμένου.",
-    "terms": "Η προσφορά ισχύει για περιορισμένο χρονικό διάστημα."
-  },
-  "statusUpdate": "offer_drafted",
-  "messages": {
-    "viber": "Καλησπέρα κύριε Καραγιάννη, σας ετοίμασα την προσφορά όπως συζητήσαμε. Είμαι στη διάθεσή σας για οποιαδήποτε διευκρίνιση.",
-    "emailSubject": "Προσφορά",
-    "emailBody": "Καλησπέρα κύριε Καραγιάννη,\n\nΣας στέλνω την προσφορά όπως συζητήσαμε.\n\nΕίμαι στη διάθεσή σας για οποιαδήποτε διευκρίνιση.\n\nΜε εκτίμηση,"
-  },
-  "nextBestAction": "Έλεγξε την προσφορά και στείλε την στον πελάτη.",
-  "warnings": [
-    "Χρειάζεται επιβεβαίωση αν οι τιμές περιλαμβάνουν ΦΠΑ."
-  ]
-}
-```
-
-## Privacy rules for implementation
-
-- Do not store raw audio.
-- Do not store full transcript as CRM record.
-- Store only user-approved summary and structured data.
-- Mock calls must show clear demo label.
-- Do not claim GDPR compliance.
-- Add privacy copy where relevant.
-- User must be able to delete local customer/task/offer data.
-
-## Validation commands
-
-Run after every coding task:
-
-```bash
-npm run lint
-npm run build
-```
-
-Return to user after each task:
-
-- Files changed
-- What changed
-- Manual review URLs/pages
-- What is mock/local
-- Confirm lint/build clean
-
-## Git rules
-
-Before commit:
-
-```bash
-git status
-```
-
-Add only relevant files.
-
-Never commit:
-
-- `.env`
-- `.env.local`
-- API keys
-- unrelated local settings
-- unrelated generated files
-
-Suggested commit format:
-
-```bash
-git add <relevant files>
-git commit -m "Add <small focused change>"
-```
-
-Keep commits small and related to one build step.
-
-## Build discipline
-
-Do not build future features early.
-
-Do not add database.
-
-Do not add auth.
-
-Do not add real VoIP.
-
-Do not add real integrations.
-
-Do not add PDF export unless explicitly approved.
-
-Do not add real team sharing unless explicitly approved.
-
-Always separate:
-
-- Real
-- Mock/local
-- Future
+## Safety reminders
+
+- Warn before actions that send real Viber/email/SMS messages.
+- Warn before actions that place or receive real calls.
+- Warn before actions that touch VPS/PBX configuration.
+- Warn before actions that modify production-like data.
+- Never ask George to paste secrets.

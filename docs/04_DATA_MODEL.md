@@ -1,290 +1,266 @@
 # yorgos.ai Data Model
 
-## Storage approach for MVP
+Last refreshed: 2026-05-24
+Current model: backend/Supabase pilot first. LocalStorage is no longer the source of truth for live pilot features.
 
-MVP uses local storage only.
+## Storage direction
 
-No production database, auth, storage or real team sharing.
+Live pilot:
+- Supabase-backed data
+- authenticated business/user context
+- backend API routes
+- provider webhooks
+- public token flows
+- audit/timeline records
 
-A minimal backend/API route is allowed only for AI processing so API keys are not exposed in the browser.
+Local/demo storage:
+- should not be used for new live features
+- old local/demo code may exist temporarily
+- product direction is to remove demo/local surfaces fully
 
 ## Data principles
 
-- Store only what is needed for the MVP.
-- Keep raw audio out of storage.
-- Do not store full transcript by default.
-- Store only final summary and structured result after user review.
-- Keep mock/demo data clearly marked.
-- Keep future backend migration in mind, but do not overbuild.
+- Store only what is needed.
+- Do not expose secrets in client code.
+- Do not store raw public tokens.
+- Do not show full transcripts by default.
+- Prefer short call brief over transcript.
+- Keep raw audio only as long as required for processing, legal and product needs.
+- Review AI output before final save or send by default.
+- Track provider sends and failures.
+- Keep tenant/business isolation strict.
+- Write timeline/audit events for important changes.
 
-## Entities
+## Core entities
 
 ### UserProfile
 
-Represents the local mock user.
+Represents an app user.
 
 Fields:
+- id
+- email
+- name
+- createdAt
+- updatedAt
+- defaultBusinessId
+- role, later
 
+### Business
+
+Represents the professional or company.
+
+Fields:
 - id
 - name
-- email
-- createdAt
-- onboardingCompleted
-
-### BusinessProfile
-
-Represents the professional/business using the app.
-
-Fields:
-
-- id
-- businessName
-- businessType
 - ownerName
+- sectorProfileId
 - phone
 - email
 - address
-- vatNumber, optional
-- taxOffice, optional
-- logoDataUrl, local preview only
-- defaultVatRate, default 24
+- vatNumber
+- taxOffice
+- defaultVatRate
 - defaultOfferTerms
 - defaultAcceptanceText
+- workingHours
 - createdAt
 - updatedAt
 
-Business type values:
+### SectorProfile
 
-- technical_services
-- sales_services
-- projects_construction
-- other
-
-### Workspace
-
-Mock only in MVP.
+Represents a business category.
 
 Fields:
-
 - id
+- key
 - name
-- mode, always mock/local in MVP
-- membersPreview, optional mock list
+- description
+- defaultTaskTypes
+- defaultOfferTerms
+- customerFields
+- messageTemplates
+- aiPromptContext
+- enabledFeatures
 
-No real team sharing.
+Initial keys:
+- technical_services
+- sales_services
+- construction_projects
+- real_estate
+- accounting
+- spare_parts
+- medical
+- takeaway
+- other
+
+### PhoneNumber
+
+Represents a managed or connected business number.
+
+Fields:
+- id
+- businessId
+- provider
+- numberMasked
+- status
+- type
+- routingMode
+- supportsRecording
+- supportsCallerIdPassthrough
+- createdAt
+- updatedAt
+
+Type values:
+- managed_new_number
+- forwarded_existing_number
+- ported_number_future
+
+Important:
+- Caller ID passthrough for forwarding must not be assumed until tested.
 
 ### Customer
 
-Represents a CRM contact or company.
+Represents a client, lead or company.
 
 Fields:
-
 - id
+- businessId
+- crmNumber
 - name
-- companyName, optional
+- companyName
 - phone
+- mobilePhone
+- landlinePhone
 - email
 - address
 - source
-- opportunityValue
 - status
+- opportunityValue
 - preferredContactMethod
-- businessTypeContext, optional
 - needsSummary
 - notes
+- intakeStatus
+- lastContactAt
+- nextTaskId
 - createdAt
 - updatedAt
-- lastContactAt
-- nextTaskId, optional
 
-Source values:
-
-- facebook_ads
-- google_ads
-- website_form
-- referral
-- inbound_call
-- missed_call
-- manual_entry
-- other
-
-Status values:
-
+Status examples:
 - new_lead
 - contacted
 - follow_up_needed
 - offer_drafted
 - offer_sent
+- appointment_pending
 - won
 - lost
+- rejected
 
-Preferred contact method values:
+### Communication
 
-- viber
-- email
-- phone
-
-### CustomerSummary
-
-Stores approved summaries from calls or dictation.
+Represents calls, emails, Viber messages, WhatsApp messages, SMS or other communications.
 
 Fields:
-
 - id
+- businessId
 - customerId
-- sourceType
-- sourceId, optional
-- summary
-- customerNeeds
-- nextBestAction
+- channel
+- direction
+- provider
+- providerEventId
+- status
+- subject
+- bodyPreview
+- occurredAt
+- metadata
 - createdAt
-- createdByAi
-- userReviewed
 
-Source type values:
+Channel values:
+- call
+- email
+- viber
+- whatsapp
+- sms
+- web_form
+- internal_note
 
-- mock_call
-- dictation
-- manual_note
+Direction values:
+- inbound
+- outbound
 
-Important:
+### Call
 
-Do not store full transcript by default.
-
-### CallRecord
-
-Represents app-level calls in MVP and future VoIP calls.
-
-MVP call records are mock/demo only.
+Can be stored as a communication with channel `call`, or as a separate normalized call table later.
 
 Fields:
-
 - id
-- customerId, optional
+- businessId
+- customerId
 - phoneNumber
-- callType
 - direction
 - status
 - startedAt
 - endedAt
 - durationSeconds
-- isMock
 - recordingStatus
+- recordingPath
 - consentStatus
-- summaryId, optional
-- demoScenarioId, optional
+- providerCallId
 - createdAt
 
-Call type values:
+### CallBrief
 
-- inbound_new_customer
-- inbound_existing_customer
-- outbound_new_lead
-- outbound_existing_customer
-- missed_call
-
-Direction values:
-
-- inbound
-- outbound
-
-Status values:
-
-- completed
-- missed
-- failed
-- cancelled
-
-Recording status values:
-
-- not_recorded
-- mock_recording
-- consented_recording_future
-
-Consent status values:
-
-- not_required_for_mock
-- notice_played_future
-- consented_future
-- declined_future
-
-### DictationCommand
-
-Represents a voice or text command from the user.
+Stores AI summary from a call.
 
 Fields:
-
 - id
-- inputText
-- inputMethod
-- detectedIntent
-- aiResultId, optional
+- businessId
+- customerId
+- communicationId
+- callId
+- brief
+- customerNeeds
+- nextBestAction
+- warnings
+- aiModel
+- userReviewed
 - createdAt
-- processedAt
-
-Input method values:
-
-- speech_to_text
-- text_fallback
-
-Detected intent values:
-
-- create_note
-- create_task
-- create_offer
-- update_customer
-- change_status
-- create_message
-- mixed
-- unknown
 
 Important:
+- Do not show full transcript by default.
+- Brief should be short and practical.
 
-Input text may be kept only temporarily during the review flow. The final stored data should be the summary and structured result after approval.
+### CustomerIntakeToken
 
-### AiResult
-
-Temporary or saved AI output awaiting review.
+Public token for customer detail intake.
 
 Fields:
-
 - id
-- sourceType
-- sourceId
-- proposedCustomer
-- proposedSummary
-- proposedNeeds
-- proposedTasks
-- proposedOffer
-- proposedStatus
-- proposedMessages
-- warnings
-- confidence
-- reviewed
-- saved
+- businessId
+- customerId
+- tokenHash
+- status
+- expiresAt
+- openedAt
+- submittedAt
+- revokedAt
 - createdAt
 
-Source type values:
-
-- mock_call
-- dictation
-
-Warnings examples:
-
-- customer_uncertain
-- amount_uncertain
-- date_uncertain
-- address_uncertain
-- missing_required_info
+Rules:
+- raw token is never stored
+- public API does not expose internal IDs unnecessarily
 
 ### Task
 
-Represents a follow-up or action.
+Represents follow-up work.
 
 Fields:
-
 - id
+- businessId
 - customerId
+- offerId
+- communicationId
 - title
 - type
 - status
@@ -292,15 +268,13 @@ Fields:
 - dueDate
 - dueTime
 - note
-- relatedCallId, optional
-- relatedOfferId, optional
 - createdFromAi
+- aiDraft
+- completedAt
 - createdAt
 - updatedAt
-- completedAt, optional
 
-Task type values:
-
+Types:
 - call_back
 - send_offer
 - follow_up_offer
@@ -308,37 +282,53 @@ Task type values:
 - book_appointment
 - visit_customer
 - wait_for_reply
+- reject_client
 - other
 
-Task status values:
+### Appointment
 
-- open
-- due_today
-- overdue
-- completed
+Appointments may be represented as task types in current backend pilot. A separate normalized table may come later.
+
+Fields when normalized:
+- id
+- businessId
+- customerId
+- taskId
+- offerId
+- title
+- appointmentType
+- status
+- startsAt
+- endsAt
+- location
+- notes
+- calendarProvider
+- calendarEventId
+- createdAt
+- updatedAt
+
+Status:
+- proposed
+- accepted
+- declined
+- time_change_requested
 - cancelled
-
-Priority values:
-
-- low
-- normal
-- high
+- completed
 
 ### Offer
 
-Represents an offer draft or manually marked sent offer.
+Represents a commercial offer.
 
 Fields:
-
 - id
+- businessId
 - customerId
-- relatedTaskId, optional
-- relatedCallId, optional
+- relatedTaskId
+- relatedCallId
 - offerNumber
 - status
 - offerDate
 - validUntil
-- items
 - subtotal
 - vatRate
 - vatAmount
@@ -346,189 +336,291 @@ Fields:
 - notes
 - terms
 - acceptanceText
-- viberDraft
-- emailDraft
 - createdFromAi
 - createdAt
 - updatedAt
 
-Offer status values:
-
+Status:
 - draft
 - ready_to_send
 - sent_manually
+- sent_provider
 - accepted
 - rejected
 - expired
+- cancelled
 
 ### OfferItem
 
 Fields:
-
 - id
+- businessId
+- offerId
 - description
 - quantity
 - unitPrice
 - lineTotal
+- sortOrder
 
-### CommunicationDraft
+### OfferResponseToken
 
-Represents a copyable message.
+Public token for offer accept/reject.
 
 Fields:
-
 - id
+- businessId
+- offerId
 - customerId
-- offerId, optional
-- taskId, optional
+- tokenHash
+- status
+- expiresAt
+- openedAt
+- respondedAt
+- response
+- comment
+- revokedAt
+- createdAt
+
+### AppointmentResponseToken
+
+Public token for appointment response.
+
+Fields:
+- id
+- businessId
+- taskId
+- appointmentId
+- customerId
+- offerId
+- tokenHash
+- status
+- expiresAt
+- openedAt
+- respondedAt
+- response
+- requestedDate
+- requestedTime
+- comment
+- revokedAt
+- createdAt
+
+### MessageTemplate
+
+Reusable business/sector message.
+
+Fields:
+- id
+- businessId
+- sectorProfileId
+- key
 - channel
-- subject, optional
+- title
+- subject
 - body
-- createdFromAi
+- variables
+- active
 - createdAt
+- updatedAt
 
-Channel values:
+Template examples:
+- new_customer_intake
+- missed_call
+- out_of_hours
+- offer_sent
+- appointment_proposal
+- reject_client
+- lead_acknowledgement
 
-- viber
+### ProviderConnection
+
+Represents connected communication or calendar providers.
+
+Fields:
+- id
+- businessId
+- provider
+- providerType
+- status
+- displayName
+- senderId
+- scopes
+- metadata
+- createdAt
+- updatedAt
+
+Provider types:
+- phone
 - email
+- viber
+- whatsapp
+- calendar
+- leads
 
-### MissedCall
+Important:
+- never expose credentials in frontend
+- store secrets only in secure backend/env/provider vault
 
-MVP mock entity.
+### AutomationRule
+
+Represents user-enabled automation.
 
 Fields:
-
 - id
-- phoneNumber
-- customerId, optional
-- occurredAt
+- businessId
+- name
+- trigger
+- conditions
+- actions
 - status
-- autoCreatedTaskId
-- isUnknownLead
+- reviewRequired
+- createdByAi
+- createdAt
+- updatedAt
+
+Examples:
+- new lead -> create call task
+- out-of-hours call -> send intake message
+- reject client approved -> send polite message
+- customer reply with time -> create appointment task
+
+### CalendarEvent
+
+Represents calendar sync state.
+
+Fields:
+- id
+- businessId
+- appointmentId
+- provider
+- externalEventId
+- status
+- startsAt
+- endsAt
+- syncError
+- createdAt
+- updatedAt
+
+Providers:
+- google_calendar
+- apple_calendar
+- ics_feed
+- internal
+
+### LeadSource
+
+Represents lead integrations.
+
+Fields:
+- id
+- businessId
+- provider
+- sourceName
+- status
+- defaultOwnerId
+- defaultTaskType
+- autoReplyTemplateId
+- createdAt
+- updatedAt
+
+Providers:
+- wordpress_form
+- generic_webhook
+- meta
+- google
+- tiktok
+- manual_import
+
+### FileAttachment
+
+Represents files related to customers.
+
+Fields:
+- id
+- businessId
+- customerId
+- communicationId
+- offerId
+- taskId
+- filename
+- mimeType
+- sizeBytes
+- storagePath
+- uploadedBy
 - createdAt
 
-Status values:
+### TimelineEvent
 
-- new
-- task_created
-- handled
-- ignored
-
-### LeadImportPlaceholder
-
-Represents future import direction only.
+Represents unified customer history.
 
 Fields:
-
 - id
-- source
-- status
-- message
+- businessId
+- customerId
+- type
+- title
+- body
+- relatedEntityType
+- relatedEntityId
+- actorType
+- actorId
+- occurredAt
+- metadata
 
-Source values:
+Types:
+- call
+- call_brief
+- note
+- task_created
+- task_completed
+- appointment_created
+- appointment_response
+- offer_created
+- offer_response
+- message_sent
+- message_drafted
+- intake_submitted
+- file_uploaded
+- customer_rejected
+- status_changed
 
-- xls_csv
-- google_ads_future
-- meta_ads_future
-- website_form_future
+## AI result model
 
-## Relationships
+AI output should be structured and review-first.
 
-- One Customer has many Tasks.
-- One Customer has many Offers.
-- One Customer has many CustomerSummaries.
-- One Customer has many CallRecords.
-- One Offer may be related to one Task.
-- One Offer may be related to one CallRecord.
-- One Task may be related to one CallRecord or Offer.
-- One AiResult may create or update Customer, Tasks, Offer and CommunicationDrafts after review.
+Fields:
+- intent
+- customerMatch
+- proposedCustomerUpdate
+- proposedBrief
+- proposedTasks
+- proposedAppointment
+- proposedOffer
+- proposedMessage
+- proposedStatus
+- warnings
+- confidence
+- requiresReview
 
-## Audio and transcript separation
+No AI action should silently modify final customer data unless an explicit automation rule allows it.
 
-### Raw audio
+## Privacy boundaries
 
-MVP:
+Raw audio:
+- temporary or restricted storage only
+- do not expose in normal UI unless explicitly required
 
-- Not real.
-- Mock only.
-- Not stored.
+Transcript:
+- processing artifact
+- not shown by default
+- not stored as normal CRM history unless explicitly approved
 
-Future:
+Brief:
+- primary CRM artifact
+- short, practical, reviewed
 
-- Temporary processing artifact.
-- Should be deleted quickly after transcription/processing unless explicit retention is configured and legally reviewed.
+Messages:
+- draft or sent provider result must be tracked
 
-### Transcript
-
-MVP:
-
-- Demo transcripts can exist in code as mock data.
-- User dictation text can exist temporarily for processing.
-- Do not store full transcript as final CRM data.
-
-Future:
-
-- Transcript may be temporary or optionally retained only if legally reviewed and clearly disclosed.
-
-### Summary
-
-Stored after user review.
-
-### CRM data
-
-Stored after user review.
-
-### Offer
-
-Stored after user review.
-
-## Local storage structure suggestion
-
-Use one local storage namespace, for example:
-
-yorgos_ai_mvp_state
-
-Suggested shape:
-
-```json
-{
-  "userProfile": {},
-  "businessProfile": {},
-  "workspace": {},
-  "customers": [],
-  "tasks": [],
-  "offers": [],
-  "calls": [],
-  "missedCalls": [],
-  "summaries": [],
-  "communicationDrafts": [],
-  "settings": {}
-}
-```
-
-## Future backend notes
-
-When moving beyond MVP, likely backend needs:
-
-- Real auth
-- Business/workspace table
-- Team members
-- Customers
-- Tasks
-- Offers
-- Call records
-- AI processing logs
-- Consent logs
-- Audio processing jobs
-- File storage for logos and PDFs
-- Audit trail for sensitive changes
-
-Do not build this in MVP unless explicitly approved.
-
-## Backend v2 direction
-
-The v2 backend direction is documented in `BACKEND_SPEC.md` at the project root.
-
-That document defines the recommended stack, production schema, auth plan, migration plan, email sending foundation, lead intake foundation, business phone foundation, privacy boundaries, and phased roadmap.
-
-This data model document remains the MVP localStorage reference. For backend implementation decisions, use `BACKEND_SPEC.md`.
+Tokens:
+- raw public token is shown only in generated link
+- store only hash

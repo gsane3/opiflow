@@ -1,432 +1,298 @@
 # yorgos.ai UI Guide
 
+Last refreshed: 2026-05-24
+Current direction: mobile-first AI phone assistant with backend-backed customer workspace.
+
 ## UI language
 
-Greek only for MVP.
+Greek-first for the Greek market.
 
-Use simple professional Greek. Avoid heavy SaaS terminology where possible.
+Use simple professional Greek.
 
-Use words the average Greek professional understands.
+Avoid heavy SaaS terminology when there is a clearer Greek alternative.
 
-Examples:
-
+Good labels:
 - Αρχική
+- Κλήσεις
 - Πελάτες
+- AI Assistant
 - Tasks
+- Ραντεβού
 - Προσφορές
+- Πελάτης
+- Timeline
+- Αρχεία
 - Νέα ενέργεια
-- Χαμένες κλήσεις
-- Εκκρεμότητες
-- Προσφορά
-- Περίληψη
 - Επόμενη ενέργεια
+- Περίληψη κλήσης
+- Απόρριψη πελάτη
 
 ## UI personality
 
 The app should feel:
 
-- Fast
-- Practical
-- Clean
-- Trustworthy
-- Assistant-like
-- Built for work, not for decoration
+- fast
+- practical
+- clean
+- trustworthy
+- assistant-like
+- built for professionals who work through calls
 
 It should not feel like:
 
-- Heavy enterprise CRM
-- Complicated call center software
-- Overdesigned AI toy
-- Legal/compliance product
+- heavy enterprise CRM
+- complicated call center software
+- overdesigned AI toy
+- legal/compliance product
+- old demo prototype
 
-## Visual style
+## Main UX principle
 
-Preferred style:
+The app should answer:
 
-- Startup clean
-- Light interface
-- Clear cards
-- Strong spacing
-- Rounded cards
-- Calm neutral background
-- One clear primary action color
-- Minimal visual noise
+> What needs my attention now?
 
-Offer preview style:
+Not:
 
-- Clean modern business document
-- Not too corporate
-- Not too playful
-- Professional enough to send to real clients later
+> Where do I update a database record?
 
-## Layout principles
-
-### Mobile-first
-
-The app is designed for a mobile browser first.
-
-Most important mobile rules:
+## Mobile-first rules
 
 - Important actions must be reachable with one thumb.
 - Use bottom navigation.
-- Use a floating action button for New Action.
+- Keep cards readable.
 - Avoid dense tables on mobile.
-- Use cards instead of heavy grids.
-- Long information should be collapsible.
-- AI review sections should be editable but not overwhelming.
+- Use short summaries first, details second.
+- Use review screens before saving or sending AI actions.
+- Put the next safest action close to the user.
+- Make call and customer context visible quickly.
 
-### Desktop/browser compatible
+## Desktop rules
 
-Desktop should use the same structure, but with more space.
+Desktop can show more context, but should not become heavy CRM.
 
-Suggested desktop layout:
+Preferred desktop layout:
+- left navigation
+- main work area
+- optional right-side context panel
+- cards and sections instead of dense admin tables
 
-- Left sidebar or wider top navigation
-- Main content area
-- Optional right panel for quick actions or today tasks
-- CRM and offers can use table-like views on desktop
+## Main navigation
 
-## Navigation
-
-### Mobile bottom navigation
-
-Tabs:
+Suggested live pilot navigation:
 
 1. Αρχική
-2. Πελάτες
-3. Tasks
-4. Προσφορές
+2. Κλήσεις
+3. Πελάτες
+4. AI Assistant
+5. Tasks
+6. Ραντεβού
+7. Προσφορές
+8. Ρυθμίσεις
 
-No separate Assistant tab.
+Mobile can use fewer visible tabs and move secondary pages into a menu if needed.
 
-The assistant is accessed through:
+## AI Assistant
 
-- Microphone action
-- + New Action
-- Call flow
-- Review flow
+AI Assistant is a first-class feature.
 
-### Floating action button
+Entry points:
+- main nav or prominent action
+- microphone
+- type fallback
+- customer workspace
+- call review
+- task and offer flows
 
-Label:
+The assistant should support commands such as:
+- create task
+- create appointment
+- create offer
+- send message
+- reject client
+- search customer
+- summarize today
+- show pending offers
+- show leads needing call
 
-+ New Action
+All write/send actions should go through review by default.
 
-Options:
+## Customer workspace
 
-- Νέα κλήση
-- Υπαγόρευση
-- Νέος πελάτης
-- Νέα προσφορά
+Customer detail is the central workspace.
 
-## Key screens
+It should include:
 
-### 1. Mock Login / Register
+- customer header
+- status and source
+- contact details
+- preferred communication method
+- opportunity value
+- next best action
+- call briefs
+- timeline
+- tasks
+- appointments
+- offers
+- notes
+- files
+- messages
+- quick actions
+- edit controls inside each section
 
-Purpose:
+Sections should be editable without forcing the user to leave the customer page.
 
-Let user enter the app without real auth.
-
-Should make clear this is not production auth.
-
-Fields:
-
-- Name
-- Email
-- Business name, optional on first screen or in onboarding
-
-Primary button:
-
-Συνέχεια
-
-### 2. Onboarding
-
-Purpose:
-
-Set business context so AI can adapt tone, tasks and offer drafts.
-
-Steps or sections:
-
-- Business type
-- Business details
-- Logo preview upload
-- Default VAT
-- Default offer terms
-
-Business type options:
-
-- Τεχνικές υπηρεσίες
-- Πωλήσεις / υπηρεσίες
-- Κατασκευές / έργα
-- Άλλο
-
-Important copy:
-
-Το yorgos.ai θα προσαρμόζει τις περιλήψεις, τα tasks και τις προσφορές με βάση το επάγγελμά σου.
-
-### 3. Dashboard / Αρχική
-
-Purpose:
-
-Tell the user what needs attention now.
-
-Sections in order:
-
-1. Χαμένες κλήσεις
-2. Leads για κλήση
-3. Σημερινά tasks
-4. Ανοιχτές προσφορές
-5. Πρόσφατες κλήσεις
-
-Top area should include a quick assistant prompt:
-
-Τι θέλεις να οργανώσω;
-
-Actions:
-
-- Microphone
-- Type fallback
-- + New Action
-
-### 4. CRM list / Πελάτες
-
-Purpose:
-
-Simple customer list with useful context.
-
-Each customer card shows:
-
-- Name
-- Status
-- Source
-- Opportunity value
-- Next task
-- Last communication
-
-Search and filters:
-
-- Search bar
-- Status filter
-- Source filter
-- Has open task filter
-- Has open offer filter
-
-Search should support:
-
-- Greek lowercase/uppercase
-- No accents
-- Greeklish basic matching
-- Small typos
-- Phone number search
-
-### 5. Customer profile
-
-Sections:
-
-- Header: name, status, value, quick actions
-- Contact info
-- Source and preferred contact method
-- Next best action
-- Open tasks
-- Offers
-- Conversation summaries
-- Notes
-
-Quick actions:
-
+Important actions:
 - Call
-- Open in Maps
 - Create task
+- Create appointment
 - Create offer
+- Send message
+- Reject client
+- Open in Maps
 - Copy Viber draft
 - Copy email draft
+- Upload or attach file, when implemented
 
-### 6. Tasks
+## Calls UI
 
-Purpose:
+Calls page should show real backend call surfaces only.
 
-Daily follow-up control.
+Each call card should show:
+- date and time
+- caller
+- matched customer if any
+- direction
+- status
+- AI brief if available
+- next action
+- link to customer
 
-Views:
+Do not show visible demo call entry points in production surfaces.
 
-- Today
-- Upcoming
-- Overdue
-- Completed
+## AI review UI
 
-Task card:
+Any AI-created action should show:
 
-- Title
-- Customer
-- Date/time
-- Type
-- Priority
-- Status
-- Related offer/call if any
+- what AI understood
+- confidence or warnings if needed
+- customer match
+- editable fields
+- proposed tasks
+- proposed appointment
+- proposed offer
+- proposed message
+- save or send action
 
-Actions:
+Use clear wording:
+- `Έλεγξε πριν αποθηκευτεί`
+- `Έλεγξε πριν σταλεί`
+- `Δεν στάλθηκε ακόμα`
 
-- Mark completed
-- Call customer
-- Open customer
-- Edit
+## Offers UI
 
-### 7. Offers
+Offer preview should feel like a clean business document.
 
-Purpose:
-
-Control offer pipeline.
-
-Offer card/table fields:
-
-- Customer
-- Amount
-- Status
-- Date
-- Valid until
-- Related task
-
-Actions:
-
-- Preview
-- Copy Viber message
-- Copy email draft
-- Mark as sent
-- Mark as accepted
-- Mark as rejected
-
-### 8. Offer preview
-
-Purpose:
-
-Show a PDF-style preview from a base template.
-
-Must include:
-
-- Client logo from local preview
-- Business details
-- Customer details
-- Offer number
-- Date
-- Valid until
-- Line items
+Include:
+- business details
+- customer details
+- offer number
+- date
+- valid until
+- line items
 - VAT
-- Total
-- Notes
-- Terms
-- Acceptance text
+- total
+- notes
+- terms
+- response link status
 
-Do not show a fake download if real PDF export is not built.
+Do not show fake PDF/download/provider claims if not implemented.
 
-Use label:
+## Appointments UI
 
-Preview προσφοράς
+Appointment cards should show:
+- customer
+- date
+- time
+- type
+- status
+- response link status
+- requested time change if any
 
-### 9. Mock call screen
+Calendar sync should be shown only when implemented.
 
-Purpose:
+## Files section
 
-Show future call recording value without real VoIP.
+Files belong inside the customer workspace.
 
-Must include:
+V1 can start as metadata and placeholder if storage is not ready. Do not fake upload success.
 
-- Mock/Demo label
-- Customer name or unknown number
-- Call type
-- Duration timer
-- Recording indicator, clearly demo
-- Mute button, mock
-- Speaker button, mock
-- End call button
+Later file types:
+- photos
+- documents
+- estimates
+- signed forms
+- call-related files
+- offer PDFs
 
-After End call:
+## Timeline
 
-Show AI processing and then review screen.
+Timeline should be the customer history.
 
-### 10. AI review screen
+It can include:
+- calls
+- AI briefs
+- notes
+- tasks
+- appointments
+- offers
+- messages
+- customer intake submissions
+- files
+- status changes
+- reject client events
 
-Purpose:
+Timeline should be filterable later, but first version can be a clear chronological list.
 
-Let user verify and edit before saving.
+## Reject client UX
 
-Sections:
+Reject client should not be hidden under destructive actions.
 
-- Πελάτης
-- Περίληψη
-- Ανάγκες πελάτη
-- Tasks
-- Προσφορά, if relevant
-- Status update
-- Warnings
+Flow:
+1. User clicks `Απόρριψη πελάτη`.
+2. App shows polite message draft.
+3. User reviews and edits.
+4. If provider is enabled, user confirms send.
+5. If provider is unavailable, app creates copyable draft.
+6. Timeline records the result.
 
-No full transcript storage.
+## Empty states
 
-Warnings examples:
+Empty states should be helpful, not decorative.
 
-- Χρειάζεται επιβεβαίωση ποσού
-- Χρειάζεται επιβεβαίωση πελάτη
-- Χρειάζεται επιβεβαίωση ημερομηνίας
+Examples:
+- `Δεν υπάρχουν κλήσεις ακόμα. Όταν συνδεθεί αριθμός, οι κλήσεις θα εμφανίζονται εδώ.`
+- `Δεν υπάρχουν ανοιχτά tasks για σήμερα.`
+- `Δεν υπάρχουν προσφορές για αυτόν τον πελάτη.`
+- `Δεν υπάρχουν αρχεία ακόμα.`
 
-Actions:
+## Visual style
 
-- Save
-- Edit
-- Cancel
+Preferred:
+- calm neutral background
+- clear cards
+- rounded sections
+- strong spacing
+- one clear primary action color
+- minimal visual noise
+- readable Greek text
+- mobile-friendly buttons
 
-### 11. Success screen
+## What should not appear in live UI
 
-After Save, show:
-
-Αποθηκεύτηκε στο CRM
-
-Quick actions:
-
-- Άνοιγμα πελάτη
-- Κλήση πελάτη
-- Άνοιγμα σε Google Maps
-- Δημιουργία προσφοράς
-- Αντιγραφή Viber μηνύματος
-- Αντιγραφή email draft
-- Προγραμματισμός follow-up
-
-### 12. Settings
-
-Purpose:
-
-Edit business and offer defaults.
-
-Sections:
-
-- Business details
-- Logo preview
-- VAT
-- Offer terms
-- Communication preferences
-- Workspace mock
-- CRM import placeholder
-
-CRM import area:
-
-Import CRM
-
-Upload XLS / CSV
-
-Coming soon
-
-## Interaction rules
-
-- Every AI result must be reviewed before save.
-- Any destructive action needs confirmation.
-- Mock features must be labelled clearly.
-- Do not show fake success for real integrations not built.
-- Keep forms short on mobile.
-- Use expandable sections for dense details.
-
-## Accessibility and usability
-
-- Buttons should be large enough for mobile use.
-- Important actions should have clear labels.
-- Do not rely only on icons.
-- Use strong contrast.
-- Avoid small text in offer preview on mobile.
-- Provide manual text input fallback for speech-to-text.
+- visible demo call paths
+- localStorage/MVP copy
+- fake provider sending claims
+- fake legal compliance claims
+- hidden recording wording
+- automatic send copy unless provider is connected and confirmed

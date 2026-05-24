@@ -1,421 +1,296 @@
-# yorgos.ai MVP Build Spec
+# yorgos.ai Backend Pilot Build Spec
+
+Last refreshed: 2026-05-24
+This file replaces the old local MVP build direction with the current backend-backed pilot plan.
 
 ## Goal
 
-Build a mobile-first responsive web app/PWA prototype that demonstrates the main product loop:
+Build a live-ready backend pilot of yorgos.ai as an AI phone assistant and CRM automation platform for Greek professionals who handle many calls.
 
-Conversation or command → AI review → CRM/tasks/offer → quick action
+The pilot should demonstrate:
 
-The MVP should feel real enough to test with potential users, but it must clearly separate real functionality from mock functionality.
+Call or lead
+→ AI brief or AI Assistant command
+→ user review
+→ customer workspace update
+→ tasks, appointments, offers or messages
+→ customer response link or provider action
+
+## Current product truth
+
+The project is no longer just a local/mock MVP.
+
+Current direction:
+- backend-backed CRM surfaces
+- managed phone number flow
+- call logging and AI brief
+- customer workspace
+- public token flows for offer and appointment responses
+- AI Assistant as a core live feature
+- provider-gated sends
+- review-first actions
+- demo/local visible surfaces should be removed
 
 ## Required stack direction
 
-Preferred stack:
-
-- Next.js with TypeScript
+Current stack:
+- Next.js
+- TypeScript
 - Tailwind CSS
-- Component-based UI
-- Local storage state
-- API route for AI processing
-- Browser speech-to-text where supported
-- Text fallback
+- Supabase/backend APIs
+- provider webhooks
+- Vercel deployment
+- PBX/SIP/provider work
+- AI processing through backend routes
+- future calendar and provider integrations
 
-If the existing project uses another React-based setup, follow the existing stack unless it conflicts with the product rules.
+Do not build new live features on localStorage.
 
-## App routes/screens
+## Build priorities
 
-### Required routes
+### Phase 1. Documentation refresh
 
-- `/login` or initial mock auth screen
-- `/onboarding`
-- `/app` or `/dashboard`
+Update source docs to reflect:
+- AI phone assistant direction
+- backend pilot state
+- sector strategy
+- managed number strategy
+- review-first AI actions
+- provider-gated sends
+- no hidden recording
+- no fake provider claims
+
+Acceptance:
+- docs are consistent
+- `00_SOURCE_INDEX.md` exists
+- build prompt is updated
+- no secrets included
+
+### Phase 2. Backend-backed Customer Workspace
+
+Build customer detail as the central work area.
+
+Required sections:
+- editable customer details
+- calls
+- AI call briefs
+- timeline
+- notes
+- tasks
+- appointments
+- offers
+- files
+- messages
+- next best action
+- reject client action
+
+Rules:
+- backend-backed only
+- no localStorage fallback for live route
+- no demo copy
+- all edits use authenticated APIs
+- timeline records important actions
+
+Acceptance:
+- user can edit customer fields
+- user can create/edit tasks inside customer
+- user can create/edit appointments inside customer
+- user can create offers inside customer
+- user can view calls and briefs
+- user can see timeline
+- user can use reject client review flow
+- targeted ESLint and full build pass
+
+### Phase 3. Remove demo/local routes and fallbacks
+
+Remove or archive:
+- `/demo`
+- `/call/mock`
+- demo banners
+- localStorage demo fallbacks
+- visible MVP/local copy
+- old local customer profile dependencies
+
+Rules:
+- do not break backend live routes
+- hidden test utilities can remain only if clearly internal and not reachable from main shell
+
+Acceptance:
+- source scan has no visible demo/local references in live app routes
+- production marker audit passes
+- build passes
+
+### Phase 4. Backend-backed AI Assistant
+
+Make `/cmd` a live AI Assistant.
+
+It should support:
+- create task
+- create appointment
+- create offer
+- draft/send message
+- reject client
+- search customer
+- answer daily priority questions
+- show pending offers
+- show pending calls/leads
+
+Rules:
+- review-first by default
+- backend-backed writes
+- no localStorage live actions
+- provider sends only when enabled and approved
+- customer disambiguation required
+- warnings when uncertain
+
+Acceptance:
+- command creates review object
+- user approves before save/send
+- backend records action
+- timeline records action
+- no automatic send without explicit confirmation
+
+### Phase 5. Reject client action
+
+Add `Reject client`.
+
+Flow:
+- user opens customer
+- clicks reject client
+- app generates polite message
+- user reviews and edits
+- if provider enabled, send after confirmation
+- if provider unavailable, create copyable draft
+- update customer status if approved
+- write timeline event
+
+Acceptance:
+- no provider fake send
+- draft fallback works
+- message copy is professional
+- timeline event is created
+- status update is review-first
+
+### Phase 6. Provider readiness
+
+Harden and verify:
+- PBX/SIP configuration
+- call recording consent
+- webhook security
+- Apifon/Viber production setup
+- email provider setup
+- provider failures and retries
+- delivery status tracking
+- logs and monitoring
+- retention policy
+
+Acceptance:
+- no raw secrets in logs
+- no hidden recording
+- provider sends are real or clearly unavailable
+- failures are visible and recoverable
+
+### Phase 7. Calendar integration
+
+Support:
+- Google Calendar
+- Apple Calendar through the safest practical integration, for example ICS/calendar feed first if direct API is not ready
+- internal appointment source of truth
+
+Acceptance:
+- accepted appointment can sync/export
+- calendar errors are shown
+- no false claim of sync when not implemented
+
+### Phase 8. Lead automation
+
+Start with:
+- generic webhook
+- WordPress forms
+
+Later:
+- Meta
+- Google
+- TikTok
+
+Flow:
+- lead arrives
+- customer/lead created
+- call requirement task created
+- optional acknowledgement message draft/send
+- timeline event created
+
+Acceptance:
+- lead source is tracked
+- duplicate matching is safe
+- user can see pending call tasks
+
+### Phase 9. Sector profiles
+
+Build sector-specific defaults.
+
+First:
+- technical services
+
+Later:
+- accounting
+- real estate
+- spare parts
+- doctors
+- takeaway
+- construction
+
+Acceptance:
+- sector changes AI prompt context
+- sector changes templates
+- sector changes default fields and task types
+
+## Live route expectations
+
+Main live app should include:
+- `/dashboard`
+- `/calls`
 - `/customers`
 - `/customers/[id]`
+- `/cmd` or `/ai-assistant`
 - `/tasks`
+- `/appointments`
 - `/offers`
 - `/offers/[id]`
-- `/call/mock`
-- `/ai-review`
 - `/settings`
 
-Route names can be adapted to the existing project, but the user-facing navigation should remain Greek.
-
-## Main navigation
-
-Mobile bottom nav:
-
-- Αρχική
-- Πελάτες
-- Tasks
-- Προσφορές
-
-Floating action button:
-
-+ New Action
-
-Action menu:
-
-- Νέα κλήση
-- Υπαγόρευση
-- Νέος πελάτης
-- Νέα προσφορά
-
-## Components to build
-
-### Shell/navigation
-
-- App shell
-- Mobile bottom nav
-- Desktop layout
-- Floating action button
-- Action sheet/menu
-
-### Onboarding
-
-- Business type selector
-- Business profile form
-- Logo preview upload
-- VAT setting
-- Offer terms field
-
-### Dashboard
-
-- MissedCallsSection
-- LeadsWaitingSection
-- TodayTasksSection
-- OpenOffersSection
-- RecentCallsSection
-- QuickAssistantInput
-
-### CRM
-
-- CustomerList
-- CustomerCard
-- CustomerSearch
-- CustomerFilters
-- CustomerProfile
-- CustomerQuickActions
-- CustomerStatusBadge
-
-### Tasks
-
-- TaskList
-- TaskCard
-- TaskStatusBadge
-- TaskEditor
-- TodayView
-
-### Offers
-
-- OfferList
-- OfferCard
-- OfferStatusBadge
-- OfferEditor
-- OfferPreview
-- OfferLineItems
-- CopyDraftActions
-
-### Calls
-
-- CallTypeSelector
-- MockCallScreen
-- RecordingIndicator
-- DemoTranscriptSelector or scenario selector
-- EndCallAction
-
-### AI
-
-- DictationButton
-- SpeechToTextInput
-- ManualTextFallback
-- AiProcessingState
-- AiReviewScreen
-- AiWarningBadge
-- SaveAiResultAction
-
-### Settings
-
-- BusinessSettings
-- LogoSettings
-- OfferSettings
-- CommunicationSettings
-- MockWorkspacePanel
-- MockCrmImportPanel
-
-## What must work
-
-### 1. Mock onboarding
-
-User can enter business info and select profession/business type.
-
-Data saves locally.
-
-Business type affects AI prompt context and demo labels.
-
-### 2. Local CRM
-
-User can view customers.
-
-User can create customer manually.
-
-User can open customer profile.
-
-User can edit basic customer fields.
-
-### 3. Dashboard
-
-Dashboard shows:
-
-- Mock missed calls
-- Leads waiting to call
-- Today tasks
-- Open offers
-- Recent calls
-
-### 4. Missed calls
-
-Mock missed calls appear.
-
-Each missed call creates or shows a Call back task.
-
-Unknown number can be converted to customer.
-
-### 5. Mock call flow
-
-User can start mock call from customer or lead.
-
-User selects call type.
-
-Mock call screen shows duration and demo recording indicator.
-
-User ends call.
-
-App sends demo transcript to AI processing.
-
-AI review screen appears.
-
-User edits and saves.
-
-CRM/tasks/offers update locally.
-
-### 6. Dictation
-
-User can press microphone.
-
-If supported, browser speech-to-text captures Greek speech.
-
-If not supported or permission fails, user can type manually.
-
-Text is sent to AI processing.
-
-AI review screen appears.
-
-User edits and saves.
-
-### 7. AI API proxy
-
-Frontend must not expose AI API key.
-
-Use backend/API route for AI processing.
-
-The API should return structured JSON for:
-
-- customer update
-- summary
-- needs
-- tasks
-- offer
-- status update
-- messages
-- warnings
-
-If AI fails, show clear error and allow manual entry.
-
-### 8. AI review
-
-AI output must never save automatically.
-
-User can edit proposed data before saving.
-
-Warnings must appear when confidence is low or data is missing.
-
-### 9. Offers
-
-User can create offer draft.
-
-Offer includes line items, VAT and total.
-
-Offer can be previewed in PDF-style layout.
-
-User can copy Viber message.
-
-User can copy email draft.
-
-User can manually change status.
-
-### 10. Search and filters
-
-CRM search should work locally.
-
-Minimum expected:
-
-- lowercase/uppercase insensitive
-- accent insensitive
-- search by name, phone, email, company, address, notes
-- basic greeklish matching
-- basic fuzzy tolerance
-
-Filters:
-
-- status
-- source
-- open task
-- open offer
-
-### 11. Google Maps link
-
-Customer address opens Google Maps using a URL.
-
-No Maps API needed.
-
-### 12. Settings
-
-User can edit business details, logo preview, VAT and offer terms.
-
-CRM import panel appears as mock/coming soon.
-
-Workspace/team appears as mock only.
-
-## What can be mock/local
-
-- Auth
-- User account
-- Workspace/team
-- CRM data
-- Calls
-- Missed calls
-- Call recordings
-- Demo transcripts
-- CRM import
-- Ads lead import
-- Email sending
-- Viber sending
-- PDF export
-
-## What must be real
-
-- Greek UI flow
-- Local data persistence
-- Real AI API processing through backend route
-- Real browser speech-to-text attempt
-- Manual text fallback
-- Review before save
-- Offer calculations
-- Copy-to-clipboard for drafts
-- Google Maps link
+Public routes:
+- `/intake/[token]`
+- `/offer-response/[token]`
+- `/appointment-response/[token]`
+
+## What must not be faked
+
+- provider sends
+- call recording
+- calendar sync
+- legal compliance
+- caller ID passthrough on forwarded numbers
+- customer response recording
+- offer acceptance
+- appointment acceptance
+
+## Review-first acceptance criteria
+
+For any AI or message action:
+- show proposed result
+- allow edit
+- show warnings
+- require approval
+- only then save/send
+- log the action
 
 ## Privacy-safe acceptance criteria
 
-- No hidden recording language.
-- Mock calls are clearly labelled as demo/mock.
-- Raw audio is not stored.
-- Full transcript is not stored as final CRM data.
-- AI result is saved only after user review.
-- User can delete customer, task, offer or note data.
-- The app does not claim GDPR compliance.
-- The app states that final legal compliance requires legal review before production launch.
-
-## AI structured output suggestion
-
-The API route should return a stable structure similar to:
-
-```json
-{
-  "intent": "create_offer",
-  "customer": {
-    "name": "",
-    "phone": "",
-    "email": "",
-    "address": "",
-    "source": "",
-    "opportunityValue": 0,
-    "preferredContactMethod": "viber"
-  },
-  "summary": "",
-  "customerNeeds": "",
-  "tasks": [
-    {
-      "title": "",
-      "type": "call_back",
-      "dueDate": "",
-      "dueTime": "",
-      "priority": "normal",
-      "note": ""
-    }
-  ],
-  "offer": {
-    "shouldCreate": false,
-    "items": [
-      {
-        "description": "",
-        "quantity": 1,
-        "unitPrice": 0
-      }
-    ],
-    "notes": "",
-    "terms": ""
-  },
-  "statusUpdate": "follow_up_needed",
-  "messages": {
-    "viber": "",
-    "emailSubject": "",
-    "emailBody": ""
-  },
-  "nextBestAction": "",
-  "warnings": []
-}
-```
-
-## Manual review URLs/pages
-
-After each build step, manually review:
-
-- Login/onboarding
-- Dashboard mobile width
-- Dashboard desktop width
-- Customers list
-- Customer profile
-- Tasks
-- Offers
-- Offer preview
-- Mock call flow
-- AI review screen
-- Settings
-
-## Validation commands
-
-Always run:
-
-```bash
-npm run lint
-npm run build
-```
-
-## Git rules
-
-Keep commits small.
-
-Commit only relevant files.
-
-Do not commit local env files.
-
-Do not commit unrelated local settings.
-
-Do not commit API keys.
-
-Suggested commit messages:
-
-- `Add yorgos.ai app shell and onboarding`
-- `Add local CRM and dashboard views`
-- `Add mock call flow and AI review screen`
-- `Add offers preview and communication drafts`
+- no hidden recording language
+- consent/notice is clear where applicable
+- raw audio is controlled
+- transcript is not normal UI output by default
+- call brief is short and useful
+- public tokens are hashed
+- secrets never leave backend

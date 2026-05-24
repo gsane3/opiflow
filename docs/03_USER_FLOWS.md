@@ -1,168 +1,293 @@
 # yorgos.ai User Flows
 
+Last refreshed: 2026-05-24
+Current scope: backend-backed AI phone assistant pilot.
+
 ## 1. First entry flow
 
-User opens app → sees mock login/register → enters basic info → continues to onboarding → chooses business type → enters business details → uploads logo preview → sets VAT and offer terms → lands on dashboard
+User opens app
+→ registers
+→ chooses sector
+→ enters business details
+→ configures working hours and communication preferences
+→ chooses or connects business number
+→ lands on dashboard
 
-## 2. Business type setup flow
+First live sector:
+- technical services and call-heavy professionals
 
-User chooses profession → app stores business mode locally → AI tone and suggestions adapt to that mode → tasks, summaries and offer drafts use that context
+Later sectors:
+- accountants
+- real estate
+- spare parts
+- doctors
+- takeaway
+- other services
 
-Business modes:
+## 2. Sector setup flow
 
-- Technical services
-- Sales / services
-- Projects / construction
-- Other
+User chooses sector
+→ app stores business context
+→ AI adapts tone, tasks, offer defaults and message templates
+→ customer workspace fields and automations adapt to the sector
 
-## 3. Dashboard daily flow
+Examples:
+- technician: appointment, site visit, photos, parts, offer
+- real estate: property, viewing, buyer/seller, follow-up
+- accountant: document request, deadline, tax period
+- spare parts: part code, availability, quote, pickup/shipping
 
-User opens app → sees missed calls first → sees leads waiting to call → sees today tasks → sees open offers → chooses next action
+## 3. Managed number flow
 
-## 4. New manual lead flow
+User chooses a new yorgos.ai business number
+→ number is connected to the phone/PBX/provider flow
+→ incoming calls are logged
+→ call brief and customer actions are created after calls
 
-User taps + New Action → selects New lead → enters name, phone, email, address, source, opportunity value and note → saves → lead appears in CRM and Leads waiting to call
+Existing number forwarding:
+- may be supported later
+- requires provider test
+- original caller ID is not guaranteed until tested
+- legal and recording behavior must be confirmed
 
-## 5. Leads waiting to call flow
+Number portability:
+- later option
+- requires provider/legal validation
 
-User opens dashboard → sees Leads waiting to call → taps a lead → sees quick actions → taps Call → mock call setup opens
+## 4. Dashboard daily flow
 
-## 6. Missed call flow
+User opens app
+→ sees urgent calls and follow-ups
+→ sees tasks for today
+→ sees pending appointments
+→ sees open offers
+→ uses AI Assistant or quick actions
 
-Mock missed call appears → app creates Call back task automatically → missed call appears at top of dashboard → user taps Call back or Add to CRM → if number is unknown, user can convert it to customer → user can mark missed call as handled
+Dashboard should answer:
+- who needs a call
+- which customer needs action
+- which offer waits
+- which appointment needs response
+- what AI suggests next
 
-## 7. Unknown lead from call flow
+## 5. Incoming new caller flow
 
-Unknown number appears → user opens missed call → user taps Add to CRM → customer form opens with phone prefilled → user adds missing details → saves → customer is created with source Missed call
+Unknown phone calls business number
+→ call event is created
+→ call is recorded only if consent/legal flow is valid
+→ AI creates brief after call
+→ system creates or suggests new customer
+→ Viber or message intake link is sent or drafted
+→ customer fills details
+→ customer workspace updates
+→ AI suggests next task or appointment
 
-Future ideal:
+## 6. Incoming existing client flow
 
-Customer states name, email and address during recorded call → AI extracts details → review screen pre-fills customer profile → user confirms → customer is created or updated
+Known customer calls
+→ call is matched to customer
+→ call event appears in customer timeline
+→ AI creates short call brief
+→ AI suggests tasks, appointment, offer or message
+→ user reviews
+→ approved actions are saved
 
-## 8. Mock call type selection flow
+## 7. Missed call flow
 
-User taps Call → selects call type → chooses scenario if needed → mock call screen opens
+Missed call appears
+→ customer is matched if possible
+→ if unknown, a lead is created or suggested
+→ call back task is created
+→ optional out-of-hours or missed-call message is sent or drafted
+→ timeline records action
 
-Call types:
+## 8. Out-of-hours flow
 
-- Inbound from new customer
-- Inbound from existing customer
-- Outbound to new lead
-- Outbound to existing customer
+Call comes outside working hours
+→ caller receives message if provider/automation is enabled
+→ message asks for details and preferred contact time
+→ task is created for follow-up
+→ if provider is unavailable, app shows draft/fallback
 
-## 9. Mock call recording flow
+Example message:
+`Οι γραμμές είναι κλειστές αυτή τη στιγμή. Συμπληρώστε τα στοιχεία σας και θα επικοινωνήσουμε μαζί σας το συντομότερο.`
 
-User starts mock call → call screen shows customer, duration and demo recording indicator → user taps End call → app loads demo transcript → AI API processes transcript → review screen opens → user edits result → user saves → success screen appears
+## 9. Customer workspace flow
 
-## 10. AI review after call flow
+User opens customer
+→ sees contact details, source, value, status and preferred channel
+→ sees latest call brief
+→ sees timeline
+→ edits customer fields directly
+→ creates tasks, appointments, offers and messages
+→ reviews files and notes
+→ can reject client if needed
 
-AI result appears → user reviews customer info → user reviews summary → user reviews needs → user reviews tasks → user reviews offer if created → user reviews status update → user checks warnings → user edits fields if needed → user taps Save → CRM is updated locally
+## 10. AI Assistant command flow
 
-## 11. Dictation flow
+User opens AI Assistant
+→ speaks or types command
+→ AI parses intent
+→ app shows review screen
+→ user edits
+→ user approves
+→ backend action is created or message is sent/drafted
 
-User taps microphone → speaks in Greek → browser speech-to-text creates text → if speech-to-text fails, user types manually → user submits → AI API detects intent → review screen opens → user edits → user saves
+Example commands:
+- `Κλείσε ραντεβού με τον Παπαδόπουλο αύριο στις 10.`
+- `Φτιάξε προσφορά 450 ευρώ στον Καραγιάννη.`
+- `Στείλε μήνυμα ότι θα καλέσω αύριο.`
+- `Απέρριψε ευγενικά τον πελάτη.`
+- `Δείξε μου ποιοι περιμένουν προσφορά.`
+- `Βάλε follow-up την Παρασκευή.`
 
-Example intents:
+## 11. AI review after call flow
 
-- Create CRM note
-- Create task
-- Create offer
-- Update customer
-- Change status
-- Create follow-up message
+AI result appears
+→ user reviews customer match
+→ user reviews call brief
+→ user reviews needs
+→ user reviews proposed tasks
+→ user reviews proposed appointment
+→ user reviews proposed offer
+→ user reviews proposed message
+→ user saves or sends
 
-## 12. Dictation offer flow
+Nothing final happens before review by default.
 
-User taps microphone → says “Φτιάξε προσφορά στον Καραγιάννη με 100 ευρώ εργασία και 50 ευρώ υλικά” → speech-to-text creates command → AI extracts customer and line items → review screen shows offer draft → user edits if needed → user saves → offer appears in Offers page with status Draft or Ready to send
+## 12. Offer flow
 
-## 13. Offer preview flow
+User creates offer from:
+- customer workspace
+- AI Assistant
+- call review
+- task
 
-User opens offer → taps Preview → PDF-style preview opens → user checks business details, customer details, line items, VAT and total → user can copy Viber message or email draft → user manually sends outside the app → user can mark offer as Sent manually
+Offer is saved as draft
+→ user reviews line items, VAT, notes and terms
+→ offer response link is generated
+→ customer accepts or rejects
+→ offer status updates
+→ timeline records response
+→ follow-up task can be created
 
-## 14. Viber draft flow
+## 13. Appointment flow
 
-User opens customer, task or offer → taps Copy Viber message → app creates short professional Greek message → message is copied → user opens Viber manually and sends
+User creates appointment from:
+- customer workspace
+- AI Assistant
+- call review
+- offer acceptance
 
-## 15. Email draft flow
+Appointment is saved
+→ response link is generated
+→ customer accepts, rejects or requests time change
+→ requested time change can include plus or minus suggestion
+→ user reviews change
+→ internal appointment updates
+→ calendar sync happens when integration exists
 
-User opens customer, task or offer → taps Copy email draft → app creates professional Greek email text → user copies → user sends manually from email client
+## 14. Calendar flow
 
-## 16. Offer status flow
+Internal appointment remains source of truth.
 
-Offer starts as Draft → user reviews → user marks Ready to send → user copies/sends manually → user marks Sent manually → later user marks Accepted, Rejected or Expired
+When Google Calendar or Apple Calendar integration is enabled:
+→ approved appointment is created or synced
+→ calendar event is linked back to internal appointment
+→ changes are logged
+→ failures show clear retry/fallback message
 
-Statuses:
+## 15. Reject client flow
 
-- Draft
-- Ready to send
-- Sent manually
-- Accepted
-- Rejected
-- Expired
+User opens customer
+→ clicks `Απόρριψη πελάτη`
+→ app generates polite message
+→ user reviews and edits
+→ if provider enabled, sends after confirmation
+→ if provider unavailable, creates copyable draft
+→ customer status changes if approved
+→ timeline records reject action
 
-## 17. Task creation from AI flow
+## 16. Viber message flow
 
-AI detects next actions → review screen shows proposed tasks → user edits date/time/type/priority → user saves → tasks appear in Tasks page and customer profile
+Message can be created from:
+- new customer intake
+- offer
+- appointment
+- reject client
+- missed call
+- out-of-hours
+- AI Assistant
 
-## 18. Task completion flow
+If provider enabled:
+→ show review
+→ user confirms
+→ send
+→ log result
 
-User opens Tasks → selects task → sees customer context → performs action → marks completed → status updates locally → customer profile updates
+If provider unavailable:
+→ create copyable draft
+→ log draft if saved
 
-## 19. Next best action flow
+## 17. Email flow
 
-AI result includes suggested next best action → user sees it in review screen and customer profile → user can create task from it or dismiss it
+Email can be created from:
+- offer
+- appointment
+- reject client
+- follow-up
+- lead response
+
+If email provider enabled:
+→ show review
+→ user confirms
+→ send
+→ log result
+
+If provider unavailable:
+→ create email draft/copy text
+
+## 18. Lead automation flow
+
+New lead arrives from:
+- WordPress form
+- generic webhook
+- Meta lead
+- Google lead
+- TikTok lead
+- manual import
+
+System creates lead
+→ creates call requirement task
+→ sends or drafts acknowledgement message
+→ AI Assistant can summarize pending leads
+→ user calls or schedules follow-up
+
+## 19. Customer response link flow
+
+Public customer-facing links include:
+- intake link
+- offer response link
+- appointment response link
+
+Rules:
+- raw token is never stored
+- response is recorded in backend
+- no internal IDs are exposed
+- no automatic legal/signature claim
+- no provider message send unless implemented
+
+## 20. Automation rule flow
+
+Later phase:
+
+User creates rule with AI Assistant or settings
+→ app shows trigger, condition and action
+→ user enables rule
+→ future matching events trigger actions
+→ every auto-send has audit trail and provider status
 
 Example:
-
-Πρότεινε να καλέσεις αύριο στις 11:00 γιατί ο πελάτης ζήτησε χρόνο να το σκεφτεί.
-
-## 20. Customer profile flow
-
-User opens customer → sees contact details, source, value, status and preferred communication method → sees next best action → sees open tasks → sees offers → sees conversation summaries → uses quick actions
-
-Quick actions:
-
-- Call
-- Open in Maps
-- Create task
-- Create offer
-- Copy Viber draft
-- Copy email draft
-
-## 21. Google Maps flow
-
-User opens customer profile → customer has address → user taps Open in Maps → app opens Google Maps search URL using the address
-
-No real Google Maps API is needed in MVP.
-
-## 22. Search and filter flow
-
-User opens CRM → types name, phone, greeklish, email, address, source or note → app normalizes text → app returns relevant customers → user can filter by status, source, open task or open offer
-
-Search should handle:
-
-- Accents
-- Case
-- Greeklish basic matching
-- Small typos
-- Phone numbers
-
-## 23. Settings flow
-
-User opens Settings → edits business details, logo preview, VAT, offer terms and communication defaults → app saves locally → new offers use updated settings
-
-## 24. Mock CRM import flow
-
-User opens Settings → sees Import CRM → taps Upload XLS/CSV → app shows placeholder or coming soon message → no real import is performed in MVP
-
-## 25. Workspace mock flow
-
-User opens Settings → sees Workspace: My Business → sees future team sharing hint → no real sharing, roles or invites in MVP
-
-## 26. Future real VoIP flow
-
-User buys or connects yorgos.ai VoIP number → calls pass through VoIP partner → before recording, customer hears clear notice or consent message → call is recorded → transcription happens → raw audio is deleted or handled according to settings → AI creates summary, tasks and offers → user reviews → saves
-
-## 27. Future real-time objection coaching flow
-
-User is in VoIP call → audio stream is transcribed live → AI detects objection → app shows suggested response in side panel → user decides what to say → suggestions are not sent to customer automatically
+- When new Facebook lead arrives, send email asking preferred call time.
+- When customer replies with time, create calendar task.
+- When reject client is approved, send polite Viber message.
