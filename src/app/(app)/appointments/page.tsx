@@ -18,17 +18,67 @@ function formatDate(dateStr: string): string {
   });
 }
 
+type AppointmentResponseInfo = {
+  kind: 'accepted' | 'declined' | 'time_change_requested' | null;
+  label: string;
+  cls: string;
+  requestedDueDate: string | null;
+  requestedDueTime: string | null;
+  comment: string | null;
+};
+
+function getAppointmentResponseInfo(note: string): AppointmentResponseInfo {
+  const isAccepted =
+    note.includes('Αποδοχή ραντεβού από πελάτη:') ||
+    note.includes('Απάντηση μέσω δημόσιου link: Αποδοχή ραντεβού');
+  const isDeclined =
+    note.includes('Αδυναμία παρουσίας πελάτη:') ||
+    note.includes('Απάντηση μέσω δημόσιου link: Αδυναμία παρουσίας');
+  const isTimeChange =
+    note.includes('Πρόταση αλλαγής από πελάτη:') ||
+    note.includes('Απάντηση μέσω δημόσιου link: Αίτημα αλλαγής ώρας');
+
+  let kind: AppointmentResponseInfo['kind'] = null;
+  let label = 'Αναμονή απάντησης';
+  let cls = 'bg-zinc-100 text-zinc-500';
+
+  if (isAccepted) {
+    kind = 'accepted';
+    label = 'Αποδεκτό';
+    cls = 'bg-green-100 text-green-700';
+  } else if (isDeclined) {
+    kind = 'declined';
+    label = 'Δεν μπορεί';
+    cls = 'bg-amber-100 text-amber-700';
+  } else if (isTimeChange) {
+    kind = 'time_change_requested';
+    label = 'Ζητά αλλαγή ώρας';
+    cls = 'bg-indigo-100 text-indigo-700';
+  }
+
+  let requestedDueDate: string | null = null;
+  let requestedDueTime: string | null = null;
+  const proposalMatches = [...note.matchAll(/Νέα πρόταση: (\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})/g)];
+  const proposalMatch = proposalMatches[proposalMatches.length - 1];
+  if (proposalMatch) {
+    requestedDueDate = proposalMatch[1];
+    requestedDueTime = proposalMatch[2];
+  }
+
+  let comment: string | null = null;
+  const commentMatches = [...note.matchAll(/Σχόλιο:\s*([^\n]+)/g)];
+  const commentMatch = commentMatches[commentMatches.length - 1];
+  if (commentMatch) {
+    const trimmed = commentMatch[1].trim();
+    if (trimmed) comment = trimmed;
+  }
+
+  return { kind, label, cls, requestedDueDate, requestedDueTime, comment };
+}
+
 function getResponseStatus(note: string): { label: string; cls: string } {
-  if (note.includes('Αποδοχή ραντεβού από πελάτη:')) {
-    return { label: 'Αποδεκτό', cls: 'bg-green-100 text-green-700' };
-  }
-  if (note.includes('Αδυναμία παρουσίας πελάτη:')) {
-    return { label: 'Αδυναμία', cls: 'bg-amber-100 text-amber-700' };
-  }
-  if (note.includes('Πρόταση αλλαγής από πελάτη:')) {
-    return { label: 'Εναλλακτική', cls: 'bg-indigo-100 text-indigo-700' };
-  }
-  return { label: 'Αναμονή απάντησης', cls: 'bg-zinc-100 text-zinc-500' };
+  const info = getAppointmentResponseInfo(note);
+  return { label: info.label, cls: info.cls };
 }
 
 function buildProposalEmailText(customer: Customer, date: string, time: string, responseLink: string): string {
@@ -688,6 +738,7 @@ export default function AppointmentsPage() {
 
   if (selectedAppointment) {
     const selCustomer = getAppointmentCustomer(selectedAppointment);
+    const selRespInfo = getAppointmentResponseInfo(selectedAppointment.note ?? '');
     return (
       <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
         <div>
@@ -718,6 +769,37 @@ export default function AppointmentsPage() {
             <div className="border-t border-zinc-100 pt-3">
               <p className="mb-1 text-xs font-medium text-zinc-500">Σημείωση</p>
               <p className="text-sm text-zinc-700 whitespace-pre-wrap">{selectedAppointment.note}</p>
+            </div>
+          )}
+        </div>
+        {/* Customer response review */}
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-semibold text-zinc-800">Απάντηση από πελάτη</p>
+            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${selRespInfo.cls}`}>
+              {selRespInfo.label}
+            </span>
+          </div>
+          {selRespInfo.kind === null && (
+            <p className="text-xs text-zinc-500">Δεν έχει καταγραφεί απάντηση πελάτη για αυτό το ραντεβού.</p>
+          )}
+          {selRespInfo.kind === 'accepted' && (
+            <p className="text-xs text-zinc-700">Ο πελάτης αποδέχτηκε το ραντεβού.</p>
+          )}
+          {selRespInfo.kind === 'declined' && (
+            <p className="text-xs text-zinc-700">Ο πελάτης δήλωσε ότι δεν μπορεί να παρευρεθεί.</p>
+          )}
+          {selRespInfo.kind === 'time_change_requested' && (
+            <div className="space-y-1">
+              <p className="text-xs text-zinc-700">Ο πελάτης ζήτησε αλλαγή ώρας.</p>
+              {selRespInfo.requestedDueDate && selRespInfo.requestedDueTime && (
+                <p className="text-xs text-zinc-600">
+                  Προτεινόμενη ώρα: {formatDate(selRespInfo.requestedDueDate)} {selRespInfo.requestedDueTime}
+                </p>
+              )}
+              {selRespInfo.comment && (
+                <p className="text-xs text-zinc-600">Σχόλιο πελάτη: {selRespInfo.comment}</p>
+              )}
             </div>
           )}
         </div>
