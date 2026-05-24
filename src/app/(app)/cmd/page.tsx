@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import { loadState, addTask, addOffer, updateTask } from '@/lib/storage';
+import { updateTask } from '@/lib/storage';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import {
   isSpeechSupported,
@@ -334,6 +334,10 @@ export default function CmdPage() {
   const [isSavingAppointment, setIsSavingAppointment] = useState(false);
   const [appointmentSaveError, setAppointmentSaveError] = useState<string | null>(null);
 
+  const [isSavingOffer, setIsSavingOffer] = useState(false);
+  const [offerSaveError, setOfferSaveError] = useState<string | null>(null);
+  const [offerSaveWarning, setOfferSaveWarning] = useState<string | null>(null);
+
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
@@ -537,6 +541,9 @@ export default function CmdPage() {
     setTaskSaveError(null);
     setIsSavingAppointment(false);
     setAppointmentSaveError(null);
+    setIsSavingOffer(false);
+    setOfferSaveError(null);
+    setOfferSaveWarning(null);
     setQueryAppointments([]);
     setMatchedCustomer(null);
     setNoCustomerMatch(false);
@@ -729,68 +736,79 @@ export default function CmdPage() {
     }
   }
 
-  function handleSaveOffer() {
+  async function handleSaveOffer() {
     if (!result || !offerPreviewData || offerPreviewData.validItems.length === 0) return;
     if (customerCandidates.length > 1 && !customerMatchResolved) return;
-    const now = new Date().toISOString();
-    const today = todayStr();
-    const { validItems, subtotal, vatAmount, total, vatRate } = offerPreviewData;
-
-    const existingOffers = loadState().offers ?? [];
-    const maxNum = existingOffers.length === 0 ? 0 : Math.max(
-      ...existingOffers.map((o) => {
-        const match = o.offerNumber.match(/(\d+)$/);
-        return match ? parseInt(match[1]) : 0;
-      })
-    );
-    const offerNumber = `#${String(maxNum + 1).padStart(3, '0')}`;
-
-    const validUntilDate = new Date();
-    validUntilDate.setDate(validUntilDate.getDate() + 14);
-    const validUntil = validUntilDate.toISOString().split('T')[0];
-
-    const offer: Offer = {
-      id: crypto.randomUUID(),
-      customerId: matchedCustomer?.id,
-      offerNumber,
-      status: 'draft',
-      offerDate: today,
-      validUntil,
-      items: validItems.map((i) => ({
-        id: crypto.randomUUID(),
-        description: i.description,
-        quantity: i.quantity,
-        unitPrice: i.unitPrice,
-      })),
-      subtotal,
-      vatRate,
-      vatAmount,
-      total,
-      notes: result.params.offerNotes || '',
-      terms: result.params.offerTerms || businessProfile?.defaultOfferTerms || '',
-      acceptanceText: businessProfile?.defaultAcceptanceText ?? 'Αποδέχομαι τους παραπάνω όρους.',
-      createdFromAi: true,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addOffer(offer);
-
-    const followUp: Task = {
-      id: crypto.randomUUID(),
-      customerId: matchedCustomer?.id,
-      offerId: offer.id,
-      title: 'Έλεγχος και αποστολή προσφοράς',
-      type: 'send_offer' as TaskType,
-      status: 'open',
-      priority: 'normal' as TaskPriority,
-      dueDate: today,
-      note: 'Δημιουργήθηκε από AI εντολή. Έλεγξε την προσφορά πριν τη στείλεις.',
-      createdFromAi: true,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(followUp);
-    setSavedResult(true);
+    const { validItems, vatRate } = offerPreviewData;
+    setIsSavingOffer(true);
+    setOfferSaveError(null);
+    setOfferSaveWarning(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setOfferSaveError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
+        return;
+      }
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      };
+      // Create offer (backend generates offerNumber and calculates totals)
+      const offerRes = await fetch('/api/offers', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          customerId: matchedCustomer?.id ?? null,
+          status: 'draft',
+          items: validItems.map(({ description, quantity, unitPrice }) => ({ description, quantity, unitPrice })),
+          vatRate,
+          notes: result.params.offerNotes || null,
+          terms: result.params.offerTerms || businessProfile?.defaultOfferTerms || null,
+          acceptanceText: businessProfile?.defaultAcceptanceText ?? 'Αποδέχομαι τους παραπάνω όρους.',
+          createdFromAi: true,
+        }),
+      });
+      const offerJson = await offerRes.json() as { ok?: boolean; offer?: BackendOfferDto; error?: string };
+      if (!offerRes.ok || !offerJson.ok || !offerJson.offer) {
+        setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+        return;
+      }
+      const createdOffer = offerJson.offer;
+      setBackendOffers((prev) => [...prev, mapBackendOffer(createdOffer)]);
+      // Create follow-up task (non-fatal if it fails)
+      try {
+        const taskRes = await fetch('/api/tasks', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            customerId: matchedCustomer?.id ?? null,
+            offerId: createdOffer.id,
+            title: 'Έλεγχος και αποστολή προσφοράς',
+            type: 'send_offer',
+            status: 'open',
+            priority: 'normal',
+            dueDate: todayStr(),
+            dueTime: null,
+            note: 'Δημιουργήθηκε από AI εντολή. Έλεγξε την προσφορά πριν τη στείλεις.',
+          }),
+        });
+        const taskJson = await taskRes.json() as { ok?: boolean; task?: BackendTaskDto; error?: string };
+        if (taskRes.ok && taskJson.ok && taskJson.task) {
+          setBackendTasks((prev) => [...prev, mapBackendTask(taskJson.task!)]);
+          setOfferSaveWarning(null);
+        } else {
+          setOfferSaveWarning('Η προσφορά δημιουργήθηκε, αλλά δεν δημιουργήθηκε task follow-up.');
+        }
+      } catch {
+        setOfferSaveWarning('Η προσφορά δημιουργήθηκε, αλλά δεν δημιουργήθηκε task follow-up.');
+      }
+      setSavedResult(true);
+    } catch {
+      setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+    } finally {
+      setIsSavingOffer(false);
+    }
   }
 
   function handleConfirmCancelAppt(appt: Task & { customerName?: string }) {
@@ -825,6 +843,9 @@ export default function CmdPage() {
     setTaskSaveError(null);
     setIsSavingAppointment(false);
     setAppointmentSaveError(null);
+    setIsSavingOffer(false);
+    setOfferSaveError(null);
+    setOfferSaveWarning(null);
   }
 
   if (!hydrated) {
@@ -1225,13 +1246,16 @@ export default function CmdPage() {
                   {customerCandidates.length > 1 && !customerMatchResolved && (
                     <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
                   )}
+                  {offerSaveError && (
+                    <p className="text-xs text-red-600">{offerSaveError}</p>
+                  )}
                   <button
                     type="button"
-                    onClick={handleSaveOffer}
-                    disabled={customerCandidates.length > 1 && !customerMatchResolved}
+                    onClick={() => { void handleSaveOffer(); }}
+                    disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer}
                     className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    Δημιουργία draft προσφοράς
+                    {isSavingOffer ? 'Αποθήκευση...' : 'Δημιουργία draft προσφοράς'}
                   </button>
                 </>
               )}
@@ -1242,6 +1266,9 @@ export default function CmdPage() {
             <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1.5">
               <p className="text-sm font-medium text-green-700">Η draft προσφορά δημιουργήθηκε.</p>
               <p className="text-xs text-zinc-600">Δημιουργήθηκε και task για έλεγχο και αποστολή.</p>
+              {offerSaveWarning && (
+                <p className="text-xs text-amber-600">{offerSaveWarning}</p>
+              )}
               <Link href="/offers" className="inline-block text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τις προσφορές →
               </Link>
