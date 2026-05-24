@@ -19,7 +19,7 @@ function formatDate(dateStr: string): string {
 }
 
 type AppointmentResponseInfo = {
-  kind: 'accepted' | 'declined' | 'time_change_requested' | 'time_change_approved' | null;
+  kind: 'accepted' | 'declined' | 'time_change_requested' | 'time_change_approved' | 'time_change_rejected' | null;
   label: string;
   cls: string;
   requestedDueDate: string | null;
@@ -29,6 +29,7 @@ type AppointmentResponseInfo = {
 
 function getAppointmentResponseInfo(note: string): AppointmentResponseInfo {
   const isTimeChangeApproved = note.includes('Αποδοχή αλλαγής ώρας από επαγγελματία:');
+  const isTimeChangeRejected = note.includes('Απόρριψη αλλαγής ώρας από επαγγελματία:');
   const isAccepted =
     note.includes('Αποδοχή ραντεβού από πελάτη:') ||
     note.includes('Απάντηση μέσω δημόσιου link: Αποδοχή ραντεβού');
@@ -47,6 +48,10 @@ function getAppointmentResponseInfo(note: string): AppointmentResponseInfo {
     kind = 'time_change_approved';
     label = 'Αλλαγή εγκρίθηκε';
     cls = 'bg-green-100 text-green-700';
+  } else if (isTimeChangeRejected) {
+    kind = 'time_change_rejected';
+    label = 'Αλλαγή απορρίφθηκε';
+    cls = 'bg-amber-100 text-amber-700';
   } else if (isAccepted) {
     kind = 'accepted';
     label = 'Αποδεκτό';
@@ -304,6 +309,16 @@ export default function AppointmentsPage() {
   const [approvingTimeChangeId, setApprovingTimeChangeId] = useState<string | null>(null);
   const [approveTimeChangeError, setApproveTimeChangeError] = useState<string | null>(null);
   const [approveTimeChangeSuccess, setApproveTimeChangeSuccess] = useState<string | null>(null);
+
+  // Time-change rejection state
+  const [rejectingTimeChangeId, setRejectingTimeChangeId] = useState<string | null>(null);
+  const [rejectTimeChangeError, setRejectTimeChangeError] = useState<string | null>(null);
+
+  // Customer notification draft (set after approve or reject)
+  const [notificationDraft, setNotificationDraft] = useState<string | null>(null);
+  const [notificationDraftTaskId, setNotificationDraftTaskId] = useState<string | null>(null);
+  const [notificationCopied, setNotificationCopied] = useState(false);
+  const [notificationManualVisible, setNotificationManualVisible] = useState(false);
 
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
@@ -610,6 +625,13 @@ export default function AppointmentsPage() {
         setAppointments((prev) => sortAppointments(prev.map((t) => (t.id === task.id ? updatedTask : t))));
         setSelectedAppointment(updatedTask);
         setApproveTimeChangeSuccess('Η νέα ώρα αποθηκεύτηκε.');
+        const approveCustomer = getAppointmentCustomer(task);
+        const approveGreeting = approveCustomer ? `Καλησπέρα σας, ${approveCustomer.name}.` : 'Καλησπέρα σας.';
+        const approveDraft = `${approveGreeting} Επιβεβαιώνουμε το ραντεβού για ${formatDate(info.requestedDueDate)} στις ${info.requestedDueTime}. Ευχαριστούμε.`;
+        setNotificationDraft(approveDraft);
+        setNotificationDraftTaskId(task.id);
+        setNotificationCopied(false);
+        setNotificationManualVisible(false);
       } else {
         setApproveTimeChangeError('Δεν αποθηκεύτηκε η νέα ώρα. Δοκίμασε ξανά.');
       }
@@ -617,6 +639,53 @@ export default function AppointmentsPage() {
       setApproveTimeChangeError('Δεν αποθηκεύτηκε η νέα ώρα. Δοκίμασε ξανά.');
     } finally {
       setApprovingTimeChangeId(null);
+    }
+  }
+
+  async function handleRejectTimeChange(task: Task, info: AppointmentResponseInfo) {
+    if (!info.requestedDueDate || !info.requestedDueTime) return;
+    const token = tokenRef.current;
+    if (!token) {
+      setRejectTimeChangeError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
+
+    setRejectingTimeChangeId(task.id);
+    setRejectTimeChangeError(null);
+
+    const noteAppend = `Απόρριψη αλλαγής ώρας από επαγγελματία: ${info.requestedDueDate} ${info.requestedDueTime}.`;
+    const updatedNote = task.note ? `${task.note}\n${noteAppend}` : noteAppend;
+
+    try {
+      const resp = await fetch(`/api/tasks/${task.id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: updatedNote }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        const updatedTask: Task = data.task
+          ? mapTask(data.task as Parameters<typeof mapTask>[0])
+          : { ...task, note: updatedNote };
+        setAppointments((prev) => sortAppointments(prev.map((t) => (t.id === task.id ? updatedTask : t))));
+        setSelectedAppointment(updatedTask);
+        const rejectCustomer = getAppointmentCustomer(task);
+        const rejectGreeting = rejectCustomer ? `Καλησπέρα σας, ${rejectCustomer.name}.` : 'Καλησπέρα σας.';
+        const origDate = formatDate(task.dueDate);
+        const origTime = task.dueTime ? ` στις ${task.dueTime}` : '';
+        const rejectDraft = `${rejectGreeting} Δεν μπορούμε να αλλάξουμε το ραντεβού στη νέα ώρα που προτείνατε. Το αρχικό ραντεβού παραμένει για ${origDate}${origTime}. Αν δεν σας εξυπηρετεί, απαντήστε μας για να βρούμε άλλη λύση.`;
+        setNotificationDraft(rejectDraft);
+        setNotificationDraftTaskId(task.id);
+        setNotificationCopied(false);
+        setNotificationManualVisible(false);
+      } else {
+        setRejectTimeChangeError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setRejectTimeChangeError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
+    } finally {
+      setRejectingTimeChangeId(null);
     }
   }
 
@@ -860,18 +929,28 @@ export default function AppointmentsPage() {
                 <p className="text-xs text-zinc-600">Σχόλιο πελάτη: {selRespInfo.comment}</p>
               )}
               {selRespInfo.requestedDueDate && selRespInfo.requestedDueTime && (
-                <div className="space-y-1 pt-1">
-                  {approveTimeChangeError && (
-                    <p className="text-xs text-red-600">{approveTimeChangeError}</p>
+                <div className="space-y-2 pt-1">
+                  {(approveTimeChangeError ?? rejectTimeChangeError) && (
+                    <p className="text-xs text-red-600">{approveTimeChangeError ?? rejectTimeChangeError}</p>
                   )}
-                  <button
-                    type="button"
-                    disabled={approvingTimeChangeId === selectedAppointment.id}
-                    onClick={() => { void handleApproveTimeChange(selectedAppointment, selRespInfo); }}
-                    className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
-                  >
-                    {approvingTimeChangeId === selectedAppointment.id ? 'Αποθήκευση...' : 'Αποδοχή νέας ώρας'}
-                  </button>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      disabled={approvingTimeChangeId === selectedAppointment.id || rejectingTimeChangeId === selectedAppointment.id}
+                      onClick={() => { void handleApproveTimeChange(selectedAppointment, selRespInfo); }}
+                      className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                    >
+                      {approvingTimeChangeId === selectedAppointment.id ? 'Αποθήκευση...' : 'Αποδοχή νέας ώρας'}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={approvingTimeChangeId === selectedAppointment.id || rejectingTimeChangeId === selectedAppointment.id}
+                      onClick={() => { void handleRejectTimeChange(selectedAppointment, selRespInfo); }}
+                      className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                    >
+                      {rejectingTimeChangeId === selectedAppointment.id ? 'Αποθήκευση...' : 'Απόρριψη αλλαγής'}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -881,7 +960,52 @@ export default function AppointmentsPage() {
               {approveTimeChangeSuccess ?? 'Η νέα ώρα έχει εγκριθεί και αποθηκευτεί.'}
             </p>
           )}
+          {selRespInfo.kind === 'time_change_rejected' && (
+            <p className="text-xs text-zinc-700">
+              Η αλλαγή ώρας απορρίφθηκε. Το ραντεβού παραμένει στην αρχική ώρα.
+            </p>
+          )}
         </div>
+        {/* Customer notification draft */}
+        {notificationDraft && notificationDraftTaskId === selectedAppointment.id && (
+          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+            <p className="text-sm font-semibold text-zinc-800">Ενημέρωση πελάτη</p>
+            <p className="text-xs text-zinc-500">
+              Δεν στάλθηκε αυτόματα. Αντιγράψτε το μήνυμα και στείλτε το από το κανάλι που χρησιμοποιείτε.
+            </p>
+            <p className="rounded-xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700 whitespace-pre-wrap">
+              {notificationDraft}
+            </p>
+            {notificationManualVisible && (
+              <textarea
+                readOnly
+                rows={4}
+                value={notificationDraft}
+                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600"
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                if (navigator.clipboard) {
+                  navigator.clipboard.writeText(notificationDraft).then(
+                    () => { setNotificationCopied(true); setTimeout(() => setNotificationCopied(false), 2500); },
+                    () => setNotificationManualVisible(true)
+                  );
+                } else {
+                  setNotificationManualVisible(true);
+                }
+              }}
+              className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                notificationCopied
+                  ? 'bg-green-100 text-green-700'
+                  : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              {notificationCopied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
+            </button>
+          </div>
+        )}
         {/* Appointment response link */}
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
           <p className="text-sm font-semibold text-zinc-800">Απάντηση πελάτη</p>
