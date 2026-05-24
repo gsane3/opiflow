@@ -5,6 +5,6 @@ export default async function AppointmentResponsePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  return <AppointmentResponseClient taskId={id} />;
+  const token = (await params).id;
+  return <AppointmentResponseClient token={token} />;
 }
