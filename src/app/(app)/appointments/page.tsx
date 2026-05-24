@@ -273,6 +273,13 @@ export default function AppointmentsPage() {
   const [notificationCopied, setNotificationCopied] = useState(false);
   const [notificationManualVisible, setNotificationManualVisible] = useState(false);
 
+  // Delivery draft state (cleared on appointment switch)
+  const [deliveryDraftLoading, setDeliveryDraftLoading] = useState(false);
+  const [deliveryDraftError, setDeliveryDraftError] = useState<string | null>(null);
+  const [deliveryDraftMessage, setDeliveryDraftMessage] = useState<string | null>(null);
+  const [deliveryDraftCopied, setDeliveryDraftCopied] = useState(false);
+  const [deliveryDraftManualVisible, setDeliveryDraftManualVisible] = useState(false);
+
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
     [customers]
@@ -344,6 +351,14 @@ export default function AppointmentsPage() {
     }
     init();
   }, [loadData]);
+
+  function clearDeliveryDraftState() {
+    setDeliveryDraftLoading(false);
+    setDeliveryDraftError(null);
+    setDeliveryDraftMessage(null);
+    setDeliveryDraftCopied(false);
+    setDeliveryDraftManualVisible(false);
+  }
 
   const norm = (s: string) => s.toLowerCase().trim();
   const searchResults: Customer[] = customerSearch.trim()
@@ -537,6 +552,43 @@ export default function AppointmentsPage() {
     }
   }
 
+  async function handleGenerateDeliveryDraft() {
+    const token = tokenRef.current;
+    if (!token || !selectedAppointment) return;
+
+    setDeliveryDraftLoading(true);
+    setDeliveryDraftError(null);
+    setDeliveryDraftMessage(null);
+    setDeliveryDraftCopied(false);
+    setDeliveryDraftManualVisible(false);
+
+    try {
+      const resp = await fetch('/api/appointment-notifications', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          taskId: selectedAppointment.id,
+          kind: 'proposal',
+          mode: 'draft',
+        }),
+      });
+
+      const data = await resp.json() as { ok?: boolean; fallbackMessage?: string | null };
+      if (data.ok && data.fallbackMessage) {
+        setDeliveryDraftMessage(data.fallbackMessage);
+      } else {
+        setDeliveryDraftError('error');
+      }
+    } catch {
+      setDeliveryDraftError('error');
+    } finally {
+      setDeliveryDraftLoading(false);
+    }
+  }
+
   function openForm() {
     setJustCreated(false);
     setCancellingTaskId(null);
@@ -642,7 +694,7 @@ export default function AppointmentsPage() {
         <div>
           <button
             type="button"
-            onClick={() => setSelectedAppointment(null)}
+            onClick={() => { clearDeliveryDraftState(); setSelectedAppointment(null); }}
             className="mb-3 text-sm font-medium text-indigo-600 transition hover:text-indigo-700"
           >
             ← Πίσω στα ραντεβού
@@ -770,16 +822,59 @@ export default function AppointmentsPage() {
             </button>
           </div>
         )}
-        {/* Delivery placeholder */}
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-2">
+        {/* Delivery draft card */}
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
           <p className="text-sm font-semibold text-zinc-800">Αποστολή στον πελάτη</p>
-          <p className="text-xs text-zinc-500">
-            Η αυτόματη αποστολή μέσω Viber/email δεν είναι ενεργή ακόμα για τα ραντεβού.
-          </p>
-          {selRespInfo.kind === null && (
-            <p className="text-xs text-zinc-400">
-              Η πρόταση απάντησης θα σταλεί αυτόματα από το app όταν ενεργοποιηθεί ο πάροχος. Προς το παρόν χρησιμοποιήστε χειροκίνητη αποστολή.
-            </p>
+          {deliveryDraftMessage ? (
+            <>
+              <p className="text-xs text-zinc-500">Έτοιμο μήνυμα</p>
+              <textarea
+                readOnly
+                rows={5}
+                value={deliveryDraftMessage}
+                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+              />
+              {deliveryDraftManualVisible && (
+                <p className="text-xs text-zinc-400">Επιλέξτε το κείμενο παραπάνω για χειροκίνητη αντιγραφή.</p>
+              )}
+              <button
+                type="button"
+                onClick={() => {
+                  if (navigator.clipboard) {
+                    navigator.clipboard.writeText(deliveryDraftMessage).then(
+                      () => { setDeliveryDraftCopied(true); setTimeout(() => setDeliveryDraftCopied(false), 2500); },
+                      () => setDeliveryDraftManualVisible(true)
+                    );
+                  } else {
+                    setDeliveryDraftManualVisible(true);
+                  }
+                }}
+                className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  deliveryDraftCopied
+                    ? 'bg-green-100 text-green-700'
+                    : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                }`}
+              >
+                {deliveryDraftCopied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-xs text-zinc-500">
+                Δημιουργεί έτοιμο μήνυμα για τον πελάτη. Δεν αποστέλλεται αυτόματα.
+              </p>
+              {deliveryDraftError && (
+                <p className="text-xs text-red-600">Δεν δημιουργήθηκε μήνυμα. Δοκίμασε ξανά.</p>
+              )}
+              <button
+                type="button"
+                disabled={deliveryDraftLoading}
+                onClick={() => { void handleGenerateDeliveryDraft(); }}
+                className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {deliveryDraftLoading ? 'Δημιουργία...' : 'Δημιουργία μηνύματος'}
+              </button>
+            </>
           )}
         </div>
 
@@ -926,7 +1021,7 @@ export default function AppointmentsPage() {
             type="button"
             onClick={() => {
               const task = appointments.find((t) => t.id === proposalTaskId);
-              if (task) { setJustCreated(false); setSelectedAppointment(task); }
+              if (task) { clearDeliveryDraftState(); setJustCreated(false); setSelectedAppointment(task); }
             }}
             className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
@@ -1005,7 +1100,7 @@ export default function AppointmentsPage() {
                       <>
                         <button
                           type="button"
-                          onClick={() => setSelectedAppointment(task)}
+                          onClick={() => { clearDeliveryDraftState(); setSelectedAppointment(task); }}
                           className="flex min-w-0 w-full flex-col gap-1 p-4 text-left"
                         >
                           <div className="flex flex-wrap items-center gap-2">
@@ -1025,7 +1120,7 @@ export default function AppointmentsPage() {
                         <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-4 py-2">
                           <button
                             type="button"
-                            onClick={() => setSelectedAppointment(task)}
+                            onClick={() => { clearDeliveryDraftState(); setSelectedAppointment(task); }}
                             className="text-xs font-medium text-indigo-600 hover:text-indigo-700 transition"
                           >
                             Προβολή ραντεβού
