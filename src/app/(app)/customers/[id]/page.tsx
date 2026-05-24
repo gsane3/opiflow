@@ -227,6 +227,13 @@ function formatMoney(value: number): string {
   }
 }
 
+function appointmentStatusLabel(task: TaskDto): string {
+  if (task.status === 'completed') return 'Ολοκληρωμένο';
+  if (task.status === 'cancelled') return 'Ακυρωμένο';
+  if (task.status === 'ai_draft') return 'AI draft';
+  return 'Ανοιχτό';
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -364,6 +371,17 @@ export default function CustomerDetailPage() {
   const sortedOffers = useMemo(() =>
     [...offers].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [offers]
+  );
+
+  const appointmentTasks = useMemo(() =>
+    tasks
+      .filter(t => t.type === 'book_appointment' || t.type === 'visit_customer')
+      .sort((a, b) => {
+        const dateCmp = a.dueDate.localeCompare(b.dueDate);
+        if (dateCmp !== 0) return dateCmp;
+        return (a.dueTime ?? '').localeCompare(b.dueTime ?? '');
+      }),
+    [tasks]
   );
 
   // ---------------------------------------------------------------------------
@@ -951,6 +969,53 @@ export default function CustomerDetailPage() {
                 {t.note && (
                   <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Appointments */}
+      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <h2 className="text-sm font-semibold text-zinc-900">Ραντεβού</h2>
+        </div>
+        {appointmentTasks.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-zinc-400">
+            Δεν υπάρχουν ραντεβού ακόμα για αυτόν τον πελάτη.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100">
+            {appointmentTasks.map(task => (
+              <li key={task.id} className="space-y-1.5 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium text-zinc-500">
+                        {TASK_TYPE_LABELS[task.type] ?? task.type}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(task.status)}`}>
+                        {appointmentStatusLabel(task)}
+                      </span>
+                      {task.createdFromAi && (
+                        <span className="text-xs text-zinc-400">από AI</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-800">{task.title}</p>
+                    <p className="text-xs text-zinc-500">
+                      {task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}
+                    </p>
+                    {task.note && (
+                      <p className="text-xs text-zinc-400">{truncate(task.note, 120)}</p>
+                    )}
+                  </div>
+                  <Link
+                    href={`/appointments?focusAppointment=${task.id}`}
+                    className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    Άνοιγμα
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>
