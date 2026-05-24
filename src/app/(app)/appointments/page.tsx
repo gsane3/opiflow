@@ -91,24 +91,6 @@ function getResponseStatus(note: string): { label: string; cls: string } {
   return { label: info.label, cls: info.cls };
 }
 
-function buildProposalEmailText(customer: Customer, date: string, time: string, responseLink: string): string {
-  return [
-    `Αγαπητέ/ή ${customer.name},`,
-    '',
-    'Σας προτείνουμε ραντεβού.',
-    '',
-    `Ημερομηνία: ${date}`,
-    `Ώρα: ${time}`,
-    '',
-    'Παρακαλούμε επιβεβαιώστε ή προτείνετε εναλλακτική ημερομηνία μέσω του παρακάτω συνδέσμου:',
-    responseLink,
-    '',
-    'Σημείωση: Ο σύνδεσμος επιτρέπει την απάντηση του πελάτη σε αυτό το ραντεβού.',
-    '',
-    'Με εκτίμηση',
-  ].join('\n');
-}
-
 function formatTimestamp(isoStr: string): string {
   return new Date(isoStr).toLocaleDateString('el-GR', {
     day: 'numeric',
@@ -128,23 +110,6 @@ function isFutureAppointment(task: Task): boolean {
     return task.dueTime > nowTime;
   }
   return false;
-}
-
-function buildCancellationEmailText(customer: Customer | null, task: Task): string {
-  const name = customer?.name ?? 'πελάτη';
-  const lines: string[] = [
-    `Αγαπητέ/ή ${name},`,
-    '',
-    'Σας ενημερώνουμε ότι το ραντεβού που είχαμε ορίσει ακυρώθηκε.',
-    '',
-    `Ημερομηνία: ${formatDate(task.dueDate)}`,
-  ];
-  if (task.dueTime) lines.push(`Ώρα: ${task.dueTime}`);
-  lines.push('');
-  lines.push('Θα επικοινωνήσουμε μαζί σας για να ορίσουμε νέα ημερομηνία αν χρειαστεί.');
-  lines.push('');
-  lines.push('Με εκτίμηση');
-  return lines.join('\n');
 }
 
 type GroupKey = 'overdue' | 'today' | 'tomorrow' | 'week' | 'later';
@@ -286,24 +251,12 @@ export default function AppointmentsPage() {
 
   // Proposal details after creation
   const [proposalTaskId, setProposalTaskId] = useState('');
-  const [proposalCustomer, setProposalCustomer] = useState<Customer | null>(null);
-  const [proposalDate, setProposalDate] = useState('');
-  const [proposalTime, setProposalTime] = useState('');
-  const [proposalEmailState, setProposalEmailState] = useState<'idle' | 'sending' | 'sent' | 'missing_config' | 'error'>('idle');
-  const [proposalEmailCopied, setProposalEmailCopied] = useState(false);
-  const [proposalEmailManualCopyVisible, setProposalEmailManualCopyVisible] = useState(false);
 
   // Cancellation state
   const [cancellingTaskId, setCancellingTaskId] = useState<string | null>(null);
   const [cancelResult, setCancelResult] = useState<{ task: Task; customer: Customer | null; isFuture: boolean } | null>(null);
-  const [cancelEmailState, setCancelEmailState] = useState<'idle' | 'sending' | 'sent' | 'missing_config' | 'error'>('idle');
-  const [cancelEmailCopied, setCancelEmailCopied] = useState(false);
-  const [cancelEmailManualVisible, setCancelEmailManualVisible] = useState(false);
 
   const [selectedAppointment, setSelectedAppointment] = useState<Task | null>(null);
-  const [appointmentResponseLinks, setAppointmentResponseLinks] = useState<Record<string, string>>({});
-  const [appointmentResponseLinkStates, setAppointmentResponseLinkStates] = useState<Record<string, 'idle' | 'creating' | 'ready' | 'copied' | 'error'>>({});
-  const [appointmentResponseLinkErrors, setAppointmentResponseLinkErrors] = useState<Record<string, string | null>>({});
 
   // Time-change approval state
   const [approvingTimeChangeId, setApprovingTimeChangeId] = useState<string | null>(null);
@@ -438,12 +391,6 @@ export default function AppointmentsPage() {
       const task = mapTask(data.task);
       setAppointments((prev) => sortAppointments([...prev, task]));
       setProposalTaskId(task.id);
-      setProposalCustomer(selectedCustomer);
-      setProposalDate(apptDate);
-      setProposalTime(apptTime);
-      setProposalEmailState('idle');
-      setProposalEmailCopied(false);
-      setProposalEmailManualCopyVisible(false);
       setFormOpen(false);
       setCustomerSearch('');
       setSelectedCustomer(null);
@@ -451,66 +398,6 @@ export default function AppointmentsPage() {
       setApptTime('10:00');
       setApptNote('');
       setJustCreated(true);
-    }
-  }
-
-  async function handleSendProposalEmail() {
-    if (!proposalCustomer?.email || !proposalTaskId) return;
-    setProposalEmailState('sending');
-
-    const task = appointments.find((t) => t.id === proposalTaskId);
-    if (!task) {
-      setProposalEmailState('error');
-      return;
-    }
-
-    const responseUrl = await createAppointmentResponseLink(task, 'email');
-    if (!responseUrl) {
-      setProposalEmailState('error');
-      return;
-    }
-
-    const subject = 'Πρόταση ραντεβού';
-    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, responseUrl);
-    try {
-      const res = await fetch('/api/email/send-offer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: proposalCustomer.email, subject, text }),
-      });
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (data.ok) {
-        setProposalEmailState('sent');
-      } else if (data.error === 'missing_email_config') {
-        setProposalEmailState('missing_config');
-      } else {
-        setProposalEmailState('error');
-      }
-    } catch {
-      setProposalEmailState('error');
-    }
-  }
-
-  async function handleCopyProposalEmail() {
-    if (!proposalTaskId || !proposalCustomer) return;
-
-    const task = appointments.find((t) => t.id === proposalTaskId);
-    if (!task) return;
-
-    let responseUrl = appointmentResponseLinks[proposalTaskId];
-    if (!responseUrl) {
-      responseUrl = (await createAppointmentResponseLink(task, 'manual')) ?? '';
-      if (!responseUrl) return;
-    }
-
-    const text = buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, responseUrl);
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(
-        () => { setProposalEmailCopied(true); setTimeout(() => setProposalEmailCopied(false), 2500); },
-        () => setProposalEmailManualCopyVisible(true)
-      );
-    } else {
-      setProposalEmailManualCopyVisible(true);
     }
   }
 
@@ -538,46 +425,7 @@ export default function AppointmentsPage() {
       const cancelled = mapTask(data.task);
       setAppointments((prev) => prev.filter((t) => t.id !== task.id));
       setCancelResult({ task: cancelled, customer, isFuture });
-      setCancelEmailState('idle');
-      setCancelEmailCopied(false);
-      setCancelEmailManualVisible(false);
       setCancellingTaskId(null);
-    }
-  }
-
-  async function handleSendCancellationEmail() {
-    if (!cancelResult?.customer?.email) return;
-    setCancelEmailState('sending');
-    const text = buildCancellationEmailText(cancelResult.customer, cancelResult.task);
-    try {
-      const res = await fetch('/api/email/send-offer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: cancelResult.customer.email, subject: 'Ακύρωση ραντεβού', text }),
-      });
-      const data = (await res.json()) as { ok: boolean; error?: string };
-      if (data.ok) {
-        setCancelEmailState('sent');
-      } else if (data.error === 'missing_email_config') {
-        setCancelEmailState('missing_config');
-      } else {
-        setCancelEmailState('error');
-      }
-    } catch {
-      setCancelEmailState('error');
-    }
-  }
-
-  function handleCopyCancellationEmail() {
-    if (!cancelResult) return;
-    const text = buildCancellationEmailText(cancelResult.customer, cancelResult.task);
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(
-        () => { setCancelEmailCopied(true); setTimeout(() => setCancelEmailCopied(false), 2500); },
-        () => setCancelEmailManualVisible(true)
-      );
-    } else {
-      setCancelEmailManualVisible(true);
     }
   }
 
@@ -686,84 +534,6 @@ export default function AppointmentsPage() {
       setRejectTimeChangeError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
     } finally {
       setRejectingTimeChangeId(null);
-    }
-  }
-
-  async function createAppointmentResponseLink(
-    task: Task,
-    sentChannel: 'manual' | 'email' = 'manual'
-  ): Promise<string | null> {
-    const token = tokenRef.current;
-    if (!token) {
-      setAppointmentResponseLinkErrors((prev) => ({
-        ...prev,
-        [task.id]: 'Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.',
-      }));
-      return null;
-    }
-
-    setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'creating' }));
-    setAppointmentResponseLinkErrors((prev) => ({ ...prev, [task.id]: null }));
-
-    const customer = sentChannel === 'email' ? getAppointmentCustomer(task) : null;
-    const sentTo = sentChannel === 'email' && customer?.email ? customer.email : null;
-
-    try {
-      const res = await fetch('/api/appointment-response-links', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ taskId: task.id, sentChannel, sentTo }),
-      });
-
-      let data: { ok?: boolean; responseUrl?: string; error?: string };
-      try {
-        data = (await res.json()) as { ok?: boolean; responseUrl?: string; error?: string };
-      } catch {
-        throw new Error('invalid_json');
-      }
-
-      if (!res.ok || !data.ok || typeof data.responseUrl !== 'string' || !data.responseUrl) {
-        throw new Error('link_create_failed');
-      }
-
-      const responseUrl = data.responseUrl;
-      setAppointmentResponseLinks((prev) => ({ ...prev, [task.id]: responseUrl }));
-      setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'ready' }));
-      return responseUrl;
-    } catch {
-      setAppointmentResponseLinkErrors((prev) => ({
-        ...prev,
-        [task.id]: 'Δεν δημιουργήθηκε link απάντησης. Δοκίμασε ξανά.',
-      }));
-      setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'error' }));
-      return null;
-    }
-  }
-
-  async function handleCopyAppointmentResponseLink(task: Task) {
-    let url = appointmentResponseLinks[task.id];
-    if (!url) {
-      url = (await createAppointmentResponseLink(task, 'manual')) ?? '';
-      if (!url) return;
-    }
-
-    setAppointmentResponseLinkStates((prev) => ({ ...prev, [task.id]: 'copied' }));
-
-    if (navigator.clipboard) {
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        // Clipboard unavailable; URL already visible in read-only field
-      }
-      setTimeout(() => {
-        setAppointmentResponseLinkStates((prev) => {
-          if (prev[task.id] === 'copied') return { ...prev, [task.id]: 'ready' };
-          return prev;
-        });
-      }, 2500);
     }
   }
 
@@ -893,12 +663,6 @@ export default function AppointmentsPage() {
               <p className="text-xs text-zinc-500">Πελάτης: {selCustomer.name}</p>
             )}
           </div>
-          {selectedAppointment.note && (
-            <div className="border-t border-zinc-100 pt-3">
-              <p className="mb-1 text-xs font-medium text-zinc-500">Σημείωση</p>
-              <p className="text-sm text-zinc-700 whitespace-pre-wrap">{selectedAppointment.note}</p>
-            </div>
-          )}
         </div>
         {/* Customer response review */}
         <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
@@ -1006,39 +770,17 @@ export default function AppointmentsPage() {
             </button>
           </div>
         )}
-        {/* Appointment response link */}
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
-          <p className="text-sm font-semibold text-zinc-800">Απάντηση πελάτη</p>
+        {/* Delivery placeholder */}
+        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-2">
+          <p className="text-sm font-semibold text-zinc-800">Αποστολή στον πελάτη</p>
           <p className="text-xs text-zinc-500">
-            Δημιουργεί ασφαλές link ώστε ο πελάτης να αποδεχτεί, να απορρίψει ή να ζητήσει αλλαγή ώρας. Δεν αποστέλλεται τίποτα αυτόματα.
+            Η αυτόματη αποστολή μέσω Viber/email δεν είναι ενεργή ακόμα για τα ραντεβού.
           </p>
-          {appointmentResponseLinks[selectedAppointment.id] && (
-            <input
-              type="text"
-              readOnly
-              value={appointmentResponseLinks[selectedAppointment.id]}
-              className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs text-zinc-600"
-            />
+          {selRespInfo.kind === null && (
+            <p className="text-xs text-zinc-400">
+              Η πρόταση απάντησης θα σταλεί αυτόματα από το app όταν ενεργοποιηθεί ο πάροχος. Προς το παρόν χρησιμοποιήστε χειροκίνητη αποστολή.
+            </p>
           )}
-          {appointmentResponseLinkErrors[selectedAppointment.id] && (
-            <p className="text-xs text-red-600">{appointmentResponseLinkErrors[selectedAppointment.id]}</p>
-          )}
-          <button
-            type="button"
-            disabled={appointmentResponseLinkStates[selectedAppointment.id] === 'creating'}
-            onClick={() => { void handleCopyAppointmentResponseLink(selectedAppointment); }}
-            className={`rounded-xl px-4 py-2 text-sm font-medium transition disabled:opacity-60 ${
-              appointmentResponseLinkStates[selectedAppointment.id] === 'copied'
-                ? 'bg-green-100 text-green-700'
-                : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
-            }`}
-          >
-            {appointmentResponseLinkStates[selectedAppointment.id] === 'creating'
-              ? 'Δημιουργία...'
-              : appointmentResponseLinkStates[selectedAppointment.id] === 'copied'
-              ? 'Αντιγράφηκε'
-              : 'Δημιουργία / αντιγραφή link'}
-          </button>
         </div>
 
         {selectedAppointment.customerId && (
@@ -1175,177 +917,29 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* Success + proposal email section */}
-      {justCreated && !formOpen && proposalTaskId && proposalCustomer && (
+      {/* Creation success */}
+      {justCreated && !formOpen && proposalTaskId && (
         <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-green-200 space-y-3">
-          <div>
-            <p className="text-sm font-medium text-green-800">Το ραντεβού δημιουργήθηκε.</p>
-            <p className="text-xs text-zinc-500 mt-0.5">Ο πελάτης δεν έχει ειδοποιηθεί ακόμα.</p>
-          </div>
-
-          <div className="border-t border-zinc-100 pt-3 space-y-2">
-            <p className="text-xs font-semibold text-zinc-600">Πρόταση ραντεβού στον πελάτη</p>
-
-            {!proposalCustomer.email ? (
-              <div className="space-y-2">
-                <p className="text-xs text-zinc-400">
-                  Δεν υπάρχει email πελάτη για αποστολή πρότασης. Αντέγραψε το κείμενο και στείλ&apos; το χειροκίνητα.
-                </p>
-                <textarea
-                  readOnly
-                  rows={6}
-                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, appointmentResponseLinks[proposalTaskId] ?? '')}
-                  className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
-                />
-                <button
-                  type="button"
-                  onClick={handleCopyProposalEmail}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${proposalEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
-                >
-                  {proposalEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
-                </button>
-              </div>
-            ) : proposalEmailState === 'sent' ? (
-              <p className="text-xs font-medium text-green-700">Στάλθηκε email πρότασης ραντεβού.</p>
-            ) : (proposalEmailState === 'missing_config' || proposalEmailState === 'error') ? (
-              <div className="space-y-2">
-                <p className="text-xs text-amber-700">
-                  {proposalEmailState === 'missing_config'
-                    ? 'Δεν έχει ρυθμιστεί αποστολή email στον server, οπότε δεν στάλθηκε email. Μπορείς να αντιγράψεις το κείμενο και να το στείλεις χειροκίνητα.'
-                    : 'Σφάλμα αποστολής. Αντέγραψε το κείμενο για χειροκίνητη αποστολή.'}
-                </p>
-                <textarea
-                  readOnly
-                  rows={6}
-                  value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, appointmentResponseLinks[proposalTaskId] ?? '')}
-                  className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
-                />
-                <button
-                  type="button"
-                  onClick={handleCopyProposalEmail}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${proposalEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
-                >
-                  {proposalEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-zinc-500">
-                  Αν η αποστολή email είναι ρυθμισμένη στον server, αυτό θα στείλει πρόταση ραντεβού στον πελάτη ({proposalCustomer.email}).
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={handleSendProposalEmail}
-                    disabled={proposalEmailState === 'sending'}
-                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {proposalEmailState === 'sending' ? 'Αποστολή...' : 'Αποστολή πρότασης'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCopyProposalEmail}
-                    className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${proposalEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
-                  >
-                    {proposalEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
-                  </button>
-                </div>
-                {proposalEmailManualCopyVisible && (
-                  <textarea
-                    readOnly
-                    rows={6}
-                    value={buildProposalEmailText(proposalCustomer, proposalDate, proposalTime, appointmentResponseLinks[proposalTaskId] ?? '')}
-                    className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
-                  />
-                )}
-              </div>
-            )}
-          </div>
+          <p className="text-sm font-medium text-green-800">Το ραντεβού δημιουργήθηκε.</p>
+          <p className="text-xs text-zinc-500">Ο πελάτης δεν έχει ειδοποιηθεί ακόμα.</p>
+          <button
+            type="button"
+            onClick={() => {
+              const task = appointments.find((t) => t.id === proposalTaskId);
+              if (task) { setJustCreated(false); setSelectedAppointment(task); }
+            }}
+            className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          >
+            Άνοιγμα ραντεβού
+          </button>
         </div>
       )}
 
       {/* Cancellation result */}
       {cancelResult && (
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 space-y-3">
+        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 space-y-2">
           <p className="text-sm font-medium text-zinc-800">Το ραντεβού ακυρώθηκε.</p>
-          {!cancelResult.isFuture ? (
-            <p className="text-xs text-zinc-400">
-              Το ραντεβού δεν ήταν μελλοντικό, οπότε δεν γίνεται αποστολή email ακύρωσης.
-            </p>
-          ) : !cancelResult.customer?.email ? (
-            <div className="space-y-2">
-              <p className="text-xs text-zinc-400">
-                Δεν υπάρχει email πελάτη για αποστολή ακύρωσης. Αντέγραψε το κείμενο και ενημέρωσε τον πελάτη χειροκίνητα.
-              </p>
-              <textarea
-                readOnly
-                rows={5}
-                value={buildCancellationEmailText(cancelResult.customer, cancelResult.task)}
-                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
-              />
-              <button
-                type="button"
-                onClick={handleCopyCancellationEmail}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${cancelEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
-              >
-                {cancelEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
-              </button>
-            </div>
-          ) : cancelEmailState === 'sent' ? (
-            <p className="text-xs font-medium text-green-700">Στάλθηκε email ακύρωσης.</p>
-          ) : (cancelEmailState === 'missing_config' || cancelEmailState === 'error') ? (
-            <div className="space-y-2">
-              <p className="text-xs text-amber-700">
-                {cancelEmailState === 'missing_config'
-                  ? 'Δεν έχει ρυθμιστεί αποστολή email στον server, οπότε δεν στάλθηκε email. Μπορείς να αντιγράψεις το κείμενο και να το στείλεις χειροκίνητα.'
-                  : 'Σφάλμα αποστολής. Αντέγραψε το κείμενο για χειροκίνητη αποστολή.'}
-              </p>
-              <textarea
-                readOnly
-                rows={5}
-                value={buildCancellationEmailText(cancelResult.customer, cancelResult.task)}
-                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
-              />
-              <button
-                type="button"
-                onClick={handleCopyCancellationEmail}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${cancelEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
-              >
-                {cancelEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              <p className="text-xs text-zinc-500">
-                Αν η αποστολή email είναι ρυθμισμένη στον server, αυτό θα στείλει ειδοποίηση ακύρωσης στον πελάτη ({cancelResult.customer.email}).
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={handleSendCancellationEmail}
-                  disabled={cancelEmailState === 'sending'}
-                  className="rounded-lg bg-zinc-700 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
-                >
-                  {cancelEmailState === 'sending' ? 'Αποστολή...' : 'Αποστολή email ακύρωσης'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCopyCancellationEmail}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${cancelEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
-                >
-                  {cancelEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
-                </button>
-              </div>
-              {cancelEmailManualVisible && (
-                <textarea
-                  readOnly
-                  rows={5}
-                  value={buildCancellationEmailText(cancelResult.customer, cancelResult.task)}
-                  className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
-                />
-              )}
-            </div>
-          )}
+          <p className="text-xs text-zinc-500">Ενημερώστε τον πελάτη χειροκίνητα αν χρειάζεται.</p>
         </div>
       )}
 
