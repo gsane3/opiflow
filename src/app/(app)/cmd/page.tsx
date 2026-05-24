@@ -331,6 +331,9 @@ export default function CmdPage() {
   const [isSavingTask, setIsSavingTask] = useState(false);
   const [taskSaveError, setTaskSaveError] = useState<string | null>(null);
 
+  const [isSavingAppointment, setIsSavingAppointment] = useState(false);
+  const [appointmentSaveError, setAppointmentSaveError] = useState<string | null>(null);
+
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
@@ -532,6 +535,8 @@ export default function CmdPage() {
     setSavedResult(false);
     setIsSavingTask(false);
     setTaskSaveError(null);
+    setIsSavingAppointment(false);
+    setAppointmentSaveError(null);
     setQueryAppointments([]);
     setMatchedCustomer(null);
     setNoCustomerMatch(false);
@@ -677,30 +682,51 @@ export default function CmdPage() {
     }
   }
 
-  function handleSaveAppointment() {
+  async function handleSaveAppointment() {
     if (!result) return;
     if (customerCandidates.length > 1 && !customerMatchResolved) return;
-    const now = new Date().toISOString();
-    const today = todayStr();
     const defaultTitle = matchedCustomer
       ? `Ραντεβού με ${matchedCustomer.name}`
       : 'Νέο ραντεβού';
-    const task: Task = {
-      id: crypto.randomUUID(),
-      customerId: matchedCustomer?.id,
-      title: result.params.title?.trim() || defaultTitle,
-      type: (result.params.appointmentType ?? 'book_appointment') as TaskType,
-      status: 'open',
-      priority: (result.params.priority ?? 'normal') as TaskPriority,
-      dueDate: result.params.dueDate || today,
-      dueTime: result.params.dueTime || undefined,
-      note: result.params.note || '',
-      createdFromAi: true,
-      createdAt: now,
-      updatedAt: now,
-    };
-    addTask(task);
-    setSavedResult(true);
+    setIsSavingAppointment(true);
+    setAppointmentSaveError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setAppointmentSaveError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          customerId: matchedCustomer?.id ?? null,
+          title: result.params.title?.trim() || defaultTitle,
+          type: result.params.appointmentType ?? 'book_appointment',
+          status: 'open',
+          priority: result.params.priority ?? 'normal',
+          dueDate: result.params.dueDate || todayStr(),
+          dueTime: result.params.dueTime || null,
+          note: result.params.note || null,
+        }),
+      });
+      const json = await res.json() as { ok?: boolean; task?: BackendTaskDto; error?: string };
+      if (res.ok && json.ok && json.task) {
+        setBackendTasks((prev) => [...prev, mapBackendTask(json.task!)]);
+        setAppointmentSaveError(null);
+        setSavedResult(true);
+      } else {
+        setAppointmentSaveError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setAppointmentSaveError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+    } finally {
+      setIsSavingAppointment(false);
+    }
   }
 
   function handleSaveOffer() {
@@ -797,6 +823,8 @@ export default function CmdPage() {
     setOfferPreviewData(null);
     setIsSavingTask(false);
     setTaskSaveError(null);
+    setIsSavingAppointment(false);
+    setAppointmentSaveError(null);
   }
 
   if (!hydrated) {
@@ -1084,13 +1112,16 @@ export default function CmdPage() {
               {customerCandidates.length > 1 && !customerMatchResolved && (
                 <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
               )}
+              {appointmentSaveError && (
+                <p className="text-xs text-red-600">{appointmentSaveError}</p>
+              )}
               <button
                 type="button"
-                onClick={handleSaveAppointment}
-                disabled={customerCandidates.length > 1 && !customerMatchResolved}
+                onClick={() => { void handleSaveAppointment(); }}
+                disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingAppointment}
                 className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
               >
-                Δημιουργία ραντεβού
+                {isSavingAppointment ? 'Αποθήκευση...' : 'Δημιουργία ραντεβού'}
               </button>
             </div>
           )}
