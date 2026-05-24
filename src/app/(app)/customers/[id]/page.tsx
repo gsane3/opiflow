@@ -73,6 +73,20 @@ interface CustomerDraft {
   notes: string | null;
 }
 
+interface OfferDto {
+  id: string;
+  customerId: string | null;
+  offerNumber: string;
+  status: string;
+  offerDate: string | null;
+  validUntil: string | null;
+  total: number;
+  notes: string | null;
+  createdFromAi: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 // ---------------------------------------------------------------------------
 // Label maps
 // ---------------------------------------------------------------------------
@@ -139,6 +153,17 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: 'Χαμηλή',
 };
 
+const OFFER_STATUS_LABELS: Record<string, string> = {
+  draft: 'Draft',
+  ready_to_send: 'Έτοιμη για αποστολή',
+  sent_manually: 'Στάλθηκε χειροκίνητα',
+  sent_provider: 'Στάλθηκε',
+  accepted: 'Αποδεκτή',
+  rejected: 'Απορρίφθηκε',
+  expired: 'Έληξε',
+  cancelled: 'Ακυρώθηκε',
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -194,6 +219,14 @@ function taskStatusClass(status: string): string {
   return 'bg-indigo-50 text-indigo-700';
 }
 
+function formatMoney(value: number): string {
+  try {
+    return new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR' }).format(value);
+  } catch {
+    return `${value.toFixed(2)} €`;
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -212,6 +245,7 @@ export default function CustomerDetailPage() {
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [communications, setCommunications] = useState<CommunicationDto[]>([]);
   const [tasks, setTasks] = useState<TaskDto[]>([]);
+  const [offers, setOffers] = useState<OfferDto[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const [isEditingCustomer, setIsEditingCustomer] = useState(false);
@@ -242,10 +276,11 @@ export default function CustomerDetailPage() {
       const headers = { Authorization: `Bearer ${session.access_token}` };
 
       try {
-        const [customerRes, commRes, tasksRes] = await Promise.all([
+        const [customerRes, commRes, tasksRes, offersRes] = await Promise.all([
           fetch(`/api/customers/${customerId}`, { headers }),
           fetch(`/api/communications?customerId=${encodeURIComponent(customerId)}&limit=50`, { headers }),
           fetch(`/api/tasks?customerId=${encodeURIComponent(customerId)}&limit=50`, { headers }),
+          fetch(`/api/offers?customerId=${encodeURIComponent(customerId)}&limit=20`, { headers }),
         ]);
 
         const customerJson = await customerRes.json() as {
@@ -256,6 +291,9 @@ export default function CustomerDetailPage() {
         };
         const tasksJson = await tasksRes.json() as {
           ok?: boolean; tasks?: TaskDto[]; error?: string;
+        };
+        const offersJson = await offersRes.json() as {
+          ok?: boolean; offers?: OfferDto[]; error?: string;
         };
 
         if (cancelled) return;
@@ -268,6 +306,7 @@ export default function CustomerDetailPage() {
         setCustomer(customerJson.customer);
         setCommunications(commJson.ok ? (commJson.communications ?? []) : []);
         setTasks(tasksJson.ok ? (tasksJson.tasks ?? []) : []);
+        setOffers(offersJson.ok ? (offersJson.offers ?? []) : []);
         setPageState('loaded');
       } catch {
         if (!cancelled) setPageState('error');
@@ -320,6 +359,11 @@ export default function CustomerDetailPage() {
       return b.createdAt.localeCompare(a.createdAt);
     }),
     [tasks]
+  );
+
+  const sortedOffers = useMemo(() =>
+    [...offers].sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    [offers]
   );
 
   // ---------------------------------------------------------------------------
@@ -907,6 +951,53 @@ export default function CustomerDetailPage() {
                 {t.note && (
                   <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
                 )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Offers */}
+      <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <h2 className="text-sm font-semibold text-zinc-900">Προσφορές</h2>
+        </div>
+        {sortedOffers.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-zinc-400">
+            Δεν υπάρχουν προσφορές ακόμα για αυτόν τον πελάτη.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100">
+            {sortedOffers.map(offer => (
+              <li key={offer.id} className="space-y-1.5 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-zinc-900">{offer.offerNumber}</span>
+                      <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-xs font-medium text-indigo-700">
+                        {OFFER_STATUS_LABELS[offer.status] ?? offer.status}
+                      </span>
+                      {offer.createdFromAi && (
+                        <span className="text-xs text-zinc-400">από AI</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      {offer.offerDate ?? ''}
+                      {offer.offerDate && offer.validUntil ? ' · ' : ''}
+                      {offer.validUntil ? `Ισχύει έως ${offer.validUntil}` : ''}
+                    </p>
+                    <p className="text-sm font-semibold text-zinc-800">{formatMoney(offer.total)}</p>
+                    {offer.notes && (
+                      <p className="text-xs text-zinc-400">{truncate(offer.notes, 120)}</p>
+                    )}
+                  </div>
+                  <Link
+                    href={`/offers/${offer.id}`}
+                    className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                  >
+                    Άνοιγμα
+                  </Link>
+                </div>
               </li>
             ))}
           </ul>
