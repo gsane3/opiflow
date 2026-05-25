@@ -303,6 +303,8 @@ export default function CustomerDetailPage() {
   const [apptDate, setApptDate] = useState('');
   const [apptTime, setApptTime] = useState('');
   const [apptNote, setApptNote] = useState('');
+  const [apptSaving, setApptSaving] = useState(false);
+  const [apptError, setApptError] = useState<string | null>(null);
 
   const [offerTitle, setOfferTitle] = useState('');
   const [offerAmount, setOfferAmount] = useState('');
@@ -609,6 +611,8 @@ export default function CustomerDetailPage() {
     setApptDate('');
     setApptTime('');
     setApptNote('');
+    setApptSaving(false);
+    setApptError(null);
     setOfferTitle('');
     setOfferAmount('');
     setOfferNote('');
@@ -619,6 +623,60 @@ export default function CustomerDetailPage() {
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
+  }
+
+  async function saveAppointmentFromModal() {
+    if (!apptTitle.trim()) {
+      setApptError('Συμπλήρωσε τίτλο ραντεβού.');
+      return;
+    }
+    if (!apptDate) {
+      setApptError('Συμπλήρωσε ημερομηνία.');
+      return;
+    }
+    if (!apptTime) {
+      setApptError('Συμπλήρωσε ώρα.');
+      return;
+    }
+    setApptSaving(true);
+    setApptError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setApptSaving(false);
+        setApptError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          customerId,
+          title: apptTitle.trim(),
+          type: 'book_appointment',
+          status: 'open',
+          priority: 'normal',
+          dueDate: apptDate,
+          dueTime: apptTime,
+          note: apptNote.trim() || null,
+        }),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (res.ok && json.ok) {
+        closeQuickModal();
+        setRefreshTick(t => t + 1);
+      } else {
+        setApptSaving(false);
+        setApptError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setApptSaving(false);
+      setApptError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+    }
   }
 
   async function copyMsgDraft() {
@@ -1942,14 +2000,17 @@ export default function CustomerDetailPage() {
                 <p className="mt-3 text-xs text-zinc-400">
                   Η αποστολή στον πελάτη θα γίνει σε επόμενο βήμα.
                 </p>
+                {apptError && (
+                  <p className="mt-2 text-xs font-medium text-red-600">{apptError}</p>
+                )}
                 <div className="mt-4 flex gap-2">
                   <button
                     type="button"
-                    onClick={closeQuickModal}
-                    disabled={!apptTitle.trim() || !apptDate || !apptTime}
+                    onClick={saveAppointmentFromModal}
+                    disabled={!apptTitle.trim() || !apptDate || !apptTime || apptSaving}
                     className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
                   >
-                    Συνέχεια
+                    {apptSaving ? 'Αποθηκεύεται...' : 'Αποθήκευση'}
                   </button>
                   <button
                     type="button"
