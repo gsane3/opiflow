@@ -911,19 +911,22 @@ export default function CmdPage() {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10 text-center">
-        <p className="text-sm text-zinc-400">Φόρτωση...</p>
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm text-zinc-400">Φόρτωση...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
       {/* Header */}
       <div>
-        <h1 className="text-lg font-semibold text-zinc-900">AI εντολές</h1>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Βοηθός</p>
+        <h1 className="text-xl font-bold text-zinc-900">AI εντολές</h1>
         <p className="mt-1 text-sm text-zinc-500">
-          Γράψε ή υπαγόρευσε τι θέλεις να οργανώσει το yorgos.ai. Θα δεις πρώτα έλεγχο πριν αποθηκευτεί κάτι.
+          Γράψε ή υπαγόρευσε τι θέλεις να οργανώσεις. Θα δεις πρώτα έλεγχο πριν αποθηκευτεί κάτι.
         </p>
       </div>
 
@@ -932,21 +935,21 @@ export default function CmdPage() {
         <p className="text-xs text-zinc-400">Φόρτωση δεδομένων assistant...</p>
       )}
       {backendContextState === 'no_session' && (
-        <p className="text-xs text-amber-600">Συνδέσου για να χρησιμοποιήσεις το AI Assistant με live δεδομένα.</p>
+        <p className="text-xs text-amber-600">Συνδέσου για να χρησιμοποιήσεις το AI Assistant με δεδομένα από το CRM σου.</p>
       )}
       {backendContextState === 'error' && (
         <p className="text-xs text-zinc-500">
-          {backendContextError ?? 'Δεν φορτώθηκαν όλα τα live δεδομένα. Μπορείς να δοκιμάσεις ξανά.'}
+          {backendContextError ?? 'Δεν φορτώθηκαν όλα τα δεδομένα από το CRM. Μπορείς να δοκιμάσεις ξανά.'}
         </p>
       )}
       {backendContextState === 'ready' && (
         <p className="text-xs text-zinc-400">
-          Live δεδομένα: {backendCustomers.length} πελάτες, {backendTasks.length} tasks, {backendOffers.length} προσφορές.
+          Δεδομένα CRM: {backendCustomers.length} πελάτες, {backendTasks.length} tasks, {backendOffers.length} προσφορές.
         </p>
       )}
 
       {/* Input card */}
-      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
+      <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
         <textarea
           value={cmdInput}
           onChange={(e) => setCmdInput(e.target.value)}
@@ -1046,7 +1049,7 @@ export default function CmdPage() {
 
           {/* query_appointments */}
           {result.intent === 'query_appointments' && (
-            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-3">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Ραντεβού</p>
               {queryAppointments.length === 0 ? (
                 <p className="text-sm text-zinc-400">Δεν βρέθηκαν ραντεβού για αυτό το διάστημα.</p>
@@ -1072,7 +1075,7 @@ export default function CmdPage() {
 
           {/* create_task */}
           {result.intent === 'create_task' && !savedResult && (
-            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
                 Νέο task (προεπισκόπηση)
               </p>
@@ -1141,7 +1144,7 @@ export default function CmdPage() {
 
           {/* create_appointment */}
           {result.intent === 'create_appointment' && !savedResult && (
-            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
                 Νέο ραντεβού (προεπισκόπηση)
               </p>
@@ -1224,7 +1227,7 @@ export default function CmdPage() {
 
           {/* create_offer */}
           {result.intent === 'create_offer' && !savedResult && (
-            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
                 Draft προσφορά (προεπισκόπηση)
               </p>
@@ -1338,7 +1341,7 @@ export default function CmdPage() {
 
           {/* cancel_appointment */}
           {result.intent === 'cancel_appointment' && (
-            <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 space-y-4">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
                 Ακύρωση ραντεβού
               </p>

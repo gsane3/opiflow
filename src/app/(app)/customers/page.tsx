@@ -6,7 +6,6 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
-import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 
 // API response type
 interface CustomerDto {
@@ -89,13 +88,12 @@ const STATUS_CHIP: Record<CustomerStatus, string> = {
   lost: 'bg-zinc-100 text-zinc-400',
 };
 
-// Quick status filter chips
-const QUICK_FILTERS: { value: CustomerStatus | ''; label: string }[] = [
-  { value: '', label: 'Όλα' },
-  { value: 'follow_up_needed', label: 'Follow-up' },
-  { value: 'new_lead', label: 'Νέα leads' },
-  { value: 'contacted', label: 'Contacted' },
-  { value: 'won', label: 'Κερδισμένοι' },
+// Three simple filter chips
+type QuickFilter = 'all' | 'attention' | 'new';
+const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
+  { value: 'all', label: 'Όλοι' },
+  { value: 'attention', label: 'Χρειάζονται προσοχή' },
+  { value: 'new', label: 'Νέοι' },
 ];
 
 const LEAD_STATUSES = new Set<CustomerStatus>(['new_lead', 'contacted', 'offer_drafted', 'offer_sent']);
@@ -116,8 +114,7 @@ export default function CustomersPage() {
   const [message, setMessage] = useState<PageMessage>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<CustomerStatus | ''>('');
-  const [sourceFilter, setSourceFilter] = useState<CustomerSource | ''>('');
+  const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
@@ -181,10 +178,13 @@ export default function CustomersPage() {
     return () => { cancelled = true; };
   }, [refreshTick]);
 
-  const hasFilter = search.trim() !== '' || statusFilter !== '' || sourceFilter !== '';
+  const hasFilter = search.trim() !== '' || quickFilter !== 'all';
 
   const filtered = useMemo(() => {
     const q = norm(search.trim());
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const cutoff = thirtyDaysAgo.toISOString();
     return customers.filter((c) => {
       if (q) {
         const hit =
@@ -198,22 +198,21 @@ export default function CustomersPage() {
           norm(c.landlinePhone ?? '').includes(q);
         if (!hit) return false;
       }
-      if (statusFilter && c.status !== statusFilter) return false;
-      if (sourceFilter && c.source !== sourceFilter) return false;
+      if (quickFilter === 'attention' && c.status !== 'follow_up_needed') return false;
+      if (quickFilter === 'new' && c.createdAt < cutoff) return false;
       return true;
     });
-  }, [customers, search, statusFilter, sourceFilter]);
+  }, [customers, search, quickFilter]);
 
   function clearFilters() {
     setSearch('');
-    setStatusFilter('');
-    setSourceFilter('');
+    setQuickFilter('all');
   }
 
   // Loading skeleton
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
         <div className="space-y-1.5">
           <div className="h-3 w-16 rounded-full bg-zinc-200" />
           <div className="h-7 w-56 rounded-full bg-zinc-200" />
@@ -233,7 +232,7 @@ export default function CustomersPage() {
   // No session
   if (message === 'no_session') {
     return (
-      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
         <div>
           <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
           <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Ποιος χρειάζεται προσοχή;</h1>
@@ -254,7 +253,7 @@ export default function CustomersPage() {
   // Fetch error
   if (message === 'fetch_error') {
     return (
-      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+      <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
         <div>
           <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
           <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Ποιος χρειάζεται προσοχή;</h1>
@@ -281,7 +280,7 @@ export default function CustomersPage() {
 
   // Main view
   return (
-    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+    <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
 
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
@@ -331,15 +330,15 @@ export default function CustomersPage() {
           )}
         </div>
 
-        {/* Quick status chips */}
-        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-0.5">
+        {/* Filter chips */}
+        <div className="mt-3 flex flex-wrap gap-2">
           {QUICK_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
-              onClick={() => setStatusFilter(f.value as CustomerStatus | '')}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition ${
-                statusFilter === f.value
+              onClick={() => setQuickFilter(f.value)}
+              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+                quickFilter === f.value
                   ? 'bg-indigo-600 text-white'
                   : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
               }`}
@@ -348,22 +347,6 @@ export default function CustomersPage() {
             </button>
           ))}
         </div>
-
-        {/* Source select - compact */}
-        {customers.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-zinc-100">
-            <select
-              value={sourceFilter}
-              onChange={(e) => setSourceFilter(e.target.value as CustomerSource | '')}
-              className="w-full bg-transparent text-xs text-zinc-500 outline-none"
-            >
-              <option value="">Όλες οι πηγές</option>
-              {(Object.entries(SOURCE_LABELS) as [CustomerSource, string][]).map(([v, l]) => (
-                <option key={v} value={v}>{l}</option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* Summary strip */}
@@ -396,13 +379,13 @@ export default function CustomersPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
+          <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν πελάτες.</p>
           <p className="mt-1 text-sm text-zinc-400">
-            Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό φίλτρων.
+            Δοκίμασε διαφορετικούς όρους ή άλλο φίλτρο.
           </p>
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {filtered.map((customer) => {
             const initial = customer.name.trim().slice(0, 1).toUpperCase() || 'Π';
             return (
@@ -412,22 +395,24 @@ export default function CustomersPage() {
                   className="flex items-start gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-50"
                 >
                   {/* Avatar */}
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-base font-bold text-indigo-600">
                     {initial}
                   </div>
                   {/* Info */}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-[15px] font-semibold leading-snug text-zinc-900 truncate">
+                      <p className="text-base font-bold leading-snug text-zinc-900 truncate">
                         {customer.name}
                       </p>
                       <ChevronRight />
                     </div>
-                    {customer.companyName && (
-                      <p className="text-xs text-zinc-400 truncate">{customer.companyName}</p>
+                    {(customer.companyName || customer.phone) && (
+                      <p className="mt-0.5 text-sm text-zinc-400 truncate">
+                        {customer.companyName || customer.phone}
+                      </p>
                     )}
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${STATUS_CHIP[customer.status]}`}>
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CHIP[customer.status]}`}>
                         {STATUS_LABELS[customer.status]}
                       </span>
                     </div>

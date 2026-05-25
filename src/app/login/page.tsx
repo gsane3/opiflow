@@ -1,100 +1,119 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { loadState, saveState } from '@/lib/storage';
-import type { UserProfile } from '@/lib/types';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [error, setError] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const state = loadState();
-    if (state.userProfile?.onboardingCompleted) {
-      router.replace('/dashboard');
-    } else if (state.userProfile) {
-      router.replace('/onboarding');
-    }
-  }, [router]);
-
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim() || !email.trim()) {
-      setError('Συμπλήρωσε όνομα και email για να συνεχίσεις.');
+    setError(null);
+
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !password) {
+      setError('Δεν μπορέσαμε να σε συνδέσουμε. Έλεγξε τα στοιχεία και δοκίμασε ξανά.');
       return;
     }
-    const userProfile: UserProfile = {
-      id: crypto.randomUUID(),
-      name: name.trim(),
-      email: email.trim(),
-      createdAt: new Date().toISOString(),
-      onboardingCompleted: false,
-    };
-    saveState({ userProfile });
-    router.push('/onboarding');
+
+    setLoading(true);
+
+    let supabase: ReturnType<typeof createBrowserSupabaseClient>;
+    try {
+      supabase = createBrowserSupabaseClient();
+    } catch {
+      setError('Η σύνδεση δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκίμασε ξανά.');
+      setLoading(false);
+      return;
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: trimmedEmail,
+      password,
+    });
+
+    setLoading(false);
+
+    if (signInError) {
+      setError('Δεν μπορέσαμε να σε συνδέσουμε. Έλεγξε τα στοιχεία και δοκίμασε ξανά.');
+      return;
+    }
+
+    router.push('/dashboard');
   }
 
   return (
-    <div className="flex min-h-full flex-col items-center justify-center px-4 py-12">
-      <div className="mb-8 text-center">
-        <h1 className="text-2xl font-bold text-zinc-900">yorgos.ai</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Μίλα. Το app οργανώνει τα υπόλοιπα.
+    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 p-8">
+        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Σύνδεση</h1>
+        <p className="text-sm text-zinc-500 mb-6">
+          Συνδέσου με email και κωδικό.
         </p>
-      </div>
 
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100">
-        <div className="mb-4 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          Demo MVP — Δεν απαιτείται πραγματικός λογαριασμός.
-        </div>
-
-        <h2 className="mb-5 text-base font-semibold text-zinc-900">Καλώς ήρθες</h2>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
-              Ονοματεπώνυμο
-            </label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => { setName(e.target.value); setError(''); }}
-              placeholder="π.χ. Γιώργος Παπαδόπουλος"
-              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-              autoComplete="name"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-zinc-700">
+            <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1">
               Email
             </label>
             <input
+              id="email"
               type="email"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(''); }}
-              placeholder="π.χ. info@example.gr"
-              className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+              required
               autoComplete="email"
+              value={email}
+              onChange={(e) => { setEmail(e.target.value); setError(null); }}
+              placeholder="you@example.com"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-1">
+              Κωδικός
+            </label>
+            <input
+              id="password"
+              type="password"
+              required
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => { setPassword(e.target.value); setError(null); }}
+              placeholder="Κωδικός"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-xl bg-red-50 border border-red-200 p-3 text-red-700 text-sm">
+              {error}
+            </div>
+          )}
+
           <button
             type="submit"
-            className="mt-1 w-full rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+            disabled={loading}
+            className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 transition-colors"
           >
-            Συνέχεια
+            {loading ? 'Σύνδεση...' : 'Σύνδεση'}
           </button>
         </form>
-      </div>
 
-      <p className="mt-6 max-w-xs text-center text-xs text-zinc-400">
-        Τα δεδομένα αποθηκεύονται τοπικά στον browser.
-        <br />
-        Η τελική νομική συμμόρφωση πρέπει να ελεγχθεί πριν από παραγωγική χρήση.
-      </p>
-    </div>
+        <p className="mt-6 text-center text-sm text-zinc-500">
+          Δεν έχεις λογαριασμό;{' '}
+          <Link
+            href="/register"
+            className="font-semibold text-indigo-600 hover:text-indigo-700 transition"
+          >
+            Δημιουργία λογαριασμού
+          </Link>
+        </p>
+      </div>
+    </main>
   );
 }

@@ -9,28 +9,21 @@ import { norm } from '@/lib/search';
 import TaskCard from '@/components/tasks/TaskCard';
 import TaskForm from '@/components/tasks/TaskForm';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
-import PageHelp from '@/components/common/PageHelp';
 
-type TabId = 'due_today' | 'upcoming' | 'overdue' | 'completed';
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+type TabId = 'all' | 'due_today' | 'overdue' | 'completed';
 
 const TAB_LABELS: Record<TabId, string> = {
-  overdue: 'Εκπρόθεσμα',
+  all: 'Όλα',
   due_today: 'Σήμερα',
-  upcoming: 'Επερχόμενα',
+  overdue: 'Εκπρόθεσμα',
   completed: 'Ολοκληρωμένα',
 };
 
-const TAB_ORDER: TabId[] = ['due_today', 'upcoming', 'overdue', 'completed'];
-
-const EMPTY_STATES: Record<TabId, string> = {
-  overdue: 'Δεν υπάρχουν εκπρόθεσμα tasks.',
-  due_today: 'Δεν έχεις ανοιχτά tasks για σήμερα.',
-  upcoming: 'Δεν υπάρχουν επερχόμενα tasks.',
-  completed: 'Δεν υπάρχουν ολοκληρωμένα tasks.',
-};
-
-const selCls =
-  'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
+const TAB_ORDER: TabId[] = ['all', 'due_today', 'overdue', 'completed'];
 
 // DTO shapes from backend API
 interface TaskDto {
@@ -114,13 +107,43 @@ function sanitizeWriteStatus(status: string): 'open' | 'completed' | 'cancelled'
   return 'open';
 }
 
+function fmtDue(dueDate: string, dueTime?: string): string {
+  try {
+    const d = new Date(dueDate + (dueTime ? `T${dueTime}` : 'T00:00'));
+    return (
+      d.toLocaleDateString('el-GR', { day: 'numeric', month: 'short' }) +
+      (dueTime ? ` ${dueTime.slice(0, 5)}` : '')
+    );
+  } catch {
+    return dueDate;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
+
+function PriorityDot({ priority }: { priority: TaskPriority }) {
+  const color =
+    priority === 'high'
+      ? 'bg-red-500'
+      : priority === 'low'
+      ? 'bg-green-400'
+      : 'bg-zinc-300';
+  return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`} />;
+}
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default function TasksPage() {
   const [hydrated, setHydrated] = useState(false);
   const [noSession, setNoSession] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [activeTab, setActiveTab] = useState<TabId>('due_today');
+  const [activeTab, setActiveTab] = useState<TabId>('all');
   const [showForm, setShowForm] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
@@ -181,7 +204,7 @@ export default function TasksPage() {
               ? 'overdue'
               : eff === 'due_today'
               ? 'due_today'
-              : 'upcoming';
+              : 'all';
         }
       }
 
@@ -263,12 +286,12 @@ export default function TasksPage() {
   );
 
   const tabCounts = useMemo(() => {
-    const counts: Record<TabId, number> = { due_today: 0, upcoming: 0, overdue: 0, completed: 0 };
+    const counts: Record<TabId, number> = { all: 0, due_today: 0, overdue: 0, completed: 0 };
     for (const t of tasks) {
       const eff = getEffectiveStatus(t);
-      if (eff === 'due_today') counts.due_today++;
-      else if (eff === 'upcoming') counts.upcoming++;
-      else if (eff === 'overdue') counts.overdue++;
+      if (eff === 'due_today') { counts.due_today++; counts.all++; }
+      else if (eff === 'upcoming') { counts.all++; }
+      else if (eff === 'overdue') { counts.overdue++; counts.all++; }
       else if (eff === 'completed' || eff === 'cancelled') counts.completed++;
     }
     return counts;
@@ -278,10 +301,14 @@ export default function TasksPage() {
     const q = norm(taskSearch.trim());
     return tasks.filter((t) => {
       const eff = getEffectiveStatus(t);
-      const inTab =
-        activeTab === 'completed'
-          ? eff === 'completed' || eff === 'cancelled'
-          : eff === activeTab;
+      let inTab: boolean;
+      if (activeTab === 'all') {
+        inTab = eff !== 'completed' && eff !== 'cancelled';
+      } else if (activeTab === 'completed') {
+        inTab = eff === 'completed' || eff === 'cancelled';
+      } else {
+        inTab = eff === activeTab;
+      }
       if (!inTab) return false;
 
       if (q) {
@@ -299,6 +326,21 @@ export default function TasksPage() {
       return true;
     });
   }, [tasks, activeTab, taskSearch, priorityFilter, typeFilter, customerMap]);
+
+  // Pick the most important open task for the focus card.
+  const focusTask = useMemo(() => {
+    const open = tasks.filter((t) => {
+      const eff = getEffectiveStatus(t);
+      return eff !== 'completed' && eff !== 'cancelled';
+    });
+    const overdue = open.filter((t) => getEffectiveStatus(t) === 'overdue');
+    if (overdue.length > 0) return overdue[0];
+    const high = open.filter((t) => t.priority === 'high');
+    if (high.length > 0) return high[0];
+    const today = open.filter((t) => getEffectiveStatus(t) === 'due_today');
+    if (today.length > 0) return today[0];
+    return open[0] ?? null;
+  }, [tasks]);
 
   function clearTaskFilters() {
     setTaskSearch('');
@@ -414,48 +456,28 @@ export default function TasksPage() {
     setShowForm(true);
   }
 
-  // Skeleton shown during initial load - no data-derived content to avoid hydration mismatch.
+  // ---------------------------------------------------------------------------
+  // Loading / error / no-session states
+  // ---------------------------------------------------------------------------
+
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-          <h1 className="text-lg font-semibold text-zinc-900">Tasks</h1>
-          <button
-            type="button"
-            className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
-          >
-            + Νέο task
-          </button>
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm text-zinc-400">Φόρτωση tasks...</p>
         </div>
-        <div className="mb-3 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
-          {TAB_ORDER.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                tab === 'due_today'
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-zinc-100 text-zinc-600'
-              }`}
-            >
-              {TAB_LABELS[tab]}
-            </button>
-          ))}
-        </div>
-        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση tasks...</p>
       </div>
     );
   }
 
   if (noSession) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Tasks</h1>
-        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τα tasks.</p>
           <Link
             href="/login/backend"
-            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            className="inline-block rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
             Σύνδεση
           </Link>
@@ -466,9 +488,8 @@ export default function TasksPage() {
 
   if (fetchError) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Tasks</h1>
-        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           <button
             type="button"
@@ -479,7 +500,7 @@ export default function TasksPage() {
                 loadData(token);
               }
             }}
-            className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            className="inline-block rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
           >
             Δοκίμασε ξανά
           </button>
@@ -488,38 +509,29 @@ export default function TasksPage() {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Render
+  // ---------------------------------------------------------------------------
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5">
-      <div className="mb-4">
-        <PageHelp title="Τι βλέπω εδώ;">
-          <p className="text-sm text-zinc-600">
-            Εδώ βλέπεις όλες τις εκκρεμότητες. Άνοιξε ένα task ή πάτα Ολοκλήρωση.
-          </p>
-          <ul className="space-y-1 mt-1">
-            {[
-              'Πάτα «Ολοκλήρωση» για να κλείσεις ένα task.',
-              'Πάτα «Περισσότερα» για αναβολή, επεξεργασία ή ακύρωση.',
-              'Τα tasks από AI εμφανίζονται αυτόματα μετά από κάθε κλήση.',
-            ].map((t) => (
-              <li key={t} className="flex items-start gap-2 text-xs text-zinc-500">
-                <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />
-                {t}
-              </li>
-            ))}
-          </ul>
-        </PageHelp>
-      </div>
+    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
 
       {/* Header */}
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-lg font-semibold text-zinc-900">Tasks</h1>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium text-zinc-400">Tasks</p>
+          <h1 className="mt-0.5 text-2xl font-bold text-zinc-900">Τι πρέπει να γίνει;</h1>
+          <p className="mt-1 text-sm text-zinc-500">
+            Οι εκκρεμότητες που χρειάζονται προσοχή σήμερα.
+          </p>
+        </div>
         <button
           type="button"
           onClick={showForm && !editingTask ? handleCancelForm : openNewForm}
-          className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
+          className={`mt-1 shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
             showForm && !editingTask
               ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
-              : 'bg-indigo-600 text-white hover:bg-indigo-700'
+              : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
           }`}
         >
           {showForm && !editingTask ? 'Ακύρωση' : '+ Νέο task'}
@@ -528,7 +540,7 @@ export default function TasksPage() {
 
       {/* Create / edit form */}
       {showForm && (
-        <div className="mb-5">
+        <div className="rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
           <TaskForm
             initial={editingTask ?? undefined}
             customers={customers}
@@ -540,7 +552,7 @@ export default function TasksPage() {
 
       {/* Focus banner - shown when arriving from dashboard with a taskId param */}
       {focusedTask && (
-        <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl bg-indigo-50 px-4 py-3 ring-1 ring-indigo-200">
+        <div className="flex items-center justify-between gap-3 rounded-[28px] bg-indigo-50 px-5 py-4 ring-1 ring-indigo-100">
           <div className="min-w-0">
             <p className="text-xs font-medium text-indigo-600">Άνοιξες task από το dashboard</p>
             <p className="truncate text-sm font-semibold text-indigo-900">{focusedTask.title}</p>
@@ -548,62 +560,170 @@ export default function TasksPage() {
           <button
             type="button"
             onClick={clearFocusedTask}
-            className="shrink-0 rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
+            className="shrink-0 rounded-full border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
           >
-            Καθαρισμός εστίασης
+            Κλείσιμο
           </button>
         </div>
       )}
 
-      {/* Tabs - counts based on all tasks, unaffected by search/filter */}
-      <div className="mb-3 -mx-4 flex gap-1 overflow-x-auto px-4 pb-1">
-        {TAB_ORDER.map((tab) => {
-          const count = tabCounts[tab];
-          const active = tab === activeTab;
-          return (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveTab(tab)}
-              className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition ${
-                active
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
-              }`}
-            >
-              {TAB_LABELS[tab]}
-              {count > 0 && (
-                <span
-                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
-                    active
-                      ? 'bg-white/20 text-white'
-                      : tab === 'overdue'
-                      ? 'bg-red-100 text-red-700'
-                      : 'bg-zinc-200 text-zinc-600'
-                  }`}
+      {/* Primary focus card */}
+      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+        <p className="text-xs font-medium text-zinc-400">Επόμενη ενέργεια</p>
+        {focusTask ? (
+          <div className="mt-2">
+            <div className="flex items-start gap-2.5">
+              <div className="mt-1 shrink-0">
+                <PriorityDot priority={focusTask.priority} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-semibold leading-snug text-zinc-900">
+                  {focusTask.title}
+                </p>
+                {focusTask.customerId && customerMap[focusTask.customerId] && (
+                  <p className="mt-0.5 text-xs text-zinc-400">
+                    {customerMap[focusTask.customerId]}
+                  </p>
+                )}
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  {fmtDue(focusTask.dueDate, focusTask.dueTime)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 flex gap-2">
+              {focusTask.customerId ? (
+                <Link
+                  href={`/customers/${focusTask.customerId}?focusTask=${focusTask.id}`}
+                  className="rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
                 >
-                  {count}
-                </span>
+                  Άνοιγμα
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const eff = getEffectiveStatus(focusTask);
+                    setActiveTab(
+                      eff === 'completed' || eff === 'cancelled'
+                        ? 'completed'
+                        : eff === 'overdue'
+                        ? 'overdue'
+                        : eff === 'due_today'
+                        ? 'due_today'
+                        : 'all'
+                    );
+                    const el = document.getElementById(`task-${focusTask.id}`);
+                    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  }}
+                  className="rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                >
+                  Άνοιγμα
+                </button>
               )}
-            </button>
-          );
-        })}
+              <button
+                type="button"
+                onClick={() => handleComplete(focusTask.id)}
+                className="rounded-full border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Ολοκλήρωση
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-2 text-sm text-zinc-500">Χωρίς επείγουσες εκκρεμότητες.</p>
+        )}
       </div>
 
-      {/* Search + filters within active tab */}
-      <div className="mb-4 space-y-2">
-        <input
-          type="search"
-          value={taskSearch}
-          onChange={(e) => setTaskSearch(e.target.value)}
-          placeholder="Αναζήτηση τίτλου, σημείωσης, πελάτη..."
-          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
-        />
+      {/* Summary strip */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: 'Σήμερα', count: tabCounts.due_today, urgent: false },
+          {
+            label: 'Εκπρόθεσμα',
+            count: tabCounts.overdue,
+            urgent: tabCounts.overdue > 0,
+          },
+          { label: 'Ανοιχτά', count: tabCounts.all, urgent: false },
+        ].map(({ label, count, urgent }) => (
+          <div
+            key={label}
+            className="rounded-[28px] bg-white px-3 py-3 text-center shadow-sm ring-1 ring-zinc-200/60"
+          >
+            <p className={`text-xl font-bold ${urgent ? 'text-red-600' : 'text-zinc-900'}`}>
+              {count}
+            </p>
+            <p className="mt-0.5 text-[11px] text-zinc-400">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {/* Filter chips + search */}
+      <div className="space-y-3">
+        {/* Tab chips */}
+        <div className="flex flex-wrap gap-2">
+          {TAB_ORDER.map((tab) => {
+            const isActive = tab === activeTab;
+            const count = tabCounts[tab];
+            return (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:ring-indigo-300'
+                }`}
+              >
+                {TAB_LABELS[tab]}
+                {count > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold leading-none ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : tab === 'overdue'
+                        ? 'bg-red-50 text-red-600'
+                        : 'bg-zinc-100 text-zinc-500'
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Search */}
+        <div className="flex items-center gap-3 rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
+          <svg
+            className="h-4 w-4 shrink-0 text-zinc-400"
+            fill="none"
+            strokeWidth={1.5}
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+            />
+          </svg>
+          <input
+            type="search"
+            value={taskSearch}
+            onChange={(e) => setTaskSearch(e.target.value)}
+            placeholder="Αναζήτηση τίτλου, σημείωσης, πελάτη..."
+            className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+          />
+        </div>
+
+        {/* Priority + type selects */}
         <div className="flex flex-wrap gap-2">
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value as TaskPriority | '')}
-            className={selCls}
+            className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
           >
             <option value="">Όλες οι προτεραιότητες</option>
             {(Object.entries(TASK_PRIORITY_LABELS) as [TaskPriority, string][]).map(([v, l]) => (
@@ -613,7 +733,7 @@ export default function TasksPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as TaskType | '')}
-            className={selCls}
+            className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
           >
             <option value="">Όλοι οι τύποι</option>
             {(Object.entries(TASK_TYPE_LABELS) as [TaskType, string][]).map(([v, l]) => (
@@ -624,7 +744,7 @@ export default function TasksPage() {
             <button
               type="button"
               onClick={clearTaskFilters}
-              className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+              className="rounded-2xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
             >
               Καθαρισμός
             </button>
@@ -634,41 +754,57 @@ export default function TasksPage() {
 
       {/* Task list */}
       {filteredTasks.length === 0 ? (
-        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
-          <p className="text-sm font-medium text-zinc-500">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm font-medium text-zinc-700">
             {hasTaskFilter
-              ? 'Δεν βρέθηκαν αποτελέσματα για αυτά τα φίλτρα.'
+              ? 'Δεν βρέθηκαν αποτελέσματα.'
               : tasks.length === 0
-              ? 'Δεν υπάρχουν ακόμα tasks. Όταν ολοκληρωθεί η πρώτη κλήση, τα προτεινόμενα tasks θα εμφανιστούν εδώ.'
-              : EMPTY_STATES[activeTab]}
+              ? 'Δεν υπάρχουν tasks.'
+              : activeTab === 'overdue'
+              ? 'Δεν υπάρχουν εκπρόθεσμα tasks.'
+              : activeTab === 'due_today'
+              ? 'Δεν έχεις ανοιχτά tasks για σήμερα.'
+              : activeTab === 'completed'
+              ? 'Δεν υπάρχουν ολοκληρωμένα tasks.'
+              : 'Δεν υπάρχουν tasks.'}
           </p>
-          {!hasTaskFilter && activeTab !== 'completed' && tasks.length > 0 && (
-            <p className="mt-1 text-sm text-zinc-400">
-              Πρόσθεσε task με το κουμπί + παραπάνω.
+          {tasks.length === 0 && !hasTaskFilter && (
+            <p className="mt-1.5 text-sm text-zinc-400">
+              Όταν δημιουργούνται εργασίες από κλήσεις ή AI εντολές, θα εμφανίζονται εδώ.
             </p>
           )}
           {hasTaskFilter && (
             <button
               type="button"
               onClick={clearTaskFilters}
-              className="mt-3 rounded-xl bg-white px-4 py-2 text-sm font-medium text-zinc-600 ring-1 ring-zinc-200 transition hover:ring-indigo-300"
+              className="mt-3 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:ring-1 hover:ring-indigo-300"
             >
               Καθαρισμός φίλτρων
             </button>
           )}
         </div>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {filteredTasks.map((task) => (
             <li
               key={task.id}
               id={`task-${task.id}`}
               className={
                 task.id === focusedTaskId
-                  ? 'rounded-2xl outline outline-2 outline-offset-2 outline-indigo-400'
+                  ? 'rounded-[28px] outline outline-2 outline-offset-2 outline-indigo-400'
                   : ''
               }
             >
+              {task.customerId && (
+                <div className="mb-1.5 flex justify-end px-1">
+                  <Link
+                    href={`/customers/${task.customerId}?focusTask=${task.id}`}
+                    className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-600 ring-1 ring-indigo-100 transition hover:bg-indigo-100"
+                  >
+                    Άνοιγμα στον πελάτη
+                  </Link>
+                </div>
+              )}
               <TaskCard
                 task={task}
                 customerName={task.customerId ? customerMap[task.customerId] : undefined}
@@ -681,6 +817,7 @@ export default function TasksPage() {
           ))}
         </ul>
       )}
+
     </div>
   );
 }

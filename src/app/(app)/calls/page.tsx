@@ -23,7 +23,6 @@ const CALL_DIRECTION_LABEL: Record<string, string> = {
   outbound: 'Εξερχόμενη',
 };
 
-// Backend communication shape from /api/communications.
 interface BackendCallCustomer {
   id: string;
   crmNumber: string | null;
@@ -46,35 +45,6 @@ interface BackendCall {
   customer: BackendCallCustomer | null;
 }
 
-interface SmsTemplate {
-  key: string;
-  label: string;
-  text: string;
-}
-
-const SMS_TEMPLATES: SmsTemplate[] = [
-  {
-    key: 'info_request',
-    label: 'Ζήτηση στοιχείων',
-    text: 'Καλησπέρα, για να προχωρήσουμε παρακαλώ στείλτε ονοματεπώνυμο, εταιρεία αν υπάρχει, email, διεύθυνση και λίγα λόγια για αυτό που χρειάζεστε.',
-  },
-  {
-    key: 'follow_up',
-    label: 'Follow-up μετά από κλήση',
-    text: 'Καλησπέρα, σας ευχαριστώ για την επικοινωνία. Ετοιμάζω την προσφορά και θα σας ενημερώσω σύντομα.',
-  },
-  {
-    key: 'reminder',
-    label: 'Υπενθύμιση',
-    text: 'Καλησπέρα, θέλω να σας υπενθυμίσω ότι αναμένω τα στοιχεία σας για να προχωρήσουμε. Παραμένω στη διάθεσή σας.',
-  },
-  {
-    key: 'offer',
-    label: 'Αποστολή προσφοράς',
-    text: 'Καλησπέρα, σας αποστέλλω την προσφορά μας. Για οποιαδήποτε διευκρίνιση είμαι στη διάθεσή σας.',
-  },
-];
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -92,7 +62,6 @@ function fmtDate(iso: string): string {
   }
 }
 
-// Map backend customer API response to the local Customer type.
 function mapCustomer(d: Record<string, unknown>): Customer {
   const now = new Date().toISOString();
   return {
@@ -124,22 +93,132 @@ function mapCustomer(d: Record<string, unknown>): Customer {
 
 function PhoneIcon({ className }: { className?: string }) {
   return (
-    <svg className={className ?? 'h-5 w-5'} fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+    <svg
+      className={className ?? 'h-5 w-5'}
+      fill="none"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
+      />
     </svg>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Recent Tab
+// Call detail modal
+// ---------------------------------------------------------------------------
+
+function CallDetailModal({
+  call,
+  onClose,
+}: {
+  call: BackendCall;
+  onClose: () => void;
+}) {
+  const displayName =
+    call.customer?.name ??
+    call.customer?.companyName ??
+    (call.phone ? `****${call.phone.slice(-4)}` : null) ??
+    'Αγνωστος';
+  const isMissed = call.status === 'missed';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+      onClick={onClose}
+    >
+      <div
+        className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-base font-semibold text-zinc-900">Λεπτομέρειες κλήσης</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+            aria-label="Κλείσιμο"
+          >
+            <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Caller info */}
+        <div className="mt-4 flex items-start gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+            <PhoneIcon className="h-5 w-5 text-indigo-500" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-lg font-bold leading-snug text-zinc-900">{displayName}</p>
+            {call.customer?.companyName && call.customer.companyName !== displayName && (
+              <p className="text-xs text-zinc-400">{call.customer.companyName}</p>
+            )}
+            <p className="mt-0.5 text-xs text-zinc-400">{fmtDate(call.createdAt)}</p>
+          </div>
+        </div>
+
+        {/* Status chips */}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">
+            {CALL_DIRECTION_LABEL[call.direction] ?? call.direction}
+          </span>
+          {isMissed && (
+            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+              Αναπάντητη
+            </span>
+          )}
+        </div>
+
+        {/* Summary / brief, shown only in modal */}
+        {call.summary && (
+          <div className="mt-4 rounded-2xl bg-zinc-50 px-4 py-3">
+            <p className="mb-1.5 text-xs font-medium text-zinc-500">Περίληψη κλήσης</p>
+            <p className="text-sm leading-relaxed text-zinc-700">{call.summary}</p>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="mt-5 flex flex-col gap-2">
+          {call.customerId && (
+            <Link
+              href={`/customers/${call.customerId}`}
+              onClick={onClose}
+              className="flex items-center justify-center rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            >
+              Άνοιγμα πελάτη
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+          >
+            Κλείσιμο
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Recent Tab, clean iPhone-style call cards
 // ---------------------------------------------------------------------------
 
 function RecentTab({
   calls,
-  onSwitchToSms,
+  onSelect,
 }: {
   calls: BackendCall[];
-  onSwitchToSms: () => void;
+  onSelect: (call: BackendCall) => void;
 }) {
   const sorted = [...calls].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20);
 
@@ -151,14 +230,14 @@ function RecentTab({
         </div>
         <p className="text-sm font-medium text-zinc-700">Δεν υπάρχουν κλήσεις ακόμα.</p>
         <p className="mt-1.5 text-sm text-zinc-400">
-          Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ με σύντομο brief.
+          Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ.
         </p>
       </div>
     );
   }
 
   return (
-    <ul className="space-y-3">
+    <ul className="space-y-2">
       {sorted.map((call) => {
         const linkedCustomer = call.customer;
         const displayName =
@@ -169,30 +248,44 @@ function RecentTab({
         const isMissed = call.status === 'missed';
         const isUnknown = !linkedCustomer?.name && !linkedCustomer?.companyName;
         const initial = displayName.charAt(0).toUpperCase();
+
         return (
-          <li key={call.id} className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-            <div className="flex items-start gap-3">
+          <li key={call.id}>
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => onSelect(call)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') onSelect(call);
+              }}
+              className="flex w-full cursor-pointer items-start gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-100/60"
+            >
               {/* Avatar */}
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
                 {isUnknown ? (
                   <PhoneIcon className="h-4 w-4 text-indigo-500" />
                 ) : (
                   initial
                 )}
               </div>
+
               {/* Content */}
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <p className="text-[15px] font-semibold leading-snug text-zinc-900 truncate">
+                  <p className="truncate text-[15px] font-semibold leading-snug text-zinc-900">
                     {displayName}
                   </p>
-                  <span className="shrink-0 text-[10px] text-zinc-400 whitespace-nowrap">{fmtDate(call.createdAt)}</span>
+                  <span className="shrink-0 whitespace-nowrap text-[10px] text-zinc-400">
+                    {fmtDate(call.createdAt)}
+                  </span>
                 </div>
+
                 {linkedCustomer?.companyName && linkedCustomer.companyName !== displayName && (
-                  <p className="text-xs text-zinc-400 truncate">{linkedCustomer.companyName}</p>
+                  <p className="truncate text-xs text-zinc-400">{linkedCustomer.companyName}</p>
                 )}
-                <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                  <span className="text-xs text-zinc-500">
+
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-zinc-400">
                     {CALL_DIRECTION_LABEL[call.direction] ?? call.direction}
                   </span>
                   {isMissed && (
@@ -200,32 +293,22 @@ function RecentTab({
                       Αναπάντητη
                     </span>
                   )}
-                  {call.summary && (
-                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-600 ring-1 ring-indigo-100">
-                      Σύνοψη
-                    </span>
-                  )}
                 </div>
-                {call.summary && (
-                  <p className="mt-1.5 text-xs text-zinc-500 line-clamp-2">{call.summary}</p>
-                )}
-                {/* Quick actions */}
-                <div className="mt-2.5 flex flex-wrap gap-2">
+
+                {/* Discreet signal + customer link */}
+                <div className="mt-1.5 flex items-center justify-between gap-2">
+                  {linkedCustomer && (
+                    <span className="text-[10px] text-zinc-300">Έχει συνδεδεμένο πελάτη</span>
+                  )}
                   {call.customerId && (
                     <Link
                       href={`/customers/${call.customerId}`}
-                      className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                      onClick={(e) => e.stopPropagation()}
+                      className="shrink-0 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[10px] font-medium text-indigo-600 transition hover:bg-indigo-100"
                     >
                       Άνοιγμα πελάτη
                     </Link>
                   )}
-                  <button
-                    type="button"
-                    onClick={onSwitchToSms}
-                    className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    SMS
-                  </button>
                 </div>
               </div>
             </div>
@@ -242,10 +325,10 @@ function RecentTab({
 
 function CustomersTab({
   customers,
-  onSwitchToSms,
+  onNewSms,
 }: {
   customers: Customer[];
-  onSwitchToSms: (customer: Customer) => void;
+  onNewSms: (customer: Customer) => void;
 }) {
   const [search, setSearch] = useState('');
 
@@ -283,30 +366,36 @@ function CustomersTab({
             {search.trim() ? 'Δεν βρέθηκαν αποτελέσματα.' : 'Δεν υπάρχουν πελάτες ακόμα.'}
           </p>
           {!search.trim() && (
-            <Link href="/customers" className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700">
+            <Link
+              href="/customers"
+              className="mt-3 inline-block text-sm font-medium text-indigo-600 hover:text-indigo-700"
+            >
               Πήγαινε στους Πελάτες
             </Link>
           )}
         </div>
       ) : (
-        <ul className="space-y-3">
+        <ul className="space-y-2">
           {filtered.slice(0, 20).map((c) => {
             const initial = c.name.charAt(0).toUpperCase();
             return (
-              <li key={c.id} className="flex items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+              <li
+                key={c.id}
+                className="flex items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60"
+              >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
                   {initial}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[15px] font-semibold text-zinc-900 truncate">{c.name}</p>
-                  <p className="text-xs text-zinc-400 truncate">
+                  <p className="truncate text-[15px] font-semibold text-zinc-900">{c.name}</p>
+                  <p className="truncate text-xs text-zinc-400">
                     {[c.companyName, c.phone].filter(Boolean).join(' · ') || 'Χωρίς στοιχεία'}
                   </p>
                 </div>
                 <div className="flex shrink-0 gap-1.5">
                   <button
                     type="button"
-                    onClick={() => onSwitchToSms(c)}
+                    onClick={() => onNewSms(c)}
                     className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100 transition hover:bg-indigo-100"
                     title="SMS"
                   >
@@ -334,22 +423,107 @@ function CustomersTab({
 }
 
 // ---------------------------------------------------------------------------
-// SMS Tab
+// SMS Tab, UI-only threads view
 // ---------------------------------------------------------------------------
 
-function SmsTab({ preselectedCustomer, customers }: { preselectedCustomer: Customer | null; customers: Customer[] }) {
+function SmsTab({
+  customers,
+  onNewSms,
+}: {
+  customers: Customer[];
+  onNewSms: () => void;
+}) {
+  const withPhone = customers.filter((c) => c.phone && c.phone.trim().length > 0);
+
+  return (
+    <div className="space-y-4">
+      {/* Header card */}
+      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-base font-bold text-zinc-900">Μηνύματα</p>
+            <p className="mt-0.5 text-xs text-zinc-400">Νήματα πελατών και πρόχειρα μηνύματα.</p>
+          </div>
+          <button
+            type="button"
+            onClick={onNewSms}
+            className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Νέο μήνυμα
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-zinc-400">
+          Τα SMS θα ενεργοποιηθούν όταν συνδεθεί πάροχος μηνυμάτων.
+        </p>
+      </div>
+
+      {/* Thread list */}
+      {withPhone.length === 0 ? (
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm font-medium text-zinc-700">Δεν υπάρχουν νήματα ακόμα.</p>
+          <p className="mt-1.5 text-xs text-zinc-400">
+            Όταν συνδεθεί πάροχος μηνυμάτων, τα SMS θα εμφανίζονται εδώ.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {withPhone.slice(0, 20).map((c) => {
+            const initial = c.name.charAt(0).toUpperCase();
+            return (
+              <li
+                key={c.id}
+                className="flex items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
+                  {initial}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="truncate text-[15px] font-semibold leading-snug text-zinc-900">
+                      {c.name}
+                    </p>
+                    <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
+                      Προς σύνδεση
+                    </span>
+                  </div>
+                  <p className="mt-0.5 truncate text-xs text-zinc-400">
+                    Δεν υπάρχει μήνυμα ακόμα.
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// New SMS modal, UI-only, copy to clipboard
+// ---------------------------------------------------------------------------
+
+function NewSmsModal({
+  customers,
+  preselectedCustomer,
+  onClose,
+}: {
+  customers: Customer[];
+  preselectedCustomer: Customer | null;
+  onClose: () => void;
+}) {
+  const [search, setSearch] = useState(preselectedCustomer?.name ?? '');
   const [selectedCustomerId, setSelectedCustomerId] = useState(preselectedCustomer?.id ?? '');
-  const [templateKey, setTemplateKey] = useState(SMS_TEMPLATES[0].key);
-  const [customText, setCustomText] = useState('');
+  const [message, setMessage] = useState('');
   const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const template = SMS_TEMPLATES.find((t) => t.key === templateKey) ?? SMS_TEMPLATES[0];
-  const smsText = customText || template.text;
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId) ?? preselectedCustomer;
-
   function handleCopy() {
-    navigator.clipboard.writeText(smsText).then(() => {
+    if (!message.trim()) return;
+    navigator.clipboard.writeText(message).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
     }).catch(() => {
@@ -362,115 +536,130 @@ function SmsTab({ preselectedCustomer, customers }: { preselectedCustomer: Custo
     });
   }
 
-  function pickTemplate(key: string) {
-    setTemplateKey(key);
-    setCustomText('');
-  }
+  const showDropdown = search.trim().length > 0 && !selectedCustomerId;
+  const filtered = showDropdown
+    ? customers.filter((c) => {
+        const q = norm(search.trim());
+        return norm(c.name).includes(q) || norm(c.phone ?? '').includes(q);
+      })
+    : [];
 
   return (
-    <div className="space-y-4">
-      {/* Disclaimer */}
-      <div className="rounded-[28px] bg-zinc-50 px-5 py-4 ring-1 ring-zinc-200/60">
-        <p className="text-sm text-zinc-500">
-          Το μήνυμα αντιγράφεται για να το στείλεις εσύ χειροκίνητα.
-        </p>
-      </div>
-
-      {/* Customer picker */}
-      {customers.length > 0 && (
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 space-y-2">
-          <label className="block text-xs font-medium text-zinc-500">
-            Πελάτης (προαιρετικό)
-          </label>
-          <select
-            value={selectedCustomerId}
-            onChange={(e) => setSelectedCustomerId(e.target.value)}
-            className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+      onClick={onClose}
+    >
+      <div
+        className="mx-4 w-full max-w-md rounded-[28px] bg-white shadow-2xl ring-1 ring-zinc-200/60"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-5 pb-3 pt-5">
+          <p className="text-base font-semibold text-zinc-900">Νέο μήνυμα</p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+            aria-label="Κλείσιμο"
           >
-            <option value=""> Χωρίς πελάτη </option>
-            {customers.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}{c.phone ? ` · ${c.phone}` : ''}</option>
-            ))}
-          </select>
-          {selectedCustomer?.phone && (
-            <p className="text-xs text-zinc-400">Προς: {selectedCustomer.phone}</p>
-          )}
+            <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-      )}
 
-      {/* Template picker */}
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
-        <p className="text-xs font-medium text-zinc-500">Πρότυπο</p>
-        <div className="grid grid-cols-2 gap-2">
-          {SMS_TEMPLATES.map((t) => (
+        <div className="space-y-4 px-5 pb-5">
+          {/* Customer search */}
+          <div className="relative space-y-1.5">
+            <label className="block text-xs font-medium text-zinc-500">
+              Αναζήτηση πελάτη ή κινητού
+            </label>
+            <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
+              <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+              </svg>
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setSelectedCustomerId('');
+                }}
+                placeholder="Όνομα ή αριθμός..."
+                className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+              />
+            </div>
+            {showDropdown && filtered.length > 0 && (
+              <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-40 overflow-y-auto rounded-2xl border border-zinc-100 bg-white shadow-lg">
+                {filtered.slice(0, 6).map((c) => (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCustomerId(c.id);
+                        setSearch(c.name);
+                      }}
+                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-zinc-800 transition hover:bg-zinc-50"
+                    >
+                      <span className="flex-1 truncate">{c.name}</span>
+                      {c.phone && (
+                        <span className="shrink-0 text-xs text-zinc-400">{c.phone}</span>
+                      )}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          {/* Message */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-zinc-500">Μήνυμα</label>
+            <textarea
+              ref={textareaRef}
+              rows={4}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Γράψε το μήνυμα εδώ..."
+              className="w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+            />
+          </div>
+
+          {/* Notice */}
+          <p className="text-[11px] text-zinc-400">Δεν στάλθηκε μήνυμα από την εφαρμογή.</p>
+
+          {/* Actions */}
+          <div className="flex gap-2">
             <button
-              key={t.key}
               type="button"
-              onClick={() => pickTemplate(t.key)}
-              className={`rounded-2xl px-3 py-2.5 text-left text-xs font-medium transition ${
-                templateKey === t.key
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-zinc-50 text-zinc-700 ring-1 ring-zinc-200 hover:ring-indigo-300'
+              onClick={handleCopy}
+              disabled={!message.trim()}
+              className={`flex-1 rounded-2xl py-2.5 text-sm font-semibold transition ${
+                copied
+                  ? 'bg-green-600 text-white'
+                  : message.trim()
+                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
+                  : 'cursor-not-allowed bg-zinc-100 text-zinc-400'
               }`}
             >
-              {t.label}
+              {copied ? 'Αντιγράφηκε' : 'Αντιγραφή'}
             </button>
-          ))}
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-2xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Κλείσιμο
+            </button>
+          </div>
         </div>
       </div>
-
-      {/* Message preview / edit */}
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 space-y-2">
-        <label className="block text-xs font-medium text-zinc-500">
-          Μήνυμα
-        </label>
-        <textarea
-          ref={textareaRef}
-          rows={5}
-          value={customText || template.text}
-          onChange={(e) => setCustomText(e.target.value)}
-          className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 outline-none resize-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
-        />
-        {customText && (
-          <button type="button" onClick={() => setCustomText('')}
-            className="text-xs text-zinc-400 hover:text-zinc-600 transition">
-            Επαναφορά προτύπου
-          </button>
-        )}
-      </div>
-
-      {/* Copy button */}
-      <button
-        type="button"
-        onClick={handleCopy}
-        className={`flex w-full items-center justify-center gap-2 rounded-[28px] py-3.5 text-sm font-semibold transition ${
-          copied
-            ? 'bg-green-600 text-white'
-            : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
-        }`}
-      >
-        {copied ? (
-          <>
-            <svg className="h-4 w-4" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-            </svg>
-            Αντιγράφηκε
-          </>
-        ) : (
-          <>
-            <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 0 1-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 0 1 1.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 0 0-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 0 1-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 0 0-3.375-3.375h-1.5a1.125 1.125 0 0 1-1.125-1.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H9.75" />
-            </svg>
-            Αντιγραφή SMS
-          </>
-        )}
-      </button>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Numpad Panel (bottom sheet)
+// Numpad panel, centered modal, not bottom sheet
 // ---------------------------------------------------------------------------
 
 const DIAL_KEYS = [
@@ -499,98 +688,97 @@ function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
   if (!open) return null;
 
   return (
-    <>
-      {/* Backdrop */}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+      onClick={closePanel}
+    >
       <div
-        className="fixed inset-0 z-40 bg-black/20"
-        aria-hidden="true"
-        onClick={closePanel}
-      />
-      {/* Panel */}
-      <div className="fixed inset-x-0 bottom-0 z-50">
-        <div className="mx-auto max-w-md rounded-t-[28px] bg-white px-5 pt-4 pb-8 shadow-2xl ring-1 ring-zinc-200/60">
-          {/* Drag handle */}
-          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-zinc-200" />
-          {/* Header */}
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-base font-bold text-zinc-900">Πληκτρολόγιο</p>
-              <p className="mt-0.5 text-xs text-zinc-400">
-                Πληκτρολόγησε αριθμό για αναζήτηση ή μελλοντική κλήση.
-              </p>
-            </div>
+        className="mx-4 w-full max-w-sm rounded-[28px] bg-white px-5 pb-6 pt-5 shadow-2xl ring-1 ring-zinc-200/60"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <p className="text-base font-bold text-zinc-900">Πληκτρολόγιο</p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Πληκτρολόγησε αριθμό για αναζήτηση ή μελλοντική κλήση.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={closePanel}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+            aria-label="Κλείσιμο"
+          >
+            <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Number display */}
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
+          <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900">
+            {dialNumber || (
+              <span className="text-base font-normal text-zinc-400">Αριθμός ή αναζήτηση</span>
+            )}
+          </span>
+          {dialNumber && (
             <button
               type="button"
-              onClick={closePanel}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
-              aria-label="Κλείσιμο"
+              onClick={backspace}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-200"
+              aria-label="Διαγραφή"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />
               </svg>
             </button>
-          </div>
-          {/* Number display */}
-          <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
-            <span className="flex-1 text-center text-2xl font-light tracking-widest text-zinc-900 min-h-[2rem]">
-              {dialNumber || (
-                <span className="text-base font-normal text-zinc-400">Αριθμός ή αναζήτηση</span>
-              )}
-            </span>
-            {dialNumber && (
-              <button
-                type="button"
-                onClick={backspace}
-                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-200"
-                aria-label="Διαγραφή"
-              >
-                <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />
-                </svg>
-              </button>
-            )}
-          </div>
-          {/* Search hint */}
-          {dialNumber && (
-            <p className="mb-3 text-center text-xs text-zinc-400">
-              Θα χρησιμοποιηθεί για αναζήτηση πελάτη ή κλήση όταν συνδεθεί.
-            </p>
           )}
-          {/* Key grid */}
-          <div className="mb-4 grid grid-cols-3 gap-2">
-            {DIAL_KEYS.flat().map((key) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => press(key)}
-                className="flex h-14 items-center justify-center rounded-2xl bg-zinc-50 text-xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200"
-              >
-                {key}
-              </button>
-            ))}
-          </div>
-          {/* Actions */}
-          <div className="flex gap-2">
-            {dialNumber && (
-              <button
-                type="button"
-                onClick={() => setDialNumber('')}
-                className="flex-1 rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-              >
-                Καθαρισμός
-              </button>
-            )}
+        </div>
+
+        {/* Search hint */}
+        {dialNumber && (
+          <p className="mb-3 text-center text-xs text-zinc-400">
+            Θα χρησιμοποιηθεί για αναζήτηση πελάτη ή κλήση όταν συνδεθεί.
+          </p>
+        )}
+
+        {/* Key grid */}
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {DIAL_KEYS.flat().map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => press(key)}
+              className="flex h-14 items-center justify-center rounded-2xl bg-zinc-50 text-xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200"
+            >
+              {key}
+            </button>
+          ))}
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          {dialNumber && (
             <button
               type="button"
-              onClick={closePanel}
-              className="flex-1 rounded-[28px] bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
+              onClick={() => setDialNumber('')}
+              className="flex-1 rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
             >
-              Κλείσιμο
+              Καθαρισμός
             </button>
-          </div>
+          )}
+          <button
+            type="button"
+            onClick={closePanel}
+            className="flex-1 rounded-[28px] bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
+          >
+            Κλείσιμο
+          </button>
         </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -605,8 +793,10 @@ export default function CallsPage() {
   const [tab, setTab] = useState<Tab>('recent');
   const [calls, setCalls] = useState<BackendCall[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
-  const [smsPreselect, setSmsPreselect] = useState<Customer | null>(null);
   const [numpadOpen, setNumpadOpen] = useState(false);
+  const [selectedCall, setSelectedCall] = useState<BackendCall | null>(null);
+  const [newSmsOpen, setNewSmsOpen] = useState(false);
+  const [newSmsCustomer, setNewSmsCustomer] = useState<Customer | null>(null);
   const tokenRef = useRef<string | null>(null);
 
   const loadData = useCallback(async (token: string) => {
@@ -667,9 +857,14 @@ export default function CallsPage() {
     init();
   }, [loadData]);
 
-  function switchToSms(customer?: Customer) {
-    if (customer) setSmsPreselect(customer);
-    setTab('sms');
+  function openNewSms(customer?: Customer) {
+    setNewSmsCustomer(customer ?? null);
+    setNewSmsOpen(true);
+  }
+
+  function closeNewSms() {
+    setNewSmsOpen(false);
+    setNewSmsCustomer(null);
   }
 
   if (!hydrated) {
@@ -682,14 +877,15 @@ export default function CallsPage() {
     );
   }
 
-  const latestCall = calls.length > 0
-    ? [...calls].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
-    : null;
+  const latestCall =
+    calls.length > 0
+      ? [...calls].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
+      : null;
 
   const missedCount = calls.filter((c) => c.status === 'missed').length;
 
   return (
-    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
 
       {/* Error banner */}
       {actionError && (
@@ -756,7 +952,7 @@ export default function CallsPage() {
             <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-zinc-700">Δεν υπάρχουν κλήσεις ακόμα.</p>
               <p className="mt-0.5 text-xs text-zinc-400">
-                Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ με σύντομο brief.
+                Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ.
               </p>
             </div>
           </div>
@@ -783,24 +979,15 @@ export default function CallsPage() {
 
       {/* Tab content */}
       {tab === 'recent' && (
-        <RecentTab
-          calls={calls}
-          onSwitchToSms={() => switchToSms()}
-        />
+        <RecentTab calls={calls} onSelect={setSelectedCall} />
       )}
 
       {tab === 'customers' && (
-        <CustomersTab
-          customers={customers}
-          onSwitchToSms={(c) => switchToSms(c)}
-        />
+        <CustomersTab customers={customers} onNewSms={(c) => openNewSms(c)} />
       )}
 
       {tab === 'sms' && (
-        <SmsTab
-          preselectedCustomer={smsPreselect}
-          customers={customers}
-        />
+        <SmsTab customers={customers} onNewSms={() => openNewSms()} />
       )}
 
       {/* Floating numpad launcher */}
@@ -823,8 +1010,22 @@ export default function CallsPage() {
         </svg>
       </button>
 
-      {/* Numpad bottom sheet */}
+      {/* Numpad modal */}
       <NumpadPanel open={numpadOpen} onClose={() => setNumpadOpen(false)} />
+
+      {/* Call detail modal */}
+      {selectedCall && (
+        <CallDetailModal call={selectedCall} onClose={() => setSelectedCall(null)} />
+      )}
+
+      {/* New SMS modal */}
+      {newSmsOpen && (
+        <NewSmsModal
+          customers={customers}
+          preselectedCustomer={newSmsCustomer}
+          onClose={closeNewSms}
+        />
+      )}
 
     </div>
   );

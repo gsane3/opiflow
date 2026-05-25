@@ -55,7 +55,7 @@ export default function SettingsPage() {
     setTimeout(() => setSaved(false), 2500);
   }
 
-  // ── Render helpers (not components, no hooks) ────────────────────────────────
+  // Render helpers (not components, no hooks)
 
   function renderBusiness() {
     return <BusinessForm profile={profile} onChange={setProfile} onSave={handleSave} saved={saved} />;
@@ -78,14 +78,14 @@ export default function SettingsPage() {
             { label: 'Viber', desc: 'Αντιγραφή κειμένου για αποστολή από Viber.' },
             { label: 'Email', desc: 'Αντιγραφή draft για αποστολή από email client.' },
           ].map(p => (
-            <div key={p.label} className="rounded-xl bg-white px-4 py-3 ring-1 ring-zinc-100 space-y-1">
+            <div key={p.label} className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60 space-y-1">
               <p className="text-sm font-medium text-zinc-800">{p.label}</p>
               <p className="text-xs text-zinc-400">{p.desc}</p>
             </div>
           ))}
         </div>
 
-        <div className="rounded-xl bg-zinc-50 px-4 py-3 text-xs text-zinc-500 ring-1 ring-zinc-100 space-y-1">
+        <div className="rounded-[28px] bg-white px-4 py-3 text-xs text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 space-y-1">
           <p>Σήμερα, η αποστολή email λειτουργεί μόνο όταν είναι ρυθμισμένο το υπάρχον email endpoint. Αν δεν είναι ρυθμισμένο, χρησιμοποιείς αντιγραφή email draft και αποστολή από το δικό σου email client.</p>
           <p>Η αποστολή από δικό σου επαγγελματικό domain είναι μελλοντική λειτουργία.</p>
         </div>
@@ -109,7 +109,7 @@ export default function SettingsPage() {
               helper: 'Απαιτεί cloud backend και σύνδεση με API κάθε πλατφόρμας.',
             },
           ].map(p => (
-            <div key={p.label} className="rounded-xl bg-white px-4 py-3 ring-1 ring-zinc-100 space-y-1">
+            <div key={p.label} className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60 space-y-1">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-zinc-800">{p.label}</span>
                 <span className="rounded bg-indigo-50 px-2 py-0.5 text-xs text-indigo-600">Σύντομα</span>
@@ -124,24 +124,26 @@ export default function SettingsPage() {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────────
+  // Settings content
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <div className="mb-6">
-          <h1 className="text-xl font-bold text-zinc-900">Ρυθμίσεις</h1>
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Λογαριασμός</p>
+        <h1 className="mb-6 text-xl font-bold text-zinc-900">Ρυθμίσεις</h1>
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm text-zinc-400">Φόρτωση ρυθμίσεων...</p>
         </div>
-        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση ρυθμίσεων...</p>
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5">
+    <div className="mx-auto max-w-md px-5 pt-6 pb-28">
       {activeSection === null ? (
         <>
           <div className="mb-6">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Λογαριασμός</p>
             <h1 className="text-xl font-bold text-zinc-900">Ρυθμίσεις</h1>
           </div>
           <div className="space-y-2">
@@ -173,8 +175,8 @@ export default function SettingsPage() {
                 key={id}
                 type="button"
                 onClick={() => setActiveSection(id)}
-                className={`flex w-full items-center gap-4 rounded-2xl bg-white p-4 shadow-sm ring-1 transition active:bg-zinc-50 ${
-                  danger ? 'ring-red-100 hover:ring-red-200' : 'ring-zinc-100 hover:ring-indigo-200'
+                className={`flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 transition active:bg-zinc-50 ${
+                  danger ? 'ring-red-100 hover:ring-red-200' : 'ring-zinc-200/60 hover:ring-indigo-200'
                 }`}
               >
                 <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${bg}`}>

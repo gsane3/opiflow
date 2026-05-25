@@ -73,10 +73,10 @@ export default function LoginBackendPage() {
 
   return (
     <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm ring-1 ring-zinc-100 p-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Σύνδεση backend λογαριασμού</h1>
+      <div className="w-full max-w-md bg-white rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 p-8">
+        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Σύνδεση</h1>
         <p className="text-sm text-zinc-500 mb-6">
-          Αυτή η σελίδα δοκιμάζει το πραγματικό Supabase Auth. Δεν αντικαθιστά ακόμα το demo MVP login.
+          Χρησιμοποίησε email και κωδικό για να συνδεθείς.
         </p>
 
         {success ? (

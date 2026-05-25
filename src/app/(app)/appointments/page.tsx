@@ -678,8 +678,10 @@ export default function AppointmentsPage() {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-10 text-center">
-        <p className="text-sm text-zinc-400">Φόρτωση ραντεβού...</p>
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm text-zinc-400">Φόρτωση ραντεβού...</p>
+        </div>
       </div>
     );
   }
@@ -690,9 +692,10 @@ export default function AppointmentsPage() {
 
   if (noSession) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Ραντεβού</h1>
-        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900">Ραντεβού</h1>
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τα ραντεβού.</p>
           <Link
             href="/login/backend"
@@ -711,9 +714,10 @@ export default function AppointmentsPage() {
 
   if (fetchError) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Ραντεβού</h1>
-        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900">Ραντεβού</h1>
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           <button
             type="button"
@@ -757,7 +761,7 @@ export default function AppointmentsPage() {
     const selCustomer = getAppointmentCustomer(selectedAppointment);
     const selRespInfo = getAppointmentResponseInfo(selectedAppointment.note ?? '');
     return (
-      <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+      <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
         <div>
           <button
             type="button"
@@ -767,7 +771,10 @@ export default function AppointmentsPage() {
             ← Πίσω στα ραντεβού
           </button>
           <div className="flex items-center justify-between gap-3">
-            <h1 className="text-lg font-semibold text-zinc-900">Στοιχεία ραντεβού</h1>
+            <div>
+              <p className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ραντεβού</p>
+              <h1 className="text-xl font-bold text-zinc-900">Στοιχεία ραντεβού</h1>
+            </div>
             <button
               type="button"
               disabled={refreshing}
@@ -781,7 +788,7 @@ export default function AppointmentsPage() {
             <p className="mt-1 text-xs text-red-600">{refreshError}</p>
           )}
         </div>
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
           <p className="text-base font-semibold text-zinc-900">{selectedAppointment.title}</p>
           <div className="space-y-1">
             <p className="text-sm text-zinc-600">
@@ -797,7 +804,7 @@ export default function AppointmentsPage() {
           </div>
         </div>
         {/* Customer response review */}
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
           <div className="flex items-center gap-2">
             <p className="text-sm font-semibold text-zinc-800">Απάντηση από πελάτη</p>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${selRespInfo.cls}`}>
@@ -864,10 +871,10 @@ export default function AppointmentsPage() {
         </div>
         {/* Customer notification draft */}
         {notificationDraft && notificationDraftTaskId === selectedAppointment.id && (
-          <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+          <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
             <p className="text-sm font-semibold text-zinc-800">Ενημέρωση πελάτη</p>
             <p className="text-xs text-zinc-500">
-              Δεν στάλθηκε αυτόματα. Αντιγράψτε το μήνυμα και στείλτε το από το κανάλι που χρησιμοποιείτε.
+              Αντιγράψτε το παρακάτω μήνυμα και στείλτε το από το κανάλι που χρησιμοποιείτε.
             </p>
             <p className="rounded-xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700 whitespace-pre-wrap">
               {notificationDraft}
@@ -903,11 +910,11 @@ export default function AppointmentsPage() {
           </div>
         )}
         {/* Delivery draft card */}
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-3">
+        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
           <p className="text-sm font-semibold text-zinc-800">Αποστολή στον πελάτη</p>
           {deliveryDraftMessage ? (
             <>
-              <p className="text-xs text-zinc-500">Έτοιμο μήνυμα</p>
+              <p className="text-xs text-zinc-500">Μήνυμα για αντιγραφή</p>
               <textarea
                 readOnly
                 rows={5}
@@ -941,7 +948,7 @@ export default function AppointmentsPage() {
           ) : (
             <>
               <p className="text-xs text-zinc-500">
-                Δημιουργεί έτοιμο μήνυμα για τον πελάτη. Δεν αποστέλλεται αυτόματα.
+                Δημιουργεί μήνυμα για τον πελάτη. Δεν αποστέλλεται από την εφαρμογή.
               </p>
               {deliveryDraftError && (
                 <p className="text-xs text-red-600">Δεν δημιουργήθηκε μήνυμα. Δοκίμασε ξανά.</p>
@@ -971,14 +978,12 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h1 className="text-lg font-semibold text-zinc-900">Ραντεβού</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
-            Πρόγραμμα ραντεβού και επισκέψεων πελατών.
-          </p>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
+          <h1 className="text-xl font-bold text-zinc-900">Ραντεβού</h1>
         </div>
         {!formOpen && (
           <button
@@ -993,7 +998,7 @@ export default function AppointmentsPage() {
 
       {/* Inline creation form */}
       {formOpen && (
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-indigo-200 space-y-4">
+        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-indigo-200 space-y-4">
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-zinc-800">Νέο ραντεβού</p>
             <button type="button" onClick={closeForm} className="text-xs text-zinc-400 hover:text-zinc-600 transition">
@@ -1094,7 +1099,7 @@ export default function AppointmentsPage() {
 
       {/* Creation success */}
       {justCreated && !formOpen && proposalTaskId && (
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-green-200 space-y-3">
+        <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-green-200 space-y-3">
           <p className="text-sm font-medium text-green-800">Το ραντεβού δημιουργήθηκε.</p>
           <p className="text-xs text-zinc-500">Ο πελάτης δεν έχει ειδοποιηθεί ακόμα.</p>
           <button
@@ -1112,14 +1117,14 @@ export default function AppointmentsPage() {
 
       {/* Cancellation result */}
       {cancelResult && (
-        <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-200 space-y-2">
+        <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200 space-y-2">
           <p className="text-sm font-medium text-zinc-800">Το ραντεβού ακυρώθηκε.</p>
           <p className="text-xs text-zinc-500">Ενημερώστε τον πελάτη χειροκίνητα αν χρειάζεται.</p>
         </div>
       )}
 
       {/* No calendar integration notice */}
-      <div className="rounded-xl bg-zinc-50 px-4 py-2.5 ring-1 ring-zinc-200">
+      <div className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
         <p className="text-xs text-zinc-500">
           Εσωτερικό πρόγραμμα ραντεβού. Δεν έχει συνδεθεί εξωτερικό ημερολόγιο.
         </p>
@@ -1127,7 +1132,7 @@ export default function AppointmentsPage() {
 
       {/* Empty state */}
       {!hasAny && (
-        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm font-medium text-zinc-600">
             Δεν υπάρχουν ακόμα ραντεβού. Δημιούργησε ένα ραντεβού για πελάτη ή άφησε το AI να προτείνει επόμενο βήμα μετά από κλήση.
           </p>
@@ -1151,7 +1156,7 @@ export default function AppointmentsPage() {
                 return (
                   <li
                     key={task.id}
-                    className={`rounded-2xl ring-1 ${key === 'overdue' ? 'bg-red-50 ring-red-200' : 'bg-white ring-zinc-100 shadow-sm'}`}
+                    className="rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60"
                   >
                     {cancellingTaskId === task.id ? (
                       <div className="p-4 space-y-3">

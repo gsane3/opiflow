@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 // ---------------------------------------------------------------------------
@@ -268,8 +268,10 @@ type TimelineItem =
 export default function CustomerDetailPage() {
   const params = useParams<{ id: string }>();
   const customerId = params.id;
+  const searchParams = useSearchParams();
 
   const [pageState, setPageState] = useState<PageState>('loading');
+  const [focusTaskId, setFocusTaskId] = useState<string | null>(() => searchParams.get('focusTask'));
   const [customer, setCustomer] = useState<CustomerDto | null>(null);
   const [communications, setCommunications] = useState<CommunicationDto[]>([]);
   const [tasks, setTasks] = useState<TaskDto[]>([]);
@@ -286,6 +288,27 @@ export default function CustomerDetailPage() {
   const [rejectSaveState, setRejectSaveState] = useState<'idle' | 'copying' | 'saving' | 'saved' | 'error'>('idle');
   const [rejectSaveError, setRejectSaveError] = useState<string | null>(null);
   const [rejectCopyMessage, setRejectCopyMessage] = useState<string | null>(null);
+
+  type QuickModal = 'message' | 'file' | 'task' | 'appointment' | 'offer' | null;
+  const [quickModal, setQuickModal] = useState<QuickModal>(null);
+  const [msgDraft, setMsgDraft] = useState('');
+  const [msgCopied, setMsgCopied] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskDate, setTaskDate] = useState('');
+  const [taskNote, setTaskNote] = useState('');
+  const [taskSaving, setTaskSaving] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
+
+  const [apptTitle, setApptTitle] = useState('');
+  const [apptDate, setApptDate] = useState('');
+  const [apptTime, setApptTime] = useState('');
+  const [apptNote, setApptNote] = useState('');
+
+  const [offerTitle, setOfferTitle] = useState('');
+  const [offerAmount, setOfferAmount] = useState('');
+  const [offerNote, setOfferNote] = useState('');
+
+  const [selectedCall, setSelectedCall] = useState<CommunicationDto | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -351,14 +374,19 @@ export default function CustomerDetailPage() {
     return () => { cancelled = true; };
   }, [customerId, refreshTick]);
 
+  // Scroll to focused task after data loads.
+  useEffect(() => {
+    if (pageState !== 'loaded' || !focusTaskId) return;
+    const timer = setTimeout(() => {
+      const el = document.getElementById(`task-${focusTaskId}`);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [pageState, focusTaskId]);
+
   // ---------------------------------------------------------------------------
   // Derived data
   // ---------------------------------------------------------------------------
-
-  const aiBriefComm = useMemo(
-    () => communications.find(c => c.summary?.startsWith('AI brief')) ?? null,
-    [communications]
-  );
 
   const draftTask = useMemo(
     () => tasks.find(t => t.status === 'ai_draft') ?? null,
@@ -409,6 +437,18 @@ export default function CustomerDetailPage() {
         return (a.dueTime ?? '').localeCompare(b.dueTime ?? '');
       }),
     [tasks]
+  );
+
+  const pendingOffer = useMemo(
+    () => sortedOffers.find(o =>
+      ['draft', 'ready_to_send', 'sent_manually', 'sent_provider'].includes(o.status)
+    ) ?? null,
+    [sortedOffers]
+  );
+
+  const openAppointment = useMemo(
+    () => appointmentTasks.find(t => t.status === 'open') ?? null,
+    [appointmentTasks]
   );
 
   // ---------------------------------------------------------------------------
@@ -553,6 +593,37 @@ export default function CustomerDetailPage() {
   }
 
   // ---------------------------------------------------------------------------
+  // Quick modal helpers
+  // ---------------------------------------------------------------------------
+
+  function closeQuickModal() {
+    setQuickModal(null);
+    setMsgDraft('');
+    setMsgCopied(false);
+    setTaskTitle('');
+    setTaskDate('');
+    setTaskNote('');
+    setTaskSaving(false);
+    setTaskError(null);
+    setApptTitle('');
+    setApptDate('');
+    setApptTime('');
+    setApptNote('');
+    setOfferTitle('');
+    setOfferAmount('');
+    setOfferNote('');
+  }
+
+  async function copyMsgDraft() {
+    try {
+      await navigator.clipboard.writeText(msgDraft);
+      setMsgCopied(true);
+    } catch {
+      setMsgCopied(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Loading
   // ---------------------------------------------------------------------------
   if (pageState === 'loading') {
@@ -612,7 +683,7 @@ export default function CustomerDetailPage() {
   const intakeLabel = INTAKE_LABELS[customer.intakeStatus] ?? '';
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 px-4 py-5">
+    <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 py-5">
 
       {/* Back nav */}
       <div className="flex items-center gap-2 text-sm">
@@ -974,18 +1045,26 @@ export default function CustomerDetailPage() {
           )}
         </section>
 
-        {/* AI brief card */}
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-          <h2 className="mb-0.5 text-sm font-semibold text-zinc-900">AI Brief</h2>
-          <p className="mb-3 text-xs text-zinc-400">Περίληψη από την τελευταία κλήση.</p>
-          {aiBriefComm?.summary ? (
+        {/* Latest call card */}
+        <section
+          className={`rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 ${callComms[0] ? 'cursor-pointer transition hover:ring-indigo-200' : ''}`}
+          onClick={callComms[0] ? () => setSelectedCall(callComms[0]) : undefined}
+        >
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-zinc-900">Τελευταία κλήση</h2>
+            {callComms[0] && (
+              <span className="text-xs text-zinc-400">{formatDateShort(callComms[0].createdAt)}</span>
+            )}
+          </div>
+          {callComms[0]?.summary ? (
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
-              {aiBriefComm.summary}
+              {callComms[0].summary.replace(/^AI brief[:\s]*/i, '')}
             </p>
           ) : (
-            <p className="text-sm text-zinc-400">
-              Δεν υπάρχει ακόμα AI brief από κλήση.
-            </p>
+            <p className="text-sm text-zinc-400">Χωρίς περίληψη κλήσης ακόμα.</p>
+          )}
+          {callComms[0] && (
+            <p className="mt-2 text-[10px] text-indigo-400">Πάτα για λεπτομέρειες</p>
           )}
         </section>
       </div>
@@ -1002,7 +1081,7 @@ export default function CustomerDetailPage() {
           <h2 className={`text-xs font-semibold uppercase tracking-wide ${
             draftTask ? 'text-amber-600' : openTasks.length > 0 ? 'text-indigo-600' : 'text-zinc-400'
           }`}>
-            Επόμενη καλύτερη ενέργεια
+            Επόμενο βήμα
           </h2>
           <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
             draftTask
@@ -1011,7 +1090,7 @@ export default function CustomerDetailPage() {
               ? 'bg-indigo-100 text-indigo-700'
               : 'bg-zinc-100 text-zinc-500'
           }`}>
-            {draftTask ? 'Χρειάζεται έλεγχος' : openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : 'Χωρίς εκκρεμότητες'}
+            {draftTask ? 'Χρειάζεται έλεγχος' : openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : (pendingOffer || openAppointment) ? 'Εκκρεμεί' : 'Χωρίς εκκρεμότητες'}
           </span>
         </div>
         {draftTask ? (
@@ -1045,16 +1124,88 @@ export default function CustomerDetailPage() {
               <p className="text-xs text-indigo-600">+{openTasks.length - 2} ακόμα...</p>
             )}
           </div>
-        ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-zinc-400">Δεν υπάρχουν εκκρεμείς ενέργειες αυτή τη στιγμή.</p>
-            <ul className="list-inside list-disc space-y-1 text-xs text-zinc-400">
-              <li>Αν υπάρχει ανοιχτό ραντεβού, έλεγξε την απάντηση πελάτη.</li>
-              <li>Αν υπάρχει ανοιχτή προσφορά, προγραμμάτισε follow-up.</li>
-              <li>Αν υπάρχει πρόσφατη κλήση, έλεγξε το brief και δημιούργησε task.</li>
-            </ul>
+        ) : pendingOffer ? (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-zinc-400">Προσφορά</p>
+            <p className="text-sm font-semibold text-zinc-800">{pendingOffer.offerNumber}</p>
+            <p className="text-xs text-zinc-500">
+              {OFFER_STATUS_LABELS[pendingOffer.status] ?? pendingOffer.status}
+              {' · '}
+              {formatMoney(pendingOffer.total)}
+            </p>
           </div>
+        ) : openAppointment ? (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-zinc-400">Ραντεβού</p>
+            <p className="text-sm font-semibold text-zinc-800">{openAppointment.title}</p>
+            <p className="text-xs text-zinc-500">
+              {openAppointment.dueDate}
+              {openAppointment.dueTime ? ` ${openAppointment.dueTime}` : ''}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-400">Δεν υπάρχει επείγουσα ενέργεια.</p>
         )}
+      </section>
+
+      {/* Quick actions */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+          Γρήγορες ενέργειες
+        </h2>
+        <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
+          <button
+            type="button"
+            onClick={() => setQuickModal('task')}
+            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            Νέο task
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickModal('appointment')}
+            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            Ραντεβού
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickModal('offer')}
+            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            Προσφορά
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickModal('message')}
+            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            Μήνυμα
+          </button>
+          {(customer.phone || customer.mobilePhone || customer.landlinePhone) ? (
+            <a
+              href={`tel:${customer.phone || customer.mobilePhone || customer.landlinePhone}`}
+              className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+            >
+              Κλήση
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-300 ring-1 ring-zinc-200/40 cursor-not-allowed"
+            >
+              Κλήση
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setQuickModal('file')}
+            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            Αρχείο
+          </button>
+        </div>
       </section>
 
       {/* A. Timeline */}
@@ -1078,7 +1229,11 @@ export default function CustomerDetailPage() {
           <ul className="divide-y divide-zinc-100">
             {timeline.map(entry =>
               entry.kind === 'comm' ? (
-                <li key={`c-${entry.item.id}`} className="flex items-start gap-3 px-4 py-3">
+                <li
+                  key={`c-${entry.item.id}`}
+                  className={`flex items-start gap-3 px-4 py-3 ${entry.item.channel === 'call' ? 'cursor-pointer transition hover:bg-indigo-50/50 active:bg-indigo-50' : ''}`}
+                  onClick={entry.item.channel === 'call' ? () => setSelectedCall(entry.item) : undefined}
+                >
                   <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
                     entry.item.channel === 'call' ? 'bg-indigo-500' : 'bg-blue-500'
                   }`} />
@@ -1096,8 +1251,11 @@ export default function CustomerDetailPage() {
                     </p>
                     {entry.item.summary?.startsWith('AI brief') && (
                       <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
-                        {truncate(entry.item.summary, 180)}
+                        {truncate(entry.item.summary.replace(/^AI brief[:\s]*/i, ''), 180)}
                       </p>
+                    )}
+                    {entry.item.channel === 'call' && (
+                      <p className="text-[10px] text-indigo-400">Πάτα για λεπτομέρειες</p>
                     )}
                   </div>
                 </li>
@@ -1140,7 +1298,7 @@ export default function CustomerDetailPage() {
                   </span>
                 )}
               </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Κλήσεις, AI briefs και επόμενα βήματα.</p>
+              <p className="mt-0.5 text-xs text-zinc-400">Κλήσεις, περιλήψεις και επόμενα βήματα.</p>
             </div>
             <Link
               href="/calls"
@@ -1206,6 +1364,18 @@ export default function CustomerDetailPage() {
             </Link>
           </div>
         </div>
+        {focusTaskId && (
+          <div className="flex items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-4 py-2.5">
+            <p className="text-xs font-medium text-indigo-700">Άνοιξες task από τα Tasks</p>
+            <button
+              type="button"
+              onClick={() => setFocusTaskId(null)}
+              className="shrink-0 rounded-full border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
+            >
+              Κλείσιμο
+            </button>
+          </div>
+        )}
         {sortedTasks.length === 0 ? (
           <p className="px-4 py-5 text-sm text-zinc-400">
             Δεν υπάρχουν tasks ακόμα.
@@ -1213,7 +1383,13 @@ export default function CustomerDetailPage() {
         ) : (
           <ul className="divide-y divide-zinc-100">
             {sortedTasks.map(t => (
-              <li key={t.id} className="flex items-start gap-3 px-4 py-3">
+              <li
+                key={t.id}
+                id={`task-${t.id}`}
+                className={`flex items-start gap-3 px-4 py-3 transition-colors${
+                  t.id === focusTaskId ? ' bg-indigo-50/60 ring-2 ring-inset ring-indigo-200' : ''
+                }`}
+              >
                 <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
                 <div className="min-w-0 flex-1 space-y-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -1430,6 +1606,383 @@ export default function CustomerDetailPage() {
           Προετοιμασία draft
         </button>
       </section>
+
+      {/* Call details modal */}
+      {selectedCall !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={() => setSelectedCall(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-zinc-900">Λεπτομέρειες κλήσης</h2>
+              <button
+                type="button"
+                onClick={() => setSelectedCall(null)}
+                aria-label="Κλείσιμο"
+                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+              <span>{selectedCall.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'}</span>
+              {selectedCall.createdAt && (
+                <span>{formatDateFull(selectedCall.createdAt)}</span>
+              )}
+            </div>
+            <p className="mb-1.5 text-xs font-medium text-zinc-400">Περίληψη κλήσης</p>
+            {selectedCall.summary ? (
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
+                {selectedCall.summary.replace(/^AI brief[:\s]*/i, '')}
+              </p>
+            ) : (
+              <p className="text-sm text-zinc-400">Χωρίς περίληψη κλήσης ακόμα.</p>
+            )}
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSelectedCall(null)}
+                className="rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Κλείσιμο
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quick action modals */}
+      {quickModal !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={closeQuickModal}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+
+            {/* Message modal */}
+            {quickModal === 'message' && (
+              <>
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-zinc-900">Μήνυμα</h2>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    aria-label="Κλείσιμο"
+                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <label className="mb-1.5 block text-sm font-medium text-zinc-600">
+                  Μήνυμα
+                </label>
+                <textarea
+                  rows={5}
+                  value={msgDraft}
+                  onChange={e => { setMsgDraft(e.target.value); setMsgCopied(false); }}
+                  placeholder="Γράψε το μήνυμα εδώ..."
+                  className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+                {msgCopied && (
+                  <p className="mt-1.5 text-xs text-zinc-500">Αντιγράφηκε.</p>
+                )}
+                <p className="mt-2 text-xs text-zinc-400">
+                  Δεν στάλθηκε μήνυμα από την εφαρμογή.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={copyMsgDraft}
+                    disabled={!msgDraft.trim()}
+                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Αντιγραφή
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* File modal */}
+            {quickModal === 'file' && (
+              <>
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-zinc-900">Αρχεία πελάτη</h2>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    aria-label="Κλείσιμο"
+                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="mb-4 text-sm text-zinc-500">
+                  Τα αρχεία θα αποθηκεύονται όταν συνδεθεί χώρος αποθήκευσης.
+                </p>
+                <div className="space-y-2">
+                  {(['Φωτογραφίες', 'Βίντεο', 'Έγγραφα'] as const).map((label) => (
+                    <div
+                      key={label}
+                      className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200/60"
+                    >
+                      <span className="flex-1 text-sm font-medium text-zinc-600">{label}</span>
+                      <span className="text-xs text-zinc-400">0</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    className="rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Task modal */}
+            {quickModal === 'task' && (
+              <>
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-zinc-900">Νέο task</h2>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    aria-label="Κλείσιμο"
+                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
+                    <input
+                      type="text"
+                      value={taskTitle}
+                      onChange={e => setTaskTitle(e.target.value)}
+                      placeholder="Γράψε τι πρέπει να γίνει."
+                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
+                    <input
+                      type="date"
+                      value={taskDate}
+                      onChange={e => setTaskDate(e.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
+                    <textarea
+                      rows={3}
+                      value={taskNote}
+                      onChange={e => setTaskNote(e.target.value)}
+                      className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                </div>
+                {taskError && (
+                  <p className="mt-2 text-xs font-medium text-red-600">{taskError}</p>
+                )}
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    disabled={!taskTitle.trim() || taskSaving}
+                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {taskSaving ? 'Αποθηκεύεται...' : 'Αποθήκευση'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Appointment modal */}
+            {quickModal === 'appointment' && (
+              <>
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-zinc-900">Ραντεβού</h2>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    aria-label="Κλείσιμο"
+                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
+                    <input
+                      type="text"
+                      value={apptTitle}
+                      onChange={e => setApptTitle(e.target.value)}
+                      placeholder="π.χ. Συνάντηση αξιολόγησης"
+                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
+                    <input
+                      type="date"
+                      value={apptDate}
+                      onChange={e => setApptDate(e.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ώρα</label>
+                    <input
+                      type="time"
+                      value={apptTime}
+                      onChange={e => setApptTime(e.target.value)}
+                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
+                    <textarea
+                      rows={3}
+                      value={apptNote}
+                      onChange={e => setApptNote(e.target.value)}
+                      className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-zinc-400">
+                  Η αποστολή στον πελάτη θα γίνει σε επόμενο βήμα.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    disabled={!apptTitle.trim() || !apptDate || !apptTime}
+                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Συνέχεια
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Offer modal */}
+            {quickModal === 'offer' && (
+              <>
+                <div className="mb-4 flex items-center justify-between gap-2">
+                  <h2 className="text-base font-semibold text-zinc-900">Προσφορά</h2>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    aria-label="Κλείσιμο"
+                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
+                    <input
+                      type="text"
+                      value={offerTitle}
+                      onChange={e => setOfferTitle(e.target.value)}
+                      placeholder="π.χ. Προσφορά υπηρεσίας"
+                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ποσό</label>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={offerAmount}
+                      onChange={e => setOfferAmount(e.target.value)}
+                      placeholder="π.χ. 500"
+                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
+                    <textarea
+                      rows={3}
+                      value={offerNote}
+                      onChange={e => setOfferNote(e.target.value)}
+                      className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                    />
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-zinc-400">
+                  Η αποστολή στον πελάτη θα γίνει σε επόμενο βήμα.
+                </p>
+                <div className="mt-4 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    disabled={!offerTitle.trim()}
+                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Συνέχεια
+                  </button>
+                  <button
+                    type="button"
+                    onClick={closeQuickModal}
+                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+          </div>
+        </div>
+      )}
 
     </div>
   );

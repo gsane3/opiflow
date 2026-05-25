@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
-import QuickAssistantInput from '@/components/dashboard/QuickAssistantInput';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
 import AttentionInboxBar from '@/components/layout/AttentionInboxBar';
 
@@ -152,6 +151,35 @@ function FocusIcon({ tone }: { tone: FocusTone }) {
         d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
       />
     </svg>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  href,
+}: {
+  label: string;
+  value: number;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="flex flex-col justify-between gap-2 rounded-[28px] bg-white px-4 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
+    >
+      <span className="text-xs font-medium leading-snug text-zinc-500">{label}</span>
+      <div className="flex items-end justify-between">
+        <span
+          className={`text-3xl font-bold leading-none ${
+            value > 0 ? 'text-zinc-900' : 'text-zinc-300'
+          }`}
+        >
+          {value}
+        </span>
+        <ChevronRight />
+      </div>
+    </Link>
   );
 }
 
@@ -459,16 +487,28 @@ export default function DashboardPage() {
       }
     : null;
 
-  // Metric helpers
-  const overdueCount = urgentTasks.filter((t) => getEffectiveStatus(t) === 'overdue').length;
-  const readyToSendCount = openOffers.filter((o) => o.status === 'ready_to_send').length;
+  // Stat card computations
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const newCustomersThisMonth = customers.filter(
+    (c) => new Date(c.createdAt) >= monthStart
+  ).length;
+
+  const pendingApptTasks = tasks.filter(
+    (t) => t.type === 'book_appointment' && t.status === 'open'
+  ).length;
+
+  const followUpCount = tasks.filter(
+    (t) => (t.type === 'follow_up_offer' || t.type === 'call_back') && t.status === 'open'
+  ).length;
 
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="mx-auto max-w-md space-y-5 px-5 pt-6 pb-28">
+    <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
 
       {/* Error banner */}
       {actionError && (
@@ -548,133 +588,29 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* AI input */}
-      <QuickAssistantInput />
-
-      {/* Metrics */}
-
-      {/* Tasks */}
-      <Link
-        href="/tasks"
-        className="flex items-start gap-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
-      >
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-          <svg
-            className="h-5 w-5 text-indigo-500"
-            fill="none"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-            />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-zinc-700">Tasks</span>
-            <span className="text-xs text-zinc-400">Σήμερα</span>
-          </div>
-          <div className="mt-0.5 flex items-end justify-between">
-            <span
-              className={`text-3xl font-bold leading-none ${
-                urgentTasks.length > 0 ? 'text-zinc-900' : 'text-zinc-300'
-              }`}
-            >
-              {urgentTasks.length}
-            </span>
-            <ChevronRight />
-          </div>
-          {overdueCount > 0 && (
-            <p className="mt-0.5 text-xs text-red-500">{overdueCount} εκπρόθεσμα</p>
-          )}
-        </div>
-      </Link>
-
-      {/* Πελάτες */}
-      <Link
-        href="/customers"
-        className="flex items-start gap-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
-      >
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-          <svg
-            className="h-5 w-5 text-indigo-500"
-            fill="none"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"
-            />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-zinc-700">Πελάτες</span>
-            <span className="text-xs text-zinc-400">Σύνολο</span>
-          </div>
-          <div className="mt-0.5 flex items-end justify-between">
-            <span
-              className={`text-3xl font-bold leading-none ${
-                customers.length > 0 ? 'text-zinc-900' : 'text-zinc-300'
-              }`}
-            >
-              {customers.length}
-            </span>
-            <ChevronRight />
-          </div>
-          {leads.length > 0 && (
-            <p className="mt-0.5 text-xs text-zinc-400">{leads.length} χρειάζονται προσοχή</p>
-          )}
-        </div>
-      </Link>
-
-      {/* Προσφορές */}
-      <Link
-        href="/offers"
-        className="flex items-start gap-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
-      >
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-          <svg
-            className="h-5 w-5 text-indigo-500"
-            fill="none"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-            />
-          </svg>
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium text-zinc-700">Προσφορές</span>
-            <span className="text-xs text-zinc-400">Ανοιχτές</span>
-          </div>
-          <div className="mt-0.5 flex items-end justify-between">
-            <span
-              className={`text-3xl font-bold leading-none ${
-                openOffers.length > 0 ? 'text-zinc-900' : 'text-zinc-300'
-              }`}
-            >
-              {openOffers.length}
-            </span>
-            <ChevronRight />
-          </div>
-          {readyToSendCount > 0 && (
-            <p className="mt-0.5 text-xs text-indigo-500">{readyToSendCount} έτοιμες</p>
-          )}
-        </div>
-      </Link>
+      {/* Stats */}
+      <div className="grid grid-cols-2 gap-3">
+        <StatCard
+          label="Νέοι πελάτες μήνα"
+          value={newCustomersThisMonth}
+          href="/customers"
+        />
+        <StatCard
+          label="Εκκρεμείς προσφορές"
+          value={openOffers.length}
+          href="/offers"
+        />
+        <StatCard
+          label="Ραντεβού σε αναμονή"
+          value={pendingApptTasks}
+          href="/appointments"
+        />
+        <StatCard
+          label="Follow-up"
+          value={followUpCount}
+          href="/tasks"
+        />
+      </div>
 
       {/* Priorities */}
       <NextActionsSection

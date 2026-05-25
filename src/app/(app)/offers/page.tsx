@@ -299,33 +299,10 @@ export default function OffersPage() {
 
   if (!hydrated) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h1 className="text-lg font-semibold text-zinc-900">Προσφορές</h1>
-          <button
-            type="button"
-            className="rounded-xl bg-indigo-600 px-3 py-2 text-sm font-semibold text-white"
-          >
-            + Νέα προσφορά
-          </button>
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm text-zinc-400">Φόρτωση προσφορών...</p>
         </div>
-        <div className="mb-4 space-y-2">
-          <input
-            type="search"
-            disabled
-            placeholder="Αναζήτηση αριθμού, πελάτη, σημειώσεων, όρων..."
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none"
-          />
-          <div className="flex flex-wrap gap-2">
-            <select disabled className={selCls}>
-              <option>Όλα τα status</option>
-            </select>
-            <select disabled className={selCls}>
-              <option>Νεότερες πρώτα</option>
-            </select>
-          </div>
-        </div>
-        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση προσφορών...</p>
       </div>
     );
   }
@@ -336,9 +313,10 @@ export default function OffersPage() {
 
   if (noSession) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Προσφορές</h1>
-        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900">Προσφορές</h1>
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τις προσφορές.</p>
           <Link
             href="/login/backend"
@@ -357,9 +335,10 @@ export default function OffersPage() {
 
   if (fetchError) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-5">
-        <h1 className="mb-4 text-lg font-semibold text-zinc-900">Προσφορές</h1>
-        <div className="rounded-2xl bg-zinc-50 px-5 py-10 text-center ring-1 ring-zinc-100">
+      <div className="mx-auto max-w-md px-5 pt-6 pb-28">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900">Προσφορές</h1>
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           <button
             type="button"
@@ -384,14 +363,14 @@ export default function OffersPage() {
   // ---------------------------------------------------------------------------
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-5">
+    <div className="mx-auto max-w-md px-5 pt-6 pb-28">
       {/* Header */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="flex items-baseline gap-2">
-          <h1 className="text-lg font-semibold text-zinc-900">Προσφορές</h1>
-          {offers.length > 0 && (
-            <span className="text-sm text-zinc-400">{offers.length}</span>
-          )}
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <div>
+          <p className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
+          <h1 className="text-xl font-bold text-zinc-900">
+            Προσφορές{offers.length > 0 && <span className="ml-2 text-sm font-normal text-zinc-400">{offers.length}</span>}
+          </h1>
         </div>
         <button
           type="button"
@@ -437,7 +416,7 @@ export default function OffersPage() {
       )}
 
       {/* Search + filter + sort */}
-      <div className="mb-4 space-y-2">
+      <div className="mb-5 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
         <input
           type="search"
           value={offerSearch}
@@ -479,14 +458,14 @@ export default function OffersPage() {
 
       {/* List */}
       {offers.length === 0 ? (
-        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
+        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm font-medium text-zinc-500">Δεν υπάρχουν προσφορές ακόμα.</p>
           <p className="mt-1 text-sm text-zinc-400">
             Δημιούργησε προσφορά με το κουμπί + παραπάνω ή με υπαγόρευση.
           </p>
         </div>
       ) : filteredOffers.length === 0 ? (
-        <div className="rounded-2xl bg-zinc-50 px-5 py-8 text-center ring-1 ring-zinc-100">
+        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
           <p className="mt-1 text-sm text-zinc-400">Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό.</p>
         </div>
