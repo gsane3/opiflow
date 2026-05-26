@@ -36,6 +36,11 @@ const LINKS = [
     title: 'Backend email confirmation',
     description: 'Χειρισμός Supabase confirmation callback.',
   },
+  {
+    href: '/phone-pool/backend',
+    title: 'Phone pool',
+    description: 'Διαχείριση διαθέσιμων τηλεφωνικών αριθμών για αυτόματη ανάθεση.',
+  },
 ];
 
 export default function BackendHubPage() {
