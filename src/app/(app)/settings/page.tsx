@@ -1,11 +1,21 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { getBusinessProfile, saveBusinessProfile } from '@/lib/storage';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 
 type SettingsSection = 'business' | 'providers';
+
+type BusinessMeResponse = {
+  ok?: boolean;
+  business?: {
+    business_phone_number?: string | null;
+  };
+  phoneAssigned?: boolean;
+  error?: string;
+};
 
 const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
@@ -38,6 +48,38 @@ export default function SettingsPage() {
   const [profile, setProfile] = useState<BusinessProfile>(defaultProfile);
   const [saved, setSaved] = useState(false);
   const [activeSection, setActiveSection] = useState<SettingsSection | null>(null);
+  const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
+  const [phoneLoading, setPhoneLoading] = useState(true);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchPhone() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          setPhoneLoading(false);
+          return;
+        }
+        const resp = await fetch('/api/businesses/me', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (resp.ok) {
+          const data: BusinessMeResponse = await resp.json();
+          setPhoneInfo(data);
+        } else {
+          setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+        }
+      } catch {
+        setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+      } finally {
+        setPhoneLoading(false);
+      }
+    }
+    fetchPhone();
+  }, []);
 
   useEffect(() => {
     const stored = getBusinessProfile();
@@ -191,6 +233,42 @@ export default function SettingsPage() {
                 </svg>
               </button>
             ))}
+          </div>
+
+          {/* Phone line card */}
+          <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-semibold text-zinc-900">Ο αριθμός σου</p>
+                {phoneLoading ? (
+                  <p className="mt-0.5 text-xs text-zinc-400">Έλεγχος γραμμής...</p>
+                ) : phoneError ? (
+                  <p className="mt-0.5 text-xs text-red-600">{phoneError}</p>
+                ) : phoneInfo?.business?.business_phone_number ? (
+                  <>
+                    <p className="mt-0.5 text-base font-semibold text-zinc-900">
+                      {phoneInfo.business.business_phone_number}
+                    </p>
+                    <p className="mt-0.5 text-xs text-zinc-400">
+                      Ο αριθμός ενεργοποιείται αυτόματα από το yorgos.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
+                    </p>
+                  </>
+                ) : (
+                  <p className="mt-0.5 text-xs text-zinc-400">
+                    Ο αριθμός ενεργοποιείται αυτόματα από το yorgos.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
+                  </p>
+                )}
+              </div>
+              {!phoneLoading && !phoneError && (
+                <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
+                  phoneInfo?.phoneAssigned
+                    ? 'bg-green-50 text-green-700 ring-green-200'
+                    : 'bg-amber-50 text-amber-700 ring-amber-200'
+                }`}>
+                  {phoneInfo?.phoneAssigned ? 'Ενεργός' : 'Σε αναμονή'}
+                </span>
+              )}
+            </div>
           </div>
         </>
       ) : (

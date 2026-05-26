@@ -45,6 +45,15 @@ interface BackendCall {
   customer: BackendCallCustomer | null;
 }
 
+type BusinessMeResponse = {
+  ok?: boolean;
+  business?: {
+    business_phone_number?: string | null;
+  };
+  phoneAssigned?: boolean;
+  error?: string;
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -798,17 +807,22 @@ export default function CallsPage() {
   const [newSmsOpen, setNewSmsOpen] = useState(false);
   const [newSmsCustomer, setNewSmsCustomer] = useState<Customer | null>(null);
   const tokenRef = useRef<string | null>(null);
+  const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
+  const [phoneLoading, setPhoneLoading] = useState(true);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
     try {
-      const [commsResp, customersResp] = await Promise.all([
+      const [commsResp, customersResp, phoneResp] = await Promise.all([
         fetch('/api/communications?channel=call&limit=100', { headers }),
         fetch('/api/customers?limit=100', { headers }),
+        fetch('/api/businesses/me', { headers }),
       ]);
 
       if (!commsResp.ok || !customersResp.ok) {
         setActionError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+        setPhoneLoading(false);
         setHydrated(true);
         return;
       }
@@ -826,11 +840,26 @@ export default function CallsPage() {
         ? customersData
         : (customersData.customers ?? []);
 
+      // Phone line status, independent of calls/customers
+      if (phoneResp.ok) {
+        try {
+          const phoneData: BusinessMeResponse = await phoneResp.json();
+          setPhoneInfo(phoneData);
+        } catch {
+          setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+        }
+      } else {
+        setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+      }
+      setPhoneLoading(false);
+
       setCalls(rawComms);
       setCustomers(rawCustomers.map(mapCustomer));
       setHydrated(true);
     } catch {
       setActionError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
+      setPhoneLoading(false);
+      setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
       setHydrated(true);
     }
   }, []);
@@ -844,6 +873,7 @@ export default function CallsPage() {
         } = await supabase.auth.getSession();
         if (!session) {
           setAuthRequired(true);
+          setPhoneLoading(false);
           setHydrated(true);
           return;
         }
@@ -917,6 +947,51 @@ export default function CallsPage() {
           Κάθε κλήση οργανώνεται αφού την ελέγξεις.
         </p>
       </div>
+
+      {/* Phone line card */}
+      {phoneLoading ? (
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm text-zinc-400">Έλεγχος γραμμής...</p>
+        </div>
+      ) : phoneError ? (
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-sm text-red-600">{phoneError}</p>
+        </div>
+      ) : phoneInfo ? (
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <div className="flex items-start gap-3">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+              <PhoneIcon className="h-5 w-5 text-indigo-500" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-medium text-zinc-500">Ο αριθμός σου</p>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
+                  phoneInfo.phoneAssigned
+                    ? 'bg-green-50 text-green-700 ring-green-200'
+                    : 'bg-amber-50 text-amber-700 ring-amber-200'
+                }`}>
+                  {phoneInfo.phoneAssigned ? 'Ενεργός' : 'Σε αναμονή'}
+                </span>
+              </div>
+              {phoneInfo.business?.business_phone_number ? (
+                <>
+                  <p className="mt-0.5 text-base font-semibold text-zinc-900">
+                    {phoneInfo.business.business_phone_number}
+                  </p>
+                  <p className="mt-0.5 text-xs text-zinc-400">
+                    Οι εισερχόμενες κλήσεις θα εμφανίζονται εδώ όταν καταγραφούν από το τηλεφωνικό σύστημα.
+                  </p>
+                </>
+              ) : (
+                <p className="mt-0.5 text-xs text-zinc-400">
+                  Ο αριθμός σου ετοιμάζεται. Δεν χρειάζεται να ρυθμίσεις κάτι.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {/* Latest call card */}
       {latestCall ? (
