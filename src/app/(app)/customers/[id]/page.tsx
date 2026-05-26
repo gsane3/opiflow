@@ -326,6 +326,14 @@ export default function CustomerDetailPage() {
 
   const [copiedMessageKey, setCopiedMessageKey] = useState<string | null>(null);
 
+  // Response link generation state for customer workspace offer rows.
+  const [offerLinkGeneratingId, setOfferLinkGeneratingId] = useState<string | null>(null);
+  const [offerLinkCopiedId, setOfferLinkCopiedId] = useState<string | null>(null);
+  const [offerLinkManualCopyOfferId, setOfferLinkManualCopyOfferId] = useState<string | null>(null);
+  const [offerLinkManualCopyUrl, setOfferLinkManualCopyUrl] = useState('');
+  const [offerLinkErrorId, setOfferLinkErrorId] = useState<string | null>(null);
+  const [offerLinkErrorMsg, setOfferLinkErrorMsg] = useState('');
+
   useEffect(() => {
     let cancelled = false;
 
@@ -965,6 +973,58 @@ export default function CustomerDetailPage() {
       }
     } catch {
       setEditOfferError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Generate response link (customer workspace offer rows)
+  // ---------------------------------------------------------------------------
+
+  async function generateResponseLink(offerId: string) {
+    setOfferLinkGeneratingId(offerId);
+    setOfferLinkCopiedId(null);
+    setOfferLinkManualCopyOfferId(null);
+    setOfferLinkManualCopyUrl('');
+    setOfferLinkErrorId(null);
+    setOfferLinkErrorMsg('');
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setOfferLinkGeneratingId(null);
+        setOfferLinkErrorId(offerId);
+        setOfferLinkErrorMsg('Δεν βρέθηκε σύνδεση. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch(`/api/offers/${offerId}/response-link`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json() as { ok?: boolean; responseUrl?: string; error?: string };
+      setOfferLinkGeneratingId(null);
+      if (!res.ok || !json.ok || !json.responseUrl) {
+        setOfferLinkErrorId(offerId);
+        setOfferLinkErrorMsg('Αποτυχία δημιουργίας link. Δοκίμασε ξανά.');
+        return;
+      }
+      const url = json.responseUrl;
+      if (typeof navigator !== 'undefined' && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText(url);
+          setOfferLinkCopiedId(offerId);
+          setTimeout(() => setOfferLinkCopiedId(null), 2500);
+        } catch {
+          setOfferLinkManualCopyOfferId(offerId);
+          setOfferLinkManualCopyUrl(url);
+        }
+      } else {
+        setOfferLinkManualCopyOfferId(offerId);
+        setOfferLinkManualCopyUrl(url);
+      }
+    } catch {
+      setOfferLinkGeneratingId(null);
+      setOfferLinkErrorId(offerId);
+      setOfferLinkErrorMsg('Αποτυχία δημιουργίας link. Δοκίμασε ξανά.');
     }
   }
 
@@ -1966,8 +2026,35 @@ export default function CustomerDetailPage() {
                     >
                       Άνοιγμα
                     </Link>
+                    <button
+                      type="button"
+                      onClick={() => { void generateResponseLink(offer.id); }}
+                      disabled={offerLinkGeneratingId === offer.id}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {offerLinkGeneratingId === offer.id
+                        ? 'Δημιουργία...'
+                        : offerLinkCopiedId === offer.id
+                        ? 'Αντιγράφηκε'
+                        : 'Link αποδοχής'}
+                    </button>
                   </div>
                 </div>
+                {offerLinkManualCopyOfferId === offer.id && offerLinkManualCopyUrl && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-zinc-500">Αντέγραψε το link χειροκίνητα:</p>
+                    <textarea
+                      readOnly
+                      rows={2}
+                      value={offerLinkManualCopyUrl}
+                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                      className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 outline-none"
+                    />
+                  </div>
+                )}
+                {offerLinkErrorId === offer.id && (
+                  <p className="text-xs text-red-600">{offerLinkErrorMsg}</p>
+                )}
               </li>
             ))}
           </ul>
