@@ -6,7 +6,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { norm } from '@/lib/search';
 import type { Customer } from '@/lib/types';
 import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPhone';
-import { findCustomerByPhone } from '@/lib/phone';
+import { findCustomerByPhone, phonesMatch } from '@/lib/phone';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -140,6 +140,7 @@ function PhoneIcon({ className }: { className?: string }) {
 
 function CallActionSheet({
   call,
+  calls,
   customers,
   getAuthToken,
   onClose,
@@ -148,6 +149,7 @@ function CallActionSheet({
   onCallLinked,
 }: {
   call: BackendCall;
+  calls: BackendCall[];
   customers: Customer[];
   getAuthToken: () => string | null;
   onClose: () => void;
@@ -155,10 +157,14 @@ function CallActionSheet({
   onContactAdded: (customer: Customer) => void;
   onCallLinked: (callId: string, customer: Customer) => void;
 }) {
-  // 'actions' shows the main list; 'add_contact' shows the mini form.
-  const [view, setView] = useState<'actions' | 'add_contact'>('actions');
+  // 'actions' shows the main list; 'add_contact' shows the mini form; 'bulk_confirm' shows the bulk link prompt.
+  const [view, setView] = useState<'actions' | 'add_contact' | 'bulk_confirm'>('actions');
   const [busy, setBusy] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  // Bulk link state: candidates and customer set after a successful single link.
+  const [pendingBulkCalls, setPendingBulkCalls] = useState<BackendCall[]>([]);
+  const [bulkCustomer, setBulkCustomer] = useState<Customer | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ linked: number; failed: number } | null>(null);
   // Form fields for the add-contact view.
   const [contactName, setContactName] = useState('');
   const [contactCompany, setContactCompany] = useState('');
@@ -224,7 +230,23 @@ function CallActionSheet({
       const json = await resp.json();
       if (json.ok) {
         onCallLinked(call.id, customer);
-        onClose();
+        // Find other loaded unlinked calls from the same normalized phone number.
+        const candidates = calls.filter(
+          (c) =>
+            c.id !== call.id &&
+            c.customerId === null &&
+            c.phone !== null &&
+            call.phone !== null &&
+            phonesMatch(c.phone, call.phone)
+        );
+        if (candidates.length > 0) {
+          setPendingBulkCalls(candidates);
+          setBulkCustomer(customer);
+          setBulkResult(null);
+          setView('bulk_confirm');
+        } else {
+          onClose();
+        }
       } else {
         setSheetError('Αδύνατη η σύνδεση. Δοκίμασε ξανά.');
       }
@@ -232,6 +254,49 @@ function CallActionSheet({
       setSheetError('Αδύνατη η σύνδεση. Δοκίμασε ξανά.');
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function handleBulkLink() {
+    const token = getAuthToken();
+    const customer = bulkCustomer;
+    if (!token || !customer) {
+      setSheetError('Αδύνατη η σύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
+    setBusy(true);
+    setSheetError(null);
+    let linked = 0;
+    let failed = 0;
+    for (const c of pendingBulkCalls) {
+      try {
+        const resp = await fetch(
+          `/api/communications?id=${encodeURIComponent(c.id)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ customerId: customer.id }),
+          }
+        );
+        const json = await resp.json();
+        if (json.ok) {
+          onCallLinked(c.id, customer);
+          linked++;
+        } else {
+          failed++;
+        }
+      } catch {
+        failed++;
+      }
+    }
+    setBusy(false);
+    if (failed === 0) {
+      onClose();
+    } else {
+      setBulkResult({ linked, failed });
     }
   }
 
@@ -409,7 +474,7 @@ function CallActionSheet({
               </button>
             </div>
           </>
-        ) : (
+        ) : view === 'add_contact' ? (
           <>
             {/* Add contact form */}
             <div className="px-5 pb-3 pt-1 text-center">
@@ -496,6 +561,56 @@ function CallActionSheet({
               >
                 Ακύρωση
               </button>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Bulk link confirmation */}
+            <div className="px-5 pb-4 pt-1 text-center">
+              <p className="text-base font-semibold text-zinc-900">
+                Βρέθηκαν {pendingBulkCalls.length} παλιότερες κλήσεις από τον ίδιο αριθμό. Να συνδεθούν με την ίδια επαφή;
+              </p>
+              {bulkCustomer?.name && (
+                <p className="mt-1 text-sm font-medium text-indigo-600">{bulkCustomer.name}</p>
+              )}
+              {bulkResult && bulkResult.failed > 0 && (
+                <p className="mt-2 text-xs text-amber-600">
+                  {bulkResult.linked} συνδέθηκαν, {bulkResult.failed} απέτυχαν. Μπορείς να δοκιμάσεις ξανά αργότερα.
+                </p>
+              )}
+              {sheetError && (
+                <p className="mt-2 text-xs text-red-500">{sheetError}</p>
+              )}
+            </div>
+            <div className="space-y-2.5 px-4">
+              {bulkResult && bulkResult.failed > 0 ? (
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+                >
+                  Κλείσιμο
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleBulkLink}
+                    disabled={busy}
+                    className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
+                  >
+                    Ναι, σύνδεση όλων
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    disabled={busy}
+                    className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+                  >
+                    Παράλειψη
+                  </button>
+                </>
+              )}
             </div>
           </>
         )}
@@ -1619,6 +1734,7 @@ export default function CallsPage() {
       {selectedCall && (
         <CallActionSheet
           call={selectedCall}
+          calls={calls}
           customers={customers}
           getAuthToken={() => tokenRef.current}
           onClose={() => setSelectedCall(null)}
