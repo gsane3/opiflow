@@ -73,7 +73,7 @@ export default function PackagePage() {
   const [selected, setSelected] = useState<string>('pro');
 
   function handleContinue() {
-    router.push('/number');
+    router.push('/onboarding');
   }
 
   return (

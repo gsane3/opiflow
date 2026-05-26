@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { loadState, saveState } from '@/lib/storage';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { BusinessType, BusinessProfile } from '@/lib/types';
 import BusinessTypeSelector from '@/components/onboarding/BusinessTypeSelector';
 import BusinessProfileForm, {
@@ -69,14 +70,27 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<FormData>(buildInitialFormData);
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
-    const state = loadState();
-    if (!state.userProfile) {
-      router.replace('/login');
-    } else if (state.userProfile.onboardingCompleted) {
-      router.replace('/dashboard');
+    async function checkSession() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          router.replace('/login');
+          return;
+        }
+        setAccessToken(session.access_token);
+      } catch {
+        router.replace('/login');
+      }
     }
+    checkSession();
   }, [router]);
 
   function updateForm(fields: Partial<FormData>) {
@@ -110,42 +124,82 @@ export default function OnboardingPage() {
     setStep((s) => s - 1);
   }
 
-  function handleComplete() {
-    const state = loadState();
-    if (!state.userProfile) return;
-
-    const now = new Date().toISOString();
-    const businessProfile: BusinessProfile = {
-      id: crypto.randomUUID(),
-      businessName: formData.businessName.trim(),
-      businessType: formData.businessType!,
-      ownerName: formData.ownerName.trim(),
-      phone: formData.phone.trim(),
-      email: formData.email.trim(),
-      address: formData.address.trim(),
-      vatNumber: formData.vatNumber.trim(),
-      taxOffice: formData.taxOffice.trim(),
-      logoDataUrl: formData.logoDataUrl,
-      defaultVatRate: formData.vatRate,
-      defaultOfferTerms: formData.offerTerms.trim(),
-      defaultAcceptanceText:
-        'Αποδέχομαι τους παραπάνω όρους και επιθυμώ να προχωρήσουμε.',
-      preferredContactMethod: 'viber',
-      createdAt: now,
-      updatedAt: now,
-    };
-
-    saveState({
-      userProfile: { ...state.userProfile, onboardingCompleted: true },
-      businessProfile,
-      workspace: {
-        id: crypto.randomUUID(),
-        name: formData.businessName.trim() || state.userProfile.name,
-        mode: 'mock_local',
-      },
-    });
-
-    router.push('/dashboard');
+  async function handleComplete() {
+    if (submitting) return;
+    if (!accessToken) {
+      router.replace('/login');
+      return;
+    }
+    setSubmitting(true);
+    setSubmitError(null);
+    let res: Response;
+    try {
+      res = await fetch('/api/businesses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          name: formData.businessName.trim(),
+          type: formData.businessType,
+          phone: formData.phone.trim() || null,
+          email: formData.email.trim() || null,
+          address: formData.address.trim() || null,
+          vat_number: formData.vatNumber.trim() || null,
+          tax_office: formData.taxOffice.trim() || null,
+          default_vat_rate: formData.vatRate,
+          default_offer_terms: formData.offerTerms.trim() || null,
+          preferred_contact_method: 'viber',
+        }),
+      });
+    } catch {
+      setSubmitError('Δεν μπορέσαμε να αποθηκεύσουμε την επιχείρηση. Δοκίμασε ξανά.');
+      setSubmitting(false);
+      return;
+    }
+    if (res.status === 201 || res.status === 409) {
+      try {
+        const state = loadState();
+        const now = new Date().toISOString();
+        const businessProfile: BusinessProfile = {
+          id: crypto.randomUUID(),
+          businessName: formData.businessName.trim(),
+          businessType: formData.businessType!,
+          ownerName: formData.ownerName.trim(),
+          phone: formData.phone.trim(),
+          email: formData.email.trim(),
+          address: formData.address.trim(),
+          vatNumber: formData.vatNumber.trim(),
+          taxOffice: formData.taxOffice.trim(),
+          logoDataUrl: formData.logoDataUrl,
+          defaultVatRate: formData.vatRate,
+          defaultOfferTerms: formData.offerTerms.trim(),
+          defaultAcceptanceText:
+            'Αποδέχομαι τους παραπάνω όρους και επιθυμώ να προχωρήσουμε.',
+          preferredContactMethod: 'viber',
+          createdAt: now,
+          updatedAt: now,
+        };
+        if (state.userProfile) {
+          saveState({
+            userProfile: { ...state.userProfile, onboardingCompleted: true },
+            businessProfile,
+            workspace: {
+              id: crypto.randomUUID(),
+              name: formData.businessName.trim(),
+              mode: 'mock_local',
+            },
+          });
+        }
+      } catch {
+        // localStorage write failure is non-fatal
+      }
+      router.push('/number');
+      return;
+    }
+    setSubmitError('Δεν μπορέσαμε να αποθηκεύσουμε την επιχείρηση. Δοκίμασε ξανά.');
+    setSubmitting(false);
   }
 
   const profileFormValue: BusinessProfileData = {
@@ -220,6 +274,7 @@ export default function OnboardingPage() {
           </div>
 
           {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+          {submitError && <p className="mt-3 text-sm text-red-600">{submitError}</p>}
         </div>
       </div>
 
@@ -237,9 +292,10 @@ export default function OnboardingPage() {
           <button
             type="button"
             onClick={handleNext}
-            className="flex-1 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+            disabled={isLastStep && submitting}
+            className={`flex-1 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800${isLastStep && submitting ? ' opacity-60 cursor-not-allowed' : ''}`}
           >
-            {isLastStep ? 'Ολοκλήρωση' : 'Συνέχεια'}
+            {isLastStep && submitting ? 'Αποθήκευση...' : isLastStep ? 'Ολοκλήρωση' : 'Συνέχεια'}
           </button>
         </div>
         {isLogoStep && (
