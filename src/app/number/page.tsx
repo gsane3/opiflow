@@ -1,7 +1,9 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 function PhoneIcon() {
   return (
@@ -18,6 +20,15 @@ function PhoneIcon() {
     </svg>
   );
 }
+
+type BusinessMeResponse = {
+  ok?: boolean;
+  business?: {
+    business_phone_number?: string | null;
+  };
+  phoneAssigned?: boolean;
+  error?: string;
+};
 
 const FEATURES = [
   {
@@ -48,6 +59,40 @@ const FEATURES = [
 
 export default function NumberPage() {
   const router = useRouter();
+  const [phoneLoading, setPhoneLoading] = useState(true);
+  const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [noSession, setNoSession] = useState(false);
+
+  useEffect(() => {
+    async function fetchPhone() {
+      try {
+        const supabase = createBrowserSupabaseClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session) {
+          setNoSession(true);
+          setPhoneLoading(false);
+          return;
+        }
+        const resp = await fetch('/api/businesses/me', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (resp.ok) {
+          const data: BusinessMeResponse = await resp.json();
+          setPhoneInfo(data);
+        } else {
+          setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+        }
+      } catch {
+        setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+      } finally {
+        setPhoneLoading(false);
+      }
+    }
+    fetchPhone();
+  }, []);
 
   function handleContinue() {
     router.push('/dashboard');
@@ -88,19 +133,47 @@ export default function NumberPage() {
 
         {/* Number card */}
         <div className="mt-6 rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-xs font-medium text-zinc-400">Προτεινόμενος αριθμός</p>
-          <p className="mt-2 text-2xl font-bold tracking-wide text-zinc-900">
-            +30 210 XXX XXXX
-          </p>
-          <div className="mt-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 ring-1 ring-amber-200">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-              <span className="text-xs font-medium text-amber-700">Προς ενεργοποίηση</span>
-            </span>
-          </div>
-          <p className="mt-3 text-xs text-zinc-400">
-            Ο αριθμός ενεργοποιείται όταν ολοκληρωθεί η σύνδεση παρόχου.
-          </p>
+          {phoneLoading ? (
+            <p className="text-sm text-zinc-400">Έλεγχος αριθμού...</p>
+          ) : noSession ? (
+            <p className="text-sm text-zinc-500">Συνδέσου για να δεις τον αριθμό σου.</p>
+          ) : phoneError ? (
+            <p className="text-sm text-red-600">
+              Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.
+            </p>
+          ) : phoneInfo?.phoneAssigned && phoneInfo.business?.business_phone_number ? (
+            <>
+              <p className="text-xs font-medium text-zinc-400">Ο αριθμός σου</p>
+              <p className="mt-2 text-2xl font-bold tracking-wide text-zinc-900">
+                {phoneInfo.business.business_phone_number}
+              </p>
+              <div className="mt-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 ring-1 ring-green-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                  <span className="text-xs font-medium text-green-700">Ενεργός</span>
+                </span>
+              </div>
+              <p className="mt-3 text-xs text-zinc-400">
+                Ο αριθμός σου έχει ενεργοποιηθεί για την επιχείρησή σου.
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-xs font-medium text-zinc-400">Ο αριθμός σου</p>
+              <p className="mt-2 text-base font-medium text-zinc-500">
+                Ο αριθμός σου ετοιμάζεται.
+              </p>
+              <div className="mt-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 ring-1 ring-amber-200">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                  <span className="text-xs font-medium text-amber-700">Σε αναμονή</span>
+                </span>
+              </div>
+              <p className="mt-3 text-xs text-zinc-400">
+                Δεν χρειάζεται να ρυθμίσεις κάτι. Θα εμφανιστεί εδώ μόλις ενεργοποιηθεί.
+              </p>
+            </>
+          )}
         </div>
 
         {/* Feature list */}
