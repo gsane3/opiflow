@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { norm } from '@/lib/search';
 import type { Customer } from '@/lib/types';
+import BrowserPhone from '@/components/phone/BrowserPhone';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -51,6 +52,18 @@ type BusinessMeResponse = {
     business_phone_number?: string | null;
   };
   phoneAssigned?: boolean;
+  error?: string;
+};
+
+// SIP browser-token state. sipPassword lives only here; never rendered.
+type PhoneTokenState = {
+  loading: boolean;
+  ready: boolean;
+  wssUrl?: string;
+  sipUsername?: string;
+  sipPassword?: string;
+  sipRealm?: string;
+  message?: string;
   error?: string;
 };
 
@@ -812,19 +825,22 @@ export default function CallsPage() {
   const [phoneError, setPhoneError] = useState<string | null>(null);
   const [micState, setMicState] = useState<'unknown' | 'checking' | 'granted' | 'denied' | 'unsupported'>('unknown');
   const [micError, setMicError] = useState<string | null>(null);
+  const [phoneToken, setPhoneToken] = useState<PhoneTokenState>({ loading: true, ready: false });
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
     try {
-      const [commsResp, customersResp, phoneResp] = await Promise.all([
+      const [commsResp, customersResp, phoneResp, tokenResp] = await Promise.all([
         fetch('/api/communications?channel=call&limit=100', { headers }),
         fetch('/api/customers?limit=100', { headers }),
         fetch('/api/businesses/me', { headers }),
+        fetch('/api/phone/browser-token', { headers }),
       ]);
 
       if (!commsResp.ok || !customersResp.ok) {
         setActionError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
         setPhoneLoading(false);
+        setPhoneToken({ loading: false, ready: false, error: 'phone_token_unavailable' });
         setHydrated(true);
         return;
       }
@@ -855,6 +871,33 @@ export default function CallsPage() {
       }
       setPhoneLoading(false);
 
+      // SIP browser token. Credentials stored in React state only; never rendered.
+      try {
+        if (tokenResp.ok) {
+          const tokenData = await tokenResp.json();
+          if (tokenData?.ready === true) {
+            setPhoneToken({
+              loading: false,
+              ready: true,
+              wssUrl: tokenData.wssUrl ?? undefined,
+              sipUsername: tokenData.sipUsername ?? undefined,
+              sipPassword: tokenData.sipPassword ?? undefined,
+              sipRealm: tokenData.sipRealm ?? undefined,
+            });
+          } else {
+            setPhoneToken({
+              loading: false,
+              ready: false,
+              message: tokenData?.message ?? undefined,
+            });
+          }
+        } else {
+          setPhoneToken({ loading: false, ready: false, error: 'phone_token_unavailable' });
+        }
+      } catch {
+        setPhoneToken({ loading: false, ready: false, error: 'phone_token_parse_failed' });
+      }
+
       setCalls(rawComms);
       setCustomers(rawCustomers.map(mapCustomer));
       setHydrated(true);
@@ -862,6 +905,7 @@ export default function CallsPage() {
       setActionError('Αποτυχία φόρτωσης. Δοκίμασε ξανά.');
       setPhoneLoading(false);
       setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+      setPhoneToken({ loading: false, ready: false, error: 'phone_token_unavailable' });
       setHydrated(true);
     }
   }, []);
@@ -876,6 +920,7 @@ export default function CallsPage() {
         if (!session) {
           setAuthRequired(true);
           setPhoneLoading(false);
+          setPhoneToken({ loading: false, ready: false });
           setHydrated(true);
           return;
         }
@@ -1106,6 +1151,28 @@ export default function CallsPage() {
             )}
           </div>
         </div>
+      </div>
+
+      {/* Browser phone */}
+      <div>
+        <p className="mb-1 px-1 text-xs font-medium text-zinc-500">Τηλέφωνο browser</p>
+        <p className="mb-2 px-1 text-xs text-zinc-400">
+          Σύνδεσε το browser με το τηλεφωνικό κέντρο για να μπορείς να απαντάς κλήσεις από την εφαρμογή.
+        </p>
+        {phoneToken.loading ? (
+          <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-sm text-zinc-400">Φόρτωση...</p>
+          </div>
+        ) : (
+          <BrowserPhone
+            ready={phoneToken.ready}
+            wssUrl={phoneToken.wssUrl}
+            sipUsername={phoneToken.sipUsername}
+            sipPassword={phoneToken.sipPassword}
+            sipRealm={phoneToken.sipRealm}
+            disabledReason={phoneToken.ready ? undefined : 'Το browser τηλέφωνο δεν είναι έτοιμο ακόμα.'}
+          />
+        )}
       </div>
 
       {/* Latest call card */}

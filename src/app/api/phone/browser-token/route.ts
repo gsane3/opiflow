@@ -3,23 +3,31 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 // GET /api/phone/browser-token
 //
-// Returns browser SIP endpoint readiness metadata for the authenticated user's business.
-// This route does NOT return a SIP password, provider credentials, or trunk details.
-// No live SIP registration is possible in this slice. The response always contains
-// ready: false until a future migration provisions real browser endpoint credentials.
+// Returns browser SIP credentials for the authenticated user's business.
+// Credentials are read from server-side environment variables only:
+//   PHONE_SIP_WSS_URL, PHONE_SIP_USERNAME, PHONE_SIP_PASSWORD, PHONE_SIP_REALM
+//
+// Gate logic:
+//   1. Bearer token required.
+//   2. Supabase getUser(token) must succeed.
+//   3. Business must exist (owner_id match).
+//   4. business.business_phone_number must be set -- used as the "number assigned" gate.
+//   5. ensure_browser_sip_endpoint is called best-effort; RPC errors are non-fatal.
+//   6. SIP credentials are read from env after all ownership checks pass.
+//
+// sipPassword is returned only after auth and business checks pass.
+// It is never logged or included in error responses.
 
-type EndpointRow = {
-  sip_username: string;
-  status: string;
-  wss_url: string | null;
-  expires_at: string | null;
-  last_issued_at: string | null;
-};
+// Cache-Control applied to every response: credentials must not be cached.
+const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
+    return NextResponse.json(
+      { ok: false, error: 'missing_auth' },
+      { status: 401, headers: NO_STORE }
+    );
   }
   const token = authHeader.slice(7);
 
@@ -28,9 +36,15 @@ export async function GET(request: NextRequest) {
     supabase = createServerSupabaseClient();
   } catch (err) {
     if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
+      return NextResponse.json(
+        { ok: false, error: 'missing_supabase_config' },
+        { status: 503, headers: NO_STORE }
+      );
     }
-    return NextResponse.json({ ok: false, error: 'phone_token_route_failed' }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: 'phone_token_route_failed' },
+      { status: 500, headers: NO_STORE }
+    );
   }
 
   try {
@@ -39,10 +53,13 @@ export async function GET(request: NextRequest) {
       error: authError,
     } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
+      return NextResponse.json(
+        { ok: false, error: 'invalid_auth' },
+        { status: 401, headers: NO_STORE }
+      );
     }
 
-    // Resolve the user's business. Following the pattern from /api/businesses/me.
+    // Resolve the user's business.
     const { data: business, error: businessError } = await supabase
       .from('businesses')
       .select('id, business_phone_number')
@@ -50,54 +67,78 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (businessError) {
-      return NextResponse.json({ ok: false, error: 'business_query_failed' }, { status: 500 });
+      return NextResponse.json(
+        { ok: false, error: 'business_query_failed' },
+        { status: 500, headers: NO_STORE }
+      );
     }
     if (!business) {
-      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
+      return NextResponse.json(
+        { ok: false, error: 'business_not_found' },
+        { status: 404, headers: NO_STORE }
+      );
     }
 
-    // Call the idempotent endpoint creation function via service-role RPC.
-    // The function returns 0 rows if no active business_phone_numbers row exists.
-    // It returns 1 row with endpoint metadata otherwise.
-    const { data: rpcData, error: rpcError } = await supabase.rpc(
-      'ensure_browser_sip_endpoint',
-      {
+    // Gate: business must have an assigned phone number.
+    // This check replaces the RPC-row count used previously.
+    if (!business.business_phone_number) {
+      return NextResponse.json(
+        { ok: false, error: 'no_number_assigned' },
+        { status: 409, headers: NO_STORE }
+      );
+    }
+
+    // Best-effort: create/update the browser SIP endpoint row in the DB.
+    // RPC errors are non-fatal for this PoC -- env-based credentials are used regardless.
+    try {
+      await supabase.rpc('ensure_browser_sip_endpoint', {
         p_business_id: business.id,
         p_user_id: user.id,
-      }
+      });
+    } catch {
+      // Intentionally swallowed. The RPC is a bookkeeping step;
+      // credential delivery does not depend on it for the env-var PoC path.
+    }
+
+    // Auth and business ownership checks passed. Read SIP credentials from env.
+    // Values are never logged.
+    const sipWssUrl = process.env.PHONE_SIP_WSS_URL?.trim() || null;
+    const sipUsername = process.env.PHONE_SIP_USERNAME?.trim() || null;
+    const sipPassword = process.env.PHONE_SIP_PASSWORD?.trim() || null;
+    const sipRealm = process.env.PHONE_SIP_REALM?.trim() || null;
+
+    const credentialsReady =
+      sipWssUrl !== null && sipUsername !== null && sipPassword !== null;
+
+    if (credentialsReady) {
+      return NextResponse.json(
+        {
+          ok: true,
+          ready: true,
+          sipUsername,
+          sipRealm,
+          wssUrl: sipWssUrl,
+          sipPassword,
+          expiresAt: null,
+          message: 'browser_endpoint_ready',
+        },
+        { headers: NO_STORE }
+      );
+    }
+
+    // Credentials not yet configured in env. Return a safe not-ready response.
+    return NextResponse.json(
+      {
+        ok: true,
+        ready: false,
+        message: 'browser_endpoint_not_configured',
+      },
+      { headers: NO_STORE }
     );
-
-    if (rpcError) {
-      return NextResponse.json({ ok: false, error: 'endpoint_query_failed' }, { status: 500 });
-    }
-
-    const rows = rpcData as unknown as EndpointRow[];
-
-    if (!Array.isArray(rows) || rows.length === 0) {
-      // No active assigned number for this business. Cannot create a browser endpoint.
-      return NextResponse.json({ ok: false, error: 'no_number_assigned' }, { status: 409 });
-    }
-
-    const row = rows[0];
-
-    // Determine the readiness message.
-    // In this slice, ready is always false. No SIP password is provisioned yet.
-    // If a future migration activates the endpoint and sets wss_url, the message
-    // switches to 'credentials_not_implemented' to signal the next required step.
-    const isConfigured =
-      row.status === 'active' && typeof row.wss_url === 'string' && row.wss_url.length > 0;
-    const message = isConfigured ? 'credentials_not_implemented' : 'browser_endpoint_not_configured';
-
-    return NextResponse.json({
-      ok: true,
-      ready: false,
-      status: row.status,
-      sipUsername: row.sip_username,
-      wssUrl: row.wss_url ?? null,
-      expiresAt: row.expires_at ?? null,
-      message,
-    });
   } catch {
-    return NextResponse.json({ ok: false, error: 'phone_token_route_failed' }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: 'phone_token_route_failed' },
+      { status: 500, headers: NO_STORE }
+    );
   }
 }
