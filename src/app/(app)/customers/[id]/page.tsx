@@ -4,6 +4,8 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import OfferForm from '@/components/offers/OfferForm';
+import type { Offer, Customer } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -306,9 +308,7 @@ export default function CustomerDetailPage() {
   const [apptSaving, setApptSaving] = useState(false);
   const [apptError, setApptError] = useState<string | null>(null);
 
-  const [offerTitle, setOfferTitle] = useState('');
-  const [offerAmount, setOfferAmount] = useState('');
-  const [offerNote, setOfferNote] = useState('');
+  const [offerSaveError, setOfferSaveError] = useState<string | null>(null);
 
   const [selectedCall, setSelectedCall] = useState<CommunicationDto | null>(null);
 
@@ -613,9 +613,7 @@ export default function CustomerDetailPage() {
     setApptNote('');
     setApptSaving(false);
     setApptError(null);
-    setOfferTitle('');
-    setOfferAmount('');
-    setOfferNote('');
+    setOfferSaveError(null);
   }
 
   function getLocalDateInputValue(date = new Date()) {
@@ -676,6 +674,54 @@ export default function CustomerDetailPage() {
     } catch {
       setApptSaving(false);
       setApptError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+    }
+  }
+
+  async function saveOfferFromCustomerForm(offer: Offer) {
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+        return;
+      }
+      const body: Record<string, unknown> = {
+        status: 'draft',
+        customerId,
+        offerDate: offer.offerDate,
+        validUntil: offer.validUntil || null,
+        vatRate: offer.vatRate,
+        items: offer.items.map((item, idx) => ({
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          sortOrder: idx,
+        })),
+        notes: offer.notes,
+        terms: offer.terms,
+        acceptanceText: offer.acceptanceText,
+        createdFromAi: offer.createdFromAi,
+      };
+      if (offer.offerNumber.trim()) {
+        body.offerNumber = offer.offerNumber.trim();
+      }
+      const res = await fetch('/api/offers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (res.ok && json.ok) {
+        closeQuickModal();
+        setRefreshTick(t => t + 1);
+      } else {
+        setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
     }
   }
 
@@ -792,6 +838,22 @@ export default function CustomerDetailPage() {
   // Loaded: full CRM detail
   // ---------------------------------------------------------------------------
   const intakeLabel = INTAKE_LABELS[customer.intakeStatus] ?? '';
+
+  const currentCustomerForOfferForm: Customer = {
+    id: customer.id,
+    name: customer.name ?? customer.companyName ?? '',
+    companyName: customer.companyName ?? '',
+    phone: customer.phone ?? customer.mobilePhone ?? '',
+    email: customer.email ?? '',
+    address: customer.address ?? '',
+    source: (customer.source ?? 'other') as Customer['source'],
+    status: customer.status as Customer['status'],
+    preferredContactMethod: customer.preferredContactMethod as Customer['preferredContactMethod'],
+    needsSummary: customer.needsSummary ?? '',
+    notes: customer.notes ?? '',
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+  };
 
   return (
     <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 py-5">
@@ -1768,8 +1830,51 @@ export default function CustomerDetailPage() {
         </div>
       )}
 
+      {/* Offer modal, large centered, full OfferForm */}
+      {quickModal === 'offer' && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={closeQuickModal}
+        >
+          <div
+            className="mx-4 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-white shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-[28px] bg-white px-5 pt-5 pb-3 border-b border-zinc-100">
+              <p className="text-xs text-zinc-400">
+                Η αποστολή στον πελάτη θα γίνει σε επόμενο βήμα.
+              </p>
+              <button
+                type="button"
+                onClick={closeQuickModal}
+                aria-label="Κλείσιμο"
+                className="shrink-0 rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {offerSaveError && (
+              <p className="mx-5 mt-3 text-xs font-medium text-red-600">{offerSaveError}</p>
+            )}
+            <div className="p-5">
+              <OfferForm
+                customers={[currentCustomerForOfferForm]}
+                initialCustomerId={customerId}
+                lockCustomer
+                requireOfferNumber={false}
+                nextOfferNumber=""
+                onSave={saveOfferFromCustomerForm}
+                onCancel={closeQuickModal}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick action modals */}
-      {quickModal !== null && (
+      {quickModal !== null && quickModal !== 'offer' && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
           onClick={closeQuickModal}
@@ -2023,76 +2128,6 @@ export default function CustomerDetailPage() {
               </>
             )}
 
-            {/* Offer modal */}
-            {quickModal === 'offer' && (
-              <>
-                <div className="mb-4 flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-zinc-900">Προσφορά</h2>
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    aria-label="Κλείσιμο"
-                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
-                  >
-                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
-                    <input
-                      type="text"
-                      value={offerTitle}
-                      onChange={e => setOfferTitle(e.target.value)}
-                      placeholder="π.χ. Προσφορά υπηρεσίας"
-                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ποσό</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
-                      value={offerAmount}
-                      onChange={e => setOfferAmount(e.target.value)}
-                      placeholder="π.χ. 500"
-                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
-                    <textarea
-                      rows={3}
-                      value={offerNote}
-                      onChange={e => setOfferNote(e.target.value)}
-                      className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    />
-                  </div>
-                </div>
-                <p className="mt-3 text-xs text-zinc-400">
-                  Η αποστολή στον πελάτη θα γίνει σε επόμενο βήμα.
-                </p>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    disabled={!offerTitle.trim()}
-                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Συνέχεια
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
 
           </div>
         </div>
