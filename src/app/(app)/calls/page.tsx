@@ -1289,7 +1289,15 @@ const DIAL_KEYS = [
   ['*', '0', '#'],
 ];
 
-function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
+function NumpadPanel({
+  open,
+  onClose,
+  onDial,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onDial: (number: string) => void;
+}) {
   const [dialNumber, setDialNumber] = useState('');
 
   function closePanel() {
@@ -1303,6 +1311,13 @@ function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
 
   function backspace() {
     setDialNumber((n) => n.slice(0, -1));
+  }
+
+  function handleDial() {
+    const n = dialNumber.trim();
+    if (!n) return;
+    onDial(n);
+    closePanel();
   }
 
   if (!open) return null;
@@ -1321,7 +1336,7 @@ function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
           <div>
             <p className="text-base font-bold text-zinc-900">Πληκτρολόγιο</p>
             <p className="mt-0.5 text-xs text-zinc-400">
-              Πληκτρολόγησε αριθμό για αναζήτηση ή μελλοντική κλήση.
+              Πληκτρολόγησε αριθμό και πάτησε Κλήση.
             </p>
           </div>
           <button
@@ -1340,7 +1355,7 @@ function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
         <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
           <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900">
             {dialNumber || (
-              <span className="text-base font-normal text-zinc-400">Αριθμός ή αναζήτηση</span>
+              <span className="text-base font-normal text-zinc-400">Αριθμός</span>
             )}
           </span>
           {dialNumber && (
@@ -1357,13 +1372,6 @@ function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
           )}
         </div>
 
-        {/* Search hint */}
-        {dialNumber && (
-          <p className="mb-3 text-center text-xs text-zinc-400">
-            Θα χρησιμοποιηθεί για αναζήτηση πελάτη ή κλήση όταν συνδεθεί.
-          </p>
-        )}
-
         {/* Key grid */}
         <div className="mb-4 grid grid-cols-3 gap-2">
           {DIAL_KEYS.flat().map((key) => (
@@ -1379,23 +1387,33 @@ function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
         </div>
 
         {/* Actions */}
-        <div className="flex gap-2">
-          {dialNumber && (
-            <button
-              type="button"
-              onClick={() => setDialNumber('')}
-              className="flex-1 rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-            >
-              Καθαρισμός
-            </button>
-          )}
+        <div className="space-y-2">
           <button
             type="button"
-            onClick={closePanel}
-            className="flex-1 rounded-[28px] bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
+            onClick={handleDial}
+            disabled={!dialNumber.trim()}
+            className="w-full rounded-[28px] bg-green-600 py-3.5 text-sm font-semibold text-white transition hover:bg-green-700 active:bg-green-800 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            Κλείσιμο
+            Κλήση
           </button>
+          <div className="flex gap-2">
+            {dialNumber && (
+              <button
+                type="button"
+                onClick={() => setDialNumber('')}
+                className="flex-1 rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Καθαρισμός
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={closePanel}
+              className="flex-1 rounded-[28px] bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
+            >
+              Κλείσιμο
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1502,6 +1520,7 @@ export default function CallsPage() {
   const [pendingCallReview, setPendingCallReview] = useState<CallEndedEvent | null>(null);
   const [callReviewBusy, setCallReviewBusy] = useState(false);
   const [callReviewError, setCallReviewError] = useState<string | null>(null);
+  const [pendingDialTarget, setPendingDialTarget] = useState<string | null>(null);
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
@@ -1947,6 +1966,8 @@ export default function CallsPage() {
             sipRealm={phoneToken.sipRealm}
             disabledReason={phoneToken.ready ? undefined : 'Το browser τηλέφωνο δεν είναι έτοιμο ακόμα.'}
             onCallEnded={handleCallEnded}
+            pendingDialTarget={pendingDialTarget}
+            onDialConsumed={() => setPendingDialTarget(null)}
           />
         )}
       </div>
@@ -2045,7 +2066,11 @@ export default function CallsPage() {
       </button>
 
       {/* Numpad modal */}
-      <NumpadPanel open={numpadOpen} onClose={() => setNumpadOpen(false)} />
+      <NumpadPanel
+        open={numpadOpen}
+        onClose={() => setNumpadOpen(false)}
+        onDial={(number) => setPendingDialTarget(number)}
+      />
 
       {/* Call action sheet */}
       {selectedCall && (

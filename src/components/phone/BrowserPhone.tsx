@@ -31,6 +31,10 @@ export interface BrowserPhoneProps {
   disabledReason?: string;
   /** Called once when a session ends (completed) or fails (failed). Best-effort. */
   onCallEnded?: (event: CallEndedEvent) => void;
+  /** External dial target. BrowserPhone dials immediately if already registered. */
+  pendingDialTarget?: string | null;
+  /** Called after pendingDialTarget is consumed (dialed or rejected). Parent should set pendingDialTarget to null. */
+  onDialConsumed?: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +95,8 @@ export default function BrowserPhone({
   sipRealm,
   disabledReason,
   onCallEnded,
+  pendingDialTarget,
+  onDialConsumed,
 }: BrowserPhoneProps) {
   const [phoneState, setPhoneState] = useState<PhoneState>(
     ready ? 'disconnected' : 'not_configured'
@@ -130,6 +136,14 @@ export default function BrowserPhone({
   // session handlers on every parent render).
   const onCallEndedRef = useRef(onCallEnded);
 
+  // Stable ref for the onDialConsumed prop.
+  const onDialConsumedRef = useRef(onDialConsumed);
+
+  // Tracks the last pendingDialTarget that was consumed to prevent double-dialing
+  // in React StrictMode and to allow the same number to be dialed again after
+  // the parent resets pendingDialTarget to null.
+  const consumedDialTargetRef = useRef<string | null>(null);
+
   // Helper: update both state and ref atomically.
   const transition = useCallback((next: PhoneState) => {
     phoneStateRef.current = next;
@@ -140,6 +154,11 @@ export default function BrowserPhone({
   useEffect(() => {
     onCallEndedRef.current = onCallEnded;
   }, [onCallEnded]);
+
+  // Keep onDialConsumedRef current whenever the prop changes.
+  useEffect(() => {
+    onDialConsumedRef.current = onDialConsumed;
+  }, [onDialConsumed]);
 
   // Sync not_configured / disconnected when the ready prop changes.
   // setTimeout defers the state update out of the render cycle, satisfying
@@ -428,12 +447,13 @@ export default function BrowserPhone({
   // Dial outbound number.
   // ---------------------------------------------------------------------------
 
-  const handleDial = useCallback(() => {
+  // Core dial logic shared by the internal input button and the pendingDialTarget effect.
+  const dialRawNumber = useCallback((rawNumber: string) => {
     if (phoneStateRef.current !== 'registered') return;
     const ua = uaRef.current;
     if (!ua) return;
 
-    const normalized = normalizePhoneForSip(outboundInput);
+    const normalized = normalizePhoneForSip(rawNumber);
     if (!normalized) {
       setStatusMessage('Μη έγκυρος αριθμός.');
       return;
@@ -461,7 +481,38 @@ export default function BrowserPhone({
     } catch {
       setStatusMessage('Αποτυχία κλήσης. Δοκίμασε ξανά.');
     }
-  }, [outboundInput, transition, wireSession]);
+  }, [transition, wireSession]);
+
+  const handleDial = useCallback(() => {
+    dialRawNumber(outboundInput);
+  }, [outboundInput, dialRawNumber]);
+
+  // Consume external pendingDialTarget. Dials immediately when registered;
+  // otherwise shows a clear Greek status and calls onDialConsumed to clear the prop.
+  useEffect(() => {
+    if (!pendingDialTarget) {
+      // Reset so the same number can be dialed again after parent clears the prop.
+      consumedDialTargetRef.current = null;
+      return;
+    }
+    // StrictMode guard: skip if this exact value was already consumed this cycle.
+    if (pendingDialTarget === consumedDialTargetRef.current) return;
+    consumedDialTargetRef.current = pendingDialTarget;
+
+    const cur = phoneStateRef.current;
+    if (cur === 'in_call' || cur === 'incoming_call' || cur === 'calling') {
+      setStatusMessage('Υπάρχει ήδη ενεργή κλήση.');
+      onDialConsumedRef.current?.();
+      return;
+    }
+    if (cur !== 'registered') {
+      setStatusMessage('Σύνδεσε πρώτα το τηλέφωνο.');
+      onDialConsumedRef.current?.();
+      return;
+    }
+    dialRawNumber(pendingDialTarget);
+    onDialConsumedRef.current?.();
+  }, [pendingDialTarget, dialRawNumber]);
 
   // ---------------------------------------------------------------------------
   // Answer incoming call (audio only).
