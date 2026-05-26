@@ -157,8 +157,8 @@ function CallActionSheet({
   onContactAdded: (customer: Customer) => void;
   onCallLinked: (callId: string, customer: Customer) => void;
 }) {
-  // 'actions' shows the main list; 'add_contact' shows the mini form; 'bulk_confirm' shows the bulk link prompt.
-  const [view, setView] = useState<'actions' | 'add_contact' | 'bulk_confirm'>('actions');
+  // 'actions' shows the main list; 'add_contact' shows the mini form; 'bulk_confirm' shows the bulk link prompt; 'create_task' shows the task form.
+  const [view, setView] = useState<'actions' | 'add_contact' | 'bulk_confirm' | 'create_task'>('actions');
   const [busy, setBusy] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
   // Bulk link state: candidates and customer set after a successful single link.
@@ -170,6 +170,12 @@ function CallActionSheet({
   const [contactCompany, setContactCompany] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  // Form fields for the create-task view.
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskType, setTaskType] = useState('call_back');
+  const [taskDueDate, setTaskDueDate] = useState('');
+  const [taskNote, setTaskNote] = useState('');
+  const [taskError, setTaskError] = useState<string | null>(null);
 
   // Customer found by normalized phone match in the loaded customer list.
   // Checks customer.phone, customer.mobilePhone, and customer.landlinePhone.
@@ -297,6 +303,64 @@ function CallActionSheet({
       onClose();
     } else {
       setBulkResult({ linked, failed });
+    }
+  }
+
+  function openTaskForm() {
+    const today = new Date().toLocaleDateString('sv');
+    setTaskError(null);
+    setTaskDueDate(today);
+    setTaskNote('');
+    if (call.direction === 'inbound' && (call.status === 'missed' || call.status === 'failed')) {
+      setTaskTitle('Κλήση πίσω');
+      setTaskType('call_back');
+    } else if (call.direction === 'inbound' && call.status === 'completed') {
+      setTaskTitle('Follow-up εισερχόμενης κλήσης');
+      setTaskType('other');
+    } else {
+      setTaskTitle('Follow-up κλήσης');
+      setTaskType('other');
+    }
+    setView('create_task');
+  }
+
+  async function handleCreateTask() {
+    const title = taskTitle.trim();
+    if (!title) {
+      setTaskError('Συμπλήρωσε τίτλο.');
+      return;
+    }
+    const token = getAuthToken();
+    if (!token) return;
+    setBusy(true);
+    setTaskError(null);
+    try {
+      const taskBody: Record<string, unknown> = {
+        title,
+        type: taskType,
+        dueDate: taskDueDate,
+      };
+      if (call.customerId) taskBody.customerId = call.customerId;
+      const note = taskNote.trim();
+      if (note) taskBody.note = note;
+      const resp = await fetch('/api/tasks', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(taskBody),
+      });
+      const json = await resp.json();
+      if (json.ok) {
+        onClose();
+      } else {
+        setTaskError('Αδύνατη η αποθήκευση. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setTaskError('Αδύνατη η αποθήκευση. Δοκίμασε ξανά.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -464,6 +528,16 @@ function CallActionSheet({
                 </div>
               )}
 
+              {/* Create task */}
+              <button
+                type="button"
+                onClick={openTaskForm}
+                disabled={busy}
+                className="w-full rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:opacity-50"
+              >
+                Δημιουργία task
+              </button>
+
               {/* Cancel */}
               <button
                 type="button"
@@ -563,7 +637,7 @@ function CallActionSheet({
               </button>
             </div>
           </>
-        ) : (
+        ) : view === 'bulk_confirm' ? (
           <>
             {/* Bulk link confirmation */}
             <div className="px-5 pb-4 pt-1 text-center">
@@ -611,6 +685,117 @@ function CallActionSheet({
                   </button>
                 </>
               )}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Create task form */}
+            <div className="px-5 pb-3 pt-1 text-center">
+              <p className="text-base font-semibold text-zinc-900">Δημιουργία task</p>
+              {call.customerId && call.customer?.name && (
+                <p className="mt-0.5 text-xs text-zinc-500">
+                  Θα συνδεθεί με {call.customer.name}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 px-4 pb-2">
+              {/* Title */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  Τίτλος
+                </label>
+                <input
+                  type="text"
+                  value={taskTitle}
+                  onChange={(e) => { setTaskTitle(e.target.value); setTaskError(null); }}
+                  placeholder="Κλήση πίσω"
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              {/* Type */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  Τύπος
+                </label>
+                <select
+                  value={taskType}
+                  onChange={(e) => setTaskType(e.target.value)}
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                >
+                  <option value="call_back">Κλήση πίσω</option>
+                  <option value="send_offer">Αποστολή προσφοράς</option>
+                  <option value="follow_up_offer">Follow-up προσφοράς</option>
+                  <option value="ask_for_photos_documents">Αίτηση φωτογραφιών</option>
+                  <option value="book_appointment">Κλείσιμο ραντεβού</option>
+                  <option value="visit_customer">Επίσκεψη πελάτη</option>
+                  <option value="wait_for_reply">Αναμονή απάντησης</option>
+                  <option value="other">Άλλο</option>
+                </select>
+              </div>
+
+              {/* Due date */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  Ημερομηνία
+                </label>
+                <input
+                  type="date"
+                  value={taskDueDate}
+                  onChange={(e) => setTaskDueDate(e.target.value)}
+                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              {/* Note */}
+              <div>
+                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                  Σημείωση
+                </label>
+                <textarea
+                  rows={2}
+                  value={taskNote}
+                  onChange={(e) => setTaskNote(e.target.value)}
+                  placeholder="Προαιρετικό"
+                  className="w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+
+              {taskError && (
+                <p className="text-xs text-red-500">{taskError}</p>
+              )}
+            </div>
+
+            <div className="space-y-2.5 px-4 pt-1">
+              {/* Save */}
+              <button
+                type="button"
+                onClick={handleCreateTask}
+                disabled={busy}
+                className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
+              >
+                Αποθήκευση task
+              </button>
+
+              {/* Back */}
+              <button
+                type="button"
+                onClick={() => { setTaskError(null); setView('actions'); }}
+                disabled={busy}
+                className="w-full rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-100 disabled:opacity-50"
+              >
+                Πίσω
+              </button>
+
+              {/* Cancel */}
+              <button
+                type="button"
+                onClick={onClose}
+                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+              >
+                Ακύρωση
+              </button>
             </div>
           </>
         )}
