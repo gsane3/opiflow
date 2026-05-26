@@ -1403,6 +1403,81 @@ function NumpadPanel({ open, onClose }: { open: boolean; onClose: () => void }) 
 }
 
 // ---------------------------------------------------------------------------
+// After-call review modal
+// ---------------------------------------------------------------------------
+
+function CallReviewModal({
+  event,
+  busy,
+  error,
+  onSave,
+  onSkip,
+}: {
+  event: CallEndedEvent;
+  busy: boolean;
+  error: string | null;
+  onSave: () => void;
+  onSkip: () => void;
+}) {
+  const dirLabel = CALL_DIRECTION_LABEL[event.direction] ?? event.direction;
+  const statusLabel = event.status === 'completed' ? 'Ολοκληρώθηκε' : 'Αποτυχημένη';
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col justify-end bg-black/30"
+      onClick={onSkip}
+    >
+      <div
+        className="mx-auto w-full max-w-md rounded-t-[28px] bg-white pb-8 shadow-2xl ring-1 ring-zinc-200/60"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Handle bar */}
+        <div className="flex justify-center pb-2 pt-3">
+          <div className="h-1 w-10 rounded-full bg-zinc-300" />
+        </div>
+
+        {/* Header */}
+        <div className="px-5 pb-4 pt-1 text-center">
+          <p className="text-base font-semibold text-zinc-900">Η κλήση ολοκληρώθηκε.</p>
+          <p className="mt-1 text-sm text-zinc-500">Να εισαχθεί στο CRM;</p>
+          <p className="mt-2 text-xs text-zinc-400">
+            {dirLabel}
+            {' · '}
+            {statusLabel}
+            {event.phone ? ` · ${event.phone}` : ''}
+          </p>
+          {error && (
+            <p className="mt-2 text-xs text-red-500">
+              Αδύνατη η αποθήκευση. Δοκίμασε ξανά.
+            </p>
+          )}
+        </div>
+
+        {/* Buttons */}
+        <div className="space-y-2.5 px-4">
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={busy}
+            className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
+          >
+            Ναι, εισαγωγή
+          </button>
+          <button
+            type="button"
+            onClick={onSkip}
+            disabled={busy}
+            className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+          >
+            Όχι
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -1424,6 +1499,9 @@ export default function CallsPage() {
   const [micState, setMicState] = useState<'unknown' | 'checking' | 'granted' | 'denied' | 'unsupported'>('unknown');
   const [micError, setMicError] = useState<string | null>(null);
   const [phoneToken, setPhoneToken] = useState<PhoneTokenState>({ loading: true, ready: false });
+  const [pendingCallReview, setPendingCallReview] = useState<CallEndedEvent | null>(null);
+  const [callReviewBusy, setCallReviewBusy] = useState(false);
+  const [callReviewError, setCallReviewError] = useState<string | null>(null);
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
@@ -1569,29 +1647,31 @@ export default function CallsPage() {
     );
   }
 
-  // Best-effort call logger. Fires after every completed or failed browser
-  // call. Does not block UI; errors are silently discarded.
-  const handleCallEnded = useCallback(
-    (event: CallEndedEvent) => {
-      const token = tokenRef.current;
-      if (!token) return;
+  // Saves the browser call to /api/communications after the user confirms.
+  // Uses the same payload as the previous automatic save.
+  async function saveReviewedCall(event: CallEndedEvent) {
+    const token = tokenRef.current;
+    if (!token) return;
 
-      const customer =
-        event.phone
-          ? findCustomerByPhone(customers, event.phone) ?? null
-          : null;
-      const customerId = customer?.id ?? null;
+    const customer =
+      event.phone
+        ? findCustomerByPhone(customers, event.phone) ?? null
+        : null;
+    const customerId = customer?.id ?? null;
 
-      const summary =
-        event.direction === 'inbound'
-          ? event.status === 'completed'
-            ? 'Εισερχόμενη κλήση'
-            : 'Αποτυχημένη εισερχόμενη κλήση'
-          : event.status === 'completed'
-          ? 'Εξερχόμενη κλήση'
-          : 'Αποτυχημένη εξερχόμενη κλήση';
+    const summary =
+      event.direction === 'inbound'
+        ? event.status === 'completed'
+          ? 'Εισερχόμενη κλήση'
+          : 'Αποτυχημένη εισερχόμενη κλήση'
+        : event.status === 'completed'
+        ? 'Εξερχόμενη κλήση'
+        : 'Αποτυχημένη εξερχόμενη κλήση';
 
-      fetch('/api/communications', {
+    setCallReviewBusy(true);
+    setCallReviewError(null);
+    try {
+      const resp = await fetch('/api/communications', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1605,11 +1685,38 @@ export default function CallsPage() {
           customerId,
           summary,
         }),
-      }).catch(() => {
-        // Best effort - discard errors silently.
       });
+      const json = await resp.json();
+      if (json.ok === true) {
+        setPendingCallReview(null);
+        setCallReviewError(null);
+      } else {
+        setCallReviewError('save_failed');
+      }
+    } catch {
+      setCallReviewError('save_failed');
+    } finally {
+      setCallReviewBusy(false);
+    }
+  }
+
+  async function handleSaveReviewedCall() {
+    if (!pendingCallReview) return;
+    await saveReviewedCall(pendingCallReview);
+  }
+
+  function handleSkipReviewedCall() {
+    setPendingCallReview(null);
+    setCallReviewError(null);
+  }
+
+  // Shows the after-call review modal instead of immediately saving.
+  const handleCallEnded = useCallback(
+    (event: CallEndedEvent) => {
+      setCallReviewError(null);
+      setPendingCallReview(event);
     },
-    [customers]
+    []
   );
 
   async function checkMicrophonePermission() {
@@ -1960,6 +2067,17 @@ export default function CallsPage() {
           customers={customers}
           preselectedCustomer={newSmsCustomer}
           onClose={closeNewSms}
+        />
+      )}
+
+      {/* After-call review modal */}
+      {pendingCallReview && (
+        <CallReviewModal
+          event={pendingCallReview}
+          busy={callReviewBusy}
+          error={callReviewError}
+          onSave={handleSaveReviewedCall}
+          onSkip={handleSkipReviewedCall}
         />
       )}
 
