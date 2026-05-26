@@ -312,6 +312,14 @@ export default function CustomerDetailPage() {
 
   const [selectedCall, setSelectedCall] = useState<CommunicationDto | null>(null);
 
+  const [editingTask, setEditingTask] = useState<TaskDto | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState('');
+  const [editTaskDate, setEditTaskDate] = useState('');
+  const [editTaskTime, setEditTaskTime] = useState('');
+  const [editTaskNote, setEditTaskNote] = useState('');
+  const [editTaskSaving, setEditTaskSaving] = useState(false);
+  const [editTaskError, setEditTaskError] = useState<string | null>(null);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -777,6 +785,77 @@ export default function CustomerDetailPage() {
     } catch {
       setTaskSaving(false);
       setTaskError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Edit task/appointment helpers
+  // ---------------------------------------------------------------------------
+
+  function openEditTask(task: TaskDto) {
+    setEditingTask(task);
+    setEditTaskTitle(task.title);
+    setEditTaskDate(task.dueDate);
+    setEditTaskTime(task.dueTime ?? '');
+    setEditTaskNote(task.note ?? '');
+    setEditTaskError(null);
+    setEditTaskSaving(false);
+  }
+
+  function closeEditTask() {
+    setEditingTask(null);
+    setEditTaskTitle('');
+    setEditTaskDate('');
+    setEditTaskTime('');
+    setEditTaskNote('');
+    setEditTaskError(null);
+    setEditTaskSaving(false);
+  }
+
+  async function saveEditedTask() {
+    if (!editingTask) return;
+    if (!editTaskTitle.trim()) {
+      setEditTaskError('Συμπλήρωσε τίτλο.');
+      return;
+    }
+    if (!editTaskDate) {
+      setEditTaskError('Συμπλήρωσε ημερομηνία.');
+      return;
+    }
+    setEditTaskSaving(true);
+    setEditTaskError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setEditTaskSaving(false);
+        setEditTaskError('Δεν αποθηκεύτηκαν οι αλλαγές. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch(`/api/tasks/${editingTask.id}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          title: editTaskTitle.trim(),
+          dueDate: editTaskDate,
+          dueTime: editTaskTime.trim() || null,
+          note: editTaskNote.trim() || null,
+        }),
+      });
+      const json = await res.json() as { ok?: boolean; error?: string };
+      if (res.ok && json.ok) {
+        closeEditTask();
+        setRefreshTick(t => t + 1);
+      } else {
+        setEditTaskSaving(false);
+        setEditTaskError('Δεν αποθηκεύτηκαν οι αλλαγές. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setEditTaskSaving(false);
+      setEditTaskError('Δεν αποθηκεύτηκαν οι αλλαγές. Δοκίμασε ξανά.');
     }
   }
 
@@ -1585,6 +1664,13 @@ export default function CustomerDetailPage() {
                     <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
                   )}
                 </div>
+                <button
+                  type="button"
+                  onClick={() => openEditTask(t)}
+                  className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                >
+                  Επεξεργασία
+                </button>
               </li>
             ))}
           </ul>
@@ -1643,12 +1729,21 @@ export default function CustomerDetailPage() {
                       <p className="text-xs text-zinc-400">{truncate(task.note, 120)}</p>
                     )}
                   </div>
-                  <Link
-                    href={`/appointments?focusAppointment=${task.id}`}
-                    className="shrink-0 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
-                  >
-                    Άνοιγμα
-                  </Link>
+                  <div className="flex shrink-0 flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => openEditTask(task)}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                    >
+                      Επεξεργασία
+                    </button>
+                    <Link
+                      href={`/appointments?focusAppointment=${task.id}`}
+                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      Άνοιγμα
+                    </Link>
+                  </div>
                 </div>
               </li>
             ))}
@@ -2129,6 +2224,96 @@ export default function CustomerDetailPage() {
             )}
 
 
+          </div>
+        </div>
+      )}
+
+      {/* Edit task/appointment modal */}
+      {editingTask !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={closeEditTask}
+        >
+          <div
+            className="mx-4 w-full max-w-lg rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-zinc-900">
+                {editingTask.type === 'book_appointment' || editingTask.type === 'visit_customer'
+                  ? 'Επεξεργασία ραντεβού'
+                  : 'Επεξεργασία task'}
+              </h2>
+              <button
+                type="button"
+                onClick={closeEditTask}
+                aria-label="Κλείσιμο"
+                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="space-y-3">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
+                <input
+                  type="text"
+                  value={editTaskTitle}
+                  onChange={e => setEditTaskTitle(e.target.value)}
+                  className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
+                <input
+                  type="date"
+                  value={editTaskDate}
+                  onChange={e => setEditTaskDate(e.target.value)}
+                  className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-600">Ώρα</label>
+                <input
+                  type="time"
+                  value={editTaskTime}
+                  onChange={e => setEditTaskTime(e.target.value)}
+                  className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
+                <textarea
+                  rows={3}
+                  value={editTaskNote}
+                  onChange={e => setEditTaskNote(e.target.value)}
+                  className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                />
+              </div>
+            </div>
+            {editTaskError && (
+              <p className="mt-2 text-xs font-medium text-red-600">{editTaskError}</p>
+            )}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={saveEditedTask}
+                disabled={editTaskSaving}
+                className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {editTaskSaving ? 'Αποθηκεύεται...' : 'Αποθήκευση'}
+              </button>
+              <button
+                type="button"
+                onClick={closeEditTask}
+                disabled={editTaskSaving}
+                className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Ακύρωση
+              </button>
+            </div>
           </div>
         </div>
       )}
