@@ -5,6 +5,28 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
+function mapSignInError(err: unknown): string {
+  const e = err as { status?: number; code?: string; name?: string; message?: string };
+  const status = e.status ?? 0;
+  const msg = (e.message ?? '').toLowerCase();
+  const code = (e.code ?? '').toLowerCase();
+  if (msg.includes('invalid login credentials') || msg.includes('invalid credentials')) {
+    return 'Λάθος email ή κωδικός.';
+  }
+  if (msg.includes('email not confirmed') || code.includes('email_not_confirmed')) {
+    return 'Πρέπει πρώτα να επιβεβαιώσεις το email σου.';
+  }
+  if (
+    status === 429 ||
+    msg.includes('rate limit') ||
+    code.includes('rate_limit') ||
+    code.includes('over_request_rate_limit')
+  ) {
+    return 'Έχουν γίνει πολλές προσπάθειες σύνδεσης. Περίμενε λίγο και δοκίμασε ξανά.';
+  }
+  return 'Δεν μπορέσαμε να σε συνδέσουμε. Έλεγξε τα στοιχεία σου.';
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -41,7 +63,9 @@ export default function LoginPage() {
     setLoading(false);
 
     if (signInError) {
-      setError('Δεν μπορέσαμε να σε συνδέσουμε. Έλεγξε τα στοιχεία και δοκίμασε ξανά.');
+      const e = signInError as { status?: number; code?: string; name?: string };
+      console.error('[login] signIn failed', { name: e.name, status: e.status, code: e.code });
+      setError(mapSignInError(signInError));
       return;
     }
 

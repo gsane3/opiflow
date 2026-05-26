@@ -5,6 +5,35 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
+function mapSignUpError(err: unknown): string {
+  const e = err as { status?: number; code?: string; name?: string; message?: string };
+  const status = e.status ?? 0;
+  const msg = (e.message ?? '').toLowerCase();
+  const code = (e.code ?? '').toLowerCase();
+  if (
+    status === 429 ||
+    msg.includes('rate limit') ||
+    code.includes('rate_limit') ||
+    code.includes('over_email_send')
+  ) {
+    return 'Έχουν γίνει πολλές προσπάθειες εγγραφής. Περίμενε λίγο και δοκίμασε ξανά.';
+  }
+  if (msg.includes('password') || msg.includes('should be at least')) {
+    return 'Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.';
+  }
+  if (msg.includes('signup disabled') || msg.includes('signups not allowed')) {
+    return 'Η εγγραφή είναι προσωρινά απενεργοποιημένη.';
+  }
+  if (
+    msg.includes('already registered') ||
+    msg.includes('already exists') ||
+    msg.includes('user already registered')
+  ) {
+    return 'Υπάρχει ήδη λογαριασμός με αυτό το email. Κάνε σύνδεση.';
+  }
+  return 'Δεν μπορέσαμε να δημιουργήσουμε λογαριασμό. Έλεγξε τα στοιχεία και δοκίμασε ξανά.';
+}
+
 export default function RegisterPage() {
   const router = useRouter();
 
@@ -29,6 +58,10 @@ export default function RegisterPage() {
       setError('Δεν μπορέσαμε να δημιουργήσουμε λογαριασμό. Έλεγξε τα στοιχεία και δοκίμασε ξανά.');
       return;
     }
+    if (password.length < 6) {
+      setError('Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.');
+      return;
+    }
 
     setLoading(true);
 
@@ -45,7 +78,9 @@ export default function RegisterPage() {
     setLoading(false);
 
     if (signUpError) {
-      setError('Δεν μπορέσαμε να δημιουργήσουμε λογαριασμό. Έλεγξε τα στοιχεία και δοκίμασε ξανά.');
+      const e = signUpError as { status?: number; code?: string; name?: string };
+      console.error('[register] signUp failed', { name: e.name, status: e.status, code: e.code });
+      setError(mapSignUpError(signUpError));
       return;
     }
 
