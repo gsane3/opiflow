@@ -1367,9 +1367,9 @@ export default function CallsPage() {
       if (!token) return;
 
       const customer =
-        customers.find(
-          (c) => typeof c.phone === 'string' && c.phone === event.phone
-        ) ?? null;
+        event.phone
+          ? findCustomerByPhone(customers, event.phone) ?? null
+          : null;
       const customerId = customer?.id ?? null;
 
       const summary =
