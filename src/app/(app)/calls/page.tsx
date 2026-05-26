@@ -142,6 +142,7 @@ function CallActionSheet({
   onClose,
   onDeleted,
   onContactAdded,
+  onCallLinked,
 }: {
   call: BackendCall;
   customers: Customer[];
@@ -149,6 +150,7 @@ function CallActionSheet({
   onClose: () => void;
   onDeleted: (id: string) => void;
   onContactAdded: (customer: Customer) => void;
+  onCallLinked: (callId: string, customer: Customer) => void;
 }) {
   // 'actions' shows the main list; 'add_contact' shows the mini form.
   const [view, setView] = useState<'actions' | 'add_contact'>('actions');
@@ -214,26 +216,58 @@ function CallActionSheet({
     setBusy(true);
     setFormError(null);
     try {
-      const body: Record<string, unknown> = {
+      // Step 1: create customer.
+      const customerBody: Record<string, unknown> = {
         name: name || company || 'Νέα επαφή',
         phone: call.phone,
       };
-      if (company) body.companyName = company;
-      if (email) body.email = email;
-      const resp = await fetch('/api/customers', {
+      if (company) customerBody.companyName = company;
+      if (email) customerBody.email = email;
+      const customerResp = await fetch('/api/customers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify(customerBody),
       });
-      const json = await resp.json();
-      if (json.ok && json.customer) {
-        onContactAdded(mapCustomer(json.customer as Record<string, unknown>));
+      const customerJson = await customerResp.json();
+      if (!customerJson.ok || !customerJson.customer) {
+        setFormError('Αδύνατη η προσθήκη επαφής. Δοκίμασε ξανά.');
+        return;
+      }
+
+      const newCustomer = mapCustomer(customerJson.customer as Record<string, unknown>);
+
+      // Step 2: link the communication row to the new customer (best-effort).
+      let linked = false;
+      try {
+        const patchResp = await fetch(
+          `/api/communications?id=${encodeURIComponent(call.id)}`,
+          {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ customerId: newCustomer.id }),
+          }
+        );
+        const patchJson = await patchResp.json();
+        linked = patchJson.ok === true;
+      } catch {
+        // Network error on PATCH; customer was still created.
+      }
+
+      if (linked) {
+        onCallLinked(call.id, newCustomer);
+        onContactAdded(newCustomer);
         onClose();
       } else {
-        setFormError('Αδύνατη η προσθήκη επαφής. Δοκίμασε ξανά.');
+        // Customer created but link failed. Keep the customer in state,
+        // show a non-blocking message and leave the sheet open.
+        onContactAdded(newCustomer);
+        setFormError('Η επαφή δημιουργήθηκε, αλλά δεν συνδέθηκε με την κλήση.');
       }
     } catch {
       setFormError('Αδύνατη η προσθήκη επαφής. Δοκίμασε ξανά.');
@@ -1146,6 +1180,25 @@ export default function CallsPage() {
     setCustomers((prev) => [newCustomer, ...prev]);
   }
 
+  function handleCallLinkedToCustomer(callId: string, customer: Customer) {
+    const callCustomer: BackendCallCustomer = {
+      id: customer.id,
+      crmNumber: customer.crmNumber ?? null,
+      name: customer.name,
+      companyName: customer.companyName || null,
+      phone: customer.phone || null,
+      source: customer.source,
+      status: customer.status,
+    };
+    setCalls((prev) =>
+      prev.map((c) =>
+        c.id === callId
+          ? { ...c, customerId: customer.id, customer: callCustomer }
+          : c
+      )
+    );
+  }
+
   // Best-effort call logger. Fires after every completed or failed browser
   // call. Does not block UI; errors are silently discarded.
   const handleCallEnded = useCallback(
@@ -1526,6 +1579,7 @@ export default function CallsPage() {
           onClose={() => setSelectedCall(null)}
           onDeleted={handleCallDeleted}
           onContactAdded={handleContactAdded}
+          onCallLinked={handleCallLinkedToCustomer}
         />
       )}
 

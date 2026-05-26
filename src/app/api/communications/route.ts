@@ -374,3 +374,102 @@ export async function DELETE(request: NextRequest) {
     return jsonNoStore({ ok: false, error: 'communication_delete_failed' }, { status: 500 });
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  const token = getBearerToken(request);
+  if (!token) {
+    return jsonNoStore({ ok: false, error: 'missing_auth' }, { status: 401 });
+  }
+
+  let supabase: SupabaseClient;
+  try {
+    supabase = createServerSupabaseClient();
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
+      return jsonNoStore({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
+    }
+    return jsonNoStore({ ok: false, error: 'communication_update_failed' }, { status: 500 });
+  }
+
+  try {
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser(token);
+
+    if (authError || !user) {
+      return jsonNoStore({ ok: false, error: 'invalid_auth' }, { status: 401 });
+    }
+
+    const businessId = await getBusinessId(supabase, user.id);
+    if (!businessId) {
+      return jsonNoStore({ ok: false, error: 'business_not_found' }, { status: 404 });
+    }
+
+    const id = request.nextUrl.searchParams.get('id');
+    if (!id) {
+      return jsonNoStore({ ok: false, error: 'missing_id' }, { status: 400 });
+    }
+
+    let body: Record<string, unknown>;
+    try {
+      body = await request.json();
+    } catch {
+      return jsonNoStore({ ok: false, error: 'invalid_body' }, { status: 400 });
+    }
+
+    const rawCustomerId = body.customerId;
+
+    // customerId must be a non-empty string or explicit null.
+    if (
+      rawCustomerId !== undefined &&
+      rawCustomerId !== null &&
+      typeof rawCustomerId !== 'string'
+    ) {
+      return jsonNoStore({ ok: false, error: 'invalid_body' }, { status: 400 });
+    }
+
+    const resolvedCustomerId: string | null =
+      typeof rawCustomerId === 'string' && rawCustomerId.length > 0
+        ? rawCustomerId
+        : null;
+
+    // If a customer id is provided, verify it belongs to the same business.
+    if (resolvedCustomerId !== null) {
+      const { data: customerCheck } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('id', resolvedCustomerId)
+        .eq('business_id', businessId)
+        .maybeSingle();
+
+      if (!customerCheck) {
+        return jsonNoStore({ ok: false, error: 'customer_not_found' }, { status: 404 });
+      }
+    }
+
+    // Update the communication. The business_id filter enforces ownership.
+    const { data, error } = await supabase
+      .from('communications')
+      .update({ customer_id: resolvedCustomerId })
+      .eq('id', id)
+      .eq('business_id', businessId)
+      .select(COMMUNICATION_COLUMNS)
+      .maybeSingle();
+
+    if (error) {
+      return jsonNoStore({ ok: false, error: 'communication_update_failed' }, { status: 500 });
+    }
+
+    if (!data) {
+      return jsonNoStore({ ok: false, error: 'communication_not_found' }, { status: 404 });
+    }
+
+    const row = asCommunicationRow(data);
+    const communication = dbToCommunication(row, null);
+
+    return jsonNoStore({ ok: true, communication });
+  } catch {
+    return jsonNoStore({ ok: false, error: 'communication_update_failed' }, { status: 500 });
+  }
+}
