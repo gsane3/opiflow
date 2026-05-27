@@ -32,6 +32,11 @@ interface PoolNumber {
   cooling_down_since: string | null;
   available_after: string | null;
   retired_at: string | null;
+  // Safe assignment metadata returned by GET enrichment.
+  // Never includes email, phone, vat, address, owner_id or other sensitive fields.
+  assigned_business_id:   string | null;
+  assigned_business_name: string | null;
+  assignment_status:      string | null;
 }
 
 interface PoolApiResponse {
@@ -44,6 +49,14 @@ interface PoolApiResponse {
 interface ImportApiResponse {
   ok: boolean;
   number?: PoolNumber;
+  error?: string;
+}
+
+interface ReleaseApiResponse {
+  ok: boolean;
+  released?: boolean;
+  managed_phone_number_id?: string | null;
+  available_after?: string | null;
   error?: string;
 }
 
@@ -127,6 +140,14 @@ export default function PhonePoolBackendPage() {
   const [importLoading, setImportLoading] = useState(false);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+
+  // Release action state: tracks which row is in-flight and the last result.
+  const [releaseLoadingId, setReleaseLoadingId] = useState<string | null>(null);
+  const [releaseResult, setReleaseResult] = useState<{
+    mpnId: string;
+    msg: string;
+    isError: boolean;
+  } | null>(null);
 
   // ---------------------------------------------------------------------------
   // Session helper
@@ -245,6 +266,81 @@ export default function PhonePoolBackendPage() {
       setImportError('Αδύνατη η σύνδεση με το API.');
     } finally {
       setImportLoading(false);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Release number action
+  // ---------------------------------------------------------------------------
+  // Calls PATCH /api/admin/phone-pool with business_id only.
+  // Does NOT send e164_number, business name, or any other sensitive data.
+  // Requires window.confirm before proceeding.
+
+  async function handleRelease(businessId: string, mpnId: string) {
+    const confirmed = window.confirm(
+      'Αυτό θα αποδεσμεύσει τον αριθμό και, για αριθμό πλατφόρμας, θα τον βάλει σε αποψύξη 18 μηνών. Δεν συνδέεται ακόμα με ακύρωση συνδρομής.'
+    );
+    if (!confirmed) return;
+
+    setReleaseLoadingId(mpnId);
+    setReleaseResult(null);
+
+    try {
+      const token = await getToken();
+      if (!token) {
+        setReleaseResult({
+          mpnId,
+          msg: 'Δεν έγινε η αποδέσμευση. Δοκίμασε ξανά.',
+          isError: true,
+        });
+        return;
+      }
+
+      const res = await fetch('/api/admin/phone-pool', {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          business_id:    businessId,
+          release_reason: 'admin_release',
+        }),
+      });
+
+      const json = (await res.json()) as ReleaseApiResponse;
+
+      if (res.status === 403 || json.error === 'forbidden') {
+        setForbidden(true);
+        return;
+      }
+
+      if (!res.ok || !json.ok) {
+        setReleaseResult({
+          mpnId,
+          msg: 'Δεν έγινε η αποδέσμευση. Δοκίμασε ξανά.',
+          isError: true,
+        });
+        return;
+      }
+
+      setReleaseResult({
+        mpnId,
+        msg: json.released === true
+          ? 'Ο αριθμός αποδεσμεύτηκε. Αν είναι αριθμός πλατφόρμας, μπήκε σε αποψύξη 18 μηνών.'
+          : 'Δεν βρέθηκε ενεργή ανάθεση για αποδέσμευση.',
+        isError: false,
+      });
+
+      await loadPool();
+    } catch {
+      setReleaseResult({
+        mpnId,
+        msg: 'Δεν έγινε η αποδέσμευση. Δοκίμασε ξανά.',
+        isError: true,
+      });
+    } finally {
+      setReleaseLoadingId(null);
     }
   }
 
@@ -408,17 +504,32 @@ export default function PhonePoolBackendPage() {
                   )}
                   {n.status === 'assigned' && (
                     <span className="flex w-full flex-wrap items-center gap-2">
-                      <span className="text-xs text-zinc-400">
-                        Η αποδέσμευση από UI χρειάζεται σύνδεση αριθμού με επιχείρηση. Το backend API είναι έτοιμο.
-                      </span>
-                      <button
-                        type="button"
-                        disabled
-                        title="Δεν είναι ακόμα διαθέσιμο από το UI"
-                        className="cursor-not-allowed rounded-full px-2.5 py-0.5 text-xs font-medium text-zinc-300 ring-1 ring-zinc-200"
-                      >
-                        Αποδέσμευση σύντομα
-                      </button>
+                      {n.assigned_business_name ? (
+                        <span className="text-xs text-zinc-500">
+                          Επιχείρηση: {n.assigned_business_name}
+                        </span>
+                      ) : n.assigned_business_id ? (
+                        <span className="text-xs text-zinc-500">Συνδεδεμένη επιχείρηση</span>
+                      ) : null}
+                      {n.assigned_business_id ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRelease(n.assigned_business_id!, n.id)}
+                          disabled={releaseLoadingId === n.id}
+                          className="rounded-full bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700 ring-1 ring-red-200 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {releaseLoadingId === n.id ? 'Αποδέσμευση...' : 'Αποδέσμευση'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-zinc-400">
+                          Δεν υπάρχει ακόμα σύνδεση επιχείρησης για αποδέσμευση από UI.
+                        </span>
+                      )}
+                    </span>
+                  )}
+                  {releaseResult?.mpnId === n.id && (
+                    <span className={`w-full text-xs ${releaseResult.isError ? 'text-red-600' : 'text-green-600'}`}>
+                      {releaseResult.msg}
                     </span>
                   )}
                   <span className="ml-auto text-right text-xs text-zinc-400">
