@@ -65,6 +65,37 @@ const FEATURES = [
   },
 ];
 
+// ---------------------------------------------------------------------------
+// Module-level helper: fetches business phone info without touching React state.
+// Returns a plain result object. Callers set state from the result.
+// ---------------------------------------------------------------------------
+
+async function loadPhoneInfo(): Promise<{
+  data?:      BusinessMeResponse;
+  noSession?: true;
+  error?:     true;
+}> {
+  try {
+    const supabase = createBrowserSupabaseClient();
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) {
+      return { noSession: true };
+    }
+    const resp = await fetch('/api/businesses/me', {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (resp.ok) {
+      const data: BusinessMeResponse = await resp.json();
+      return { data };
+    }
+    return { error: true };
+  } catch {
+    return { error: true };
+  }
+}
+
 export default function NumberPage() {
   const router = useRouter();
   const [phoneLoading, setPhoneLoading] = useState(true);
@@ -75,36 +106,44 @@ export default function NumberPage() {
   const [requestError, setRequestError] = useState<string | null>(null);
   const [localNumberRequest, setLocalNumberRequest] = useState<NumberRequest | null>(null);
 
+  // Initial mount fetch. Uses an inline async function and a cancellation flag so
+  // that state setters are called directly inside the effect, satisfying lint.
   useEffect(() => {
-    async function fetchPhone() {
-      try {
-        const supabase = createBrowserSupabaseClient();
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        if (!session) {
-          setNoSession(true);
-          setPhoneLoading(false);
-          return;
-        }
-        const resp = await fetch('/api/businesses/me', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        if (resp.ok) {
-          const data: BusinessMeResponse = await resp.json();
-          setPhoneInfo(data);
-          setLocalNumberRequest(data.numberRequest ?? null);
-        } else {
-          setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
-        }
-      } catch {
+    let cancelled = false;
+    async function run() {
+      const result = await loadPhoneInfo();
+      if (cancelled) return;
+      if (result.noSession) {
+        setNoSession(true);
+      } else if (result.data) {
+        setPhoneInfo(result.data);
+        setLocalNumberRequest(result.data.numberRequest ?? null);
+      } else {
         setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
-      } finally {
-        setPhoneLoading(false);
       }
+      setPhoneLoading(false);
     }
-    fetchPhone();
+    run();
+    return () => { cancelled = true; };
   }, []);
+
+  // Manual re-fetch for the "Έλεγχος κατάστασης" button. Not called from
+  // any effect, so there is no lint concern about state-in-effect here.
+  async function handleCheckStatus() {
+    if (phoneLoading) return;
+    setPhoneLoading(true);
+    setPhoneError(null);
+    const result = await loadPhoneInfo();
+    if (result.noSession) {
+      setNoSession(true);
+    } else if (result.data) {
+      setPhoneInfo(result.data);
+      setLocalNumberRequest(result.data.numberRequest ?? null);
+    } else {
+      setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
+    }
+    setPhoneLoading(false);
+  }
 
   async function handleCreateRequest() {
     if (requestSubmitting) return;
@@ -228,6 +267,14 @@ export default function NumberPage() {
               <p className="mt-3 text-xs text-zinc-400">
                 Ο αριθμός σου έχει ενεργοποιηθεί για την επιχείρησή σου.
               </p>
+              <div className="mt-4">
+                <Link
+                  href="/calls"
+                  className="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                >
+                  Δοκίμασε το browser τηλέφωνο
+                </Link>
+              </div>
             </>
           ) : (
             <>
@@ -258,6 +305,14 @@ export default function NumberPage() {
                     className="mt-4 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-400 cursor-not-allowed"
                   >
                     Το αίτημα έχει καταχωρηθεί
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCheckStatus}
+                    disabled={phoneLoading}
+                    className="mt-3 text-xs font-medium text-zinc-500 transition hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {phoneLoading ? 'Έλεγχος...' : 'Έλεγχος κατάστασης'}
                   </button>
                 </>
               ) : (
