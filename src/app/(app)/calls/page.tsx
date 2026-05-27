@@ -1293,10 +1293,12 @@ function NumpadPanel({
   open,
   onClose,
   onDial,
+  inline,
 }: {
   open: boolean;
   onClose: () => void;
   onDial: (number: string) => void;
+  inline?: boolean;
 }) {
   const [dialNumber, setDialNumber] = useState('');
 
@@ -1321,6 +1323,72 @@ function NumpadPanel({
   }
 
   if (!open) return null;
+
+  if (inline) {
+    return (
+      <div className="rounded-[28px] bg-white px-5 pb-6 pt-5 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="mb-4">
+          <p className="text-base font-bold text-zinc-900">Πληκτρολόγιο</p>
+          <p className="mt-0.5 text-xs text-zinc-400">
+            Πληκτρολόγησε αριθμό και πάτησε Κλήση.
+          </p>
+        </div>
+        {/* Number display */}
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
+          <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900">
+            {dialNumber || (
+              <span className="text-base font-normal text-zinc-400">Αριθμός</span>
+            )}
+          </span>
+          {dialNumber && (
+            <button
+              type="button"
+              onClick={backspace}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-200"
+              aria-label="Διαγραφή"
+            >
+              <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {/* Key grid */}
+        <div className="mb-4 grid grid-cols-3 gap-2">
+          {DIAL_KEYS.flat().map((key) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => press(key)}
+              className="flex h-14 items-center justify-center rounded-2xl bg-zinc-50 text-xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200"
+            >
+              {key}
+            </button>
+          ))}
+        </div>
+        {/* Actions */}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={handleDial}
+            disabled={!dialNumber.trim()}
+            className="w-full rounded-[28px] bg-green-600 py-3.5 text-sm font-semibold text-white transition hover:bg-green-700 active:bg-green-800 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            Κλήση
+          </button>
+          {dialNumber && (
+            <button
+              type="button"
+              onClick={() => setDialNumber('')}
+              className="w-full rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+            >
+              Καθαρισμός
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1769,13 +1837,6 @@ export default function CallsPage() {
     );
   }
 
-  const latestCall =
-    calls.length > 0
-      ? [...calls].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
-      : null;
-
-  const missedCount = calls.filter((c) => c.status === 'missed').length;
-
   return (
     <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
 
@@ -1803,15 +1864,11 @@ export default function CallsPage() {
 
       {/* Header */}
       <div>
-        <p className="text-xs font-medium text-zinc-400">Κλήσεις</p>
-        <h1 className="mt-0.5 text-2xl font-bold text-zinc-900">Οι κλήσεις σου</h1>
-        <p className="mt-1 text-sm text-zinc-500">
-          Κάθε κλήση οργανώνεται αφού την ελέγξεις.
-        </p>
+        <h1 className="text-2xl font-bold text-zinc-900">Κλήσεις</h1>
       </div>
 
-      {/* Phone line card */}
-      {phoneLoading ? (
+      {/* Phone line card - hidden when browser phone is ready */}
+      {!phoneToken.ready && (phoneLoading ? (
         <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
           <p className="text-sm text-zinc-400">Έλεγχος γραμμής...</p>
         </div>
@@ -1853,17 +1910,18 @@ export default function CallsPage() {
             </div>
           </div>
         </div>
-      ) : null}
+      ) : null)}
 
-      {/* WebRTC readiness card */}
+      {/* WebRTC readiness card - hidden once microphone permission is granted */}
+      {micState !== 'granted' && (
       <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
         <div className="flex items-start gap-3">
           <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${
-            micState === 'granted' ? 'bg-green-50' : micState === 'denied' ? 'bg-amber-50' : micState === 'unsupported' ? 'bg-zinc-100' : 'bg-indigo-50'
+            micState === 'denied' ? 'bg-amber-50' : micState === 'unsupported' ? 'bg-zinc-100' : 'bg-indigo-50'
           }`}>
             <svg
               className={`h-5 w-5 ${
-                micState === 'granted' ? 'text-green-500' : micState === 'denied' ? 'text-amber-500' : micState === 'unsupported' ? 'text-zinc-400' : 'text-indigo-500'
+                micState === 'denied' ? 'text-amber-500' : micState === 'unsupported' ? 'text-zinc-400' : 'text-indigo-500'
               }`}
               fill="none"
               strokeWidth={1.5}
@@ -1880,11 +1938,6 @@ export default function CallsPage() {
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-medium text-zinc-500">Τηλέφωνο μέσα στο app</p>
-              {micState === 'granted' && (
-                <span className="rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 ring-1 ring-green-200">
-                  Μικρόφωνο έτοιμο
-                </span>
-              )}
               {micState === 'denied' && (
                 <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
                   Χρειάζεται άδεια
@@ -1919,11 +1972,6 @@ export default function CallsPage() {
                 Έλεγχος...
               </button>
             )}
-            {micState === 'granted' && (
-              <p className="mt-0.5 text-xs text-zinc-400">
-                Το μικρόφωνο είναι έτοιμο. Η σύνδεση κλήσεων μέσα στο app θα ενεργοποιηθεί στο επόμενο βήμα.
-              </p>
-            )}
             {micState === 'denied' && (
               <>
                 <p className="mt-0.5 text-xs text-zinc-400">
@@ -1946,13 +1994,10 @@ export default function CallsPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* Browser phone */}
       <div>
-        <p className="mb-1 px-1 text-xs font-medium text-zinc-500">Τηλέφωνο browser</p>
-        <p className="mb-2 px-1 text-xs text-zinc-400">
-          Σύνδεσε το browser με το τηλεφωνικό κέντρο για να μπορείς να απαντάς κλήσεις από την εφαρμογή.
-        </p>
         {phoneToken.loading ? (
           <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-sm text-zinc-400">Φόρτωση...</p>
@@ -1972,46 +2017,14 @@ export default function CallsPage() {
         )}
       </div>
 
-      {/* Latest call card */}
-      {latestCall ? (
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-              <PhoneIcon className="h-5 w-5 text-indigo-500" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-zinc-500">Τελευταία κλήση</p>
-                {missedCount > 0 && (
-                  <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200">
-                    {missedCount} {missedCount === 1 ? 'αναπάντητη' : 'αναπάντητες'}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-base font-semibold text-zinc-900">
-                {latestCall.customer?.name ??
-                  latestCall.customer?.companyName ??
-                  latestCall.phone ??
-                  'Αγνωστος'}
-              </p>
-              <p className="text-xs text-zinc-400">{fmtDate(latestCall.createdAt)}</p>
-            </div>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-          <div className="flex items-start gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-              <PhoneIcon className="h-5 w-5 text-indigo-500" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-zinc-700">Δεν υπάρχουν κλήσεις ακόμα.</p>
-              <p className="mt-0.5 text-xs text-zinc-400">
-                Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ.
-              </p>
-            </div>
-          </div>
-        </div>
+      {/* Inline numpad - visible immediately when browser phone token is ready */}
+      {!phoneToken.loading && phoneToken.ready && (
+        <NumpadPanel
+          inline
+          open
+          onClose={() => {}}
+          onDial={(number) => setPendingDialTarget(number)}
+        />
       )}
 
       {/* Segmented tabs */}
@@ -2045,7 +2058,8 @@ export default function CallsPage() {
         <SmsTab customers={customers} onNewSms={() => openNewSms()} />
       )}
 
-      {/* Floating numpad launcher */}
+      {/* Floating numpad launcher - hidden when inline numpad is active */}
+      {(phoneToken.loading || !phoneToken.ready) && (
       <button
         type="button"
         onClick={() => setNumpadOpen(true)}
@@ -2064,6 +2078,7 @@ export default function CallsPage() {
           <circle cx="16" cy="16" r="1.75" />
         </svg>
       </button>
+      )}
 
       {/* Numpad modal */}
       <NumpadPanel
