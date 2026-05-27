@@ -20,6 +20,7 @@ export interface BusinessProfile {
   phone: string;
   email: string;
   address: string;
+  city?: string;
   vatNumber: string;
   taxOffice: string;
   logoDataUrl: string;

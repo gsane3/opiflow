@@ -12,6 +12,18 @@ type BusinessMeResponse = {
   ok?: boolean;
   business?: {
     business_phone_number?: string | null;
+    name?: string | null;
+    type?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    address?: string | null;
+    city?: string | null;
+    vat_number?: string | null;
+    tax_office?: string | null;
+    default_vat_rate?: number | null;
+    default_offer_terms?: string | null;
+    default_acceptance_text?: string | null;
+    preferred_contact_method?: string | null;
   };
   phoneAssigned?: boolean;
   error?: string;
@@ -31,6 +43,7 @@ function defaultProfile(): BusinessProfile {
     phone: '',
     email: '',
     address: '',
+    city: '',
     vatNumber: '',
     taxOffice: '',
     logoDataUrl: '',
@@ -51,6 +64,7 @@ export default function SettingsPage() {
   const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
   const [phoneLoading, setPhoneLoading] = useState(true);
   const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchPhone() {
@@ -69,6 +83,31 @@ export default function SettingsPage() {
         if (resp.ok) {
           const data: BusinessMeResponse = await resp.json();
           setPhoneInfo(data);
+          // Hydrate profile from DB. Uses functional update so ownerName and
+          // logoDataUrl (localStorage-only) are preserved regardless of whether
+          // localStorage hydration has already run.
+          if (data.ok && data.business) {
+            const biz = data.business;
+            const validTypes = ['technical_services', 'sales_services', 'projects_construction', 'other'] as const;
+            const validContact = ['viber', 'email', 'phone'] as const;
+            setProfile((current) => ({
+              ...current,
+              businessName:          typeof biz.name === 'string'                  ? biz.name                                              : current.businessName,
+              businessType:          (validTypes as readonly string[]).includes(biz.type ?? '') ? (biz.type as BusinessProfile['businessType']) : current.businessType,
+              phone:                 biz.phone                 !== undefined        ? (biz.phone ?? '')                                     : current.phone,
+              email:                 biz.email                 !== undefined        ? (biz.email ?? '')                                     : current.email,
+              address:               biz.address               !== undefined        ? (biz.address ?? '')                                   : current.address,
+              city:                  biz.city                  !== undefined        ? (biz.city ?? '')                                      : current.city,
+              vatNumber:             biz.vat_number            !== undefined        ? (biz.vat_number ?? '')                                : current.vatNumber,
+              taxOffice:             biz.tax_office            !== undefined        ? (biz.tax_office ?? '')                                : current.taxOffice,
+              defaultVatRate:        typeof biz.default_vat_rate === 'number'       ? biz.default_vat_rate                                  : current.defaultVatRate,
+              defaultOfferTerms:     biz.default_offer_terms   !== undefined        ? (biz.default_offer_terms ?? '')                       : current.defaultOfferTerms,
+              defaultAcceptanceText: biz.default_acceptance_text !== undefined      ? (biz.default_acceptance_text ?? current.defaultAcceptanceText) : current.defaultAcceptanceText,
+              preferredContactMethod: (validContact as readonly string[]).includes(biz.preferred_contact_method ?? '') ? (biz.preferred_contact_method as BusinessProfile['preferredContactMethod']) : current.preferredContactMethod,
+              // ownerName: kept from localStorage (no DB column).
+              // logoDataUrl: kept from localStorage (logo storage deferred).
+            }));
+          }
         } else {
           setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
         }
@@ -91,16 +130,86 @@ export default function SettingsPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  function handleSave() {
-    saveBusinessProfile({ ...profile, updatedAt: new Date().toISOString() });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+  async function handleSave() {
+    setSaveError(null);
+
+    let accessToken: string | null = null;
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      accessToken = session?.access_token ?? null;
+    } catch {
+      setSaveError('Δεν αποθηκεύτηκαν τα στοιχεία. Δοκίμασε ξανά.');
+      return;
+    }
+
+    if (!accessToken) {
+      setSaveError('Πρέπει να είσαι συνδεδεμένος για να αποθηκεύσεις.');
+      return;
+    }
+
+    try {
+      const resp = await fetch('/api/businesses/me', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          name:                     profile.businessName,
+          type:                     profile.businessType,
+          phone:                    profile.phone       || null,
+          email:                    profile.email       || null,
+          address:                  profile.address     || null,
+          city:                     profile.city        || null,
+          vat_number:               profile.vatNumber   || null,
+          tax_office:               profile.taxOffice   || null,
+          default_vat_rate:         profile.defaultVatRate,
+          default_offer_terms:      profile.defaultOfferTerms      || null,
+          default_acceptance_text:  profile.defaultAcceptanceText  || null,
+          preferred_contact_method: profile.preferredContactMethod,
+        }),
+      });
+
+      if (!resp.ok) {
+        setSaveError('Δεν αποθηκεύτηκαν τα στοιχεία. Δοκίμασε ξανά.');
+        return;
+      }
+
+      // Update localStorage cache after successful DB save.
+      saveBusinessProfile({ ...profile, updatedAt: new Date().toISOString() });
+      setSaveError(null);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch {
+      setSaveError('Δεν αποθηκεύτηκαν τα στοιχεία. Δοκίμασε ξανά.');
+    }
   }
 
   // Render helpers (not components, no hooks)
 
   function renderBusiness() {
-    return <BusinessForm profile={profile} onChange={setProfile} onSave={handleSave} saved={saved} />;
+    return (
+      <div className="space-y-6">
+        {/* City field. Stored in DB; intentionally placed here because
+            BusinessForm is not in the editable file list for this slice. */}
+        <div>
+          <label className="block text-sm font-medium text-zinc-700 mb-1">Πόλη</label>
+          <input
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200"
+            value={profile.city ?? ''}
+            onChange={(e) => setProfile((p) => ({ ...p, city: e.target.value }))}
+            placeholder="π.χ. Θεσσαλονίκη"
+          />
+        </div>
+        <BusinessForm profile={profile} onChange={setProfile} onSave={handleSave} saved={saved} />
+        {saveError && (
+          <div className="rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
+            <p className="text-sm text-red-700">{saveError}</p>
+          </div>
+        )}
+      </div>
+    );
   }
 
   function renderProviders() {
