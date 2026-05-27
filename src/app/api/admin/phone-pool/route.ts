@@ -23,6 +23,17 @@ type PoolRow = {
   retired_at: string | null;
 };
 
+// Safe assignment metadata merged into each pool row in GET.
+// Only business_id and name are included. No email, phone, vat, owner_id,
+// address, notes, or provider_ref are queried or returned.
+type AssignmentMeta = {
+  assigned_business_id:   string | null;
+  assigned_business_name: string | null;
+  assignment_status:      string | null;
+};
+
+type PoolRowEnriched = PoolRow & AssignmentMeta;
+
 type StatsMap = {
   available: number;
   assigned: number;
@@ -112,9 +123,10 @@ async function checkAdmin(request: NextRequest): Promise<
 // GET /api/admin/phone-pool
 // ---------------------------------------------------------------------------
 // Returns pool stats and the most recent 200 managed_phone_numbers rows.
-// Fields returned: id, e164_number, provider, city, number_type, status,
-//   imported_at, assigned_at, cooling_down_since, available_after, retired_at.
-// provider_ref and notes are intentionally excluded.
+// Fields returned per number: id, e164_number, provider, city, number_type,
+//   status, imported_at, assigned_at, cooling_down_since, available_after,
+//   retired_at, assigned_business_id, assigned_business_name, assignment_status.
+// provider_ref, notes, and all sensitive business fields are intentionally excluded.
 
 export async function GET(request: NextRequest) {
   const guard = await checkAdmin(request);
@@ -164,7 +176,82 @@ export async function GET(request: NextRequest) {
       stats.by_type[typeKey] = (stats.by_type[typeKey] ?? 0) + 1;
     }
 
-    return NextResponse.json({ ok: true, stats, numbers: rows });
+    // -----------------------------------------------------------------------
+    // Business assignment metadata enrichment
+    // -----------------------------------------------------------------------
+    // Two separate queries to attach safe assignment metadata to each row.
+    // Only business_id and name are fetched from business_phone_numbers /
+    // businesses. No sensitive business fields are queried.
+    // If either enrichment query fails the full GET returns 500 immediately.
+
+    const enrichedRows: PoolRowEnriched[] = rows.map((r) => ({
+      ...r,
+      assigned_business_id:   null,
+      assigned_business_name: null,
+      assignment_status:      null,
+    }));
+
+    if (rows.length > 0) {
+      const mpnIds = rows.map((r) => r.id);
+
+      // Step 1: fetch active business_phone_numbers rows for this batch.
+      const { data: assignments, error: assignError } = await supabase
+        .from('business_phone_numbers')
+        .select('managed_phone_number_id, business_id, status')
+        .in('managed_phone_number_id', mpnIds)
+        .eq('status', 'active');
+
+      if (assignError) {
+        return NextResponse.json({ ok: false, error: 'pool_query_failed' }, { status: 500 });
+      }
+
+      const assignmentRows = (assignments ?? []) as Array<{
+        managed_phone_number_id: string;
+        business_id: string;
+        status: string;
+      }>;
+
+      if (assignmentRows.length > 0) {
+        // Build mpnId -> { business_id, status } lookup.
+        const assignMap = new Map<string, { business_id: string; status: string }>();
+        for (const a of assignmentRows) {
+          assignMap.set(a.managed_phone_number_id, {
+            business_id: a.business_id,
+            status:      a.status,
+          });
+        }
+
+        // Step 2: fetch id + name for the assigned businesses only.
+        const businessIds = [...new Set(assignmentRows.map((a) => a.business_id))];
+
+        const { data: businessData, error: bizError } = await supabase
+          .from('businesses')
+          .select('id, name')
+          .in('id', businessIds);
+
+        if (bizError) {
+          return NextResponse.json({ ok: false, error: 'pool_query_failed' }, { status: 500 });
+        }
+
+        const bizRows = (businessData ?? []) as Array<{ id: string; name: string }>;
+        const bizMap = new Map<string, string>();
+        for (const b of bizRows) {
+          bizMap.set(b.id, b.name);
+        }
+
+        // Merge into enriched rows.
+        for (const row of enrichedRows) {
+          const assignment = assignMap.get(row.id);
+          if (assignment) {
+            row.assigned_business_id   = assignment.business_id;
+            row.assigned_business_name = bizMap.get(assignment.business_id) ?? null;
+            row.assignment_status      = assignment.status;
+          }
+        }
+      }
+    }
+
+    return NextResponse.json({ ok: true, stats, numbers: enrichedRows });
   } catch {
     return NextResponse.json({ ok: false, error: 'phone_pool_route_failed' }, { status: 500 });
   }
