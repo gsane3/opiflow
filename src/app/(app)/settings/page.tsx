@@ -35,6 +35,12 @@ type BusinessMeResponse = {
     website?: string | null;
   };
   phoneAssigned?: boolean;
+  activationAllowed?: boolean;
+  subscription?: {
+    plan_key: string;
+    status: string;
+    trial_ends_at: string | null;
+  } | null;
   error?: string;
 };
 
@@ -42,6 +48,39 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
   providers: 'Πάροχοι',
 };
+
+const PLAN_NAMES: Record<string, string> = {
+  starter: 'Starter',
+  pro: 'Pro',
+  team: 'Team',
+};
+
+function subStatusPill(status: string): { label: string; cls: string } {
+  switch (status) {
+    case 'pending_manual_review':
+      return { label: 'Αναμένει ενεργοποίηση', cls: 'bg-amber-50 text-amber-700 ring-amber-200' };
+    case 'trialing':
+      return { label: 'Δοκιμαστική περίοδος', cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200' };
+    case 'active':
+      return { label: 'Ενεργή', cls: 'bg-green-50 text-green-700 ring-green-200' };
+    case 'cancelled':
+      return { label: 'Ακυρώθηκε', cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
+    default:
+      return { label: status, cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
+  }
+}
+
+function fmtSubDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleDateString('el-GR', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+  } catch {
+    return iso.slice(0, 10);
+  }
+}
 
 function defaultProfile(): BusinessProfile {
   return {
@@ -367,6 +406,42 @@ export default function SettingsPage() {
                 </svg>
               </button>
             ))}
+          </div>
+
+          {/* Subscription card */}
+          <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+            <p className="mb-2 text-sm font-semibold text-zinc-900">Συνδρομή</p>
+            {phoneLoading ? (
+              <p className="text-xs text-zinc-400">Φόρτωση...</p>
+            ) : phoneInfo?.subscription ? (
+              <div className="space-y-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-800">
+                    {PLAN_NAMES[phoneInfo.subscription.plan_key] ?? phoneInfo.subscription.plan_key}
+                  </span>
+                  {(() => {
+                    const pill = subStatusPill(phoneInfo.subscription.status);
+                    return (
+                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${pill.cls}`}>
+                        {pill.label}
+                      </span>
+                    );
+                  })()}
+                </div>
+                {phoneInfo.subscription.trial_ends_at && (
+                  <p className="text-xs text-zinc-500">
+                    Λήγει: {fmtSubDate(phoneInfo.subscription.trial_ends_at)}
+                  </p>
+                )}
+                {phoneInfo.activationAllowed === false && (
+                  <p className="text-xs text-amber-700">
+                    Επικοινώνησε με την υποστήριξη για ενεργοποίηση.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-zinc-400">Δεν βρέθηκε ενεργή συνδρομή.</p>
+            )}
           </div>
 
           {/* Phone line card */}
