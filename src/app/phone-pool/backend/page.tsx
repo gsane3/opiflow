@@ -18,6 +18,7 @@ interface PoolStats {
   total: number;
   by_city: Record<string, number>;
   by_type?: Record<string, number>;
+  pendingNumberRequests?: number;
 }
 
 interface PoolNumber {
@@ -39,10 +40,23 @@ interface PoolNumber {
   assignment_status:      string | null;
 }
 
+interface PendingNumberRequest {
+  request_id:     string;
+  business_id:    string;
+  business_name:  string | null;
+  business_city:  string | null;
+  requested_city: string | null;
+  source:         string;
+  status:         string;
+  created_at:     string;
+}
+
 interface PoolApiResponse {
   ok: boolean;
   stats?: PoolStats;
   numbers?: PoolNumber[];
+  pendingNumberRequests?: PendingNumberRequest[];
+  pendingRequestsError?: string;
   error?: string;
 }
 
@@ -132,6 +146,7 @@ export default function PhonePoolBackendPage() {
   const [forbidden, setForbidden] = useState(false);
   const [stats, setStats] = useState<PoolStats | null>(null);
   const [numbers, setNumbers] = useState<PoolNumber[]>([]);
+  const [pendingNumberRequests, setPendingNumberRequests] = useState<PendingNumberRequest[]>([]);
 
   // Import form state
   const [importE164, setImportE164] = useState('');
@@ -196,6 +211,7 @@ export default function PhonePoolBackendPage() {
 
       setStats(json.stats ?? null);
       setNumbers(json.numbers ?? []);
+      setPendingNumberRequests(json.pendingNumberRequests ?? []);
       setLoadMessage(
         `Φορτώθηκαν ${json.numbers?.length ?? 0} αριθμοί.`
       );
@@ -422,6 +438,7 @@ export default function PhonePoolBackendPage() {
               { label: 'Αποψύξη', value: stats.cooling_down, cls: 'text-sky-700' },
               { label: 'Αποσυρμ.', value: stats.retired, cls: 'text-zinc-400' },
               { label: 'Σύνολο', value: stats.total, cls: 'text-zinc-900' },
+              { label: 'Αιτήματα', value: stats.pendingNumberRequests ?? 0, cls: 'text-rose-600' },
             ] as Array<{ label: string; value: number; cls: string }>
           ).map((s) => (
             <div
@@ -456,6 +473,52 @@ export default function PhonePoolBackendPage() {
                 </li>
               ))}
           </ul>
+        </section>
+      )}
+
+      {/* Pending number requests */}
+      {stats && (
+        <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+          <div className="border-b border-zinc-100 px-4 py-3">
+            <p className="text-sm font-semibold text-zinc-900">Αιτήματα αριθμών</p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Επιχειρήσεις που χρειάζονται αριθμό αλλά δεν έχει γίνει ακόμα ανάθεση.
+            </p>
+          </div>
+          {pendingNumberRequests.length === 0 ? (
+            <p className="px-4 py-3 text-sm text-zinc-400">
+              Δεν υπάρχουν αιτήματα αριθμών σε εκκρεμότητα.
+            </p>
+          ) : (
+            <ul className="divide-y divide-zinc-100">
+              {pendingNumberRequests.map((req) => (
+                <li
+                  key={req.request_id}
+                  className="flex flex-wrap items-start gap-x-4 gap-y-1 px-4 py-3"
+                >
+                  <span className="text-sm font-semibold text-zinc-900">
+                    {req.business_name ?? 'Άγνωστη επιχείρηση'}
+                  </span>
+                  {(req.requested_city ?? req.business_city) ? (
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
+                      {req.requested_city ?? req.business_city}
+                    </span>
+                  ) : (
+                    <span className="text-xs italic text-zinc-300">Χωρίς πόλη</span>
+                  )}
+                  <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-700 ring-1 ring-amber-200">
+                    {req.status}
+                  </span>
+                  <span className="rounded-full bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-500 ring-1 ring-zinc-200">
+                    {req.source}
+                  </span>
+                  <span className="ml-auto text-right text-xs text-zinc-400">
+                    {formatDate(req.created_at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

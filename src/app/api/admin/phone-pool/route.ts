@@ -44,6 +44,20 @@ type StatsMap = {
   total: number;
   by_city: Record<string, number>;
   by_type: Record<string, number>;
+  pendingNumberRequests: number;
+};
+
+// Safe shape returned per pending number request in the admin GET.
+// provider_reference, notes, and sensitive business fields are excluded.
+type PendingNumberRequest = {
+  request_id:     string;
+  business_id:    string;
+  business_name:  string | null;
+  business_city:  string | null;
+  requested_city: string | null;
+  source:         string;
+  status:         string;
+  created_at:     string;
 };
 
 // ---------------------------------------------------------------------------
@@ -156,6 +170,7 @@ export async function GET(request: NextRequest) {
       total: rows.length,
       by_city: {},
       by_type: {},
+      pendingNumberRequests: 0,
     };
 
     for (const row of rows) {
@@ -251,7 +266,80 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, stats, numbers: enrichedRows });
+    // -----------------------------------------------------------------------
+    // Pending phone number requests
+    // -----------------------------------------------------------------------
+    // Queries phone_number_requests with status = 'pending', enriched with
+    // safe business metadata (id, name, city only). Non-fatal: a query failure
+    // returns an empty array and sets pendingRequestsError in the response
+    // rather than failing the entire admin GET.
+
+    let pendingNumberRequests: PendingNumberRequest[] = [];
+    let pendingRequestsError: string | null = null;
+
+    try {
+      const { data: pendingRows, error: pendingQueryError } = await supabase
+        .from('phone_number_requests')
+        .select('id, business_id, requested_city, source, status, created_at')
+        .eq('status', 'pending')
+        .order('created_at', { ascending: true })
+        .limit(100);
+
+      if (pendingQueryError) {
+        pendingRequestsError = 'pending_requests_query_failed';
+      } else {
+        const prRows = (pendingRows ?? []) as Array<{
+          id:             string;
+          business_id:    string;
+          requested_city: string | null;
+          source:         string;
+          status:         string;
+          created_at:     string;
+        }>;
+
+        if (prRows.length > 0) {
+          const prBizIds = [...new Set(prRows.map((r) => r.business_id))];
+
+          const { data: prBizData, error: prBizQueryError } = await supabase
+            .from('businesses')
+            .select('id, name, city')
+            .in('id', prBizIds);
+
+          const prBizMap = new Map<string, { name: string | null; city: string | null }>();
+          if (!prBizQueryError && prBizData) {
+            for (const b of prBizData as Array<{ id: string; name: string | null; city: string | null }>) {
+              prBizMap.set(b.id, { name: b.name ?? null, city: b.city ?? null });
+            }
+          }
+
+          pendingNumberRequests = prRows.map((r) => {
+            const biz = prBizMap.get(r.business_id);
+            return {
+              request_id:     r.id,
+              business_id:    r.business_id,
+              business_name:  biz?.name ?? null,
+              business_city:  biz?.city ?? null,
+              requested_city: r.requested_city,
+              source:         r.source,
+              status:         r.status,
+              created_at:     r.created_at,
+            };
+          });
+        }
+      }
+    } catch {
+      pendingRequestsError = 'pending_requests_query_failed';
+    }
+
+    stats.pendingNumberRequests = pendingNumberRequests.length;
+
+    return NextResponse.json({
+      ok: true,
+      stats,
+      numbers: enrichedRows,
+      pendingNumberRequests,
+      ...(pendingRequestsError !== null ? { pendingRequestsError } : {}),
+    });
   } catch {
     return NextResponse.json({ ok: false, error: 'phone_pool_route_failed' }, { status: 500 });
   }
