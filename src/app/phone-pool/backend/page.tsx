@@ -406,6 +406,21 @@ export default function PhonePoolBackendPage() {
                       Αποψύξη: {formatDate(n.cooling_down_since)} · Επαναχρησιμοποίηση: {formatDate(n.available_after)}
                     </span>
                   )}
+                  {n.status === 'assigned' && (
+                    <span className="flex w-full flex-wrap items-center gap-2">
+                      <span className="text-xs text-zinc-400">
+                        Η αποδέσμευση από UI χρειάζεται σύνδεση αριθμού με επιχείρηση. Το backend API είναι έτοιμο.
+                      </span>
+                      <button
+                        type="button"
+                        disabled
+                        title="Δεν είναι ακόμα διαθέσιμο από το UI"
+                        className="cursor-not-allowed rounded-full px-2.5 py-0.5 text-xs font-medium text-zinc-300 ring-1 ring-zinc-200"
+                      >
+                        Αποδέσμευση σύντομα
+                      </button>
+                    </span>
+                  )}
                   <span className="ml-auto text-right text-xs text-zinc-400">
                     <span className="block">
                       Εισαγωγή: {formatDate(n.imported_at)}
