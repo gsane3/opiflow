@@ -4,6 +4,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 // E.164 validation: starts with +, followed by 8 to 15 digits.
 const E164_RE = /^\+\d{8,15}$/;
 
+// UUID validation: standard 8-4-4-4-12 hyphenated hex format.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const ALLOWED_PROVIDERS = ['intertelecom'] as const;
 
 type PoolRow = {
@@ -275,6 +278,94 @@ export async function POST(request: NextRequest) {
       { ok: true, number: inserted as PoolRow },
       { status: 201 }
     );
+  } catch {
+    return NextResponse.json({ ok: false, error: 'phone_pool_route_failed' }, { status: 500 });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/admin/phone-pool
+// ---------------------------------------------------------------------------
+// Releases a business phone number by calling the release_business_phone_number
+// RPC. platform_owned numbers enter 18-month cooldown. customer_ported numbers
+// are released without platform cooldown.
+// Accepts: { business_id: string, release_reason?: string }
+// Does NOT return the e164_number from the RPC result. Returns released boolean,
+// managed_phone_number_id, and available_after (null for customer_ported).
+
+export async function PATCH(request: NextRequest) {
+  const guard = await checkAdmin(request);
+  if (!guard.ok) return guard.response;
+  const { supabase } = guard;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+  }
+
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+  }
+
+  const raw = body as Record<string, unknown>;
+
+  // Validate business_id: required, must be a UUID.
+  const rawBusinessId = raw['business_id'];
+  if (typeof rawBusinessId !== 'string') {
+    return NextResponse.json({ ok: false, error: 'missing_business_id' }, { status: 400 });
+  }
+  const businessId = rawBusinessId.trim();
+  if (!UUID_RE.test(businessId)) {
+    return NextResponse.json({ ok: false, error: 'invalid_business_id' }, { status: 400 });
+  }
+
+  // Validate release_reason: optional, trimmed, capped at 100 chars, defaults to "cancelled".
+  let releaseReason = 'cancelled';
+  const rawReason = raw['release_reason'];
+  if (rawReason !== undefined && rawReason !== null) {
+    if (typeof rawReason !== 'string') {
+      return NextResponse.json({ ok: false, error: 'invalid_release_reason' }, { status: 400 });
+    }
+    const trimmed = rawReason.trim();
+    if (trimmed.length > 100) {
+      return NextResponse.json({ ok: false, error: 'invalid_release_reason' }, { status: 400 });
+    }
+    releaseReason = trimmed.length > 0 ? trimmed : 'cancelled';
+  }
+
+  try {
+    const { data, error: rpcError } = await supabase.rpc('release_business_phone_number', {
+      p_business_id:    businessId,
+      p_release_reason: releaseReason,
+    });
+
+    if (rpcError) {
+      return NextResponse.json({ ok: false, error: 'release_rpc_failed' }, { status: 500 });
+    }
+
+    // RETURNS TABLE from Postgres comes back as an array of rows via Supabase JS.
+    const rows = data as unknown as Array<{
+      released:                boolean;
+      managed_phone_number_id: string | null;
+      e164_number:             string | null;
+      available_after:         string | null;
+    }>;
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return NextResponse.json({ ok: false, error: 'release_rpc_failed' }, { status: 500 });
+    }
+
+    const row = rows[0];
+
+    // e164_number is intentionally not forwarded to the caller.
+    return NextResponse.json({
+      ok:                      true,
+      released:                row.released === true,
+      managed_phone_number_id: row.managed_phone_number_id ?? null,
+      available_after:         row.available_after ?? null,
+    });
   } catch {
     return NextResponse.json({ ok: false, error: 'phone_pool_route_failed' }, { status: 500 });
   }
