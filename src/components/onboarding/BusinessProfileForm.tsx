@@ -6,6 +6,7 @@ export interface BusinessProfileData {
   phone: string;
   email: string;
   address: string;
+  city: string;
   vatNumber: string;
   taxOffice: string;
 }
@@ -15,13 +16,17 @@ interface Props {
   onChange: (fields: Partial<BusinessProfileData>) => void;
 }
 
-const fields: Array<{
+interface FieldConfig {
   key: keyof BusinessProfileData;
   label: string;
   placeholder: string;
   type?: string;
   optional?: boolean;
-}> = [
+  maxLength?: number;
+  helperText?: string;
+}
+
+const fields: Array<FieldConfig> = [
   {
     key: 'businessName',
     label: 'Όνομα επιχείρησης',
@@ -48,6 +53,14 @@ const fields: Array<{
     key: 'address',
     label: 'Διεύθυνση',
     placeholder: 'π.χ. Αθήνα, Αττική',
+  },
+  {
+    key: 'city',
+    label: 'Πόλη',
+    placeholder: 'π.χ. Αθήνα',
+    optional: true,
+    maxLength: 100,
+    helperText: 'Θα χρησιμοποιηθεί αργότερα για επιλογή αριθμού πόλης.',
   },
   {
     key: 'vatNumber',
@@ -81,8 +94,12 @@ export default function BusinessProfileForm({ value, onChange }: Props) {
             value={value[field.key]}
             onChange={(e) => onChange({ [field.key]: e.target.value })}
             placeholder={field.placeholder}
+            maxLength={field.maxLength}
             className="w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
           />
+          {field.helperText && (
+            <p className="mt-1 text-xs text-zinc-400">{field.helperText}</p>
+          )}
         </div>
       ))}
     </div>

@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     const { data: business, error: queryError } = await supabase
       .from('businesses')
       .select(
-        'id, owner_id, name, type, phone, email, address, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
       )
       .eq('owner_id', user.id)
       .maybeSingle();

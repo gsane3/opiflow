@@ -19,6 +19,7 @@ interface FormData {
   phone: string;
   email: string;
   address: string;
+  city: string;
   vatNumber: string;
   taxOffice: string;
   logoDataUrl: string;
@@ -56,6 +57,7 @@ function buildInitialFormData(): FormData {
     phone: '',
     email: '',
     address: '',
+    city: '',
     vatNumber: '',
     taxOffice: '',
     logoDataUrl: '',
@@ -158,6 +160,7 @@ export default function OnboardingPage() {
           phone: formData.phone.trim() || null,
           email: formData.email.trim() || null,
           address: formData.address.trim() || null,
+          city: formData.city.trim() || null,
           vat_number: formData.vatNumber.trim() || null,
           tax_office: formData.taxOffice.trim() || null,
           default_vat_rate: formData.vatRate,
@@ -221,6 +224,7 @@ export default function OnboardingPage() {
     phone: formData.phone,
     email: formData.email,
     address: formData.address,
+    city: formData.city,
     vatNumber: formData.vatNumber,
     taxOffice: formData.taxOffice,
   };

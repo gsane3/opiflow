@@ -66,6 +66,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
     }
 
+    // Validate city (optional, max 100 chars)
+    const cityVal = str(raw.city);
+    if (cityVal !== null && cityVal.length > 100) {
+      return NextResponse.json({ ok: false, error: 'invalid_input' }, { status: 400 });
+    }
+
     const rawVatRate = raw.default_vat_rate;
     let defaultVatRate = 24;
     if (rawVatRate !== undefined && rawVatRate !== null) {
@@ -95,6 +101,7 @@ export async function POST(request: NextRequest) {
         phone: str(raw.phone),
         email: str(raw.email),
         address: str(raw.address),
+        city: cityVal,
         vat_number: str(raw.vat_number),
         tax_office: str(raw.tax_office),
         default_vat_rate: defaultVatRate,
@@ -103,7 +110,7 @@ export async function POST(request: NextRequest) {
         preferred_contact_method: preferredContactMethod,
       })
       .select(
-        'id, owner_id, name, type, phone, email, address, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
       )
       .single();
 
