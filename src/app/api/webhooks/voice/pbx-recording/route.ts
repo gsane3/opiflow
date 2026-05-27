@@ -4,6 +4,12 @@
 // the matching communications.summary row. Machine-to-machine only.
 // Does not create customers, communications, or Viber messages.
 // customers.needs_summary is intentionally NOT updated here (review-first principle).
+//
+// Track D: writes lifecycle audit timestamps (recording_received_at,
+// transcription_started_at, brief_created_at, audio_discarded_at,
+// transcript_discarded_at, processing_failed_at, processing_error_code)
+// to the communications row. Audio and transcript are held in RAM only and
+// are never written to storage or any database column.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -158,6 +164,18 @@ export async function POST(request: NextRequest) {
     });
   }
 
+  // Track D: record that audio was received and transcription is about to start.
+  // Best-effort: failure here does not abort the pipeline.
+  const auditNow = new Date().toISOString();
+  await supabase
+    .from('communications')
+    .update({
+      recording_received_at: auditNow,
+      transcription_started_at: auditNow,
+    })
+    .eq('id', communicationId)
+    .eq('business_id', businessId);
+
   // ---------------------------------------------------------------------------
   // Transcribe and generate brief.
   // ---------------------------------------------------------------------------
@@ -170,6 +188,14 @@ export async function POST(request: NextRequest) {
   });
 
   if (!result) {
+    await supabase
+      .from('communications')
+      .update({
+        processing_failed_at: new Date().toISOString(),
+        processing_error_code: 'transcription_or_brief_failed',
+      })
+      .eq('id', communicationId)
+      .eq('business_id', businessId);
     // Return HTTP 200 so the PBX script does not treat this as a fatal error.
     return NextResponse.json({
       ok: false,
@@ -179,13 +205,28 @@ export async function POST(request: NextRequest) {
   }
 
   // Save only the concise brief. Transcript is intentionally excluded from CRM.
+  // Audio and transcript were held in RAM only; these timestamps confirm they were not persisted.
+  const briefNow = new Date().toISOString();
   const { error: updateError } = await supabase
     .from('communications')
-    .update({ summary: result.brief })
+    .update({
+      summary: result.brief,
+      brief_created_at: briefNow,
+      audio_discarded_at: briefNow,
+      transcript_discarded_at: briefNow,
+    })
     .eq('id', communicationId)
     .eq('business_id', businessId);
 
   if (updateError) {
+    await supabase
+      .from('communications')
+      .update({
+        processing_failed_at: new Date().toISOString(),
+        processing_error_code: 'communication_update_failed',
+      })
+      .eq('id', communicationId)
+      .eq('business_id', businessId);
     return NextResponse.json(
       { ok: false, error: 'communication_update_failed' },
       { status: 500 }
@@ -224,6 +265,14 @@ export async function POST(request: NextRequest) {
 
     if (taskInsertError || !taskRow) {
       taskError = 'task_create_failed';
+      await supabase
+        .from('communications')
+        .update({
+          processing_failed_at: new Date().toISOString(),
+          processing_error_code: 'task_insert_failed',
+        })
+        .eq('id', communicationId)
+        .eq('business_id', businessId);
     } else {
       taskCreated = true;
       taskId = (taskRow as unknown as { id: string }).id;

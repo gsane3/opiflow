@@ -200,7 +200,6 @@ export async function POST(request: NextRequest) {
 
   const dialStatus = getString(parsed['dialstatus']);
   const uniqueId = getString(parsed['uniqueid']) ?? eventId;
-  const recordingPath = getString(parsed['recording_path']);
   const recordingExists = getBoolean(parsed['recording_exists']);
   const recordingSizeBytes = getNumber(parsed['recording_size_bytes']);
   const recordingFallbackApplied = getBoolean(parsed['recording_fallback_applied']);
@@ -338,7 +337,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'customer_link_failed' }, { status: 500 });
     }
 
-    let intakeUrl: string | null = null;
     let intakeTokenId: string | null = null;
     let viberSendStatus: string | null = null;
     let viberMessageId: string | null = null;
@@ -355,7 +353,6 @@ export async function POST(request: NextRequest) {
           phone: normalizePhone(callerNumber),
         });
 
-        intakeUrl = intakeToken.intakeUrl;
         intakeTokenId = intakeToken.row.id;
 
         const viberRef = uniqueId ? `pbx:${uniqueId}` : null;
@@ -410,11 +407,7 @@ export async function POST(request: NextRequest) {
       consentAnnounced !== null ? `consent_announced=${consentAnnounced}` : null,
       customerLink.customerCreated ? 'customer_created=true' : null,
       customerLink.customerMatched ? 'customer_matched=true' : null,
-      intakeUrl ? `intake_url=${intakeUrl}` : null,
-      intakeTokenId ? `intake_token_id=${intakeTokenId}` : null,
       viberSendStatus ? `viber_send_status=${viberSendStatus}` : null,
-      viberMessageId ? `viber_message_id=${viberMessageId}` : null,
-      recordingPath ? `recording_path=${recordingPath}` : null,
     ].filter(Boolean).join(' ');
 
     // Generate a demo-safe AI brief from call metadata only (non-fatal).
