@@ -27,6 +27,7 @@ type BusinessMeResponse = {
     business_phone_number?: string | null;
   };
   phoneAssigned?: boolean;
+  activationAllowed?: boolean;
   error?: string;
 };
 
@@ -141,6 +142,21 @@ export default function NumberPage() {
             <p className="text-sm text-red-600">
               Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.
             </p>
+          ) : phoneInfo?.activationAllowed === false ? (
+            <>
+              <p className="text-xs font-medium text-red-500">Απαιτείται ενεργοποίηση</p>
+              <p className="mt-2 text-sm text-zinc-700">
+                Χρειάζεται ενεργοποίηση πακέτου πριν χρησιμοποιήσεις αριθμό.
+              </p>
+              <div className="mt-3">
+                <Link
+                  href="/package?activation_required=1"
+                  className="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                >
+                  Επιλογή πακέτου
+                </Link>
+              </div>
+            </>
           ) : phoneInfo?.phoneAssigned && phoneInfo.business?.business_phone_number ? (
             <>
               <p className="text-xs font-medium text-zinc-400">Ο αριθμός σου</p>

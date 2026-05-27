@@ -35,6 +35,28 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           return;
         }
 
+        // Activation guard: check subscription status via /api/businesses/me.
+        // Non-ok responses (no business yet, network error) are let through;
+        // the inner app handles a missing business gracefully.
+        try {
+          const meResp = await fetch('/api/businesses/me', {
+            headers: { Authorization: `Bearer ${data.session.access_token}` },
+          });
+          if (!cancelled && meResp.ok) {
+            const meData = (await meResp.json()) as {
+              ok?: boolean;
+              activationAllowed?: boolean;
+            };
+            if (meData.ok && meData.activationAllowed === false) {
+              router.replace('/package?activation_required=1');
+              return;
+            }
+          }
+        } catch {
+          // Activation check network error is non-fatal. Let through.
+        }
+
+        if (cancelled) return;
         setAuthChecked(true);
       } catch {
         // Auth client not configured or network error: redirect to login.

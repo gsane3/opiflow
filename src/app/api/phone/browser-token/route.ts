@@ -88,6 +88,30 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Gate: subscription must allow access (pending_manual_review, trialing, or active).
+    const { data: subRow } = await supabase
+      .from('business_subscriptions')
+      .select('status')
+      .eq('business_id', business.id)
+      .maybeSingle();
+
+    const subStatus = subRow ? (subRow as { status: string }).status : null;
+    const activationAllowed =
+      subStatus !== null &&
+      ['pending_manual_review', 'trialing', 'active'].includes(subStatus);
+
+    if (!activationAllowed) {
+      return NextResponse.json(
+        {
+          ok: false,
+          ready: false,
+          error: 'activation_required',
+          message: 'activation_required',
+        },
+        { status: 403, headers: NO_STORE }
+      );
+    }
+
     // Best-effort: create/update the browser SIP endpoint row in the DB.
     // RPC errors are non-fatal for this PoC -- env-based credentials are used regardless.
     try {

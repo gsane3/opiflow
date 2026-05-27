@@ -41,11 +41,37 @@ export async function GET(request: NextRequest) {
     }
 
     const biz = business as Record<string, unknown>;
+    const bizId = biz.id as string;
+
+    const { data: subRow } = await supabase
+      .from('business_subscriptions')
+      .select('plan_key, status, trial_ends_at')
+      .eq('business_id', bizId)
+      .maybeSingle();
+
+    const ALLOWED_STATUSES = ['pending_manual_review', 'trialing', 'active'];
+    const sub = subRow as {
+      plan_key: string;
+      status: string;
+      trial_ends_at: string | null;
+    } | null;
+    const activationAllowed = sub !== null && ALLOWED_STATUSES.includes(sub.status);
+
+    const subscription = sub
+      ? {
+          plan_key:      sub.plan_key,
+          status:        sub.status,
+          trial_ends_at: sub.trial_ends_at ?? null,
+        }
+      : null;
+
     return NextResponse.json({
       ok: true,
       business,
       phoneAssigned:
         typeof biz.business_phone_number === 'string' && biz.business_phone_number.length > 0,
+      activationAllowed,
+      subscription,
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'business_route_failed' }, { status: 500 });
