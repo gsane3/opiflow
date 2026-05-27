@@ -19,13 +19,18 @@ export interface PhoneAssignmentResult {
 // The caller is responsible for providing a service-role Supabase client.
 // The function is idempotent: if the business already has an active number,
 // the existing assignment is returned without creating a duplicate.
+// city is optional: when provided and non-empty the SQL function prefers a
+// city-matched number; when absent or blank it falls back to the global pool.
 export async function assignPhoneNumber(
   supabase: SupabaseClient,
-  businessId: string
+  businessId: string,
+  city?: string | null
 ): Promise<PhoneAssignmentResult> {
+  const trimmedCity = typeof city === 'string' ? city.trim() : null;
   try {
     const { data, error } = await supabase.rpc('assign_available_phone_number', {
       p_business_id: businessId,
+      p_city: trimmedCity && trimmedCity.length > 0 ? trimmedCity : null,
     });
 
     if (error) {

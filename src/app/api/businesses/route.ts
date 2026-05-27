@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
     }
 
     const bizId = (business as unknown as { id: string }).id;
-    const phoneResult = await assignPhoneNumber(supabase, bizId);
+    const phoneResult = await assignPhoneNumber(supabase, bizId, cityVal);
 
     return NextResponse.json({
       ok: true,
