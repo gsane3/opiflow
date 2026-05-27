@@ -37,6 +37,15 @@ interface ApiBusiness {
   address: string | null;
   vatNumber: string | null;
   logoUrl: string | null;
+  legalName: string | null;
+  tradeName: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  postalCode: string | null;
+  city: string | null;
+  region: string | null;
+  taxOffice: string | null;
+  website: string | null;
 }
 
 interface ApiCustomer {
@@ -283,12 +292,41 @@ export default function OfferResponseClient({ token }: Props) {
               className="mx-auto mb-2 h-12 w-auto object-contain"
             />
           )}
-          <p className="text-lg font-bold text-zinc-900">
-            {business?.name ?? 'Επωνυμία επιχείρησης'}
-          </p>
-          {business?.phone   && <p className="text-sm text-zinc-500">{business.phone}</p>}
-          {business?.email   && <p className="text-sm text-zinc-500">{business.email}</p>}
-          {business?.address && <p className="text-sm text-zinc-500">{business.address}</p>}
+          {(() => {
+            if (!business) {
+              return <p className="text-lg font-bold text-zinc-900">Επωνυμία επιχείρησης</p>;
+            }
+            const primaryName = business.legalName || business.name;
+            const showTrade =
+              business.tradeName &&
+              business.tradeName.trim() !== primaryName.trim();
+            const addrLine1 = business.addressLine1 || business.address;
+            const postalCity = [business.postalCode, business.city]
+              .filter(Boolean).join(' ');
+            return (
+              <>
+                <p className="text-lg font-bold text-zinc-900">{primaryName}</p>
+                {showTrade && (
+                  <p className="text-sm text-zinc-500">{business.tradeName}</p>
+                )}
+                {business.phone   && <p className="text-sm text-zinc-500">{business.phone}</p>}
+                {business.email   && <p className="text-sm text-zinc-500">{business.email}</p>}
+                {business.website && <p className="text-sm text-zinc-500">{business.website}</p>}
+                {addrLine1        && <p className="text-sm text-zinc-500">{addrLine1}</p>}
+                {business.addressLine2 && (
+                  <p className="text-sm text-zinc-500">{business.addressLine2}</p>
+                )}
+                {postalCity       && <p className="text-sm text-zinc-500">{postalCity}</p>}
+                {business.region  && <p className="text-sm text-zinc-500">{business.region}</p>}
+                {business.vatNumber  && (
+                  <p className="text-sm text-zinc-500">ΑΦΜ: {business.vatNumber}</p>
+                )}
+                {business.taxOffice  && (
+                  <p className="text-sm text-zinc-500">ΔΟΥ: {business.taxOffice}</p>
+                )}
+              </>
+            );
+          })()}
         </div>
 
         {/* Offer document */}

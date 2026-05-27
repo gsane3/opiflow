@@ -32,6 +32,8 @@ const ITEM_COLUMNS = [
 
 const BUSINESS_COLUMNS = [
   'name', 'phone', 'email', 'address', 'vat_number', 'logo_url',
+  'legal_name', 'trade_name', 'address_line1', 'address_line2',
+  'postal_code', 'city', 'region', 'tax_office', 'website',
 ].join(', ');
 
 const CUSTOMER_COLUMNS = [
@@ -75,6 +77,15 @@ interface BusinessRow {
   address: string | null;
   vat_number: string | null;
   logo_url: string | null;
+  legal_name: string | null;
+  trade_name: string | null;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string | null;
+  region: string | null;
+  tax_office: string | null;
+  website: string | null;
 }
 
 interface CustomerRow {
@@ -139,6 +150,15 @@ function mapBusiness(row: BusinessRow) {
     address: row.address,
     vatNumber: row.vat_number,
     logoUrl: row.logo_url,
+    legalName: row.legal_name,
+    tradeName: row.trade_name,
+    addressLine1: row.address_line1,
+    addressLine2: row.address_line2,
+    postalCode: row.postal_code,
+    city: row.city,
+    region: row.region,
+    taxOffice: row.tax_office,
+    website: row.website,
   };
 }
 

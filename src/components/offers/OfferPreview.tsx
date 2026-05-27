@@ -106,6 +106,16 @@ function mapBackendBusiness(d: Record<string, unknown>): BusinessProfile {
       ((d.preferred_contact_method as string | null) ?? 'phone') as BusinessProfile['preferredContactMethod'],
     createdAt: (d.created_at as string) ?? now,
     updatedAt: (d.updated_at as string) ?? now,
+    legalName: (d.legal_name as string | null) ?? undefined,
+    tradeName: (d.trade_name as string | null) ?? undefined,
+    ownerFirstName: (d.owner_first_name as string | null) ?? undefined,
+    ownerLastName: (d.owner_last_name as string | null) ?? undefined,
+    addressLine1: (d.address_line1 as string | null) ?? undefined,
+    addressLine2: (d.address_line2 as string | null) ?? undefined,
+    postalCode: (d.postal_code as string | null) ?? undefined,
+    city: (d.city as string | null) ?? undefined,
+    region: (d.region as string | null) ?? undefined,
+    website: (d.website as string | null) ?? undefined,
   };
 }
 
@@ -805,12 +815,38 @@ export default function OfferPreview({ offerId }: Props) {
               /* eslint-disable-next-line @next/next/no-img-element */
               <img src={bp.logoDataUrl} alt="Logo" className="mb-2 h-12 w-auto object-contain" />
             )}
-            <p className="text-base font-bold text-zinc-900">{bp?.businessName ?? 'Επωνυμία επιχείρησης'}</p>
-            {bp?.ownerName && <p className="text-sm text-zinc-500">{bp.ownerName}</p>}
-            {bp?.phone && <p className="text-sm text-zinc-500">{bp.phone}</p>}
-            {bp?.email && <p className="text-sm text-zinc-500">{bp.email}</p>}
-            {bp?.address && <p className="text-sm text-zinc-500">{bp.address}</p>}
-            {bp?.vatNumber && <p className="text-sm text-zinc-500">ΑΦΜ: {bp.vatNumber}</p>}
+            {(() => {
+              const primaryName = bp?.legalName || bp?.businessName || 'Επωνυμία επιχείρησης';
+              const showTrade =
+                bp?.tradeName &&
+                bp.tradeName.trim() !== primaryName.trim();
+              const addrLine1 = bp?.addressLine1 || bp?.address;
+              const postalCity = [bp?.postalCode, bp?.city]
+                .filter(Boolean).join(' ');
+              return (
+                <>
+                  <p className="text-base font-bold text-zinc-900">{primaryName}</p>
+                  {showTrade && (
+                    <p className="text-sm text-zinc-500">{bp!.tradeName}</p>
+                  )}
+                  {bp?.phone   && <p className="text-sm text-zinc-500">{bp.phone}</p>}
+                  {bp?.email   && <p className="text-sm text-zinc-500">{bp.email}</p>}
+                  {bp?.website && <p className="text-sm text-zinc-500">{bp.website}</p>}
+                  {addrLine1   && <p className="text-sm text-zinc-500">{addrLine1}</p>}
+                  {bp?.addressLine2 && (
+                    <p className="text-sm text-zinc-500">{bp.addressLine2}</p>
+                  )}
+                  {postalCity  && <p className="text-sm text-zinc-500">{postalCity}</p>}
+                  {bp?.region  && <p className="text-sm text-zinc-500">{bp.region}</p>}
+                  {bp?.vatNumber  && (
+                    <p className="text-sm text-zinc-500">ΑΦΜ: {bp.vatNumber}</p>
+                  )}
+                  {bp?.taxOffice  && (
+                    <p className="text-sm text-zinc-500">ΔΟΥ: {bp.taxOffice}</p>
+                  )}
+                </>
+              );
+            })()}
           </div>
           <div className="sm:text-right">
             <p className="text-xl font-bold text-zinc-900">ΠΡΟΣΦΟΡΑ {offer.offerNumber}</p>
