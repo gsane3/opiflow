@@ -10,6 +10,7 @@ type PoolRow = {
   id: string;
   e164_number: string;
   provider: string;
+  city: string | null;
   status: string;
   imported_at: string;
   assigned_at: string | null;
@@ -20,8 +21,11 @@ type StatsMap = {
   available: number;
   assigned: number;
   reserved: number;
+  suspended: number;
+  cooling_down: number;
   retired: number;
   total: number;
+  by_city: Record<string, number>;
 };
 
 // ---------------------------------------------------------------------------
@@ -101,7 +105,7 @@ async function checkAdmin(request: NextRequest): Promise<
 // GET /api/admin/phone-pool
 // ---------------------------------------------------------------------------
 // Returns pool stats and the most recent 200 managed_phone_numbers rows.
-// Fields returned: id, e164_number, provider, status, imported_at,
+// Fields returned: id, e164_number, provider, city, status, imported_at,
 //   assigned_at, retired_at.
 // provider_ref and notes are intentionally excluded.
 
@@ -113,7 +117,7 @@ export async function GET(request: NextRequest) {
   try {
     const { data, error } = await supabase
       .from('managed_phone_numbers')
-      .select('id, e164_number, provider, status, imported_at, assigned_at, retired_at')
+      .select('id, e164_number, provider, city, status, imported_at, assigned_at, retired_at')
       .order('imported_at', { ascending: false })
       .limit(200);
 
@@ -127,15 +131,25 @@ export async function GET(request: NextRequest) {
       available: 0,
       assigned: 0,
       reserved: 0,
+      suspended: 0,
+      cooling_down: 0,
       retired: 0,
       total: rows.length,
+      by_city: {},
     };
 
     for (const row of rows) {
       if (row.status === 'available') stats.available += 1;
       else if (row.status === 'assigned') stats.assigned += 1;
       else if (row.status === 'reserved') stats.reserved += 1;
+      else if (row.status === 'suspended') stats.suspended += 1;
+      else if (row.status === 'cooling_down') stats.cooling_down += 1;
       else if (row.status === 'retired') stats.retired += 1;
+
+      // Count all numbers per city for inventory planning.
+      // Empty string key represents numbers with no city set.
+      const cityKey = row.city ?? '';
+      stats.by_city[cityKey] = (stats.by_city[cityKey] ?? 0) + 1;
     }
 
     return NextResponse.json({ ok: true, stats, numbers: rows });
@@ -148,7 +162,7 @@ export async function GET(request: NextRequest) {
 // POST /api/admin/phone-pool
 // ---------------------------------------------------------------------------
 // Inserts one new managed_phone_numbers row with status = "available".
-// Accepts: { e164_number: string, provider?: string, notes?: string }
+// Accepts: { e164_number: string, provider?: string, city?: string, notes?: string }
 // Returns safe row metadata. provider_ref and notes are not returned.
 
 export async function POST(request: NextRequest) {
@@ -204,12 +218,29 @@ export async function POST(request: NextRequest) {
     notes = trimmedNotes.length > 0 ? trimmedNotes : null;
   }
 
+  // Validate city (optional, max 100 chars)
+  let city: string | null = null;
+  const rawCity = raw['city'];
+  if (rawCity !== undefined && rawCity !== null) {
+    if (typeof rawCity !== 'string') {
+      return NextResponse.json({ ok: false, error: 'invalid_city' }, { status: 400 });
+    }
+    const trimmedCity = rawCity.trim();
+    if (trimmedCity.length > 100) {
+      return NextResponse.json({ ok: false, error: 'invalid_city' }, { status: 400 });
+    }
+    city = trimmedCity.length > 0 ? trimmedCity : null;
+  }
+
   try {
     const insertPayload: Record<string, unknown> = {
       e164_number: e164,
       provider,
       status: 'available',
     };
+    if (city !== null) {
+      insertPayload['city'] = city;
+    }
     if (notes !== null) {
       insertPayload['notes'] = notes;
     }
@@ -217,7 +248,7 @@ export async function POST(request: NextRequest) {
     const { data: inserted, error: insertError } = await supabase
       .from('managed_phone_numbers')
       .insert(insertPayload)
-      .select('id, e164_number, provider, status, imported_at, assigned_at, retired_at')
+      .select('id, e164_number, provider, city, status, imported_at, assigned_at, retired_at')
       .single();
 
     if (insertError) {

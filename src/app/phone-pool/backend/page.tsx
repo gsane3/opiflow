@@ -12,14 +12,18 @@ interface PoolStats {
   available: number;
   assigned: number;
   reserved: number;
+  suspended: number;
+  cooling_down: number;
   retired: number;
   total: number;
+  by_city: Record<string, number>;
 }
 
 interface PoolNumber {
   id: string;
   e164_number: string;
   provider: string;
+  city: string | null;
   status: string;
   imported_at: string;
   assigned_at: string | null;
@@ -66,6 +70,10 @@ function statusBadge(status: string): { label: string; cls: string } {
       return { label: 'Ανατεθειμένος', cls: 'bg-indigo-50 text-indigo-700 ring-indigo-200' };
     case 'reserved':
       return { label: 'Δεσμευμένος', cls: 'bg-amber-50 text-amber-700 ring-amber-200' };
+    case 'suspended':
+      return { label: 'Σε αναστολή', cls: 'bg-orange-50 text-orange-700 ring-orange-200' };
+    case 'cooling_down':
+      return { label: 'Αποψύχεται', cls: 'bg-sky-50 text-sky-700 ring-sky-200' };
     case 'retired':
       return { label: 'Αποσυρμένος', cls: 'bg-zinc-100 text-zinc-500 ring-zinc-200' };
     default:
@@ -76,6 +84,7 @@ function statusBadge(status: string): { label: string; cls: string } {
 const IMPORT_ERRORS: Record<string, string> = {
   invalid_e164: 'Μη έγκυρος αριθμός. Χρησιμοποίησε τη μορφή +302101234567.',
   invalid_provider: 'Μη αποδεκτός πάροχος.',
+  invalid_city: 'Η πόλη υπερβαίνει τα 100 χαρακτήρες.',
   invalid_notes: 'Οι σημειώσεις υπερβαίνουν τα 500 χαρακτήρες.',
   duplicate_number: 'Αυτός ο αριθμός υπάρχει ήδη στο pool.',
   missing_auth: 'Το session έληξε. Κάνε login ξανά.',
@@ -103,6 +112,7 @@ export default function PhonePoolBackendPage() {
 
   // Import form state
   const [importE164, setImportE164] = useState('');
+  const [importCity, setImportCity] = useState('');
   const [importNotes, setImportNotes] = useState('');
   const [importLoading, setImportLoading] = useState(false);
   const [importSuccess, setImportSuccess] = useState<string | null>(null);
@@ -183,6 +193,10 @@ export default function PhonePoolBackendPage() {
       }
 
       const body: Record<string, string> = { e164_number: importE164.trim() };
+      const trimmedCity = importCity.trim();
+      if (trimmedCity) {
+        body['city'] = trimmedCity;
+      }
       const trimmedNotes = importNotes.trim();
       if (trimmedNotes) {
         body['notes'] = trimmedNotes;
@@ -213,6 +227,7 @@ export default function PhonePoolBackendPage() {
         `Ο αριθμός ${json.number?.e164_number ?? importE164} προστέθηκε στο pool.`
       );
       setImportE164('');
+      setImportCity('');
       setImportNotes('');
       // Reload pool list to reflect the new number.
       await loadPool();
@@ -291,12 +306,14 @@ export default function PhonePoolBackendPage() {
 
       {/* Stats cards */}
       {stats && (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {(
             [
               { label: 'Διαθέσιμοι', value: stats.available, cls: 'text-green-700' },
               { label: 'Ανατεθ.', value: stats.assigned, cls: 'text-indigo-700' },
               { label: 'Δεσμευμ.', value: stats.reserved, cls: 'text-amber-700' },
+              { label: 'Αναστολή', value: stats.suspended, cls: 'text-orange-700' },
+              { label: 'Αποψύξη', value: stats.cooling_down, cls: 'text-sky-700' },
               { label: 'Αποσυρμ.', value: stats.retired, cls: 'text-zinc-400' },
               { label: 'Σύνολο', value: stats.total, cls: 'text-zinc-900' },
             ] as Array<{ label: string; value: number; cls: string }>
@@ -310,6 +327,30 @@ export default function PhonePoolBackendPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {/* City inventory breakdown */}
+      {stats && Object.keys(stats.by_city).length > 0 && (
+        <section className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+          <div className="border-b border-zinc-100 px-4 py-3">
+            <p className="text-sm font-semibold text-zinc-900">Κατανομή ανά πόλη</p>
+            <p className="mt-0.5 text-xs text-zinc-400">
+              Τα tags πόλης προετοιμάζουν μελλοντική ανάθεση βάσει πόλης. Η ανάθεση γίνεται ακόμα καθολικά.
+            </p>
+          </div>
+          <ul className="divide-y divide-zinc-100">
+            {Object.entries(stats.by_city)
+              .sort(([, a], [, b]) => b - a)
+              .map(([cityKey, count]) => (
+                <li key={cityKey} className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-sm text-zinc-700">
+                    {cityKey !== '' ? cityKey : <span className="italic text-zinc-400">Χωρίς πόλη</span>}
+                  </span>
+                  <span className="text-sm font-semibold text-zinc-900">{count}</span>
+                </li>
+              ))}
+          </ul>
+        </section>
       )}
 
       {/* Numbers list */}
@@ -337,6 +378,13 @@ export default function PhonePoolBackendPage() {
                     {badge.label}
                   </span>
                   <span className="text-xs text-zinc-400">{n.provider}</span>
+                  {n.city ? (
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
+                      {n.city}
+                    </span>
+                  ) : (
+                    <span className="text-xs italic text-zinc-300">Χωρίς πόλη</span>
+                  )}
                   <span className="ml-auto text-right text-xs text-zinc-400">
                     <span className="block">
                       Εισαγωγή: {formatDate(n.imported_at)}
@@ -383,6 +431,27 @@ export default function PhonePoolBackendPage() {
               autoComplete="off"
               className="w-full rounded-xl border border-zinc-200 px-3 py-2 font-mono text-sm text-zinc-900 placeholder-zinc-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
             />
+          </div>
+
+          <div>
+            <label
+              htmlFor="pool-city"
+              className="mb-1 block text-xs font-medium text-zinc-600"
+            >
+              Πόλη (προαιρετικό)
+            </label>
+            <input
+              id="pool-city"
+              type="text"
+              value={importCity}
+              onChange={(e) => setImportCity(e.target.value)}
+              placeholder="π.χ. Αθήνα"
+              maxLength={100}
+              className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+            />
+            <p className="mt-1 text-xs text-zinc-400">
+              Προετοιμάζει τη μελλοντική ανάθεση βάσει πόλης. Δεν επηρεάζει την τρέχουσα ανάθεση.
+            </p>
           </div>
 
           <div>
