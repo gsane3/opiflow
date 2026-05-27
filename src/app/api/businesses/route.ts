@@ -82,6 +82,18 @@ export async function POST(request: NextRequest) {
       defaultVatRate = n;
     }
 
+    // postal_code must be exactly 5 digits if provided.
+    const postalCodeVal = str(raw.postal_code);
+    if (postalCodeVal !== null && !/^\d{5}$/.test(postalCodeVal)) {
+      return NextResponse.json({ ok: false, error: 'invalid_postal_code' }, { status: 400 });
+    }
+
+    // website must start with http:// or https:// if provided.
+    const websiteVal = str(raw.website);
+    if (websiteVal !== null && !/^https?:\/\/.+/.test(websiteVal)) {
+      return NextResponse.json({ ok: false, error: 'invalid_website' }, { status: 400 });
+    }
+
     // -------------------------------------------------------------------------
     // Package and voucher validation
     // -------------------------------------------------------------------------
@@ -188,9 +200,18 @@ export async function POST(request: NextRequest) {
         default_offer_terms: str(raw.default_offer_terms),
         default_acceptance_text: str(raw.default_acceptance_text),
         preferred_contact_method: preferredContactMethod,
+        legal_name:       str(raw.legal_name),
+        trade_name:       str(raw.trade_name),
+        owner_first_name: str(raw.owner_first_name),
+        owner_last_name:  str(raw.owner_last_name),
+        address_line1:    str(raw.address_line1),
+        address_line2:    str(raw.address_line2),
+        postal_code:      postalCodeVal,
+        region:           str(raw.region),
+        website:          websiteVal,
       })
       .select(
-        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, created_at, updated_at'
       )
       .single();
 

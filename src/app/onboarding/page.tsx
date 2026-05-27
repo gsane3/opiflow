@@ -15,16 +15,26 @@ import VatAndTermsForm from '@/components/onboarding/VatAndTermsForm';
 interface FormData {
   businessType: BusinessType | null;
   businessName: string;
-  ownerName: string;
+  ownerName: string;     // localStorage cache only; derived from ownerFirstName + ownerLastName
   phone: string;
   email: string;
-  address: string;
+  address: string;       // compatibility: mirrors addressLine1 for POST and offer rendering
   city: string;
   vatNumber: string;
   taxOffice: string;
   logoDataUrl: string;
   vatRate: number;
   offerTerms: string;
+  // structured profile fields (Slice 023)
+  legalName: string;
+  tradeName: string;
+  ownerFirstName: string;
+  ownerLastName: string;
+  addressLine1: string;
+  addressLine2: string;
+  postalCode: string;
+  region: string;
+  website: string;
 }
 
 const DEFAULT_OFFER_TERMS =
@@ -70,6 +80,15 @@ function buildInitialFormData(): FormData {
     logoDataUrl: '',
     vatRate: 24,
     offerTerms: DEFAULT_OFFER_TERMS,
+    legalName:      '',
+    tradeName:      '',
+    ownerFirstName: '',
+    ownerLastName:  '',
+    addressLine1:   '',
+    addressLine2:   '',
+    postalCode:     '',
+    region:         '',
+    website:        '',
   };
 }
 
@@ -138,8 +157,8 @@ function OnboardingPageContent() {
       setError('Το όνομα επιχείρησης είναι υποχρεωτικό.');
       return;
     }
-    if (step === 1 && !formData.ownerName.trim()) {
-      setError('Το ονοματεπώνυμο είναι υποχρεωτικό.');
+    if (step === 1 && !formData.ownerFirstName.trim()) {
+      setError('Το όνομα υπευθύνου είναι υποχρεωτικό.');
       return;
     }
     setError('');
@@ -172,19 +191,32 @@ function OnboardingPageContent() {
           Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify({
-          name: formData.businessName.trim(),
-          type: formData.businessType,
-          phone: formData.phone.trim() || null,
-          email: formData.email.trim() || null,
-          address: formData.address.trim() || null,
-          city: formData.city.trim() || null,
-          vat_number: formData.vatNumber.trim() || null,
-          tax_office: formData.taxOffice.trim() || null,
-          default_vat_rate: formData.vatRate,
-          default_offer_terms: formData.offerTerms.trim() || null,
+          name:                     formData.businessName.trim(),
+          type:                     formData.businessType,
+          phone:                    formData.phone.trim()       || null,
+          email:                    formData.email.trim()       || null,
+          // address: keep old compatibility column in sync with addressLine1.
+          address:                  (formData.addressLine1 || formData.address).trim() || null,
+          city:                     formData.city.trim()        || null,
+          vat_number:               formData.vatNumber.trim()   || null,
+          tax_office:               formData.taxOffice.trim()   || null,
+          default_vat_rate:         formData.vatRate,
+          default_offer_terms:      formData.offerTerms.trim()  || null,
           preferred_contact_method: 'viber',
           packageKey:               planKeyParam,
           ...(voucherCodeParam ? { voucherCode: voucherCodeParam } : {}),
+          // structured fields (Slice 023):
+          // legal_name defaults to businessName when legalName is left empty.
+          legal_name:               (formData.legalName || formData.businessName).trim() || null,
+          trade_name:               formData.tradeName.trim()       || null,
+          owner_first_name:         formData.ownerFirstName.trim()  || null,
+          owner_last_name:          formData.ownerLastName.trim()   || null,
+          // address_line1 defaults to address when addressLine1 is left empty.
+          address_line1:            (formData.addressLine1 || formData.address).trim() || null,
+          address_line2:            formData.addressLine2.trim()    || null,
+          postal_code:              formData.postalCode.trim()      || null,
+          region:                   formData.region.trim()          || null,
+          website:                  formData.website.trim()         || null,
         }),
       });
     } catch {
@@ -206,6 +238,10 @@ function OnboardingPageContent() {
         setSubmitError('Ο κωδικός δεν είναι έγκυρος.');
       } else if (apiErr === 'expired_voucher') {
         setSubmitError('Ο κωδικός έχει λήξει.');
+      } else if (apiErr === 'invalid_postal_code') {
+        setSubmitError('Ο ταχυδρομικός κώδικας πρέπει να είναι ακριβώς 5 ψηφία.');
+      } else if (apiErr === 'invalid_website') {
+        setSubmitError('Ο ιστότοπος πρέπει να ξεκινά με http:// ή https://.');
       } else {
         setSubmitError('Δεν μπορέσαμε να αποθηκεύσουμε την επιχείρηση. Δοκίμασε ξανά.');
       }
@@ -218,20 +254,33 @@ function OnboardingPageContent() {
         const now = new Date().toISOString();
         const businessProfile: BusinessProfile = {
           id: crypto.randomUUID(),
-          businessName: formData.businessName.trim(),
-          businessType: formData.businessType!,
-          ownerName: formData.ownerName.trim(),
-          phone: formData.phone.trim(),
-          email: formData.email.trim(),
-          address: formData.address.trim(),
-          vatNumber: formData.vatNumber.trim(),
-          taxOffice: formData.taxOffice.trim(),
-          logoDataUrl: formData.logoDataUrl,
-          defaultVatRate: formData.vatRate,
-          defaultOfferTerms: formData.offerTerms.trim(),
+          businessName:  formData.businessName.trim(),
+          businessType:  formData.businessType!,
+          // ownerName is localStorage-only; derive from structured first/last name.
+          ownerName:     [formData.ownerFirstName, formData.ownerLastName]
+                           .map((s) => s.trim()).filter(Boolean).join(' '),
+          phone:         formData.phone.trim(),
+          email:         formData.email.trim(),
+          address:       (formData.addressLine1 || formData.address).trim(),
+          city:          formData.city.trim() || undefined,
+          vatNumber:     formData.vatNumber.trim(),
+          taxOffice:     formData.taxOffice.trim(),
+          logoDataUrl:   formData.logoDataUrl,
+          defaultVatRate:        formData.vatRate,
+          defaultOfferTerms:     formData.offerTerms.trim(),
           defaultAcceptanceText:
             'Αποδέχομαι τους παραπάνω όρους και επιθυμώ να προχωρήσουμε.',
           preferredContactMethod: 'viber',
+          // structured fields (cache only, written after successful DB save):
+          legalName:      (formData.legalName || formData.businessName).trim() || undefined,
+          tradeName:      formData.tradeName.trim()       || undefined,
+          ownerFirstName: formData.ownerFirstName.trim()  || undefined,
+          ownerLastName:  formData.ownerLastName.trim()   || undefined,
+          addressLine1:   (formData.addressLine1 || formData.address).trim() || undefined,
+          addressLine2:   formData.addressLine2.trim()    || undefined,
+          postalCode:     formData.postalCode.trim()      || undefined,
+          region:         formData.region.trim()          || undefined,
+          website:        formData.website.trim()         || undefined,
           createdAt: now,
           updatedAt: now,
         };
@@ -264,14 +313,22 @@ function OnboardingPageContent() {
   }
 
   const profileFormValue: BusinessProfileData = {
-    businessName: formData.businessName,
-    ownerName: formData.ownerName,
-    phone: formData.phone,
-    email: formData.email,
-    address: formData.address,
-    city: formData.city,
-    vatNumber: formData.vatNumber,
-    taxOffice: formData.taxOffice,
+    businessName:   formData.businessName,
+    phone:          formData.phone,
+    email:          formData.email,
+    city:           formData.city,
+    vatNumber:      formData.vatNumber,
+    taxOffice:      formData.taxOffice,
+    legalName:      formData.legalName,
+    tradeName:      formData.tradeName,
+    ownerFirstName: formData.ownerFirstName,
+    ownerLastName:  formData.ownerLastName,
+    // Show addressLine1 if set, otherwise fall back to legacy address field.
+    addressLine1:   formData.addressLine1 || formData.address,
+    addressLine2:   formData.addressLine2,
+    postalCode:     formData.postalCode,
+    region:         formData.region,
+    website:        formData.website,
   };
 
   const currentStep = STEPS[step];
@@ -329,7 +386,15 @@ function OnboardingPageContent() {
               <>
                 <BusinessProfileForm
                   value={profileFormValue}
-                  onChange={(fields) => updateForm(fields)}
+                  onChange={(fields) => {
+                    // Keep legacy `address` column in sync so existing offer
+                    // rendering (which reads `address`) continues to work.
+                    const update: Partial<FormData> = { ...fields };
+                    if (fields.addressLine1 !== undefined) {
+                      update.address = fields.addressLine1;
+                    }
+                    updateForm(update);
+                  }}
                 />
                 <p className="mt-3 text-xs text-zinc-400">
                   Το τηλέφωνο εδώ είναι κινητό επικοινωνίας. Ο επαγγελματικός αριθμός σου δίνεται αυτόματα από το yorgos.ai.
