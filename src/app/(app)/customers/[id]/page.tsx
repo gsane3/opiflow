@@ -289,7 +289,7 @@ export default function CustomerDetailPage() {
   const [offers, setOffers] = useState<OfferDto[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
 
-  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [editMode, setEditMode] = useState<'contact' | 'memory' | 'notes' | null>(null);
   const [customerDraft, setCustomerDraft] = useState<CustomerDraft | null>(null);
   const [customerSaveState, setCustomerSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [customerSaveError, setCustomerSaveError] = useState<string | null>(null);
@@ -505,38 +505,64 @@ export default function CustomerDetailPage() {
   // Customer edit helpers
   // ---------------------------------------------------------------------------
 
-  function startEditCustomer() {
-    if (!customer) return;
+  function buildCustomerDraft(c: CustomerDto): CustomerDraft {
+    return {
+      name: c.name,
+      companyName: c.companyName,
+      phone: c.phone,
+      mobilePhone: c.mobilePhone,
+      landlinePhone: c.landlinePhone,
+      email: c.email,
+      address: c.address,
+      status: c.status,
+      source: c.source,
+      preferredContactMethod: c.preferredContactMethod,
+      needsSummary: c.needsSummary,
+      notes: c.notes,
+      statusSummary: c.statusSummary ?? null,
+      businessNotes: c.businessNotes ?? null,
+      personalNotes: c.personalNotes ?? null,
+      nextBestAction: c.nextBestAction ?? null,
+    };
+  }
+
+  function clearAiState() {
     setAiSuggestionActive(false);
     setAiSuggestionWarnings([]);
     setAiSuggestionConfidence(null);
     setAiPreviousMemory(null);
     setAiSuggestError(null);
-    setCustomerDraft({
-      name: customer.name,
-      companyName: customer.companyName,
-      phone: customer.phone,
-      mobilePhone: customer.mobilePhone,
-      landlinePhone: customer.landlinePhone,
-      email: customer.email,
-      address: customer.address,
-      status: customer.status,
-      source: customer.source,
-      preferredContactMethod: customer.preferredContactMethod,
-      needsSummary: customer.needsSummary,
-      notes: customer.notes,
-      statusSummary: customer.statusSummary ?? null,
-      businessNotes: customer.businessNotes ?? null,
-      personalNotes: customer.personalNotes ?? null,
-      nextBestAction: customer.nextBestAction ?? null,
-    });
-    setIsEditingCustomer(true);
+  }
+
+  function startEditContact() {
+    if (!customer) return;
+    clearAiState();
+    setCustomerDraft(buildCustomerDraft(customer));
+    setEditMode('contact');
     setCustomerSaveError(null);
     setCustomerSaveState('idle');
   }
 
-  function cancelEditCustomer() {
-    setIsEditingCustomer(false);
+  function startEditMemory() {
+    if (!customer) return;
+    clearAiState();
+    setCustomerDraft(buildCustomerDraft(customer));
+    setEditMode('memory');
+    setCustomerSaveError(null);
+    setCustomerSaveState('idle');
+  }
+
+  function startEditNotes() {
+    if (!customer) return;
+    clearAiState();
+    setCustomerDraft(buildCustomerDraft(customer));
+    setEditMode('notes');
+    setCustomerSaveError(null);
+    setCustomerSaveState('idle');
+  }
+
+  function cancelEdit() {
+    setEditMode(null);
     setCustomerDraft(null);
     setCustomerSaveError(null);
     setCustomerSaveState('idle');
@@ -612,7 +638,7 @@ export default function CustomerDetailPage() {
         personalNotes: s.proposedPersonalNotes ?? customer.personalNotes ?? null,
         nextBestAction: s.proposedNextBestAction ?? customer.nextBestAction ?? null,
       });
-      setIsEditingCustomer(true);
+      setEditMode('memory');
       setAiSuggestionActive(true);
       setAiSuggestionConfidence(s.confidence);
       setAiSuggestionWarnings(s.warnings);
@@ -649,7 +675,7 @@ export default function CustomerDetailPage() {
       if (res.ok && json.ok && json.customer) {
         setCustomer(json.customer);
         setCustomerSaveState('saved');
-        setIsEditingCustomer(false);
+        setEditMode(null);
         setCustomerDraft(null);
         setAiSuggestionActive(false);
         setAiSuggestionWarnings([]);
@@ -1385,10 +1411,10 @@ export default function CustomerDetailPage() {
             <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
               Στοιχεία επικοινωνίας
             </h2>
-            {!isEditingCustomer && (
+            {editMode === null && (
               <button
                 type="button"
-                onClick={startEditCustomer}
+                onClick={startEditContact}
                 className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
               >
                 Επεξεργασία
@@ -1396,13 +1422,13 @@ export default function CustomerDetailPage() {
             )}
           </div>
 
-          {customerSaveState === 'saved' && !isEditingCustomer && (
+          {customerSaveState === 'saved' && editMode === null && (
             <p className="mb-2 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 ring-1 ring-green-100">
               Αποθηκεύτηκε
             </p>
           )}
 
-          {isEditingCustomer && customerDraft ? (
+          {editMode === 'contact' && customerDraft ? (
             <div className="space-y-3">
               <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-500">Ονοματεπώνυμο</label>
@@ -1521,16 +1547,6 @@ export default function CustomerDetailPage() {
                   placeholder="Ανάγκες πελάτη"
                 />
               </div>
-              <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Σημειώσεις</label>
-                <textarea
-                  rows={3}
-                  value={customerDraft.notes ?? ''}
-                  onChange={e => setCustomerDraft(d => d ? { ...d, notes: e.target.value || null } : d)}
-                  className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                  placeholder="Σημειώσεις"
-                />
-              </div>
               {customerSaveError && (
                 <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">
                   {customerSaveError}
@@ -1547,7 +1563,7 @@ export default function CustomerDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={cancelEditCustomer}
+                  onClick={cancelEdit}
                   disabled={customerSaveState === 'saving'}
                   className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
                 >
@@ -2186,7 +2202,7 @@ export default function CustomerDetailPage() {
             <h2 className="text-sm font-semibold text-zinc-900">Μνήμη πελάτη</h2>
             <p className="mt-0.5 text-xs text-zinc-400">Χειροκίνητες σημειώσεις για καλύτερη κατανόηση του πελάτη.</p>
           </div>
-          {!isEditingCustomer && (
+          {editMode === null && (
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
@@ -2198,7 +2214,7 @@ export default function CustomerDetailPage() {
               </button>
               <button
                 type="button"
-                onClick={startEditCustomer}
+                onClick={startEditMemory}
                 className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
               >
                 Επεξεργασία
@@ -2207,7 +2223,7 @@ export default function CustomerDetailPage() {
           )}
         </div>
 
-        {!isEditingCustomer && (
+        {editMode !== 'memory' && (
           <div className="px-4 pt-2 pb-0">
             <p className="text-[11px] text-zinc-400">Τα δεδομένα του πελάτη αποστέλλονται στο AI για πρόταση.</p>
             {aiSuggestError && (
@@ -2216,7 +2232,7 @@ export default function CustomerDetailPage() {
           </div>
         )}
 
-        {isEditingCustomer && customerDraft ? (
+        {editMode === 'memory' && customerDraft ? (
           <div className="space-y-4 px-4 py-4">
             {aiSuggestionActive && (
               <div className={`rounded-xl px-3 py-2 text-xs ring-1 ${
@@ -2293,6 +2309,29 @@ export default function CustomerDetailPage() {
                 <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε task.</p>
               )}
             </div>
+            {customerSaveError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">
+                {customerSaveError}
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={saveCustomerDraft}
+                disabled={customerSaveState === 'saving'}
+                className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {customerSaveState === 'saving' ? 'Αποθήκευση...' : 'Αποθήκευση'}
+              </button>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                disabled={customerSaveState === 'saving'}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Ακύρωση
+              </button>
+            </div>
           </div>
         ) : (
           <div className="px-4 py-4 space-y-3">
@@ -2338,17 +2377,67 @@ export default function CustomerDetailPage() {
       {/* D. Notes: backend-backed section, comes before placeholders */}
       <section id="ws-notes" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Σημειώσεις</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">Εσωτερικές σημειώσεις και ιστορικό.</p>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <h2 className="text-sm font-semibold text-zinc-900">Σημειώσεις</h2>
+              <p className="mt-0.5 text-xs text-zinc-400">Εσωτερικές σημειώσεις και ιστορικό.</p>
+            </div>
+            {editMode === null && (
+              <button
+                type="button"
+                onClick={startEditNotes}
+                className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+              >
+                Επεξεργασία
+              </button>
+            )}
+          </div>
         </div>
-        {customer.notes ? (
-          <p className="whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-zinc-700">
-            {customer.notes}
-          </p>
+        {editMode === 'notes' && customerDraft ? (
+          <div className="px-4 py-4 space-y-3">
+            <textarea
+              rows={6}
+              value={customerDraft.notes ?? ''}
+              onChange={e => setCustomerDraft(d => d ? { ...d, notes: e.target.value || null } : d)}
+              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              placeholder="Σημειώσεις"
+            />
+            {customerSaveError && (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">
+                {customerSaveError}
+              </p>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={saveCustomerDraft}
+                disabled={customerSaveState === 'saving'}
+                className="flex-1 rounded-xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+              >
+                {customerSaveState === 'saving' ? 'Αποθήκευση...' : 'Αποθήκευση'}
+              </button>
+              <button
+                type="button"
+                onClick={cancelEdit}
+                disabled={customerSaveState === 'saving'}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Ακύρωση
+              </button>
+            </div>
+          </div>
         ) : (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν σημειώσεις ακόμα.
-          </p>
+          <>
+            {customer.notes ? (
+              <p className="whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-zinc-700">
+                {customer.notes}
+              </p>
+            ) : (
+              <p className="px-4 py-5 text-sm text-zinc-400">
+                Δεν υπάρχουν σημειώσεις ακόμα.
+              </p>
+            )}
+          </>
         )}
       </section>
 
