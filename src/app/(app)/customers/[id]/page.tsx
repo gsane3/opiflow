@@ -123,17 +123,6 @@ const STATUS_LABELS: Record<string, string> = {
   lost: 'Χάθηκε',
 };
 
-const INTAKE_LABELS: Record<string, string> = {
-  none: '',
-  pending: 'Εκκρεμεί',
-  sent: 'Viber εστάλη',
-  opened: 'Άνοιξε link',
-  submitted: 'Υπέβαλε στοιχεία',
-  completed: 'Ολοκληρώθηκε',
-  expired: 'Έληξε',
-  revoked: 'Ανακλήθηκε',
-};
-
 const CONTACT_LABELS: Record<string, string> = {
   phone: 'Τηλέφωνο',
   email: 'Email',
@@ -345,8 +334,6 @@ export default function CustomerDetailPage() {
   const [editingOfferLoading, setEditingOfferLoading] = useState<string | null>(null);
   const [editOfferError, setEditOfferError] = useState<string | null>(null);
 
-  const [copiedMessageKey, setCopiedMessageKey] = useState<string | null>(null);
-
   // Response link generation state for customer workspace offer rows.
   const [offerLinkGeneratingId, setOfferLinkGeneratingId] = useState<string | null>(null);
   const [offerLinkCopiedId, setOfferLinkCopiedId] = useState<string | null>(null);
@@ -441,19 +428,6 @@ export default function CustomerDetailPage() {
   const openTasks = useMemo(
     () => tasks.filter(t => t.status === 'open'),
     [tasks]
-  );
-
-  const callComms = useMemo(
-    () =>
-      [...communications]
-        .filter(c => c.channel === 'call')
-        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
-    [communications]
-  );
-
-  const latestCallWithBrief = useMemo(
-    () => callComms.find(c => c.summary && c.summary.trim().length > 0) ?? null,
-    [callComms]
   );
 
   const timeline = useMemo((): TimelineItem[] => {
@@ -1022,19 +996,6 @@ export default function CustomerDetailPage() {
   }
 
   // ---------------------------------------------------------------------------
-  // Message copy helper
-  // ---------------------------------------------------------------------------
-
-  async function copyMessage(key: string, text: string) {
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopiedMessageKey(key);
-    } catch {
-      setCopiedMessageKey(null);
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Edit offer helpers
   // ---------------------------------------------------------------------------
 
@@ -1228,8 +1189,6 @@ export default function CustomerDetailPage() {
   // ---------------------------------------------------------------------------
   // Loaded: full CRM detail
   // ---------------------------------------------------------------------------
-  const intakeLabel = INTAKE_LABELS[customer.intakeStatus] ?? '';
-
   const currentCustomerForOfferForm: Customer = {
     id: customer.id,
     name: customer.name ?? customer.companyName ?? '',
@@ -1246,23 +1205,6 @@ export default function CustomerDetailPage() {
     updatedAt: customer.updatedAt,
   };
 
-  const msgPhoneText = 'Γεια σας, επικοινωνώ σχετικά με το αίτημά σας.';
-  const msgEmailText = 'Καλημέρα σας, σας επικοινωνώ σχετικά με το αίτημά σας.';
-  const prefCh = customer.preferredContactMethod;
-  const messageDrafts: Array<{ key: string; channelLabel: string; draftText: string }> = [
-    {
-      key: `pref-${prefCh}`,
-      channelLabel: CONTACT_LABELS[prefCh] ?? prefCh,
-      draftText: prefCh === 'email' ? msgEmailText : msgPhoneText,
-    },
-  ];
-  if ((customer.phone || customer.mobilePhone) && prefCh !== 'phone' && prefCh !== 'viber') {
-    messageDrafts.push({ key: 'phone', channelLabel: 'Viber / SMS', draftText: msgPhoneText });
-  }
-  if (customer.email && prefCh !== 'email') {
-    messageDrafts.push({ key: 'email', channelLabel: 'Email', draftText: msgEmailText });
-  }
-
   return (
     <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 py-5">
 
@@ -1278,58 +1220,43 @@ export default function CustomerDetailPage() {
         <span className="text-zinc-500">{customer.crmNumber ?? customerTitle(customer)}</span>
       </div>
 
-      {/* Header */}
-      <div>
+      {/* Hero card */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="text-xl font-bold text-zinc-900 leading-tight">
-            {customerTitle(customer)}
-          </h1>
-          <div className="flex shrink-0 gap-1.5">
-            <button
-              type="button"
-              onClick={startRejectClient}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-            >
-              Απόρριψη πελάτη
-            </button>
-            <button
-              type="button"
-              onClick={() => setRefreshTick(t => t + 1)}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-            >
-              Ανανέωση
-            </button>
+          <div className="min-w-0">
+            <h1 className="text-xl font-bold leading-tight text-zinc-900">
+              {customerTitle(customer)}
+            </h1>
+            {customer.companyName && (
+              <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
+            )}
           </div>
-        </div>
-        {customer.companyName && customer.name && (
-          <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
-        )}
-        <div className="mt-3 flex flex-wrap gap-2">
-          {customer.source && (
-            <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">
-              {SOURCE_LABELS[customer.source] ?? customer.source}
-            </span>
-          )}
-          <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(customer.status)}`}>
+          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(customer.status)}`}>
             {STATUS_LABELS[customer.status] ?? customer.status}
           </span>
-          {intakeLabel && (
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-              customer.intakeStatus === 'submitted' || customer.intakeStatus === 'completed'
-                ? 'bg-green-50 text-green-700'
-                : 'bg-amber-50 text-amber-700'
-            }`}>
-              {intakeLabel}
-            </span>
-          )}
-          {customer.preferredContactMethod && (
-            <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-500">
-              {CONTACT_LABELS[customer.preferredContactMethod] ?? customer.preferredContactMethod}
-            </span>
-          )}
         </div>
-        <p className="mt-2 text-xs text-zinc-400">Κέντρο εργασίας πελάτη</p>
-      </div>
+        {(customer.crmNumber || customer.source) && (
+          <p className="mt-1.5 text-xs text-zinc-400">
+            {customer.crmNumber && <span>{customer.crmNumber}</span>}
+            {customer.crmNumber && customer.source && <span> · </span>}
+            {customer.source && <span>{SOURCE_LABELS[customer.source] ?? customer.source}</span>}
+          </p>
+        )}
+        {customer.address && (
+          <p className="mt-1.5 text-xs text-zinc-500">{customer.address}</p>
+        )}
+        {editMode === null && (
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              onClick={startEditContact}
+              className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+            >
+              Επεξεργασία στοιχείων
+            </button>
+          </div>
+        )}
+      </section>
 
       {/* Reject panel */}
       {isRejectPanelOpen && (
@@ -1379,28 +1306,163 @@ export default function CustomerDetailPage() {
         </div>
       )}
 
-      {/* Workspace section navigation chips */}
-      <nav aria-label="Ενότητες καρτέλας" className="flex flex-wrap gap-1.5">
-        {[
-          { label: 'Timeline', href: '#ws-timeline' },
-          { label: 'Κλήσεις', href: '#ws-calls' },
-          { label: 'Tasks', href: '#ws-tasks' },
-          { label: 'Ραντεβού', href: '#ws-appointments' },
-          { label: 'Προσφορές', href: '#ws-offers' },
-          { label: 'Μνήμη', href: '#ws-memory' },
-          { label: 'Σημειώσεις', href: '#ws-notes' },
-          { label: 'Μηνύματα', href: '#ws-messages' },
-          { label: 'Αρχεία', href: '#ws-files' },
-        ].map((chip) => (
-          <a
-            key={chip.href}
-            href={chip.href}
-            className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-200 hover:text-zinc-800"
+
+      {/* Action row */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <div className="grid grid-cols-3 gap-3">
+          {(customer.mobilePhone || customer.phone || customer.landlinePhone) ? (
+            <a
+              href={`tel:${customer.mobilePhone ?? customer.landlinePhone ?? customer.phone}`}
+              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-2 py-4 text-center transition hover:bg-green-700 active:bg-green-800"
+            >
+              <span className="text-lg leading-none opacity-70">📞</span>
+              <span className="text-xs font-semibold text-white">Κλήση</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-100 px-2 py-4 text-center cursor-not-allowed"
+            >
+              <span className="text-lg leading-none opacity-70">📞</span>
+              <span className="text-xs font-medium text-zinc-300">Κλήση</span>
+            </button>
+          )}
+          {customer.address ? (
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+            >
+              <span className="text-lg leading-none opacity-70">📍</span>
+              <span className="text-xs font-medium text-zinc-700">Χάρτης</span>
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setQuickModal('appointment')}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
           >
-            {chip.label}
-          </a>
-        ))}
-      </nav>
+            <span className="text-lg leading-none opacity-70">📅</span>
+            <span className="text-xs font-medium text-zinc-700">Ραντεβού</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickModal('task')}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            <span className="text-lg leading-none opacity-70">✅</span>
+            <span className="text-xs font-medium text-zinc-700">Task</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickModal('offer')}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            <span className="text-lg leading-none opacity-70">💶</span>
+            <span className="text-xs font-medium text-zinc-700">Προσφορά</span>
+          </button>
+          <button
+            type="button"
+            onClick={startEditNotes}
+            disabled={editMode !== null}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="text-lg leading-none opacity-70">📝</span>
+            <span className="text-xs font-medium text-zinc-700">Σημείωση</span>
+          </button>
+        </div>
+      </section>
+
+      {/* Next best action card */}
+      <section className={`rounded-2xl p-4 ${
+        draftTask
+          ? 'bg-amber-50 ring-1 ring-amber-200'
+          : openTasks.length > 0
+          ? 'bg-indigo-50 ring-1 ring-indigo-200'
+          : 'bg-white shadow-sm ring-1 ring-zinc-100'
+      }`}>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className={`text-xs font-semibold uppercase tracking-wide ${
+            draftTask ? 'text-amber-600' : openTasks.length > 0 ? 'text-indigo-600' : 'text-zinc-400'
+          }`}>
+            Επόμενο βήμα
+          </h2>
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
+            draftTask
+              ? 'bg-amber-100 text-amber-700'
+              : openTasks.length > 0
+              ? 'bg-indigo-100 text-indigo-700'
+              : 'bg-zinc-100 text-zinc-500'
+          }`}>
+            {draftTask ? 'Χρειάζεται έλεγχος' : openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : (pendingOffer || openAppointment) ? 'Εκκρεμεί' : 'Χωρίς εκκρεμότητες'}
+          </span>
+        </div>
+        {draftTask ? (
+          <div className="space-y-1.5">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                Draft task από AI
+              </span>
+              <span className="text-xs text-amber-700">
+                {TASK_TYPE_LABELS[draftTask.type] ?? draftTask.type}
+              </span>
+              <span className="text-xs text-amber-700">{draftTask.dueDate}</span>
+            </div>
+            <p className="font-semibold text-amber-900">{draftTask.title}</p>
+            {draftTask.note && (
+              <p className="text-sm text-amber-700">{truncate(draftTask.note, 200)}</p>
+            )}
+          </div>
+        ) : openTasks.length > 0 ? (
+          <div className="space-y-2">
+            {openTasks.slice(0, 2).map(t => (
+              <div key={t.id} className="flex items-start gap-2.5">
+                <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-indigo-900">{t.title}</p>
+                  <p className="text-xs text-indigo-700">{TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}</p>
+                </div>
+              </div>
+            ))}
+            {openTasks.length > 2 && (
+              <p className="text-xs text-indigo-600">+{openTasks.length - 2} ακόμα...</p>
+            )}
+          </div>
+        ) : pendingOffer ? (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-zinc-400">Προσφορά</p>
+            <p className="text-sm font-semibold text-zinc-800">{pendingOffer.offerNumber}</p>
+            <p className="text-xs text-zinc-500">
+              {OFFER_STATUS_LABELS[pendingOffer.status] ?? pendingOffer.status}
+              {' · '}
+              {formatMoney(pendingOffer.total)}
+            </p>
+          </div>
+        ) : openAppointment ? (
+          <div className="space-y-1">
+            <p className="text-xs font-medium text-zinc-400">Ραντεβού</p>
+            <p className="text-sm font-semibold text-zinc-800">{openAppointment.title}</p>
+            <p className="text-xs text-zinc-500">
+              {openAppointment.dueDate}
+              {openAppointment.dueTime ? ` ${openAppointment.dueTime}` : ''}
+            </p>
+          </div>
+        ) : (
+          <p className="text-sm text-zinc-400">Δεν υπάρχει επείγουσα ενέργεια.</p>
+        )}
+        {(customer.statusSummary || customer.nextBestAction) && (
+          <div className="mt-3 space-y-1 border-t border-zinc-100 pt-3">
+            {customer.statusSummary && (
+              <p className="text-xs text-zinc-500">{truncate(customer.statusSummary, 160)}</p>
+            )}
+            {customer.nextBestAction && (
+              <p className="text-xs font-medium text-zinc-700">{truncate(customer.nextBestAction, 120)}</p>
+            )}
+          </div>
+        )}
+      </section>
 
       {/* Top summary grid */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -1451,21 +1513,11 @@ export default function CustomerDetailPage() {
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Τηλέφωνο</label>
-                <input
-                  type="tel"
-                  value={customerDraft.phone ?? ''}
-                  onChange={e => setCustomerDraft(d => d ? { ...d, phone: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                  placeholder="Τηλέφωνο"
-                />
-              </div>
-              <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-500">Κινητό</label>
                 <input
                   type="tel"
                   value={customerDraft.mobilePhone ?? ''}
-                  onChange={e => setCustomerDraft(d => d ? { ...d, mobilePhone: e.target.value || null } : d)}
+                  onChange={e => setCustomerDraft(d => d ? { ...d, mobilePhone: e.target.value || null, phone: e.target.value || null } : d)}
                   className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Κινητό"
                 />
@@ -1573,16 +1625,10 @@ export default function CustomerDetailPage() {
             </div>
           ) : (
             <dl className="space-y-2 text-sm">
-              {customer.phone && (
-                <div className="flex justify-between gap-2">
-                  <dt className="text-zinc-400">Τηλέφωνο</dt>
-                  <dd className="font-medium text-zinc-800">{customer.phone}</dd>
-                </div>
-              )}
-              {customer.mobilePhone && (
+              {(customer.mobilePhone || customer.phone) && (
                 <div className="flex justify-between gap-2">
                   <dt className="text-zinc-400">Κινητό</dt>
-                  <dd className="font-medium text-zinc-800">{customer.mobilePhone}</dd>
+                  <dd className="font-medium text-zinc-800">{customer.mobilePhone ?? customer.phone}</dd>
                 </div>
               )}
               {customer.landlinePhone && (
@@ -1617,583 +1663,9 @@ export default function CustomerDetailPage() {
           )}
         </section>
 
-        {/* Latest call brief card, only shown when a call summary exists */}
-        {latestCallWithBrief && (
-          <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-            <div className="mb-2 flex items-center justify-between gap-2">
-              <h2 className="text-sm font-semibold text-zinc-900">Τελευταία κλήση</h2>
-              <span className="text-xs text-zinc-400">{formatDateShort(latestCallWithBrief.createdAt)}</span>
-            </div>
-            <p className="mb-1.5 text-xs text-zinc-500">
-              {latestCallWithBrief.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'}
-            </p>
-            <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
-              {(latestCallWithBrief.summary ?? '').replace(/^AI brief[:\s]*/i, '')}
-            </p>
-            <div className="mt-3">
-              <button
-                type="button"
-                onClick={() => setSelectedCall(latestCallWithBrief)}
-                className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
-              >
-                Άνοιγμα κλήσης
-              </button>
-            </div>
-          </section>
-        )}
       </div>
 
-      {/* Next best action card */}
-      <section className={`rounded-2xl p-4 ${
-        draftTask
-          ? 'bg-amber-50 ring-1 ring-amber-200'
-          : openTasks.length > 0
-          ? 'bg-indigo-50 ring-1 ring-indigo-200'
-          : 'bg-white shadow-sm ring-1 ring-zinc-100'
-      }`}>
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className={`text-xs font-semibold uppercase tracking-wide ${
-            draftTask ? 'text-amber-600' : openTasks.length > 0 ? 'text-indigo-600' : 'text-zinc-400'
-          }`}>
-            Επόμενο βήμα
-          </h2>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-            draftTask
-              ? 'bg-amber-100 text-amber-700'
-              : openTasks.length > 0
-              ? 'bg-indigo-100 text-indigo-700'
-              : 'bg-zinc-100 text-zinc-500'
-          }`}>
-            {draftTask ? 'Χρειάζεται έλεγχος' : openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : (pendingOffer || openAppointment) ? 'Εκκρεμεί' : 'Χωρίς εκκρεμότητες'}
-          </span>
-        </div>
-        {draftTask ? (
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                Draft task από AI
-              </span>
-              <span className="text-xs text-amber-700">
-                {TASK_TYPE_LABELS[draftTask.type] ?? draftTask.type}
-              </span>
-              <span className="text-xs text-amber-700">{draftTask.dueDate}</span>
-            </div>
-            <p className="font-semibold text-amber-900">{draftTask.title}</p>
-            {draftTask.note && (
-              <p className="text-sm text-amber-700">{truncate(draftTask.note, 200)}</p>
-            )}
-          </div>
-        ) : openTasks.length > 0 ? (
-          <div className="space-y-2">
-            {openTasks.slice(0, 2).map(t => (
-              <div key={t.id} className="flex items-start gap-2.5">
-                <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-indigo-900">{t.title}</p>
-                  <p className="text-xs text-indigo-700">{TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}</p>
-                </div>
-              </div>
-            ))}
-            {openTasks.length > 2 && (
-              <p className="text-xs text-indigo-600">+{openTasks.length - 2} ακόμα...</p>
-            )}
-          </div>
-        ) : pendingOffer ? (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-zinc-400">Προσφορά</p>
-            <p className="text-sm font-semibold text-zinc-800">{pendingOffer.offerNumber}</p>
-            <p className="text-xs text-zinc-500">
-              {OFFER_STATUS_LABELS[pendingOffer.status] ?? pendingOffer.status}
-              {' · '}
-              {formatMoney(pendingOffer.total)}
-            </p>
-          </div>
-        ) : openAppointment ? (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-zinc-400">Ραντεβού</p>
-            <p className="text-sm font-semibold text-zinc-800">{openAppointment.title}</p>
-            <p className="text-xs text-zinc-500">
-              {openAppointment.dueDate}
-              {openAppointment.dueTime ? ` ${openAppointment.dueTime}` : ''}
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-400">Δεν υπάρχει επείγουσα ενέργεια.</p>
-        )}
-      </section>
 
-      {/* Quick actions */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
-          Γρήγορες ενέργειες
-        </h2>
-        <div className="grid grid-cols-3 gap-2 md:grid-cols-6">
-          <button
-            type="button"
-            onClick={() => setQuickModal('task')}
-            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            Νέο task
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickModal('appointment')}
-            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            Ραντεβού
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickModal('offer')}
-            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            Προσφορά
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickModal('message')}
-            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            Μήνυμα
-          </button>
-          {(customer.phone || customer.mobilePhone || customer.landlinePhone) ? (
-            <a
-              href={`tel:${customer.phone || customer.mobilePhone || customer.landlinePhone}`}
-              className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-            >
-              Κλήση
-            </a>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-300 ring-1 ring-zinc-200/40 cursor-not-allowed"
-            >
-              Κλήση
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => setQuickModal('file')}
-            className="rounded-xl bg-zinc-50 px-2 py-4 text-center text-sm font-medium text-zinc-700 ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            Αρχείο
-          </button>
-        </div>
-      </section>
-
-      {/* A. Timeline */}
-      <section id="ws-timeline" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-zinc-900">Timeline</h2>
-            {timeline.length > 0 && (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
-                {timeline.length}
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 text-xs text-zinc-400">Σημαντικές ενέργειες, απαντήσεις πελατών και αλλαγές θα φαίνονται εδώ.</p>
-        </div>
-        {timeline.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχει ιστορικό ακόμα.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100">
-            {timeline.map(entry =>
-              entry.kind === 'comm' ? (
-                <li
-                  key={`c-${entry.item.id}`}
-                  className={`flex items-start gap-3 px-4 py-3 ${entry.item.channel === 'call' ? 'cursor-pointer transition hover:bg-indigo-50/50 active:bg-indigo-50' : ''}`}
-                  onClick={entry.item.channel === 'call' ? () => setSelectedCall(entry.item) : undefined}
-                >
-                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
-                    entry.item.channel === 'call' ? 'bg-indigo-500' : 'bg-blue-500'
-                  }`} />
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className={`text-xs font-semibold ${entry.item.channel === 'call' ? 'text-indigo-600' : 'text-blue-600'}`}>
-                        {entry.item.channel === 'call' ? 'Κλήση' : entry.item.channel}
-                      </span>
-                      <span className="shrink-0 text-xs text-zinc-400">
-                        {formatDateShort(entry.item.createdAt)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-400">
-                      {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'} · {entry.item.status}
-                    </p>
-                    {entry.item.summary && (
-                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
-                        {truncate(entry.item.summary.replace(/^AI brief[:\s]*/i, ''), 180)}
-                      </p>
-                    )}
-                    {entry.item.channel === 'call' && (
-                      <button
-                        type="button"
-                        onClick={e => { e.stopPropagation(); setSelectedCall(entry.item); }}
-                        className="mt-0.5 rounded-lg border border-indigo-100 bg-indigo-50 px-2 py-0.5 text-[11px] font-medium text-indigo-600 transition hover:bg-indigo-100"
-                      >
-                        Περίληψη
-                      </button>
-                    )}
-                  </div>
-                </li>
-              ) : (
-                <li key={`t-${entry.item.id}`} className="flex items-start gap-3 px-4 py-3">
-                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(entry.item.status, entry.item.priority)}`} />
-                  <div className="min-w-0 flex-1 space-y-0.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold text-zinc-500">Task</span>
-                      <span className="shrink-0 text-xs text-zinc-400">
-                        {formatDateShort(entry.item.createdAt)}
-                      </span>
-                    </div>
-                    <p className="text-sm font-semibold text-zinc-700">{entry.item.title}</p>
-                    <p className="text-xs text-zinc-400">
-                      {TASK_STATUS_LABELS[entry.item.status] ?? entry.item.status}
-                      {' · '}
-                      {TASK_TYPE_LABELS[entry.item.type] ?? entry.item.type}
-                      {' · '}
-                      {entry.item.dueDate}
-                    </p>
-                  </div>
-                </li>
-              )
-            )}
-          </ul>
-        )}
-      </section>
-
-      {/* B. Calls */}
-      <section id="ws-calls" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Κλήσεις</h2>
-                {callComms.length > 0 && (
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
-                    {callComms.length}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Κλήσεις, περιλήψεις και επόμενα βήματα.</p>
-            </div>
-            <Link
-              href="/calls"
-              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-            >
-              Άνοιγμα κλήσεων
-            </Link>
-          </div>
-        </div>
-        {callComms.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν καταγεγραμμένες κλήσεις ακόμα.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100">
-            {callComms.map(c => (
-              <li
-                key={c.id}
-                className="flex cursor-pointer items-start gap-3 px-4 py-3 transition hover:bg-indigo-50/50 active:bg-indigo-50"
-                onClick={() => setSelectedCall(c)}
-              >
-                <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${c.direction === 'inbound' ? 'bg-green-500' : 'bg-blue-500'}`} />
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-semibold text-zinc-700">
-                      {c.direction === 'inbound' ? 'Εισερχόμενη κλήση' : 'Εξερχόμενη κλήση'}
-                    </span>
-                    <span className="shrink-0 text-xs text-zinc-400">
-                      {formatDateShort(c.createdAt)}
-                    </span>
-                  </div>
-                  <p className="text-xs text-zinc-400">{c.status}</p>
-                  {c.summary && (
-                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-600">
-                      {truncate(c.summary.replace(/^AI brief[:\s]*/i, ''), 160)}
-                    </p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={e => { e.stopPropagation(); setSelectedCall(c); }}
-                  className="shrink-0 self-center rounded-xl border border-indigo-100 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-100"
-                >
-                  Περίληψη
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* C. Tasks */}
-      <section id="ws-tasks" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Tasks</h2>
-                {sortedTasks.length > 0 && (
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    openTasks.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-zinc-100 text-zinc-500'
-                  }`}>
-                    {openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : sortedTasks.length}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Ανοιχτές εργασίες και follow-up.</p>
-            </div>
-            <Link
-              href="/tasks"
-              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-            >
-              Άνοιγμα tasks
-            </Link>
-          </div>
-        </div>
-        {focusTaskId && (
-          <div className="flex items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-4 py-2.5">
-            <p className="text-xs font-medium text-indigo-700">Άνοιξες task από τα Tasks</p>
-            <button
-              type="button"
-              onClick={() => setFocusTaskId(null)}
-              className="shrink-0 rounded-full border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
-            >
-              Κλείσιμο
-            </button>
-          </div>
-        )}
-        {sortedTasks.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν tasks ακόμα.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100">
-            {sortedTasks.map(t => (
-              <li
-                key={t.id}
-                id={`task-${t.id}`}
-                className={`flex items-start gap-3 px-4 py-3 transition-colors${
-                  t.id === focusTaskId ? ' bg-indigo-50/60 ring-2 ring-inset ring-indigo-200' : ''
-                }`}
-              >
-                <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(t.status)}`}>
-                      {TASK_STATUS_LABELS[t.status] ?? t.status}
-                    </span>
-                    {t.createdFromAi && (
-                      <span className="text-xs text-zinc-400">από AI</span>
-                    )}
-                    <span className="text-xs text-zinc-400">
-                      {PRIORITY_LABELS[t.priority] ?? t.priority}
-                    </span>
-                  </div>
-                  <p className="font-semibold text-zinc-800">{t.title}</p>
-                  <p className="text-xs text-zinc-400">
-                    {TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}
-                    {t.dueTime ? ` ${t.dueTime}` : ''}
-                  </p>
-                  {t.note && (
-                    <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openEditTask(t)}
-                  className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-                >
-                  Επεξεργασία
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Appointments */}
-      <section id="ws-appointments" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Ραντεβού</h2>
-                {appointmentTasks.length > 0 && (
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
-                    {appointmentTasks.length}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Ραντεβού, απαντήσεις πελάτη και αλλαγές ώρας.</p>
-            </div>
-            <Link
-              href="/appointments"
-              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-            >
-              Άνοιγμα ραντεβού
-            </Link>
-          </div>
-        </div>
-        {appointmentTasks.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν ραντεβού ακόμα για αυτόν τον πελάτη.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100">
-            {appointmentTasks.map(task => (
-              <li key={task.id} className="space-y-1.5 px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-zinc-500">
-                        {TASK_TYPE_LABELS[task.type] ?? task.type}
-                      </span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(task.status)}`}>
-                        {appointmentStatusLabel(task)}
-                      </span>
-                      {task.createdFromAi && (
-                        <span className="text-xs text-zinc-400">από AI</span>
-                      )}
-                    </div>
-                    <p className="text-sm font-semibold text-zinc-800">{task.title}</p>
-                    <p className="text-xs text-zinc-500">
-                      {task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}
-                    </p>
-                    {task.note && (
-                      <p className="text-xs text-zinc-400">{truncate(task.note, 120)}</p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => openEditTask(task)}
-                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-                    >
-                      Επεξεργασία
-                    </button>
-                    <Link
-                      href={`/appointments?focusAppointment=${task.id}`}
-                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
-                    >
-                      Άνοιγμα
-                    </Link>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Offers */}
-      <section id="ws-offers" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Προσφορές</h2>
-                {sortedOffers.length > 0 && (
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
-                    {sortedOffers.length}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Προσφορές, κατάσταση και follow-up.</p>
-            </div>
-            <Link
-              href="/offers"
-              className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
-            >
-              Άνοιγμα προσφορών
-            </Link>
-          </div>
-        </div>
-        {editOfferError && !editingOffer && (
-          <p className="px-4 pt-3 text-xs font-medium text-red-600">{editOfferError}</p>
-        )}
-        {sortedOffers.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν προσφορές ακόμα για αυτόν τον πελάτη.
-          </p>
-        ) : (
-          <ul className="divide-y divide-zinc-100">
-            {sortedOffers.map(offer => (
-              <li key={offer.id} className="space-y-1.5 px-4 py-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-900">{offer.offerNumber}</span>
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${offerStatusBadgeClass(offer.status)}`}>
-                        {OFFER_STATUS_LABELS[offer.status] ?? offer.status}
-                      </span>
-                      {offer.createdFromAi && (
-                        <span className="text-xs text-zinc-400">από AI</span>
-                      )}
-                    </div>
-                    <p className="text-xs text-zinc-500">
-                      {offer.offerDate ?? ''}
-                      {offer.offerDate && offer.validUntil ? ' · ' : ''}
-                      {offer.validUntil ? `Ισχύει έως ${offer.validUntil}` : ''}
-                    </p>
-                    <p className="text-sm font-semibold text-zinc-800">{formatMoney(offer.total)}</p>
-                    {offer.notes && (
-                      <p className="text-xs text-zinc-400">{truncate(offer.notes, 120)}</p>
-                    )}
-                  </div>
-                  <div className="flex shrink-0 flex-col gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => openEditOffer(offer.id)}
-                      disabled={editingOfferLoading === offer.id}
-                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {editingOfferLoading === offer.id ? 'Φόρτωση...' : 'Επεξεργασία'}
-                    </button>
-                    <Link
-                      href={`/offers/${offer.id}`}
-                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
-                    >
-                      Άνοιγμα
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => { void generateResponseLink(offer.id); }}
-                      disabled={offerLinkGeneratingId === offer.id}
-                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      {offerLinkGeneratingId === offer.id
-                        ? 'Δημιουργία...'
-                        : offerLinkCopiedId === offer.id
-                        ? 'Αντιγράφηκε'
-                        : 'Link αποδοχής'}
-                    </button>
-                  </div>
-                </div>
-                {offerLinkManualCopyOfferId === offer.id && offerLinkManualCopyUrl && (
-                  <div className="space-y-1">
-                    <p className="text-xs text-zinc-500">Αντέγραψε το link χειροκίνητα:</p>
-                    <textarea
-                      readOnly
-                      rows={2}
-                      value={offerLinkManualCopyUrl}
-                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                      className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 outline-none"
-                    />
-                  </div>
-                )}
-                {offerLinkErrorId === offer.id && (
-                  <p className="text-xs text-red-600">{offerLinkErrorMsg}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       {/* Memory section */}
       <section id="ws-memory" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
@@ -2374,6 +1846,345 @@ export default function CustomerDetailPage() {
         )}
       </section>
 
+      {/* A. Timeline */}
+      <section id="ws-timeline" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-zinc-900">Timeline</h2>
+            {timeline.length > 0 && (
+              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+                {timeline.length}
+              </span>
+            )}
+          </div>
+          <p className="mt-0.5 text-xs text-zinc-400">Σημαντικές ενέργειες, απαντήσεις πελατών και αλλαγές θα φαίνονται εδώ.</p>
+        </div>
+        {timeline.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-zinc-400">
+            Δεν υπάρχει ιστορικό ακόμα.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100">
+            {timeline.map(entry =>
+              entry.kind === 'comm' ? (
+                <li
+                  key={`c-${entry.item.id}`}
+                  role={entry.item.channel === 'call' ? 'button' : undefined}
+                  tabIndex={entry.item.channel === 'call' ? 0 : undefined}
+                  className={`flex items-start gap-3 px-4 py-3 ${entry.item.channel === 'call' ? 'cursor-pointer transition hover:bg-indigo-50/50 active:bg-indigo-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400' : ''}`}
+                  onClick={entry.item.channel === 'call' ? () => setSelectedCall(entry.item) : undefined}
+                  onKeyDown={entry.item.channel === 'call' ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCall(entry.item); } } : undefined}
+                >
+                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
+                    entry.item.channel === 'call' ? 'bg-indigo-500' : 'bg-blue-500'
+                  }`} />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className={`text-xs font-semibold ${entry.item.channel === 'call' ? 'text-indigo-600' : 'text-blue-600'}`}>
+                        {entry.item.channel === 'call' ? 'Κλήση' : entry.item.channel}
+                      </span>
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {formatDateShort(entry.item.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400">
+                      {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'} · {entry.item.status}
+                    </p>
+                    {entry.item.summary && (
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
+                        {truncate(entry.item.summary.replace(/^AI brief[:\s]*/i, ''), 180)}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ) : (
+                <li key={`t-${entry.item.id}`} className="flex items-start gap-3 px-4 py-3">
+                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(entry.item.status, entry.item.priority)}`} />
+                  <div className="min-w-0 flex-1 space-y-0.5">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-xs font-semibold text-zinc-500">Task</span>
+                      <span className="shrink-0 text-xs text-zinc-400">
+                        {formatDateShort(entry.item.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-700">{entry.item.title}</p>
+                    <p className="text-xs text-zinc-400">
+                      {TASK_STATUS_LABELS[entry.item.status] ?? entry.item.status}
+                      {' · '}
+                      {TASK_TYPE_LABELS[entry.item.type] ?? entry.item.type}
+                      {' · '}
+                      {entry.item.dueDate}
+                    </p>
+                  </div>
+                </li>
+              )
+            )}
+          </ul>
+        )}
+      </section>
+
+      {/* C. Tasks */}
+      <section id="ws-tasks" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-900">Tasks</h2>
+                {sortedTasks.length > 0 && (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    openTasks.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-zinc-100 text-zinc-500'
+                  }`}>
+                    {openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : sortedTasks.length}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-400">Ανοιχτές εργασίες και follow-up.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setQuickModal('task')}
+              className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+            >
+              Νέο task
+            </button>
+          </div>
+        </div>
+        {focusTaskId && (
+          <div className="flex items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-4 py-2.5">
+            <p className="text-xs font-medium text-indigo-700">Άνοιξες task από τα Tasks</p>
+            <button
+              type="button"
+              onClick={() => setFocusTaskId(null)}
+              className="shrink-0 rounded-full border border-indigo-200 bg-white px-2.5 py-1 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
+            >
+              Κλείσιμο
+            </button>
+          </div>
+        )}
+        {sortedTasks.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-zinc-400">
+            Δεν υπάρχουν tasks ακόμα.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100">
+            {sortedTasks.map(t => (
+              <li
+                key={t.id}
+                id={`task-${t.id}`}
+                className={`flex items-start gap-3 px-4 py-3 transition-colors${
+                  t.id === focusTaskId ? ' bg-indigo-50/60 ring-2 ring-inset ring-indigo-200' : ''
+                }`}
+              >
+                <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(t.status)}`}>
+                      {TASK_STATUS_LABELS[t.status] ?? t.status}
+                    </span>
+                    {t.createdFromAi && (
+                      <span className="text-xs text-zinc-400">από AI</span>
+                    )}
+                    <span className="text-xs text-zinc-400">
+                      {PRIORITY_LABELS[t.priority] ?? t.priority}
+                    </span>
+                  </div>
+                  <p className="font-semibold text-zinc-800">{t.title}</p>
+                  <p className="text-xs text-zinc-400">
+                    {TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}
+                    {t.dueTime ? ` ${t.dueTime}` : ''}
+                  </p>
+                  {t.note && (
+                    <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => openEditTask(t)}
+                  className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                >
+                  Επεξεργασία
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Appointments */}
+      <section id="ws-appointments" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-900">Ραντεβού</h2>
+                {appointmentTasks.length > 0 && (
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+                    {appointmentTasks.length}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-400">Ραντεβού, απαντήσεις πελάτη και αλλαγές ώρας.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setQuickModal('appointment')}
+              className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+            >
+              Νέο ραντεβού
+            </button>
+          </div>
+        </div>
+        {appointmentTasks.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-zinc-400">
+            Δεν υπάρχουν ραντεβού ακόμα για αυτόν τον πελάτη.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100">
+            {appointmentTasks.map(task => (
+              <li key={task.id} className="space-y-1.5 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-medium text-zinc-500">
+                        {TASK_TYPE_LABELS[task.type] ?? task.type}
+                      </span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(task.status)}`}>
+                        {appointmentStatusLabel(task)}
+                      </span>
+                      {task.createdFromAi && (
+                        <span className="text-xs text-zinc-400">από AI</span>
+                      )}
+                    </div>
+                    <p className="text-sm font-semibold text-zinc-800">{task.title}</p>
+                    <p className="text-xs text-zinc-500">
+                      {task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}
+                    </p>
+                    {task.note && (
+                      <p className="text-xs text-zinc-400">{truncate(task.note, 120)}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => openEditTask(task)}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                    >
+                      Επεξεργασία
+                    </button>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Offers */}
+      <section id="ws-offers" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-semibold text-zinc-900">Προσφορές</h2>
+                {sortedOffers.length > 0 && (
+                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+                    {sortedOffers.length}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-xs text-zinc-400">Προσφορές, κατάσταση και follow-up.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setQuickModal('offer')}
+              className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+            >
+              Νέα προσφορά
+            </button>
+          </div>
+        </div>
+        {editOfferError && !editingOffer && (
+          <p className="px-4 pt-3 text-xs font-medium text-red-600">{editOfferError}</p>
+        )}
+        {sortedOffers.length === 0 ? (
+          <p className="px-4 py-5 text-sm text-zinc-400">
+            Δεν υπάρχουν προσφορές ακόμα για αυτόν τον πελάτη.
+          </p>
+        ) : (
+          <ul className="divide-y divide-zinc-100">
+            {sortedOffers.map(offer => (
+              <li key={offer.id} className="space-y-1.5 px-4 py-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-zinc-900">{offer.offerNumber}</span>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${offerStatusBadgeClass(offer.status)}`}>
+                        {OFFER_STATUS_LABELS[offer.status] ?? offer.status}
+                      </span>
+                      {offer.createdFromAi && (
+                        <span className="text-xs text-zinc-400">από AI</span>
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      {offer.offerDate ?? ''}
+                      {offer.offerDate && offer.validUntil ? ' · ' : ''}
+                      {offer.validUntil ? `Ισχύει έως ${offer.validUntil}` : ''}
+                    </p>
+                    <p className="text-sm font-semibold text-zinc-800">{formatMoney(offer.total)}</p>
+                    {offer.notes && (
+                      <p className="text-xs text-zinc-400">{truncate(offer.notes, 120)}</p>
+                    )}
+                  </div>
+                  <div className="flex shrink-0 flex-col gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => openEditOffer(offer.id)}
+                      disabled={editingOfferLoading === offer.id}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {editingOfferLoading === offer.id ? 'Φόρτωση...' : 'Επεξεργασία'}
+                    </button>
+                    <Link
+                      href={`/offers/${offer.id}`}
+                      className="rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-center text-xs font-medium text-indigo-700 transition hover:bg-indigo-100"
+                    >
+                      Άνοιγμα
+                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => { void generateResponseLink(offer.id); }}
+                      disabled={offerLinkGeneratingId === offer.id}
+                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {offerLinkGeneratingId === offer.id
+                        ? 'Δημιουργία...'
+                        : offerLinkCopiedId === offer.id
+                        ? 'Αντιγράφηκε'
+                        : 'Link αποδοχής'}
+                    </button>
+                  </div>
+                </div>
+                {offerLinkManualCopyOfferId === offer.id && offerLinkManualCopyUrl && (
+                  <div className="space-y-1">
+                    <p className="text-xs text-zinc-500">Αντέγραψε το link χειροκίνητα:</p>
+                    <textarea
+                      readOnly
+                      rows={2}
+                      value={offerLinkManualCopyUrl}
+                      onClick={(e) => (e.target as HTMLTextAreaElement).select()}
+                      className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 outline-none"
+                    />
+                  </div>
+                )}
+                {offerLinkErrorId === offer.id && (
+                  <p className="text-xs text-red-600">{offerLinkErrorMsg}</p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* D. Notes: backend-backed section, comes before placeholders */}
       <section id="ws-notes" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
@@ -2441,40 +2252,6 @@ export default function CustomerDetailPage() {
         )}
       </section>
 
-      {/* Messages section */}
-      <section id="ws-messages" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Μηνύματα</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">Πρόχειρα και ιστορικό επικοινωνίας με τον πελάτη.</p>
-        </div>
-        <div className="divide-y divide-zinc-100">
-          {messageDrafts.map(draft => (
-            <div key={draft.key} className="flex items-start gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1 space-y-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-semibold text-zinc-700">{draft.channelLabel}</span>
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-                    Πρόχειρο
-                  </span>
-                </div>
-                <p className="text-sm text-zinc-600">{draft.draftText}</p>
-                <p className="text-[11px] text-zinc-400">Δεν έχει σταλεί.</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => copyMessage(draft.key, draft.draftText)}
-                className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-              >
-                {copiedMessageKey === draft.key ? 'Αντιγράφηκε' : 'Αντιγραφή'}
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="border-t border-zinc-100 px-4 py-3">
-          <p className="text-xs text-zinc-400">Δημιουργία νέου μηνύματος θα συνδεθεί με provider σε επόμενο βήμα.</p>
-        </div>
-      </section>
-
       {/* Files section */}
       <section id="ws-files" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
@@ -2509,6 +2286,16 @@ export default function CustomerDetailPage() {
           <p className="text-xs text-zinc-400">Θα ενεργοποιηθεί όταν συνδεθεί το ασφαλές storage.</p>
         </div>
       </section>
+
+      <div className="flex justify-center">
+        <button
+          type="button"
+          onClick={() => setRefreshTick(t => t + 1)}
+          className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-600"
+        >
+          Ανανέωση σελίδας
+        </button>
+      </div>
 
       {/* Απόρριψη πελάτη: review-first, neutral styling until user initiates */}
       <section className="rounded-2xl border border-zinc-200 bg-white p-4">
