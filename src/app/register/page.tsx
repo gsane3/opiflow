@@ -63,6 +63,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (!agreed) {
+      setError('Πρέπει να αποδεχτείς τους όρους για να συνεχίσεις.');
+      return;
+    }
+
     setLoading(true);
 
     let supabase: ReturnType<typeof createBrowserSupabaseClient>;

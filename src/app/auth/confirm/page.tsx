@@ -54,13 +54,13 @@ export default function AuthConfirmPage() {
   return (
     <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-sm ring-1 ring-zinc-100 p-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Backend email confirmation</h1>
+        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Επιβεβαίωση email</h1>
         <p className="text-sm text-zinc-500 mb-6">
-          Αυτή η σελίδα επιβεβαιώνει το email για το πραγματικό Supabase Auth. Δεν συνδέει ακόμα τον λογαριασμό με το MVP app.
+          Επιβεβαιώνουμε το email σου...
         </p>
 
         {state === 'loading' && (
-          <p className="text-sm text-zinc-500">Επιβεβαίωση λογαριασμού...</p>
+          <p className="text-sm text-zinc-500">Επιβεβαιώνουμε το email σου...</p>
         )}
 
         {state === 'no_config' && (
@@ -77,32 +77,20 @@ export default function AuthConfirmPage() {
 
         {state === 'success' && (
           <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-green-800 text-sm">
-            Ο λογαριασμός σου επιβεβαιώθηκε.
+            Το email σου επιβεβαιώθηκε. Μπορείς να συνδεθείς και να συνεχίσεις.
           </div>
         )}
 
         {state === 'error' && (
           <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-red-700 text-sm">
-            Αυτό το link επιβεβαίωσης δεν είναι έγκυρο ή έχει λήξει.
+            Δεν μπορέσαμε να επιβεβαιώσουμε το email. Δοκίμασε να συνδεθείς ή ζήτησε νέο σύνδεσμο.
           </div>
         )}
 
-        <div className="mt-6 space-y-2 text-center text-sm">
-          <p>
-            <Link href="/login/backend" className="text-indigo-600 hover:underline">
-              Σύνδεση στο backend
-            </Link>
-          </p>
-          <p>
-            <Link href="/register" className="text-indigo-600 hover:underline">
-              Δημιουργία backend λογαριασμού
-            </Link>
-          </p>
-          <p>
-            <Link href="/login/backend" className="text-zinc-500 hover:underline">
-              Πίσω στη σύνδεση
-            </Link>
-          </p>
+        <div className="mt-6 text-center text-sm">
+          <Link href="/login" className="font-semibold text-indigo-600 hover:text-indigo-700 transition">
+            Σύνδεση
+          </Link>
         </div>
       </div>
     </main>
