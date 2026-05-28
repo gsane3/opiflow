@@ -93,6 +93,11 @@ export interface Customer {
   intakeReminderSentAt?: string;
   intakeNoResponseAt?: string;
   isDemo?: boolean;
+  statusSummary?: string;
+  businessNotes?: string;
+  personalNotes?: string;
+  nextBestAction?: string;
+  memoryUpdatedAt?: string;
 }
 
 export type TaskType =

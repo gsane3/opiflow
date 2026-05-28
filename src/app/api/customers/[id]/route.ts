@@ -15,6 +15,7 @@ const CUSTOMER_COLUMNS = [
   'landline_phone', 'email', 'address', 'source', 'status',
   'opportunity_value', 'needs_summary', 'notes', 'preferred_contact_method',
   'intake_status', 'last_contact_at', 'created_at', 'updated_at',
+  'status_summary', 'business_notes', 'personal_notes', 'next_best_action', 'memory_updated_at',
 ].join(', ');
 
 const VALID_STATUSES = [
@@ -96,6 +97,11 @@ interface CustomerRow {
   last_contact_at: string | null;
   created_at: string;
   updated_at: string;
+  status_summary: string | null;
+  business_notes: string | null;
+  personal_notes: string | null;
+  next_best_action: string | null;
+  memory_updated_at: string | null;
 }
 
 function dbToCustomer(row: CustomerRow) {
@@ -120,6 +126,11 @@ function dbToCustomer(row: CustomerRow) {
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     nextTaskId: null,
+    statusSummary: row.status_summary,
+    businessNotes: row.business_notes,
+    personalNotes: row.personal_notes,
+    nextBestAction: row.next_best_action,
+    memoryUpdatedAt: row.memory_updated_at,
   };
 }
 
@@ -307,6 +318,13 @@ export async function PATCH(
       hasUpdate = true;
     }
     if ('lastContactAt' in raw) { updateFields.last_contact_at = str(raw.lastContactAt); hasUpdate = true; }
+
+    let hasMemoryFieldUpdate = false;
+    if ('statusSummary' in raw) { updateFields.status_summary = str(raw.statusSummary); hasUpdate = true; hasMemoryFieldUpdate = true; }
+    if ('businessNotes' in raw) { updateFields.business_notes = str(raw.businessNotes); hasUpdate = true; hasMemoryFieldUpdate = true; }
+    if ('personalNotes' in raw) { updateFields.personal_notes = str(raw.personalNotes); hasUpdate = true; hasMemoryFieldUpdate = true; }
+    if ('nextBestAction' in raw) { updateFields.next_best_action = str(raw.nextBestAction); hasUpdate = true; hasMemoryFieldUpdate = true; }
+    if (hasMemoryFieldUpdate) { updateFields.memory_updated_at = new Date().toISOString(); }
 
     // If no allowed fields were provided, return the current customer unchanged.
     if (!hasUpdate) {

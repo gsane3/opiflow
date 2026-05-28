@@ -30,6 +30,11 @@ interface CustomerDto {
   lastContactAt: string | null;
   createdAt: string;
   updatedAt: string;
+  statusSummary: string | null;
+  businessNotes: string | null;
+  personalNotes: string | null;
+  nextBestAction: string | null;
+  memoryUpdatedAt: string | null;
 }
 
 interface CommunicationDto {
@@ -73,6 +78,10 @@ interface CustomerDraft {
   preferredContactMethod: string;
   needsSummary: string | null;
   notes: string | null;
+  statusSummary: string | null;
+  businessNotes: string | null;
+  personalNotes: string | null;
+  nextBestAction: string | null;
 }
 
 interface OfferDto {
@@ -499,6 +508,10 @@ export default function CustomerDetailPage() {
       preferredContactMethod: customer.preferredContactMethod,
       needsSummary: customer.needsSummary,
       notes: customer.notes,
+      statusSummary: customer.statusSummary ?? null,
+      businessNotes: customer.businessNotes ?? null,
+      personalNotes: customer.personalNotes ?? null,
+      nextBestAction: customer.nextBestAction ?? null,
     });
     setIsEditingCustomer(true);
     setCustomerSaveError(null);
@@ -1244,6 +1257,7 @@ export default function CustomerDetailPage() {
           { label: 'Tasks', href: '#ws-tasks' },
           { label: 'Ραντεβού', href: '#ws-appointments' },
           { label: 'Προσφορές', href: '#ws-offers' },
+          { label: 'Μνήμη', href: '#ws-memory' },
           { label: 'Σημειώσεις', href: '#ws-notes' },
           { label: 'Μηνύματα', href: '#ws-messages' },
           { label: 'Αρχεία', href: '#ws-files' },
@@ -2058,6 +2072,110 @@ export default function CustomerDetailPage() {
               </li>
             ))}
           </ul>
+        )}
+      </section>
+
+      {/* Memory section */}
+      <section id="ws-memory" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-3 flex items-center justify-between gap-2">
+          <div>
+            <h2 className="text-sm font-semibold text-zinc-900">Μνήμη πελάτη</h2>
+            <p className="mt-0.5 text-xs text-zinc-400">Χειροκίνητες σημειώσεις για καλύτερη κατανόηση του πελάτη.</p>
+          </div>
+          {!isEditingCustomer && (
+            <button
+              type="button"
+              onClick={startEditCustomer}
+              className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+            >
+              Επεξεργασία
+            </button>
+          )}
+        </div>
+
+        {isEditingCustomer && customerDraft ? (
+          <div className="space-y-4 px-4 py-4">
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">Τρέχουσα κατάσταση</label>
+              <textarea
+                rows={2}
+                value={customerDraft.statusSummary ?? ''}
+                onChange={(e) => setCustomerDraft({ ...customerDraft, statusSummary: e.target.value || null })}
+                placeholder="Σύντομη περιγραφή της τρέχουσας κατάστασης του πελάτη."
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">Επαγγελματικές σημειώσεις</label>
+              <textarea
+                rows={3}
+                value={customerDraft.businessNotes ?? ''}
+                onChange={(e) => setCustomerDraft({ ...customerDraft, businessNotes: e.target.value || null })}
+                placeholder="Πληροφορίες για την επαγγελματική δραστηριότητα, ανάγκες, προτιμήσεις."
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">Προσωπικά που αξίζει να θυμόμαστε</label>
+              <textarea
+                rows={2}
+                value={customerDraft.personalNotes ?? ''}
+                onChange={(e) => setCustomerDraft({ ...customerDraft, personalNotes: e.target.value || null })}
+                placeholder="Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο."
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+              />
+              <p className="mt-1 text-[11px] text-zinc-400">Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-zinc-600 mb-1">Επόμενη ενέργεια</label>
+              <textarea
+                rows={2}
+                value={customerDraft.nextBestAction ?? ''}
+                onChange={(e) => setCustomerDraft({ ...customerDraft, nextBestAction: e.target.value || null })}
+                placeholder="Σύντομη υπενθύμιση για την επόμενη ενέργεια."
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+              />
+              <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε task.</p>
+            </div>
+          </div>
+        ) : (
+          <div className="px-4 py-4 space-y-3">
+            {!customer.statusSummary && !customer.businessNotes && !customer.personalNotes && !customer.nextBestAction ? (
+              <p className="text-sm text-zinc-400">Δεν έχει συμπληρωθεί μνήμη πελάτη ακόμα.</p>
+            ) : (
+              <>
+                {customer.statusSummary && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Τρέχουσα κατάσταση</p>
+                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.statusSummary}</p>
+                  </div>
+                )}
+                {customer.businessNotes && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Επαγγελματικές σημειώσεις</p>
+                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.businessNotes}</p>
+                  </div>
+                )}
+                {customer.personalNotes && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Προσωπικά που αξίζει να θυμόμαστε</p>
+                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.personalNotes}</p>
+                  </div>
+                )}
+                {customer.nextBestAction && (
+                  <div>
+                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Επόμενη ενέργεια</p>
+                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.nextBestAction}</p>
+                  </div>
+                )}
+              </>
+            )}
+            {customer.memoryUpdatedAt && (
+              <p className="text-[11px] text-zinc-400 pt-1">
+                Τελευταία ενημέρωση: {new Date(customer.memoryUpdatedAt).toLocaleString('el-GR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
+              </p>
+            )}
+          </div>
         )}
       </section>
 
