@@ -283,11 +283,6 @@ export default function OffersPage() {
     }
   }
 
-  // No DELETE endpoint exists yet; show a soft error instead of silently failing.
-  function handleDelete() {
-    setActionError('Η διαγραφή προσφοράς δεν είναι διαθέσιμη ακόμα.');
-  }
-
   function handleCancelForm() {
     setShowForm(false);
     setEditingOffer(null);
@@ -477,7 +472,6 @@ export default function OffersPage() {
                 offer={offer}
                 customerName={offer.customerId ? customerMap[offer.customerId] : undefined}
                 onStatusChange={handleStatusChange}
-                onDelete={handleDelete}
               />
             </li>
           ))}

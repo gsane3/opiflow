@@ -4,7 +4,7 @@ import type { Offer, OfferStatus } from '@/lib/types';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
 import { fmtEur } from '@/lib/offer-calculations';
 
-// Statuses that are already resolved — no expiry warning needed.
+// Statuses that are already resolved, no expiry warning needed.
 const RESOLVED_STATUSES: OfferStatus[] = ['accepted', 'rejected', 'expired'];
 
 type ExpiryState = 'expiring_soon' | 'expired' | null;
@@ -32,7 +32,7 @@ interface Props {
   offer: Offer;
   customerName?: string;
   onStatusChange: (id: string, status: OfferStatus) => void;
-  onDelete: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 const ALL_STATUSES: OfferStatus[] = [
@@ -48,7 +48,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   function handleDelete() {
-    onDelete(offer.id);
+    onDelete?.(offer.id);
   }
 
   const expiryState = getExpiryState(offer);
@@ -109,7 +109,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
           ))}
         </select>
 
-        {!confirmingDelete && (
+        {!confirmingDelete && onDelete && (
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}

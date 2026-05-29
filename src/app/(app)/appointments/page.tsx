@@ -1123,13 +1123,6 @@ export default function AppointmentsPage() {
         </div>
       )}
 
-      {/* No calendar integration notice */}
-      <div className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
-        <p className="text-xs text-zinc-500">
-          Εσωτερικό πρόγραμμα ραντεβού. Δεν έχει συνδεθεί εξωτερικό ημερολόγιο.
-        </p>
-      </div>
-
       {/* Empty state */}
       {!hasAny && (
         <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
