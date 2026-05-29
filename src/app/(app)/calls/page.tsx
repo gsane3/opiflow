@@ -12,12 +12,11 @@ import { findCustomerByPhone, phonesMatch } from '@/lib/phone';
 // Types
 // ---------------------------------------------------------------------------
 
-type Tab = 'recent' | 'customers' | 'sms';
+type Tab = 'recent' | 'customers';
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'recent', label: 'Πρόσφατες' },
   { id: 'customers', label: 'Πελάτες' },
-  { id: 'sms', label: 'SMS' },
 ];
 
 const CALL_DIRECTION_LABEL: Record<string, string> = {
@@ -945,10 +944,8 @@ function RecentTab({
 
 function CustomersTab({
   customers,
-  onNewSms,
 }: {
   customers: Customer[];
-  onNewSms: (customer: Customer) => void;
 }) {
   const [search, setSearch] = useState('');
 
@@ -1012,268 +1009,20 @@ function CustomersTab({
                     {[c.companyName, c.phone].filter(Boolean).join(' · ') || 'Χωρίς στοιχεία'}
                   </p>
                 </div>
-                <div className="flex shrink-0 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => onNewSms(c)}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 ring-1 ring-indigo-100 transition hover:bg-indigo-100"
-                    title="SMS"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
-                    </svg>
-                  </button>
-                  <Link
-                    href={`/customers/${c.id}`}
-                    className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 ring-1 ring-zinc-200 transition hover:bg-zinc-100"
-                    title="Άνοιγμα"
-                  >
-                    <svg className="h-3.5 w-3.5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                    </svg>
-                  </Link>
-                </div>
+                <Link
+                  href={`/customers/${c.id}`}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 ring-1 ring-zinc-200 transition hover:bg-zinc-100"
+                  title="Άνοιγμα"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                  </svg>
+                </Link>
               </li>
             );
           })}
         </ul>
       )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// SMS Tab, UI-only threads view
-// ---------------------------------------------------------------------------
-
-function SmsTab({
-  customers,
-  onNewSms,
-}: {
-  customers: Customer[];
-  onNewSms: () => void;
-}) {
-  const withPhone = customers.filter((c) => c.phone && c.phone.trim().length > 0);
-
-  return (
-    <div className="space-y-4">
-      {/* Header card */}
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-base font-bold text-zinc-900">Μηνύματα</p>
-            <p className="mt-0.5 text-xs text-zinc-400">Νήματα πελατών και πρόχειρα μηνύματα.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onNewSms}
-            className="flex shrink-0 items-center gap-1.5 rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
-          >
-            <svg className="h-3.5 w-3.5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-            </svg>
-            Νέο μήνυμα
-          </button>
-        </div>
-        <p className="mt-3 text-xs text-zinc-400">
-          Τα SMS θα ενεργοποιηθούν όταν συνδεθεί πάροχος μηνυμάτων.
-        </p>
-      </div>
-
-      {/* Thread list */}
-      {withPhone.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-700">Δεν υπάρχουν νήματα ακόμα.</p>
-          <p className="mt-1.5 text-xs text-zinc-400">
-            Όταν συνδεθεί πάροχος μηνυμάτων, τα SMS θα εμφανίζονται εδώ.
-          </p>
-        </div>
-      ) : (
-        <ul className="space-y-2">
-          {withPhone.slice(0, 20).map((c) => {
-            const initial = c.name.charAt(0).toUpperCase();
-            return (
-              <li
-                key={c.id}
-                className="flex items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
-                  {initial}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="truncate text-[15px] font-semibold leading-snug text-zinc-900">
-                      {c.name}
-                    </p>
-                    <span className="shrink-0 rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-                      Προς σύνδεση
-                    </span>
-                  </div>
-                  <p className="mt-0.5 truncate text-xs text-zinc-400">
-                    Δεν υπάρχει μήνυμα ακόμα.
-                  </p>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// New SMS modal, UI-only, copy to clipboard
-// ---------------------------------------------------------------------------
-
-function NewSmsModal({
-  customers,
-  preselectedCustomer,
-  onClose,
-}: {
-  customers: Customer[];
-  preselectedCustomer: Customer | null;
-  onClose: () => void;
-}) {
-  const [search, setSearch] = useState(preselectedCustomer?.name ?? '');
-  const [selectedCustomerId, setSelectedCustomerId] = useState(preselectedCustomer?.id ?? '');
-  const [message, setMessage] = useState('');
-  const [copied, setCopied] = useState(false);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  function handleCopy() {
-    if (!message.trim()) return;
-    navigator.clipboard.writeText(message).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 3000);
-    }).catch(() => {
-      if (textareaRef.current) {
-        textareaRef.current.select();
-        document.execCommand('copy');
-        setCopied(true);
-        setTimeout(() => setCopied(false), 3000);
-      }
-    });
-  }
-
-  const showDropdown = search.trim().length > 0 && !selectedCustomerId;
-  const filtered = showDropdown
-    ? customers.filter((c) => {
-        const q = norm(search.trim());
-        return norm(c.name).includes(q) || norm(c.phone ?? '').includes(q);
-      })
-    : [];
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-      onClick={onClose}
-    >
-      <div
-        className="mx-4 w-full max-w-md rounded-[28px] bg-white shadow-2xl ring-1 ring-zinc-200/60"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pb-3 pt-5">
-          <p className="text-base font-semibold text-zinc-900">Νέο μήνυμα</p>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
-            aria-label="Κλείσιμο"
-          >
-            <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="space-y-4 px-5 pb-5">
-          {/* Customer search */}
-          <div className="relative space-y-1.5">
-            <label className="block text-xs font-medium text-zinc-500">
-              Αναζήτηση πελάτη ή κινητού
-            </label>
-            <div className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-50 px-3 py-2.5">
-              <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-              <input
-                type="search"
-                value={search}
-                onChange={(e) => {
-                  setSearch(e.target.value);
-                  setSelectedCustomerId('');
-                }}
-                placeholder="Όνομα ή αριθμός..."
-                className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
-              />
-            </div>
-            {showDropdown && filtered.length > 0 && (
-              <ul className="absolute left-0 right-0 top-full z-10 mt-1 max-h-40 overflow-y-auto rounded-2xl border border-zinc-100 bg-white shadow-lg">
-                {filtered.slice(0, 6).map((c) => (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedCustomerId(c.id);
-                        setSearch(c.name);
-                      }}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm text-zinc-800 transition hover:bg-zinc-50"
-                    >
-                      <span className="flex-1 truncate">{c.name}</span>
-                      {c.phone && (
-                        <span className="shrink-0 text-xs text-zinc-400">{c.phone}</span>
-                      )}
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          {/* Message */}
-          <div className="space-y-1.5">
-            <label className="block text-xs font-medium text-zinc-500">Μήνυμα</label>
-            <textarea
-              ref={textareaRef}
-              rows={4}
-              value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Γράψε το μήνυμα εδώ..."
-              className="w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-            />
-          </div>
-
-          {/* Notice */}
-          <p className="text-[11px] text-zinc-400">Δεν στάλθηκε μήνυμα από την εφαρμογή.</p>
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={handleCopy}
-              disabled={!message.trim()}
-              className={`flex-1 rounded-2xl py-2.5 text-sm font-semibold transition ${
-                copied
-                  ? 'bg-green-600 text-white'
-                  : message.trim()
-                  ? 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
-                  : 'cursor-not-allowed bg-zinc-100 text-zinc-400'
-              }`}
-            >
-              {copied ? 'Αντιγράφηκε' : 'Αντιγραφή'}
-            </button>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-2xl border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-            >
-              Κλείσιμο
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -1576,8 +1325,7 @@ export default function CallsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [numpadOpen, setNumpadOpen] = useState(false);
   const [selectedCall, setSelectedCall] = useState<BackendCall | null>(null);
-  const [newSmsOpen, setNewSmsOpen] = useState(false);
-  const [newSmsCustomer, setNewSmsCustomer] = useState<Customer | null>(null);
+
   const tokenRef = useRef<string | null>(null);
   const [phoneInfo, setPhoneInfo] = useState<BusinessMeResponse | null>(null);
   const [phoneLoading, setPhoneLoading] = useState(true);
@@ -1697,16 +1445,6 @@ export default function CallsPage() {
     }
     init();
   }, [loadData]);
-
-  function openNewSms(customer?: Customer) {
-    setNewSmsCustomer(customer ?? null);
-    setNewSmsOpen(true);
-  }
-
-  function closeNewSms() {
-    setNewSmsOpen(false);
-    setNewSmsCustomer(null);
-  }
 
   function handleCallDeleted(id: string) {
     setCalls((prev) => prev.filter((c) => c.id !== id));
@@ -2041,7 +1779,7 @@ export default function CallsPage() {
       {/* CRM tabs - shown when detailsOpen */}
       {detailsOpen && (
       <>
-      <div className="grid grid-cols-3 gap-1 rounded-2xl bg-zinc-100 p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-zinc-100 p-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -2063,13 +1801,10 @@ export default function CallsPage() {
       )}
 
       {tab === 'customers' && (
-        <CustomersTab customers={customers} onNewSms={(c) => openNewSms(c)} />
+        <CustomersTab customers={customers} />
       )}
 
-      {tab === 'sms' && (
-        <SmsTab customers={customers} onNewSms={() => openNewSms()} />
-      )}
-      </>
+</>
       )}
 
       {/* Floating numpad launcher - hidden when inline numpad is active */}
@@ -2112,15 +1847,6 @@ export default function CallsPage() {
           onDeleted={handleCallDeleted}
           onContactAdded={handleContactAdded}
           onCallLinked={handleCallLinkedToCustomer}
-        />
-      )}
-
-      {/* New SMS modal */}
-      {newSmsOpen && (
-        <NewSmsModal
-          customers={customers}
-          preselectedCustomer={newSmsCustomer}
-          onClose={closeNewSms}
         />
       )}
 
