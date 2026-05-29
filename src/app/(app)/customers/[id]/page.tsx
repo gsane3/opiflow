@@ -293,6 +293,8 @@ export default function CustomerDetailPage() {
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [offers, setOffers] = useState<OfferDto[]>([]);
   const [uploadSessions, setUploadSessions] = useState<UploadSessionDto[]>([]);
+  const [openingFileKey, setOpeningFileKey] = useState<string | null>(null);
+  const [fileOpenError, setFileOpenError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const [editMode, setEditMode] = useState<'contact' | 'memory' | 'notes' | null>(null);
@@ -1170,6 +1172,46 @@ export default function CustomerDetailPage() {
         loading: false,
         error: 'Δεν δημιουργήθηκε link φωτογραφιών. Δοκίμασε ξανά.',
       } : null);
+    }
+  }
+
+  async function openFile(sessionId: string, fileIndex: number) {
+    const key = `${sessionId}:${fileIndex}`;
+    setOpeningFileKey(key);
+    setFileOpenError(null);
+    try {
+      let supabaseForFile: ReturnType<typeof createBrowserSupabaseClient>;
+      try {
+        supabaseForFile = createBrowserSupabaseClient();
+      } catch {
+        setFileOpenError('Δεν βρέθηκε session. Δοκίμασε ξανά.');
+        return;
+      }
+      const { data: { session: fileSession } } = await supabaseForFile.auth.getSession();
+      if (!fileSession) {
+        setFileOpenError('Δεν βρέθηκε session. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch(`/api/customers/${customerId}/files/signed-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${fileSession.access_token}`,
+        },
+        body: JSON.stringify({ sessionId, fileIndex }),
+      });
+      const json = await res.json() as { ok: boolean; signedUrl?: string; error?: string };
+      if (!json.ok || !json.signedUrl) {
+        setFileOpenError('Δεν ήταν δυνατό το άνοιγμα του αρχείου.');
+        setTimeout(() => setFileOpenError(null), 4000);
+        return;
+      }
+      window.open(json.signedUrl, '_blank', 'noopener,noreferrer');
+    } catch {
+      setFileOpenError('Δεν ήταν δυνατό το άνοιγμα του αρχείου.');
+      setTimeout(() => setFileOpenError(null), 4000);
+    } finally {
+      setOpeningFileKey(null);
     }
   }
 
@@ -2609,9 +2651,14 @@ export default function CustomerDetailPage() {
                         {f.kind === 'photo' ? '📷' : f.kind === 'video' ? '🎥' : '📄'}
                       </span>
                       <span className="flex-1 truncate">{f.name}</span>
-                      <span className="shrink-0 text-zinc-400">
-                        {f.kind === 'photo' ? 'Φωτογραφία' : f.kind === 'video' ? 'Βίντεο' : 'Αρχείο'}
-                      </span>
+                      <button
+                        type="button"
+                        onClick={() => openFile(session.id, idx)}
+                        disabled={openingFileKey === `${session.id}:${idx}`}
+                        className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-0.5 font-medium text-zinc-600 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {openingFileKey === `${session.id}:${idx}` ? '...' : 'Άνοιγμα'}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -2631,6 +2678,9 @@ export default function CustomerDetailPage() {
           </div>
         )}
         <div className="border-t border-zinc-100 px-4 py-3">
+          {fileOpenError ? (
+            <p className="mb-1.5 text-xs text-red-500">{fileOpenError}</p>
+          ) : null}
           <p className="text-xs text-zinc-400">Η απευθείας προσθήκη αρχείων θα ενεργοποιηθεί σε επόμενη έκδοση.</p>
         </div>
       </section>
