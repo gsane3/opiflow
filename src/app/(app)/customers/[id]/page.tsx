@@ -346,6 +346,20 @@ export default function CustomerDetailPage() {
   }
   const [intakeSendReview, setIntakeSendReview] = useState<IntakeSendReview | null>(null);
 
+  interface ApptLinkReview {
+    taskId: string;
+    responseUrl: string | null;
+    message: string | null;
+    recipient: string | null;
+    loading: boolean;
+    sending: boolean;
+    sent: boolean;
+    error: string | null;
+    copied: boolean;
+    warning: string | null;
+  }
+  const [apptLinkReview, setApptLinkReview] = useState<ApptLinkReview | null>(null);
+
   const [selectedCall, setSelectedCall] = useState<CommunicationDto | null>(null);
 
   const [editingTask, setEditingTask] = useState<TaskDto | null>(null);
@@ -1003,6 +1017,66 @@ export default function CustomerDetailPage() {
         ...prev,
         loading: false,
         error: 'Δεν δημιουργήθηκε link στοιχείων. Δοκίμασε ξανά.',
+      } : null);
+    }
+  }
+
+  async function openApptLinkModal(task: TaskDto) {
+    const supabase = createBrowserSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    setApptLinkReview({
+      taskId: task.id,
+      responseUrl: null,
+      message: null,
+      recipient: null,
+      loading: true,
+      sending: false,
+      sent: false,
+      error: null,
+      copied: false,
+      warning: null,
+    });
+
+    try {
+      const draftRes = await fetch(`/api/customers/${customerId}/appointment-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ mode: 'draft', taskId: task.id }),
+      });
+      const draftJson = await draftRes.json() as {
+        ok?: boolean;
+        responseUrl?: string;
+        message?: string;
+        recipient?: string | null;
+        warning?: string | null;
+      };
+      if (draftRes.ok && draftJson.ok && draftJson.responseUrl && draftJson.message) {
+        setApptLinkReview(prev => prev ? {
+          ...prev,
+          responseUrl: draftJson.responseUrl!,
+          message: draftJson.message!,
+          recipient: draftJson.recipient ?? null,
+          warning: draftJson.warning ?? null,
+          loading: false,
+          error: null,
+        } : null);
+      } else {
+        setApptLinkReview(prev => prev ? {
+          ...prev,
+          loading: false,
+          error: 'Δεν δημιουργήθηκε link ραντεβού. Δοκίμασε ξανά.',
+        } : null);
+      }
+    } catch {
+      setApptLinkReview(prev => prev ? {
+        ...prev,
+        loading: false,
+        error: 'Δεν δημιουργήθηκε link ραντεβού. Δοκίμασε ξανά.',
       } : null);
     }
   }
@@ -2217,6 +2291,15 @@ export default function CustomerDetailPage() {
                     >
                       Επεξεργασία
                     </button>
+                    {task.status !== 'cancelled' && task.status !== 'completed' && (
+                      <button
+                        type="button"
+                        onClick={() => openApptLinkModal(task)}
+                        className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                      >
+                        Αποστολή link ραντεβού
+                      </button>
+                    )}
                   </div>
                 </div>
               </li>
@@ -2896,6 +2979,184 @@ export default function CustomerDetailPage() {
                   <button
                     type="button"
                     onClick={() => setIntakeSendReview(null)}
+                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Appointment send review modal */}
+      {apptLinkReview !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={() => setApptLinkReview(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-zinc-900">Αποστολή link ραντεβού</h2>
+              <button
+                type="button"
+                onClick={() => setApptLinkReview(null)}
+                aria-label="Κλείσιμο"
+                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Loading state */}
+            {apptLinkReview.loading && (
+              <div className="flex items-center gap-3 py-4">
+                <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
+                <p className="text-sm text-zinc-500">Ετοιμάζεται το link ραντεβού...</p>
+              </div>
+            )}
+
+            {/* Draft failed */}
+            {!apptLinkReview.loading && !apptLinkReview.message && apptLinkReview.error && (
+              <>
+                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                  {apptLinkReview.error}
+                </p>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setApptLinkReview(null)}
+                    className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Main content: shown once message is available */}
+            {!apptLinkReview.loading && apptLinkReview.message && (
+              <>
+                {apptLinkReview.recipient && (
+                  <p className="mb-2 text-xs text-zinc-500">
+                    {'Παραλήπτης Viber: '}
+                    <span className="font-medium text-zinc-700">{apptLinkReview.recipient}</span>
+                  </p>
+                )}
+
+                {apptLinkReview.warning === 'missing_appointment_time' && (
+                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    Η ώρα ή η ημερομηνία ραντεβού δεν έχει συμπληρωθεί. Το μήνυμα δεν θα περιέχει ώρα.
+                  </div>
+                )}
+
+                <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
+                <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
+                  {apptLinkReview.message}
+                </div>
+
+                {/* Success banner */}
+                {apptLinkReview.sent && (
+                  <div className="mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700">
+                    Το link ραντεβού στάλθηκε με Viber.
+                  </div>
+                )}
+
+                {/* Send error / fallback banner */}
+                {apptLinkReview.error && !apptLinkReview.sent && (
+                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {apptLinkReview.error}
+                  </div>
+                )}
+
+                {/* Primary: Viber send button (hidden after success) */}
+                {!apptLinkReview.sent && (
+                  <button
+                    type="button"
+                    disabled={apptLinkReview.sending}
+                    onClick={async () => {
+                      const review = apptLinkReview;
+                      const supabase = createBrowserSupabaseClient();
+                      const { data: { session: s } } = await supabase.auth.getSession();
+                      if (!s) {
+                        setApptLinkReview({ ...review, error: 'Δεν βρέθηκε session. Δοκίμασε ξανά.' });
+                        return;
+                      }
+                      setApptLinkReview({ ...review, sending: true, error: null });
+                      try {
+                        const res = await fetch(`/api/customers/${customerId}/appointment-link`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${s.access_token}`,
+                          },
+                          body: JSON.stringify({ mode: 'send', taskId: review.taskId, responseUrl: review.responseUrl }),
+                        });
+                        const json = await res.json() as {
+                          ok?: boolean;
+                          sent?: boolean;
+                          fallbackReason?: string;
+                        };
+                        if (!res.ok || !json.ok) {
+                          setApptLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
+                          return;
+                        }
+                        if (json.sent) {
+                          setApptLinkReview({ ...review, sending: false, sent: true, error: null });
+                        } else {
+                          const reason = json.fallbackReason;
+                          const fallbackMsg =
+                            reason === 'missing_mobile' || reason === 'missing_customer'
+                              ? 'Δεν υπάρχει διαθέσιμο κινητό για αποστολή Viber.'
+                              : reason === 'provider_unavailable'
+                              ? 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.'
+                              : 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.';
+                          setApptLinkReview({ ...review, sending: false, error: fallbackMsg });
+                        }
+                      } catch {
+                        setApptLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
+                      }
+                    }}
+                    className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {apptLinkReview.sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
+                  </button>
+                )}
+
+                {/* Secondary buttons row */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(apptLinkReview.message ?? '');
+                        setApptLinkReview(prev => prev ? { ...prev, copied: true } : null);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    {apptLinkReview.copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
+                  </button>
+                  {apptLinkReview.responseUrl && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(apptLinkReview.responseUrl!, '_blank', 'noopener,noreferrer')}
+                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                    >
+                      Άνοιγμα link
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setApptLinkReview(null)}
                     className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
                   >
                     Κλείσιμο
