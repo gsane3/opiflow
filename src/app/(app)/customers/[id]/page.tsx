@@ -360,6 +360,18 @@ export default function CustomerDetailPage() {
   }
   const [apptLinkReview, setApptLinkReview] = useState<ApptLinkReview | null>(null);
 
+  interface UploadLinkReview {
+    responseUrl: string | null;
+    message: string | null;
+    recipient: string | null;
+    loading: boolean;
+    sending: boolean;
+    sent: boolean;
+    error: string | null;
+    copied: boolean;
+  }
+  const [uploadLinkReview, setUploadLinkReview] = useState<UploadLinkReview | null>(null);
+
   const [selectedCall, setSelectedCall] = useState<CommunicationDto | null>(null);
 
   const [editingTask, setEditingTask] = useState<TaskDto | null>(null);
@@ -1081,6 +1093,62 @@ export default function CustomerDetailPage() {
     }
   }
 
+  async function openUploadLinkModal() {
+    const supabase = createBrowserSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    setUploadLinkReview({
+      responseUrl: null,
+      message: null,
+      recipient: null,
+      loading: true,
+      sending: false,
+      sent: false,
+      error: null,
+      copied: false,
+    });
+
+    try {
+      const draftRes = await fetch(`/api/customers/${customerId}/upload-link`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ mode: 'draft' }),
+      });
+      const draftJson = await draftRes.json() as {
+        ok?: boolean;
+        responseUrl?: string;
+        message?: string;
+        recipient?: string | null;
+      };
+      if (draftRes.ok && draftJson.ok && draftJson.responseUrl && draftJson.message) {
+        setUploadLinkReview(prev => prev ? {
+          ...prev,
+          responseUrl: draftJson.responseUrl!,
+          message: draftJson.message!,
+          recipient: draftJson.recipient ?? null,
+          loading: false,
+          error: null,
+        } : null);
+      } else {
+        setUploadLinkReview(prev => prev ? {
+          ...prev,
+          loading: false,
+          error: 'Δεν δημιουργήθηκε link φωτογραφιών. Δοκίμασε ξανά.',
+        } : null);
+      }
+    } catch {
+      setUploadLinkReview(prev => prev ? {
+        ...prev,
+        loading: false,
+        error: 'Δεν δημιουργήθηκε link φωτογραφιών. Δοκίμασε ξανά.',
+      } : null);
+    }
+  }
+
   async function copyMsgDraft() {
     try {
       await navigator.clipboard.writeText(msgDraft);
@@ -1591,6 +1659,14 @@ export default function CustomerDetailPage() {
           >
             <span className="text-lg leading-none opacity-70">📋</span>
             <span className="text-xs font-medium text-zinc-700">Link στοιχείων</span>
+          </button>
+          <button
+            type="button"
+            onClick={openUploadLinkModal}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+          >
+            <span className="text-lg leading-none opacity-70">📷</span>
+            <span className="text-xs font-medium text-zinc-700">Link φωτογραφιών</span>
           </button>
         </div>
       </section>
@@ -3157,6 +3233,181 @@ export default function CustomerDetailPage() {
                   <button
                     type="button"
                     onClick={() => setApptLinkReview(null)}
+                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Upload link review modal */}
+      {uploadLinkReview !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
+          onClick={() => setUploadLinkReview(null)}
+        >
+          <div
+            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <h2 className="text-base font-semibold text-zinc-900">Αποστολή link φωτογραφιών</h2>
+              <button
+                type="button"
+                onClick={() => setUploadLinkReview(null)}
+                aria-label="Κλείσιμο"
+                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            {!uploadLinkReview.loading && uploadLinkReview.message && !uploadLinkReview.sent && (
+              <p className="mb-3 text-xs text-zinc-400">Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις.</p>
+            )}
+
+            {/* Loading state */}
+            {uploadLinkReview.loading && (
+              <div className="flex items-center gap-3 py-4">
+                <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
+                <p className="text-sm text-zinc-500">Ετοιμάζεται το link φωτογραφιών...</p>
+              </div>
+            )}
+
+            {/* Draft failed */}
+            {!uploadLinkReview.loading && !uploadLinkReview.message && uploadLinkReview.error && (
+              <>
+                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
+                  {uploadLinkReview.error}
+                </p>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setUploadLinkReview(null)}
+                    className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    Κλείσιμο
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Main content: shown once message is available */}
+            {!uploadLinkReview.loading && uploadLinkReview.message && (
+              <>
+                {uploadLinkReview.recipient && (
+                  <p className="mb-2 text-xs text-zinc-500">
+                    {'Παραλήπτης Viber: '}
+                    <span className="font-medium text-zinc-700">{uploadLinkReview.recipient}</span>
+                  </p>
+                )}
+
+                <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
+                <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
+                  {uploadLinkReview.message}
+                </div>
+
+                {/* Success banner */}
+                {uploadLinkReview.sent && (
+                  <div className="mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700">
+                    Το link φωτογραφιών στάλθηκε με Viber.
+                  </div>
+                )}
+
+                {/* Send error / fallback banner */}
+                {uploadLinkReview.error && !uploadLinkReview.sent && (
+                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {uploadLinkReview.error}
+                  </div>
+                )}
+
+                {/* Primary: Viber send button (hidden after success) */}
+                {!uploadLinkReview.sent && (
+                  <button
+                    type="button"
+                    disabled={uploadLinkReview.sending}
+                    onClick={async () => {
+                      const review = uploadLinkReview;
+                      const supabase = createBrowserSupabaseClient();
+                      const { data: { session: s } } = await supabase.auth.getSession();
+                      if (!s) {
+                        setUploadLinkReview({ ...review, error: 'Δεν βρέθηκε session. Δοκίμασε ξανά.' });
+                        return;
+                      }
+                      setUploadLinkReview({ ...review, sending: true, error: null });
+                      try {
+                        const res = await fetch(`/api/customers/${customerId}/upload-link`, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            Authorization: `Bearer ${s.access_token}`,
+                          },
+                          body: JSON.stringify({ mode: 'send', responseUrl: review.responseUrl }),
+                        });
+                        const json = await res.json() as {
+                          ok?: boolean;
+                          sent?: boolean;
+                          fallbackReason?: string;
+                        };
+                        if (!res.ok || !json.ok) {
+                          setUploadLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
+                          return;
+                        }
+                        if (json.sent) {
+                          setUploadLinkReview({ ...review, sending: false, sent: true, error: null });
+                        } else {
+                          const reason = json.fallbackReason;
+                          const fallbackMsg =
+                            reason === 'missing_mobile' || reason === 'missing_customer'
+                              ? 'Δεν υπάρχει διαθέσιμο κινητό για αποστολή Viber.'
+                              : reason === 'provider_unavailable'
+                              ? 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.'
+                              : 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.';
+                          setUploadLinkReview({ ...review, sending: false, error: fallbackMsg });
+                        }
+                      } catch {
+                        setUploadLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
+                      }
+                    }}
+                    className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {uploadLinkReview.sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
+                  </button>
+                )}
+
+                {/* Secondary buttons row */}
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(uploadLinkReview.message ?? '');
+                        setUploadLinkReview(prev => prev ? { ...prev, copied: true } : null);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  >
+                    {uploadLinkReview.copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
+                  </button>
+                  {uploadLinkReview.responseUrl && (
+                    <button
+                      type="button"
+                      onClick={() => window.open(uploadLinkReview.responseUrl!, '_blank', 'noopener,noreferrer')}
+                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                    >
+                      Άνοιγμα link
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setUploadLinkReview(null)}
                     className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
                   >
                     Κλείσιμο
