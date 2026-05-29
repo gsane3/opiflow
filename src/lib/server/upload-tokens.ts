@@ -7,6 +7,19 @@ import { createClient } from '@supabase/supabase-js';
 
 const TOKEN_BYTES = 32;
 export const UPLOAD_TOKEN_EXPIRY_HOURS = 72;
+export const UPLOAD_BUCKET = 'customer-uploads';
+export const MAX_FILES_PER_SESSION = 10;
+export const MAX_FILE_SIZE_BYTES = 52_428_800; // 50 MB
+
+export const ALLOWED_MIME_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/heic',
+  'image/heif',
+  'image/webp',
+  'video/mp4',
+  'video/quicktime',
+] as const;
 
 interface ServerEnv {
   NEXT_PUBLIC_SUPABASE_URL: string;
@@ -227,4 +240,66 @@ export async function revokePendingCustomerUploadTokens(params: {
   if (error) {
     throw new Error(`Failed to revoke upload tokens: ${error.message}`);
   }
+}
+
+export async function markUploadTokenCompleted(tokenId: string): Promise<void> {
+  const supabase = createServiceSupabaseClient();
+  const now = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('customer_upload_tokens')
+    .update({ status: 'completed', completed_at: now, updated_at: now })
+    .eq('id', tokenId)
+    .in('status', ['pending', 'sent', 'opened']);
+
+  if (error) {
+    throw new Error(`Failed to mark upload token completed: ${error.message}`);
+  }
+}
+
+export function getUploadKind(mimeType: string): 'photo' | 'video' | 'other' {
+  if (mimeType.startsWith('image/')) return 'photo';
+  if (mimeType.startsWith('video/')) return 'video';
+  return 'other';
+}
+
+export function normalizeUploadFilename(filename: string): string {
+  const dotIdx = filename.lastIndexOf('.');
+  const ext = dotIdx > 0 ? filename.slice(dotIdx).toLowerCase() : '';
+  const base = dotIdx > 0 ? filename.slice(0, dotIdx) : filename;
+  const safeBase = base.replace(/[^a-zA-Z0-9._-]/g, '_').replace(/_{2,}/g, '_').slice(0, 120);
+  return (safeBase || 'file') + ext;
+}
+
+export function buildStoragePath(params: {
+  businessId: string;
+  customerId: string;
+  uploadTokenId: string;
+  filename: string;
+}): string {
+  const safeName = normalizeUploadFilename(params.filename);
+  const uniqueSuffix = Date.now().toString(36);
+  const dotIdx = safeName.lastIndexOf('.');
+  const name =
+    dotIdx > 0
+      ? `${safeName.slice(0, dotIdx)}_${uniqueSuffix}${safeName.slice(dotIdx)}`
+      : `${safeName}_${uniqueSuffix}`;
+  return `${params.businessId}/${params.customerId}/${params.uploadTokenId}/${name}`;
+}
+
+export function ensureValidUploadFile(params: {
+  filename: string;
+  mimeType: string;
+  sizeBytes: number;
+}): { valid: true } | { valid: false; error: string } {
+  if (!(ALLOWED_MIME_TYPES as readonly string[]).includes(params.mimeType)) {
+    return { valid: false, error: 'invalid_mime_type' };
+  }
+  if (params.sizeBytes > MAX_FILE_SIZE_BYTES) {
+    return { valid: false, error: 'file_too_large' };
+  }
+  if (params.sizeBytes <= 0) {
+    return { valid: false, error: 'empty_file' };
+  }
+  return { valid: true };
 }

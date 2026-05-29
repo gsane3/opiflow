@@ -98,6 +98,22 @@ interface OfferDto {
   updatedAt: string;
 }
 
+interface UploadSessionFileDto {
+  path: string;
+  name: string;
+  sizeBytes: number;
+  mimeType: string;
+  kind: 'photo' | 'video' | 'other';
+}
+
+interface UploadSessionDto {
+  id: string;
+  file_count: number;
+  files: UploadSessionFileDto[];
+  customer_comment: string | null;
+  uploaded_at: string;
+}
+
 // ---------------------------------------------------------------------------
 // Label maps
 // ---------------------------------------------------------------------------
@@ -276,6 +292,7 @@ export default function CustomerDetailPage() {
   const [communications, setCommunications] = useState<CommunicationDto[]>([]);
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [offers, setOffers] = useState<OfferDto[]>([]);
+  const [uploadSessions, setUploadSessions] = useState<UploadSessionDto[]>([]);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const [editMode, setEditMode] = useState<'contact' | 'memory' | 'notes' | null>(null);
@@ -417,11 +434,17 @@ export default function CustomerDetailPage() {
       const headers = { Authorization: `Bearer ${session.access_token}` };
 
       try {
-        const [customerRes, commRes, tasksRes, offersRes] = await Promise.all([
+        const [customerRes, commRes, tasksRes, offersRes, sessionsResult] = await Promise.all([
           fetch(`/api/customers/${customerId}`, { headers }),
           fetch(`/api/communications?customerId=${encodeURIComponent(customerId)}&limit=50`, { headers }),
           fetch(`/api/tasks?customerId=${encodeURIComponent(customerId)}&limit=50`, { headers }),
           fetch(`/api/offers?customerId=${encodeURIComponent(customerId)}&limit=20`, { headers }),
+          supabase
+            .from('customer_upload_sessions')
+            .select('id, file_count, files, customer_comment, uploaded_at')
+            .eq('customer_id', customerId)
+            .order('uploaded_at', { ascending: false })
+            .limit(20),
         ]);
 
         const customerJson = await customerRes.json() as {
@@ -448,6 +471,7 @@ export default function CustomerDetailPage() {
         setCommunications(commJson.ok ? (commJson.communications ?? []) : []);
         setTasks(tasksJson.ok ? (tasksJson.tasks ?? []) : []);
         setOffers(offersJson.ok ? (offersJson.offers ?? []) : []);
+        setUploadSessions((sessionsResult.data ?? []) as UploadSessionDto[]);
         setPageState('loaded');
       } catch {
         if (!cancelled) setPageState('error');
@@ -2561,34 +2585,53 @@ export default function CustomerDetailPage() {
       <section id="ws-files" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
         <div className="border-b border-zinc-100 px-4 py-3">
           <h2 className="text-sm font-semibold text-zinc-900">Αρχεία</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">Φωτογραφίες, βίντεο και έγγραφα του πελάτη.</p>
+          <p className="mt-0.5 text-xs text-zinc-400">Φωτογραφίες και βίντεο που ανέβασε ο πελάτης.</p>
         </div>
-        <div className="divide-y divide-zinc-100">
-          {(
-            [
-              { key: 'photos', label: 'Φωτογραφίες εργασίας', desc: 'Για εικόνες από τον χώρο ή την εργασία.' },
-              { key: 'videos', label: 'Βίντεο', desc: 'Για σύντομα βίντεο από βλάβη, χώρο ή εγκατάσταση.' },
-              { key: 'docs', label: 'Έγγραφα', desc: 'Για προσφορές, τιμολόγια, έντυπα και σημειώσεις.' },
-            ] as const
-          ).map(cat => (
-            <div key={cat.key} className="flex items-center gap-3 px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-zinc-800">{cat.label}</p>
-                <p className="text-xs text-zinc-400">{cat.desc}</p>
+        {uploadSessions.length > 0 ? (
+          <div className="divide-y divide-zinc-100">
+            {uploadSessions.map(session => (
+              <div key={session.id} className="px-4 py-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-medium text-zinc-500">
+                    {formatDateShort(session.uploaded_at)}
+                  </span>
+                  <span className="text-xs text-zinc-400">
+                    {session.file_count} {session.file_count === 1 ? 'αρχείο' : 'αρχεία'}
+                  </span>
+                </div>
+                <ul className="space-y-1">
+                  {session.files.map((f, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600"
+                    >
+                      <span className="shrink-0">
+                        {f.kind === 'photo' ? '📷' : f.kind === 'video' ? '🎥' : '📄'}
+                      </span>
+                      <span className="flex-1 truncate">{f.name}</span>
+                      <span className="shrink-0 text-zinc-400">
+                        {f.kind === 'photo' ? 'Φωτογραφία' : f.kind === 'video' ? 'Βίντεο' : 'Αρχείο'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {session.customer_comment ? (
+                  <p className="mt-2 text-xs italic text-zinc-500">
+                    &ldquo;{session.customer_comment}&rdquo;
+                  </p>
+                ) : null}
               </div>
-              <button
-                type="button"
-                disabled
-                title="Θα ενεργοποιηθεί όταν συνδεθεί το ασφαλές storage."
-                className="shrink-0 cursor-not-allowed rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-400"
-              >
-                Προσθήκη
-              </button>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        ) : (
+          <div className="px-4 py-6 text-center">
+            <p className="text-sm text-zinc-400">
+              Δεν υπάρχουν αρχεία ακόμα. Μπορείς να στείλεις link φωτογραφιών στον πελάτη.
+            </p>
+          </div>
+        )}
         <div className="border-t border-zinc-100 px-4 py-3">
-          <p className="text-xs text-zinc-400">Θα ενεργοποιηθεί όταν συνδεθεί το ασφαλές storage.</p>
+          <p className="text-xs text-zinc-400">Η απευθείας προσθήκη αρχείων θα ενεργοποιηθεί σε επόμενη έκδοση.</p>
         </div>
       </section>
 

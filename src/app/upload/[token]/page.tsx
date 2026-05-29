@@ -10,7 +10,7 @@ export const runtime = 'nodejs';
 
 async function getTokenState(token: string): Promise<{
   valid: boolean;
-  reason: 'expired' | 'invalid' | null;
+  reason: 'expired' | 'completed' | 'invalid' | null;
 }> {
   try {
     const supabase = createServiceSupabaseClient();
@@ -26,7 +26,7 @@ async function getTokenState(token: string): Promise<{
         .maybeSingle();
 
       if (data && (data as { status: string }).status === 'completed') {
-        return { valid: false, reason: 'expired' };
+        return { valid: false, reason: 'completed' };
       }
 
       return { valid: false, reason: 'invalid' };
@@ -53,5 +53,5 @@ export default async function UploadPage({
   const { token } = await params;
   const state = await getTokenState(token);
 
-  return <UploadClient valid={state.valid} reason={state.reason} />;
+  return <UploadClient valid={state.valid} reason={state.reason} rawToken={token} />;
 }
