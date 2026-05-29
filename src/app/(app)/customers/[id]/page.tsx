@@ -264,6 +264,14 @@ function formatMoney(value: number): string {
   }
 }
 
+function formatFileSize(sizeBytes?: number | null): string | null {
+  if (sizeBytes == null || !Number.isFinite(sizeBytes) || sizeBytes <= 0) return null;
+  if (sizeBytes < 1024) return `${sizeBytes} B`;
+  const kb = sizeBytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
 function appointmentStatusLabel(task: TaskDto): string {
   if (task.status === 'completed') return 'Ολοκληρωμένο';
   if (task.status === 'cancelled') return 'Ακυρωμένο';
@@ -2642,25 +2650,35 @@ export default function CustomerDetailPage() {
                   </span>
                 </div>
                 <ul className="space-y-1">
-                  {session.files.map((f, idx) => (
-                    <li
-                      key={idx}
-                      className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600"
-                    >
-                      <span className="shrink-0">
-                        {f.kind === 'photo' ? '📷' : f.kind === 'video' ? '🎥' : '📄'}
-                      </span>
-                      <span className="flex-1 truncate">{f.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => openFile(session.id, idx)}
-                        disabled={openingFileKey === `${session.id}:${idx}`}
-                        className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-0.5 font-medium text-zinc-600 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                  {session.files.map((f, idx) => {
+                    const kindLabel = f.kind === 'photo' ? 'Φωτογραφία' : f.kind === 'video' ? 'Βίντεο' : null;
+                    const sizeLabel = formatFileSize(f.sizeBytes);
+                    const meta = [kindLabel, sizeLabel].filter(Boolean).join(' · ');
+                    return (
+                      <li
+                        key={idx}
+                        className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2"
                       >
-                        {openingFileKey === `${session.id}:${idx}` ? '...' : 'Άνοιγμα'}
-                      </button>
-                    </li>
-                  ))}
+                        <span className="shrink-0 text-base leading-none">
+                          {f.kind === 'photo' ? '📷' : f.kind === 'video' ? '🎥' : '📄'}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-medium text-zinc-700">{f.name}</p>
+                          {meta ? (
+                            <p className="mt-0.5 text-xs text-zinc-400">{meta}</p>
+                          ) : null}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => openFile(session.id, idx)}
+                          disabled={openingFileKey === `${session.id}:${idx}`}
+                          className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {openingFileKey === `${session.id}:${idx}` ? '...' : 'Άνοιγμα'}
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
                 {session.customer_comment ? (
                   <p className="mt-2 text-xs italic text-zinc-500">
