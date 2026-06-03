@@ -171,7 +171,7 @@ export default function DesktopSidebar() {
     <aside className="hidden md:flex flex-col fixed inset-y-0 left-0 z-40 w-60 border-r border-zinc-200 bg-white">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2 border-b border-zinc-100 px-5">
-        <span className="text-lg font-bold text-zinc-900">yorgos.ai</span>
+        <span className="text-lg font-bold text-zinc-900">deskop.ai</span>
       </div>
 
       {/* Nav */}

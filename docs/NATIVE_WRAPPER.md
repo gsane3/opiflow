@@ -50,6 +50,6 @@ For Android only, a **Trusted Web Activity** (via Bubblewrap) ships the PWA stra
 
 ```bash
 npm i -g @bubblewrap/cli
-bubblewrap init --manifest https://app.yorgos.ai/manifest.webmanifest
+bubblewrap init --manifest https://app.deskop.ai/manifest.webmanifest
 bubblewrap build
 ```

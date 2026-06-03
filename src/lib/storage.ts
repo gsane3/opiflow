@@ -1,18 +1,18 @@
-import type { YorgosMvpState, Customer, Task, Offer, CallRecord, BusinessProfile, CommunicationRecord } from './types';
+import type { DeskopMvpState, Customer, Task, Offer, CallRecord, BusinessProfile, CommunicationRecord } from './types';
 
-const STORAGE_KEY = 'yorgos_ai_mvp_state';
+const STORAGE_KEY = 'deskop_mvp_state';
 
-export function loadState(): YorgosMvpState {
+export function loadState(): DeskopMvpState {
   if (typeof window === 'undefined') return {};
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as YorgosMvpState) : {};
+    return raw ? (JSON.parse(raw) as DeskopMvpState) : {};
   } catch {
     return {};
   }
 }
 
-export function saveState(partial: Partial<YorgosMvpState>): void {
+export function saveState(partial: Partial<DeskopMvpState>): void {
   if (typeof window === 'undefined') return;
   try {
     const current = loadState();
@@ -230,11 +230,11 @@ interface BackupEnvelope {
   type: string;
   version: number;
   exportedAt: string;
-  state: YorgosMvpState;
+  state: DeskopMvpState;
 }
 
 export interface ParsedBackup {
-  state: YorgosMvpState;
+  state: DeskopMvpState;
   exportedAt?: string;
   version?: number;
   isWrapped: boolean;
@@ -251,11 +251,11 @@ export function parseBackupJson(json: string): ParsedBackup | null {
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
 
     // New wrapped format
-    if (parsed.app === 'yorgos.ai' && parsed.type === 'local_backup') {
+    if (parsed.app === 'deskop.ai' && parsed.type === 'local_backup') {
       const state = parsed.state;
       if (typeof state !== 'object' || state === null || Array.isArray(state)) return null;
       return {
-        state: state as YorgosMvpState,
+        state: state as DeskopMvpState,
         exportedAt: typeof parsed.exportedAt === 'string' ? parsed.exportedAt : undefined,
         version: typeof parsed.version === 'number' ? parsed.version : undefined,
         isWrapped: true,
@@ -265,7 +265,7 @@ export function parseBackupJson(json: string): ParsedBackup | null {
     // Legacy raw format — must contain at least one recognised state key
     const hasKnownKey = KNOWN_STATE_KEYS.some((k) => k in parsed);
     if (!hasKnownKey) return null;
-    return { state: parsed as YorgosMvpState, isWrapped: false };
+    return { state: parsed as DeskopMvpState, isWrapped: false };
   } catch {
     return null;
   }
@@ -273,7 +273,7 @@ export function parseBackupJson(json: string): ParsedBackup | null {
 
 export function exportStateJson(): string {
   const envelope: BackupEnvelope = {
-    app: 'yorgos.ai',
+    app: 'deskop.ai',
     type: 'local_backup',
     version: 1,
     exportedAt: new Date().toISOString(),
@@ -289,7 +289,7 @@ export function importStateJson(json: string): boolean {
   return true;
 }
 
-export function normalizeImportedState(state: YorgosMvpState): YorgosMvpState {
+export function normalizeImportedState(state: DeskopMvpState): DeskopMvpState {
   // Ensure all arrays exist (older backups may omit them)
   const customers = state.customers ?? [];
   const normalized = {

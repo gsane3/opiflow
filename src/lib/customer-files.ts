@@ -1,7 +1,7 @@
 // Local IndexedDB storage for customer media files.
 // Blobs are stored natively — no base64, no localStorage, no server.
 
-const DB_NAME = 'yorgos_ai_customer_files';
+const DB_NAME = 'deskop_customer_files';
 const STORE_NAME = 'files';
 const DB_VERSION = 1;
 

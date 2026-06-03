@@ -1,5 +1,5 @@
 // Guide session is stored in sessionStorage only — never touches localStorage or CRM state.
-const SESSION_KEY = 'yorgos_ai_demo_guide_session';
+const SESSION_KEY = 'deskop_demo_guide_session';
 
 export type DemoGuideStep =
   | 'seed'

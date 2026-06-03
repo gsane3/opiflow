@@ -1,11 +1,11 @@
-# yorgos.ai Product Spec
+# deskop.ai Product Spec
 
 Last refreshed: 2026-05-24
 Current scope: backend-backed AI phone assistant pilot.
 
 ## Product summary
 
-yorgos.ai helps Greek professionals who handle many phone calls turn conversations into customer history, tasks, appointments, offers and follow-up messages.
+deskop.ai helps Greek professionals who handle many phone calls turn conversations into customer history, tasks, appointments, offers and follow-up messages.
 
 The product should prove one main idea:
 
@@ -155,7 +155,7 @@ No legal compliance claim should be made before legal review.
 ### New incoming caller
 
 1. Caller calls the business number.
-2. yorgos.ai receives the call event.
+2. deskop.ai receives the call event.
 3. Call is logged with date, time and phone number.
 4. If the customer is unknown, a customer record is created or suggested.
 5. AI creates a short brief after the call.

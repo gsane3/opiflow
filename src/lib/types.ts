@@ -192,7 +192,7 @@ export interface CommunicationRecord {
   isMock?: boolean;
 }
 
-export interface YorgosMvpState {
+export interface DeskopMvpState {
   userProfile?: UserProfile;
   businessProfile?: BusinessProfile;
   workspace?: Workspace;

@@ -1,4 +1,4 @@
-# yorgos.ai UI Guide
+# deskop.ai UI Guide
 
 Last refreshed: 2026-05-24
 Current direction: mobile-first AI phone assistant with backend-backed customer workspace.

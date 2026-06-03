@@ -1,4 +1,4 @@
-# yorgos.ai Source Index
+# deskop.ai Source Index
 
 Last refreshed: 2026-05-24
 Current product direction: backend-backed AI phone assistant and CRM automation platform.
@@ -6,7 +6,7 @@ Current product direction: backend-backed AI phone assistant and CRM automation 
 ## How every new chat should use Sources
 
 1. Read this file first.
-2. Then identify and read the newest available `Yorgosai_pN_handoff.md`.
+2. Then identify and read the newest available `Deskopai_pN_handoff.md`.
 3. Use the newest handoff as implementation state.
 4. Use the product docs as product direction.
 5. If a newer handoff conflicts with an older handoff, prefer the newer handoff for implementation state.
@@ -15,15 +15,15 @@ Current product direction: backend-backed AI phone assistant and CRM automation 
 
 ## Current implementation state to assume until a newer handoff exists
 
-The latest confirmed handoff is `Yorgosai_p12_handoff.md`.
+The latest confirmed handoff is `Deskopai_p12_handoff.md`.
 
 Confirmed p12 state:
-- Repo path: `E:\yorgos`
+- Repo path: `E:\deskop`
 - Branch: `master`
 - Last confirmed HEAD: `763837a Remove visible demo call entry points`
 - Last confirmed origin/master: `763837a Remove visible demo call entry points`
 - Last confirmed repo status: clean
-- Production alias: `https://yorgos-umber.vercel.app`
+- Production alias: `https://deskop-umber.vercel.app`
 - Visible demo/local call entry points were removed from main production surfaces.
 - `/settings` was cleaned for backend pilot.
 - Main visible routes passed production smoke and marker audit.
@@ -33,7 +33,7 @@ Confirmed p12 state:
 
 ### `00_PROJECT_CONTEXT.md`
 High-level product truth. Read this for:
-- what yorgos.ai is
+- what deskop.ai is
 - target users
 - core value proposition
 - privacy and consent principles
@@ -103,7 +103,7 @@ ChatGPT gives exact copy-paste PowerShell blocks. Every PowerShell block must st
 
 ```powershell
 Clear-Host
-Set-Location E:\yorgos
+Set-Location E:\deskop
 ```
 
 Claude/code agents must:

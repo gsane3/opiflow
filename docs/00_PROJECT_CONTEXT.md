@@ -1,19 +1,19 @@
-# yorgos.ai Project Context
+# deskop.ai Project Context
 
 Last refreshed: 2026-05-24
 Current phase: backend-backed pilot, moving toward live AI phone assistant.
 
 ## Product name
 
-yorgos.ai
+deskop.ai
 
 ## One-line summary
 
-yorgos.ai is an AI phone assistant and CRM automation platform for Greek professionals who handle many calls and need every conversation turned into useful business action.
+deskop.ai is an AI phone assistant and CRM automation platform for Greek professionals who handle many calls and need every conversation turned into useful business action.
 
 ## What the product is
 
-yorgos.ai is not a traditional CRM.
+deskop.ai is not a traditional CRM.
 
 It is a practical AI phone assistant for professionals and small businesses that receive many calls, lose follow-ups, delay offers and spend too much time organizing customer work manually.
 
@@ -46,7 +46,7 @@ A professional should be able to:
 2. Choose sector.
 3. Add business details.
 4. Choose or connect a business number.
-5. Receive calls through yorgos.ai.
+5. Receive calls through deskop.ai.
 6. See every call as date, time, caller and short AI brief.
 7. Review AI-suggested tasks, appointments, offers and messages.
 8. Use the AI Assistant to create actions by speaking or typing.
@@ -99,7 +99,7 @@ Common problems:
 
 ## Core value proposition
 
-yorgos.ai turns calls and messages into organized business work.
+deskop.ai turns calls and messages into organized business work.
 
 Practical value:
 - fewer lost leads
@@ -131,9 +131,9 @@ A call should create:
 
 V1 preferred strategy:
 
-- managed yorgos.ai business number through a SIP/provider setup
+- managed deskop.ai business number through a SIP/provider setup
 - new number provisioned or assigned to the business
-- call flow controlled by yorgos.ai/PBX/provider integration
+- call flow controlled by deskop.ai/PBX/provider integration
 
 Existing number forwarding may be supported later, but only after real provider testing confirms:
 

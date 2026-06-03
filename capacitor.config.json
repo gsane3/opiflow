@@ -1,9 +1,9 @@
 {
-  "appId": "ai.yorgos.app",
-  "appName": "yorgos.ai",
+  "appId": "ai.deskop.app",
+  "appName": "deskop",
   "webDir": "public",
   "server": {
-    "url": "https://app.yorgos.ai",
+    "url": "https://deskop.ai",
     "androidScheme": "https",
     "cleartext": false
   },

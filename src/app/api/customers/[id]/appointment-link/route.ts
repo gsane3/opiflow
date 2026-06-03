@@ -145,7 +145,7 @@ function buildApptMessage(task: TaskRow, responseUrl: string, businessName: stri
     '',
     'Φιλικά,',
     name,
-    'μέσω YorgosAI Assistant',
+    'μέσω DeskopAI Assistant',
   ].join('\n');
 }
 

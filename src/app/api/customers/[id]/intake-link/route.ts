@@ -109,7 +109,7 @@ function buildIntakeMessage(responseUrl: string, businessName: string | null): s
     '',
     'Φιλικά,',
     name,
-    'μέσω YorgosAI Assistant',
+    'μέσω DeskopAI Assistant',
   ].join('\n');
 }
 

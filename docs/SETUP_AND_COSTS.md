@@ -1,4 +1,4 @@
-# What to set up & pay to run yorgos.ai for 10–20 people
+# What to set up & pay to run deskop.ai for 10–20 people
 
 This is a practical checklist of the accounts and services the product depends on, what each one is for, and a realistic monthly cost for a 10–20 user pilot in Greece. Prices are approximate (2026) and pay‑as‑you‑go unless noted.
 
@@ -10,7 +10,7 @@ This is a practical checklist of the accounts and services the product depends o
 |---|---|---|---|
 | **Supabase** | Database, Auth (email + Google/Apple), file storage (customer photos) | Pro (Free works to start, Pro for backups + no pausing) | **$25/mo** (Free $0 to start) |
 | **Vercel** (or any Node host) | Hosts the Next.js app + API routes + the marketing site | Pro (commercial use) | **$20/mo** (Hobby $0 for testing) |
-| **Domain** | e.g. `yorgos.ai` + `app.yorgos.ai` | — | **~€12/yr** |
+| **Domain** | e.g. `deskop.ai` + `app.deskop.ai` | — | **~€12/yr** |
 
 > You can self‑host instead of Vercel (a $5–20/mo VPS + Docker) to cut cost, at the price of more ops work.
 

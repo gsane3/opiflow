@@ -1,11 +1,11 @@
-# yorgos.ai Copy and Labels
+# deskop.ai Copy and Labels
 
 Last refreshed: 2026-05-24
 Tone: simple professional Greek.
 
 ## Brand
 
-yorgos.ai
+deskop.ai
 
 ## Core promise
 

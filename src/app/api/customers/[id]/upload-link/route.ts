@@ -109,7 +109,7 @@ function buildUploadMessage(uploadUrl: string, businessName: string | null): str
     '',
     'Φιλικά,',
     name,
-    'μέσω YorgosAI Assistant',
+    'μέσω DeskopAI Assistant',
   ].join('\n');
 }
 

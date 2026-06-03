@@ -1,17 +1,17 @@
-# yorgos.ai Build Prompt
+# deskop.ai Build Prompt
 
 Last refreshed: 2026-05-24
 Use this prompt and protocol for future coding agents.
 
 ## Role
 
-You are building yorgos.ai, a backend-backed AI phone assistant and CRM automation platform for Greek professionals who handle many calls.
+You are building deskop.ai, a backend-backed AI phone assistant and CRM automation platform for Greek professionals who handle many calls.
 
 Build step by step. Do not overbuild.
 
 ## Current product direction
 
-yorgos.ai is not a traditional CRM.
+deskop.ai is not a traditional CRM.
 
 It is:
 - AI phone assistant
@@ -38,10 +38,10 @@ Later sectors:
 
 ## Current implementation assumptions
 
-Use the newest `Yorgosai_pN_handoff.md` for implementation state.
+Use the newest `Deskopai_pN_handoff.md` for implementation state.
 
 As of p12:
-- repo path is `E:\yorgos`
+- repo path is `E:\deskop`
 - backend pilot surfaces exist
 - visible demo/local call entry points were removed from main app surfaces
 - hidden demo/local code may still exist
@@ -107,7 +107,7 @@ Every PowerShell block given to George must start with:
 
 ```powershell
 Clear-Host
-Set-Location E:\yorgos
+Set-Location E:\deskop
 ```
 
 George runs:
@@ -277,7 +277,7 @@ Later:
 ## Example Claude prompt header
 
 ```text
-You are editing the yorgos.ai Next.js project.
+You are editing the deskop.ai Next.js project.
 
 CRITICAL RULES:
 1. DO NOT run commands. No git, npm, PowerShell, shell or terminal commands.

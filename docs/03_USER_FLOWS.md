@@ -1,4 +1,4 @@
-# yorgos.ai User Flows
+# deskop.ai User Flows
 
 Last refreshed: 2026-05-24
 Current scope: backend-backed AI phone assistant pilot.
@@ -39,7 +39,7 @@ Examples:
 
 ## 3. Managed number flow
 
-User chooses a new yorgos.ai business number
+User chooses a new deskop.ai business number
 → number is connected to the phone/PBX/provider flow
 → incoming calls are logged
 → call brief and customer actions are created after calls

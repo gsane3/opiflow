@@ -1,11 +1,11 @@
-# yorgos.ai Backend Pilot Build Spec
+# deskop.ai Backend Pilot Build Spec
 
 Last refreshed: 2026-05-24
 This file replaces the old local MVP build direction with the current backend-backed pilot plan.
 
 ## Goal
 
-Build a live-ready backend pilot of yorgos.ai as an AI phone assistant and CRM automation platform for Greek professionals who handle many calls.
+Build a live-ready backend pilot of deskop.ai as an AI phone assistant and CRM automation platform for Greek professionals who handle many calls.
 
 The pilot should demonstrate:
 

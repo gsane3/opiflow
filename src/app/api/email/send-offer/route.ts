@@ -172,7 +172,7 @@ export async function POST(req: NextRequest) {
       headers: {
         Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'User-Agent': 'yorgos-ai-mvp/0.1',
+        'User-Agent': 'deskop-mvp/0.1',
       },
       body: JSON.stringify(payload),
     });

@@ -41,7 +41,7 @@ export function buildAppointmentIcs(opts: {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//yorgos.ai//Appointments//EL',
+    'PRODID:-//deskop.ai//Appointments//EL',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

@@ -1,4 +1,4 @@
-# yorgos.ai Data Model
+# deskop.ai Data Model
 
 Last refreshed: 2026-05-24
 Current model: backend/Supabase pilot first. LocalStorage is no longer the source of truth for live pilot features.

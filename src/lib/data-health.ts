@@ -1,4 +1,4 @@
-import type { YorgosMvpState } from './types';
+import type { DeskopMvpState } from './types';
 import { calculateTotals } from './offer-calculations';
 
 export interface DataHealthIssue {
@@ -18,7 +18,7 @@ export interface DataHealthReport {
   healthy: boolean;
 }
 
-export function buildDataHealthReport(state: YorgosMvpState): DataHealthReport {
+export function buildDataHealthReport(state: DeskopMvpState): DataHealthReport {
   const customers = state.customers ?? [];
   const tasks = state.tasks ?? [];
   const offers = state.offers ?? [];

@@ -1,0 +1,40 @@
+# GitHub Actions CI for deskop.
+#
+# This file lives in docs/ because the connected token lacks the `workflow`
+# scope to push files under .github/workflows/. To enable CI, copy this file to
+# `.github/workflows/ci.yml` either:
+#   - via the GitHub web UI (Add file → Create new file → .github/workflows/ci.yml), or
+#   - locally after `gh auth refresh -s workflow` then commit + push.
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (typecheck + compile)
+        run: npm run build
+        env:
+          # Dummy values so `next build` can prerender without real secrets.
+          # The Supabase clients only throw when actually called at request time.
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: dummy-service-role-key

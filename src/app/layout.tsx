@@ -10,15 +10,15 @@ const geist = Geist({
 
 export const metadata: Metadata = {
   title: {
-    default: 'yorgos.ai',
-    template: '%s · yorgos.ai',
+    default: 'deskop',
+    template: '%s · deskop',
   },
   description: 'Ο AI βοηθός σου για πελάτες, follow-ups και προσφορές.',
-  applicationName: 'yorgos.ai',
+  applicationName: 'deskop',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'yorgos.ai',
+    title: 'deskop',
     statusBarStyle: 'default',
   },
   // Phone numbers are surfaced through explicit call actions, not auto-detected

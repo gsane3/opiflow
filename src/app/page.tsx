@@ -3,11 +3,11 @@ import Link from 'next/link';
 import StoreBadges from '@/components/marketing/StoreBadges';
 
 export const metadata: Metadata = {
-  title: 'yorgos.ai — Το τηλέφωνό σου γίνεται CRM',
+  title: 'deskop.com — Το τηλέφωνό σου γίνεται CRM',
   description:
     'Επαγγελματικό τηλέφωνο με AI για τεχνικούς. Κάθε κλήση γίνεται καρτέλα πελάτη, AI brief και επόμενη ενέργεια. Στείλε link στον πελάτη μέσω Viber και κλείσε τη δουλειά.',
   openGraph: {
-    title: 'yorgos.ai — Το τηλέφωνό σου γίνεται CRM',
+    title: 'deskop.com — Το τηλέφωνό σου γίνεται CRM',
     description:
       'Κάθε κλήση γίνεται καρτέλα πελάτη, AI brief και επόμενη ενέργεια. Φτιαγμένο για τεχνικούς.',
     type: 'website',
@@ -24,7 +24,7 @@ function Logo() {
         </svg>
       </span>
       <span className="text-lg font-bold tracking-tight text-zinc-900">
-        yorgos<span className="text-indigo-600">.ai</span>
+        deskop
       </span>
     </div>
   );
@@ -284,7 +284,7 @@ export default function LandingPage() {
             <Link href="/login" className="transition hover:text-zinc-800">Σύνδεση</Link>
             <Link href="/register" className="transition hover:text-zinc-800">Εγγραφή</Link>
           </div>
-          <p className="text-xs text-zinc-400">© 2026 yorgos.ai</p>
+          <p className="text-xs text-zinc-400">© 2026 deskop.com</p>
         </div>
       </footer>
     </div>
