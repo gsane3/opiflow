@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { Card, EmptyState } from '@/components/ui';
 import type { Task, Customer, TaskBaseStatus, TaskType, TaskPriority } from '@/lib/types';
 import { getEffectiveStatus } from '@/lib/types';
 import { norm } from '@/lib/search';
@@ -754,35 +755,39 @@ export default function TasksPage() {
 
       {/* Task list */}
       {filteredTasks.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-700">
-            {hasTaskFilter
-              ? 'Δεν βρέθηκαν αποτελέσματα.'
-              : tasks.length === 0
-              ? 'Δεν υπάρχουν tasks.'
-              : activeTab === 'overdue'
-              ? 'Δεν υπάρχουν εκπρόθεσμα tasks.'
-              : activeTab === 'due_today'
-              ? 'Δεν έχεις ανοιχτά tasks για σήμερα.'
-              : activeTab === 'completed'
-              ? 'Δεν υπάρχουν ολοκληρωμένα tasks.'
-              : 'Δεν υπάρχουν tasks.'}
-          </p>
-          {tasks.length === 0 && !hasTaskFilter && (
-            <p className="mt-1.5 text-sm text-zinc-400">
-              Όταν δημιουργούνται εργασίες από κλήσεις ή AI εντολές, θα εμφανίζονται εδώ.
-            </p>
-          )}
-          {hasTaskFilter && (
-            <button
-              type="button"
-              onClick={clearTaskFilters}
-              className="mt-3 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:ring-1 hover:ring-indigo-300"
-            >
-              Καθαρισμός φίλτρων
-            </button>
-          )}
-        </div>
+        <Card padding="none">
+          <EmptyState
+            title={
+              hasTaskFilter
+                ? 'Δεν βρέθηκαν αποτελέσματα.'
+                : tasks.length === 0
+                ? 'Δεν υπάρχουν tasks.'
+                : activeTab === 'overdue'
+                ? 'Δεν υπάρχουν εκπρόθεσμα tasks.'
+                : activeTab === 'due_today'
+                ? 'Δεν έχεις ανοιχτά tasks για σήμερα.'
+                : activeTab === 'completed'
+                ? 'Δεν υπάρχουν ολοκληρωμένα tasks.'
+                : 'Δεν υπάρχουν tasks.'
+            }
+            description={
+              tasks.length === 0 && !hasTaskFilter
+                ? 'Όταν δημιουργούνται εργασίες από κλήσεις ή AI εντολές, θα εμφανίζονται εδώ.'
+                : undefined
+            }
+            action={
+              hasTaskFilter ? (
+                <button
+                  type="button"
+                  onClick={clearTaskFilters}
+                  className="mt-3 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:ring-1 hover:ring-indigo-300"
+                >
+                  Καθαρισμός φίλτρων
+                </button>
+              ) : undefined
+            }
+          />
+        </Card>
       ) : (
         <ul className="space-y-3">
           {filteredTasks.map((task) => (

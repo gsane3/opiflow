@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { Card, EmptyState } from '@/components/ui';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
 import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
@@ -385,13 +386,13 @@ export default function CustomersPage() {
 
       {/* Customer list */}
       {customers.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-base font-semibold text-zinc-700">Δεν υπάρχουν πελάτες ακόμα.</p>
-        </div>
+        <Card padding="none">
+          <EmptyState title="Δεν υπάρχουν πελάτες ακόμα." />
+        </Card>
       ) : filtered.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν πελάτες με αυτά τα κριτήρια.</p>
-        </div>
+        <Card padding="none">
+          <EmptyState title="Δεν βρέθηκαν πελάτες με αυτά τα κριτήρια." />
+        </Card>
       ) : (
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
           {filtered.map((customer) => {

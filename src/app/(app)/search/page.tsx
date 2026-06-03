@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { Card, EmptyState } from '@/components/ui';
 import type { Customer, Task, Offer } from '@/lib/types';
 import { norm } from '@/lib/search';
 
@@ -314,22 +315,22 @@ export default function SearchPage() {
 
       {/* Empty-query prompt */}
       {!hasQuery && (
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-base font-medium text-zinc-600">Ξεκίνα να πληκτρολογείς</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            Ψάξε πελάτες με όνομα, τηλέφωνο ή email, προσφορές με αριθμό, ή tasks με τίτλο.
-          </p>
-        </div>
+        <Card padding="none">
+          <EmptyState
+            title="Ξεκίνα να πληκτρολογείς"
+            description="Ψάξε πελάτες με όνομα, τηλέφωνο ή email, προσφορές με αριθμό, ή tasks με τίτλο."
+          />
+        </Card>
       )}
 
       {/* No results */}
       {hasQuery && totalResults === 0 && (
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-base font-medium text-zinc-600">Κανένα αποτέλεσμα</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            Δεν βρέθηκε κάτι για «{trimmed}».
-          </p>
-        </div>
+        <Card padding="none">
+          <EmptyState
+            title="Κανένα αποτέλεσμα"
+            description={`Δεν βρέθηκε κάτι για «${trimmed}».`}
+          />
+        </Card>
       )}
 
       {/* Results: Customers */}

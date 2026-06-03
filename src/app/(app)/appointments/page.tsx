@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { Card, EmptyState } from '@/components/ui';
 import type { Task, Customer, TaskBaseStatus, TaskType, TaskPriority } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -1125,11 +1126,12 @@ export default function AppointmentsPage() {
 
       {/* Empty state */}
       {!hasAny && (
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-600">
-            Δεν υπάρχουν ακόμα ραντεβού. Δημιούργησε ένα ραντεβού για πελάτη ή άφησε το AI να προτείνει επόμενο βήμα μετά από κλήση.
-          </p>
-        </div>
+        <Card padding="none">
+          <EmptyState
+            title="Δεν υπάρχουν ακόμα ραντεβού."
+            description="Δημιούργησε ένα ραντεβού για πελάτη ή άφησε το AI να προτείνει επόμενο βήμα μετά από κλήση."
+          />
+        </Card>
       )}
 
       {/* Grouped agenda */}

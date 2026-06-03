@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { Card, EmptyState } from '@/components/ui';
 import type { Offer, OfferStatus, Customer } from '@/lib/types';
 import { norm } from '@/lib/search';
 import OfferCard from '@/components/offers/OfferCard';
@@ -453,17 +454,19 @@ export default function OffersPage() {
 
       {/* List */}
       {offers.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-500">Δεν υπάρχουν προσφορές ακόμα.</p>
-          <p className="mt-1 text-sm text-zinc-400">
-            Δημιούργησε προσφορά με το κουμπί + παραπάνω ή με υπαγόρευση.
-          </p>
-        </div>
+        <Card padding="none">
+          <EmptyState
+            title="Δεν υπάρχουν προσφορές ακόμα."
+            description="Δημιούργησε προσφορά με το κουμπί + παραπάνω ή με υπαγόρευση."
+          />
+        </Card>
       ) : filteredOffers.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
-          <p className="mt-1 text-sm text-zinc-400">Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό.</p>
-        </div>
+        <Card padding="none">
+          <EmptyState
+            title="Δεν βρέθηκαν αποτελέσματα."
+            description="Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό."
+          />
+        </Card>
       ) : (
         <ul className="space-y-2">
           {filteredOffers.map((offer) => (
