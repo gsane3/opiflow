@@ -189,6 +189,7 @@ export async function POST(request: NextRequest) {
       .insert({
         owner_id: user.id,
         name,
+        logo_url: str(raw.logoDataUrl) ?? str(raw.logo_url),
         type: type ?? null,
         phone: str(raw.phone),
         email: str(raw.email),

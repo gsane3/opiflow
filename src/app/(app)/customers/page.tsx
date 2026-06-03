@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, type FormEvent } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Card, EmptyState } from '@/components/ui';
@@ -121,6 +121,11 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [refreshTick, setRefreshTick] = useState(0);
+  const [showAdd, setShowAdd] = useState(false);
+  const [addName, setAddName] = useState('');
+  const [addPhone, setAddPhone] = useState('');
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -282,6 +287,48 @@ export default function CustomersPage() {
   const followUpCount = customers.filter((c) => c.status === 'follow_up_needed').length;
 
   // Main view
+  async function handleAddCustomer(e: FormEvent) {
+    e.preventDefault();
+    const name = addName.trim();
+    const phone = addPhone.trim();
+    if (!name && !phone) {
+      setAddError('Βάλε όνομα ή τηλέφωνο.');
+      return;
+    }
+    setAddBusy(true);
+    setAddError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setAddError('Δεν υπάρχει σύνδεση. Δοκίμασε ξανά.');
+        setAddBusy(false);
+        return;
+      }
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ name: name || null, phone: phone || null, source: 'manual_entry' }),
+      });
+      const json = await res.json();
+      if (res.ok && json.ok) {
+        setShowAdd(false);
+        setAddName('');
+        setAddPhone('');
+        setRefreshTick((t) => t + 1);
+      } else {
+        setAddError('Αποτυχία. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setAddError('Αποτυχία. Δοκίμασε ξανά.');
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
   return (
     <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
 
@@ -296,18 +343,79 @@ export default function CustomersPage() {
             Όλοι οι πελάτες και τα leads σε ένα καθαρό workspace.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setRefreshTick((t) => t + 1)}
-          disabled={loading}
-          className="mt-1 rounded-full bg-white p-2 shadow-sm ring-1 ring-zinc-200/60 text-zinc-400 transition hover:text-zinc-600 disabled:opacity-40"
-          title="Ανανέωση"
-        >
-          <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
-          </svg>
-        </button>
+        <div className="mt-1 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => { setAddError(null); setShowAdd(true); }}
+            className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          >
+            <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+            Νέος
+          </button>
+          <button
+            type="button"
+            onClick={() => setRefreshTick((t) => t + 1)}
+            disabled={loading}
+            className="rounded-full bg-white p-2 shadow-sm ring-1 ring-zinc-200/60 text-zinc-400 transition hover:text-zinc-600 disabled:opacity-40"
+            title="Ανανέωση"
+          >
+            <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182m0-4.991v4.99" />
+            </svg>
+          </button>
+        </div>
       </div>
+
+      {/* Add-customer modal */}
+      {showAdd && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4"
+          onClick={() => setShowAdd(false)}
+        >
+          <form
+            onSubmit={handleAddCustomer}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm space-y-3 rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+          >
+            <h2 className="text-base font-semibold text-zinc-900">Νέος πελάτης</h2>
+            <input
+              type="text"
+              autoFocus
+              value={addName}
+              onChange={(e) => setAddName(e.target.value)}
+              placeholder="Όνομα"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500"
+            />
+            <input
+              type="tel"
+              inputMode="tel"
+              value={addPhone}
+              onChange={(e) => setAddPhone(e.target.value)}
+              placeholder="Τηλέφωνο (π.χ. 69…)"
+              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500"
+            />
+            {addError && <p className="text-xs text-red-600">{addError}</p>}
+            <div className="flex gap-2 pt-1">
+              <button
+                type="submit"
+                disabled={addBusy}
+                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {addBusy ? 'Αποθήκευση…' : 'Αποθήκευση'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAdd(false)}
+                className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              >
+                Άκυρο
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {/* Search card */}
       <div className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
