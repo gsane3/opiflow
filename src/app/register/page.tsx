@@ -80,7 +80,13 @@ export default function RegisterPage() {
       return;
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({ email: trimmedEmail, password });
+    const { error: signUpError } = await supabase.auth.signUp({
+      email: trimmedEmail,
+      password,
+      // Send the confirmation link back to THIS origin (not the Supabase Site URL
+      // default), so a misconfigured Site URL can't redirect users to localhost.
+      options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+    });
     setLoading(false);
 
     if (signUpError) {
