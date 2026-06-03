@@ -21,6 +21,21 @@ function supabaseConnectSrc(): string[] {
   return out;
 }
 
+// SIP-over-WebSocket gateway for the in-app phone (jsSIP). Derived from env so the
+// browser's WebSocket to the SIP server is allowed by connect-src. Empty when unset.
+function sipConnectSrc(): string[] {
+  try {
+    const raw = process.env.PHONE_SIP_WSS_URL;
+    if (raw) {
+      const origin = new URL(raw).origin; // wss://host:port
+      if (origin) return [origin];
+    }
+  } catch {
+    // ignore malformed env
+  }
+  return [];
+}
+
 // Content-Security-Policy. The app has no middleware (auth is client-side), so we
 // cannot issue per-request nonces; Next's hydration bootstrap therefore relies on
 // 'unsafe-inline' for scripts. 'unsafe-eval' is dev-only (React Refresh / HMR need
@@ -34,7 +49,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
-  `connect-src 'self' ${supabaseConnectSrc().join(' ')}`,
+  `connect-src 'self' ${[...supabaseConnectSrc(), ...sipConnectSrc()].join(' ')}`,
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
