@@ -18,17 +18,22 @@ export interface CallBriefInput {
   customerMatched: boolean;
   intakeUrlCreated: boolean;
   viberSendStatus: string | null;
+  /** Call direction; affects brief wording. Defaults to inbound (the PBX path). */
+  direction?: 'inbound' | 'outbound';
 }
 
 function buildBriefPrompt(input: CallBriefInput): string {
+  const dirWord = input.direction === 'outbound' ? 'εξερχόμενης' : 'εισερχόμενης';
+  const dirLabel = input.direction === 'outbound' ? 'Εξερχόμενη' : 'Εισερχόμενη';
   const lines: string[] = [
     'Είσαι βοηθός CRM για επαγγελματία.',
-    'Παρακάτω υπάρχουν μόνο τεχνικά μεταδεδομένα μιας εισερχόμενης κλήσης.',
+    `Παρακάτω υπάρχουν μόνο τεχνικά μεταδεδομένα μιας ${dirWord} κλήσης.`,
     'ΔΕΝ υπάρχει ηχογράφηση, μεταγραφή ή περιεχόμενο κλήσης.',
     'Χρησιμοποίησε ΜΟΝΟ τα παρακάτω μεταδεδομένα.',
     '',
     '--- Μεταδεδομένα κλήσης ---',
-    `Αριθμός καλούντος: ${input.callerNumber ?? 'Άγνωστος'}`,
+    `Κατεύθυνση: ${dirLabel}`,
+    `Αριθμός ${input.direction === 'outbound' ? 'παραλήπτη' : 'καλούντος'}: ${input.callerNumber ?? 'Άγνωστος'}`,
     `Αποτέλεσμα κλήσης (dialstatus): ${input.dialStatus ?? 'Άγνωστο'}`,
     `Ηχογράφηση υπάρχει: ${input.recordingExists === true ? 'Ναι' : input.recordingExists === false ? 'Όχι' : 'Άγνωστο'}`,
     input.recordingSizeBytes !== null ? `Μέγεθος ηχογράφησης: ${input.recordingSizeBytes} bytes` : null,

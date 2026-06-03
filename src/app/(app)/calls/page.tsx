@@ -1245,12 +1245,16 @@ function CallReviewModal({
   event,
   busy,
   error,
+  saved,
+  brief,
   onSave,
   onSkip,
 }: {
   event: CallEndedEvent;
   busy: boolean;
   error: string | null;
+  saved: boolean;
+  brief: string | null;
   onSave: () => void;
   onSkip: () => void;
 }) {
@@ -1273,8 +1277,10 @@ function CallReviewModal({
 
         {/* Header */}
         <div className="px-5 pb-4 pt-1 text-center">
-          <p className="text-base font-semibold text-zinc-900">Η κλήση ολοκληρώθηκε.</p>
-          <p className="mt-1 text-sm text-zinc-500">Να εισαχθεί στο CRM;</p>
+          <p className="text-base font-semibold text-zinc-900">
+            {saved ? 'Η κλήση εισήχθη στο CRM.' : 'Η κλήση ολοκληρώθηκε.'}
+          </p>
+          {!saved && <p className="mt-1 text-sm text-zinc-500">Να εισαχθεί στο CRM;</p>}
           <p className="mt-2 text-xs text-zinc-400">
             {dirLabel}
             {' · '}
@@ -1288,24 +1294,51 @@ function CallReviewModal({
           )}
         </div>
 
+        {/* AI brief draft (review-first), shown after the call is saved */}
+        {saved && brief && (
+          <div className="px-4 pb-4">
+            <p className="mb-1 px-1 text-xs font-medium text-zinc-500">AI brief (πρόχειρο για έλεγχο)</p>
+            <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-zinc-50 px-4 py-3 text-xs text-zinc-700 ring-1 ring-zinc-200/60">
+              {brief}
+            </div>
+          </div>
+        )}
+        {saved && !brief && (
+          <p className="px-5 pb-4 text-center text-xs text-zinc-400">
+            Η κλήση καταγράφηκε. Δεν δημιουργήθηκε AI brief αυτή τη φορά.
+          </p>
+        )}
+
         {/* Buttons */}
         <div className="space-y-2.5 px-4">
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={busy}
-            className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
-          >
-            Ναι, εισαγωγή
-          </button>
-          <button
-            type="button"
-            onClick={onSkip}
-            disabled={busy}
-            className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
-          >
-            Όχι
-          </button>
+          {saved ? (
+            <button
+              type="button"
+              onClick={onSkip}
+              className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+            >
+              Κλείσιμο
+            </button>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={onSave}
+                disabled={busy}
+                className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
+              >
+                {busy ? 'Αποθήκευση...' : 'Ναι, εισαγωγή'}
+              </button>
+              <button
+                type="button"
+                onClick={onSkip}
+                disabled={busy}
+                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+              >
+                Όχι
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1336,6 +1369,8 @@ export default function CallsPage() {
   const [pendingCallReview, setPendingCallReview] = useState<CallEndedEvent | null>(null);
   const [callReviewBusy, setCallReviewBusy] = useState(false);
   const [callReviewError, setCallReviewError] = useState<string | null>(null);
+  const [callReviewSaved, setCallReviewSaved] = useState(false);
+  const [callReviewBrief, setCallReviewBrief] = useState<string | null>(null);
   const [pendingDialTarget, setPendingDialTarget] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
 
@@ -1485,36 +1520,29 @@ export default function CallsPage() {
         : null;
     const customerId = customer?.id ?? null;
 
-    const summary =
-      event.direction === 'inbound'
-        ? event.status === 'completed'
-          ? 'Εισερχόμενη κλήση'
-          : 'Αποτυχημένη εισερχόμενη κλήση'
-        : event.status === 'completed'
-        ? 'Εξερχόμενη κλήση'
-        : 'Αποτυχημένη εξερχόμενη κλήση';
-
     setCallReviewBusy(true);
     setCallReviewError(null);
     try {
-      const resp = await fetch('/api/communications', {
+      // /api/calls/log records the call AND attaches a review-first AI brief
+      // (metadata-only, no transcript) to it — parity with the PBX webhook path.
+      const resp = await fetch('/api/calls/log', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          channel: 'call',
           direction: event.direction,
           status: event.status,
           phone: event.phone,
           customerId,
-          summary,
         }),
       });
       const json = await resp.json();
       if (json.ok === true) {
-        setPendingCallReview(null);
+        // Keep the modal open to surface the AI brief draft for review.
+        setCallReviewSaved(true);
+        setCallReviewBrief(typeof json.brief === 'string' ? json.brief : null);
         setCallReviewError(null);
       } else {
         setCallReviewError('save_failed');
@@ -1534,12 +1562,16 @@ export default function CallsPage() {
   function handleSkipReviewedCall() {
     setPendingCallReview(null);
     setCallReviewError(null);
+    setCallReviewSaved(false);
+    setCallReviewBrief(null);
   }
 
   // Shows the after-call review modal instead of immediately saving.
   const handleCallEnded = useCallback(
     (event: CallEndedEvent) => {
       setCallReviewError(null);
+      setCallReviewSaved(false);
+      setCallReviewBrief(null);
       setPendingCallReview(event);
     },
     []
@@ -1856,6 +1888,8 @@ export default function CallsPage() {
           event={pendingCallReview}
           busy={callReviewBusy}
           error={callReviewError}
+          saved={callReviewSaved}
+          brief={callReviewBrief}
           onSave={handleSaveReviewedCall}
           onSkip={handleSkipReviewedCall}
         />
