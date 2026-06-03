@@ -6,8 +6,9 @@ import { getBusinessProfile, saveBusinessProfile } from '@/lib/storage';
 import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import ImportExportPanel from '@/components/settings/ImportExportPanel';
+import AccountPanel from '@/components/settings/AccountPanel';
 
-type SettingsSection = 'business' | 'providers' | 'data';
+type SettingsSection = 'business' | 'providers' | 'data' | 'account';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -49,6 +50,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
   providers: 'Πάροχοι',
   data: 'Δεδομένα',
+  account: 'Λογαριασμός',
 };
 
 const PLAN_NAMES: Record<string, string> = {
@@ -340,6 +342,10 @@ export default function SettingsPage() {
     return <ImportExportPanel />;
   }
 
+  function renderAccount() {
+    return <AccountPanel />;
+  }
+
   // Settings content
 
   if (!hydrated) {
@@ -393,6 +399,17 @@ export default function SettingsPage() {
                 icon: (
                   <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
+                id: 'account' as SettingsSection,
+                label: 'Λογαριασμός',
+                subtitle: 'Συνδρομή & διαγραφή λογαριασμού',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
                   </svg>
                 ),
                 bg: 'bg-indigo-50',
@@ -510,6 +527,7 @@ export default function SettingsPage() {
           {activeSection === 'business' && renderBusiness()}
           {activeSection === 'providers' && renderProviders()}
           {activeSection === 'data' && renderData()}
+          {activeSection === 'account' && renderAccount()}
         </>
       )}
     </div>

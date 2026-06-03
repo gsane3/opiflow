@@ -136,7 +136,13 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="mt-6 text-center text-sm text-zinc-500">
+        <p className="mt-4 text-center text-sm">
+          <Link href="/forgot-password" className="font-medium text-indigo-600 hover:text-indigo-700 transition">
+            Ξέχασες τον κωδικό;
+          </Link>
+        </p>
+
+        <p className="mt-2 text-center text-sm text-zinc-500">
           Δεν έχεις λογαριασμό;{' '}
           <Link
             href="/register"

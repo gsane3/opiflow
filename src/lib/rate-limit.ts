@@ -50,3 +50,50 @@ export function clientKey(
   const fwd = req.headers.get('x-forwarded-for');
   return `ip:${fwd ? fwd.split(',')[0].trim() : 'unknown'}`;
 }
+
+export interface AsyncRateLimiter {
+  check(key: string): Promise<RateLimitResult>;
+}
+
+// Shared-store limiter via Upstash Redis REST (no SDK). Enabled when
+// UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN are set. Atomic INCR+EXPIRE
+// per fixed window; fails OPEN on infra errors so the app never hard-breaks.
+function createUpstashRateLimiter(opts: { windowMs: number; max: number }): AsyncRateLimiter | null {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+  const windowSec = Math.max(1, Math.ceil(opts.windowMs / 1000));
+  return {
+    async check(key: string): Promise<RateLimitResult> {
+      const bucket = Math.floor(Date.now() / opts.windowMs);
+      const redisKey = `rl:${key}:${bucket}`;
+      const resetAt = (bucket + 1) * opts.windowMs;
+      try {
+        const res = await fetch(`${url}/pipeline`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify([
+            ['INCR', redisKey],
+            ['EXPIRE', redisKey, String(windowSec)],
+          ]),
+        });
+        const data = (await res.json()) as Array<{ result?: number }>;
+        const count = typeof data?.[0]?.result === 'number' ? data[0].result! : 1;
+        return { allowed: count <= opts.max, remaining: Math.max(0, opts.max - count), resetAt };
+      } catch {
+        return { allowed: true, remaining: opts.max, resetAt };
+      }
+    },
+  };
+}
+
+/**
+ * Production rate limiter: Upstash Redis when configured (shared across
+ * serverless instances), otherwise the in-memory limiter (dev / single node).
+ */
+export function createRateLimiter(opts: { windowMs: number; max: number }): AsyncRateLimiter {
+  const upstash = createUpstashRateLimiter(opts);
+  if (upstash) return upstash;
+  const mem = createInMemoryRateLimiter(opts);
+  return { check: (key: string) => Promise.resolve(mem.check(key)) };
+}
