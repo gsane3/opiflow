@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import OfferForm from '@/components/offers/OfferForm';
+import { SendViaViberModal, executeViberSend } from '@/components/customers/SendViaViberModal';
 import type { Offer, Customer } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -2827,706 +2828,157 @@ export default function CustomerDetailPage() {
 
       {/* Offer send review modal */}
       {offerSendReview !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-          onClick={() => setOfferSendReview(null)}
-        >
-          <div
-            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">
-                {offerSendReview.offerNumber
-                  ? `Αποστολή προσφοράς ${offerSendReview.offerNumber}`
-                  : 'Αποστολή προσφοράς'}
-              </h2>
-              <button
-                type="button"
-                onClick={() => setOfferSendReview(null)}
-                aria-label="Κλείσιμο"
-                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
-              >
-                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Loading state */}
-            {offerSendReview.loading && (
-              <div className="flex items-center gap-3 py-4">
-                <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
-                <p className="text-sm text-zinc-600">Δημιουργία link απάντησης...</p>
-              </div>
-            )}
-
-            {/* Draft failed -- no message was generated */}
-            {!offerSendReview.loading && !offerSendReview.message && offerSendReview.error && (
-              <>
-                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-                  {offerSendReview.error}
-                </p>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setOfferSendReview(null)}
-                    className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Main content: shown once message is available */}
-            {!offerSendReview.loading && offerSendReview.message && (
-              <>
-                {offerSendReview.recipient && (
-                  <p className="mb-2 text-xs text-zinc-500">
-                    {'Παραλήπτης Viber: '}
-                    <span className="font-medium text-zinc-700">{offerSendReview.recipient}</span>
-                  </p>
-                )}
-
-                <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
-                <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
-                  {offerSendReview.message}
-                </div>
-
-                {/* Success banner */}
-                {offerSendReview.sent && (
-                  <div className="mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700">
-                    Η προσφορά στάλθηκε με Viber.
-                  </div>
-                )}
-
-                {/* Send error / fallback banner */}
-                {offerSendReview.error && !offerSendReview.sent && (
-                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    {offerSendReview.error}
-                  </div>
-                )}
-
-                {/* Primary: Viber send button (hidden after success) */}
-                {!offerSendReview.sent && (
-                  <button
-                    type="button"
-                    disabled={offerSendReview.sending}
-                    onClick={async () => {
-                      const review = offerSendReview;
-                      const supabase = createBrowserSupabaseClient();
-                      const { data: { session: s } } = await supabase.auth.getSession();
-                      if (!s) {
-                        setOfferSendReview({ ...review, error: 'Δεν βρέθηκε session. Δοκίμασε ξανά.' });
-                        return;
-                      }
-                      setOfferSendReview({ ...review, sending: true, error: null });
-                      try {
-                        const res = await fetch(`/api/offers/${review.offerId}/notify`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${s.access_token}`,
-                          },
-                          body: JSON.stringify({ mode: 'send', responseUrl: review.responseUrl }),
-                        });
-                        const json = await res.json() as {
-                          ok?: boolean;
-                          sent?: boolean;
-                          reason?: string;
-                        };
-                        if (!res.ok || !json.ok) {
-                          setOfferSendReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                          return;
-                        }
-                        if (json.sent) {
-                          setOfferSendReview({ ...review, sending: false, sent: true, error: null });
-                        } else {
-                          const reason = json.reason;
-                          const fallbackMsg =
-                            reason === 'missing_mobile' || reason === 'missing_customer'
-                              ? 'Δεν υπάρχει διαθέσιμο κινητό για αποστολή Viber.'
-                              : reason === 'provider_unavailable'
-                              ? 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.'
-                              : 'Δεν έγινε αποστολή Viber. Δοκίμασε ξανά ή αντέγραψε το μήνυμα.';
-                          setOfferSendReview({ ...review, sending: false, error: fallbackMsg });
-                        }
-                      } catch {
-                        setOfferSendReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                      }
-                    }}
-                    className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {offerSendReview.sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
-                  </button>
-                )}
-
-                {/* Secondary buttons row */}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(offerSendReview.message ?? '');
-                        setOfferSendReview(prev => prev ? { ...prev, copied: true } : null);
-                      } catch {
-                        // clipboard unavailable
-                      }
-                    }}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    {offerSendReview.copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
-                  </button>
-                  {offerSendReview.responseUrl && (
-                    <button
-                      type="button"
-                      onClick={() => window.open(offerSendReview.responseUrl!, '_blank', 'noopener,noreferrer')}
-                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                    >
-                      Άνοιγμα προσφοράς
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setOfferSendReview(null)}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <SendViaViberModal
+          title={
+            offerSendReview.offerNumber
+              ? `Αποστολή προσφοράς ${offerSendReview.offerNumber}`
+              : 'Αποστολή προσφοράς'
+          }
+          loadingText="Δημιουργία link απάντησης..."
+          successText="Η προσφορά στάλθηκε με Viber."
+          openLabel="Άνοιγμα προσφοράς"
+          loading={offerSendReview.loading}
+          message={offerSendReview.message}
+          recipient={offerSendReview.recipient}
+          responseUrl={offerSendReview.responseUrl}
+          sending={offerSendReview.sending}
+          sent={offerSendReview.sent}
+          error={offerSendReview.error}
+          copied={offerSendReview.copied}
+          onClose={() => setOfferSendReview(null)}
+          onSend={() =>
+            executeViberSend({
+              endpoint: `/api/offers/${offerSendReview.offerId}/notify`,
+              body: { responseUrl: offerSendReview.responseUrl },
+              update: (patch) => setOfferSendReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              providerUnavailableMsg:
+                'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
+              defaultFallbackMsg: 'Δεν έγινε αποστολή Viber. Δοκίμασε ξανά ή αντέγραψε το μήνυμα.',
+            })
+          }
+          onCopy={async () => {
+            try {
+              await navigator.clipboard.writeText(offerSendReview.message ?? '');
+              setOfferSendReview((prev) => (prev ? { ...prev, copied: true } : null));
+            } catch {
+              // clipboard unavailable
+            }
+          }}
+        />
       )}
 
       {/* Intake send review modal */}
       {intakeSendReview !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-          onClick={() => setIntakeSendReview(null)}
-        >
-          <div
-            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">Αποστολή link στοιχείων</h2>
-              <button
-                type="button"
-                onClick={() => setIntakeSendReview(null)}
-                aria-label="Κλείσιμο"
-                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
-              >
-                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <p className="mb-4 text-xs text-zinc-400">Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις.</p>
-
-            {/* Loading state */}
-            {intakeSendReview.loading && (
-              <div className="flex items-center gap-3 py-4">
-                <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
-                <p className="text-sm text-zinc-600">Ετοιμάζεται το link στοιχείων...</p>
-              </div>
-            )}
-
-            {/* Draft failed */}
-            {!intakeSendReview.loading && !intakeSendReview.message && intakeSendReview.error && (
-              <>
-                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-                  {intakeSendReview.error}
-                </p>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setIntakeSendReview(null)}
-                    className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Main content: shown once message is available */}
-            {!intakeSendReview.loading && intakeSendReview.message && (
-              <>
-                {intakeSendReview.recipient && (
-                  <p className="mb-2 text-xs text-zinc-500">
-                    {'Παραλήπτης Viber: '}
-                    <span className="font-medium text-zinc-700">{intakeSendReview.recipient}</span>
-                  </p>
-                )}
-
-                <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
-                <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
-                  {intakeSendReview.message}
-                </div>
-
-                {/* Success banner */}
-                {intakeSendReview.sent && (
-                  <div className="mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700">
-                    Το link στοιχείων στάλθηκε με Viber.
-                  </div>
-                )}
-
-                {/* Send error / fallback banner */}
-                {intakeSendReview.error && !intakeSendReview.sent && (
-                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    {intakeSendReview.error}
-                  </div>
-                )}
-
-                {/* Primary: Viber send button (hidden after success) */}
-                {!intakeSendReview.sent && (
-                  <button
-                    type="button"
-                    disabled={intakeSendReview.sending}
-                    onClick={async () => {
-                      const review = intakeSendReview;
-                      const supabase = createBrowserSupabaseClient();
-                      const { data: { session: s } } = await supabase.auth.getSession();
-                      if (!s) {
-                        setIntakeSendReview({ ...review, error: 'Δεν βρέθηκε session. Δοκίμασε ξανά.' });
-                        return;
-                      }
-                      setIntakeSendReview({ ...review, sending: true, error: null });
-                      try {
-                        const res = await fetch(`/api/customers/${customerId}/intake-link`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${s.access_token}`,
-                          },
-                          body: JSON.stringify({ mode: 'send', responseUrl: review.responseUrl }),
-                        });
-                        const json = await res.json() as {
-                          ok?: boolean;
-                          sent?: boolean;
-                          fallbackReason?: string;
-                        };
-                        if (!res.ok || !json.ok) {
-                          setIntakeSendReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                          return;
-                        }
-                        if (json.sent) {
-                          setIntakeSendReview({ ...review, sending: false, sent: true, error: null });
-                        } else {
-                          const reason = json.fallbackReason;
-                          const fallbackMsg =
-                            reason === 'missing_mobile' || reason === 'missing_customer'
-                              ? 'Δεν υπάρχει διαθέσιμο κινητό για αποστολή Viber.'
-                              : reason === 'provider_unavailable'
-                              ? 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.'
-                              : 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.';
-                          setIntakeSendReview({ ...review, sending: false, error: fallbackMsg });
-                        }
-                      } catch {
-                        setIntakeSendReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                      }
-                    }}
-                    className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {intakeSendReview.sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
-                  </button>
-                )}
-
-                {/* Secondary buttons row */}
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(intakeSendReview.message ?? '');
-                        setIntakeSendReview(prev => prev ? { ...prev, copied: true } : null);
-                      } catch {
-                        // clipboard unavailable
-                      }
-                    }}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    {intakeSendReview.copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
-                  </button>
-                  {intakeSendReview.responseUrl && (
-                    <button
-                      type="button"
-                      onClick={() => window.open(intakeSendReview.responseUrl!, '_blank', 'noopener,noreferrer')}
-                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                    >
-                      Άνοιγμα link
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setIntakeSendReview(null)}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <SendViaViberModal
+          title="Αποστολή link στοιχείων"
+          subtitle="Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις."
+          loadingText="Ετοιμάζεται το link στοιχείων..."
+          successText="Το link στοιχείων στάλθηκε με Viber."
+          loading={intakeSendReview.loading}
+          message={intakeSendReview.message}
+          recipient={intakeSendReview.recipient}
+          responseUrl={intakeSendReview.responseUrl}
+          sending={intakeSendReview.sending}
+          sent={intakeSendReview.sent}
+          error={intakeSendReview.error}
+          copied={intakeSendReview.copied}
+          onClose={() => setIntakeSendReview(null)}
+          onSend={() =>
+            executeViberSend({
+              endpoint: `/api/customers/${customerId}/intake-link`,
+              body: { responseUrl: intakeSendReview.responseUrl },
+              update: (patch) => setIntakeSendReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
+              defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
+            })
+          }
+          onCopy={async () => {
+            try {
+              await navigator.clipboard.writeText(intakeSendReview.message ?? '');
+              setIntakeSendReview((prev) => (prev ? { ...prev, copied: true } : null));
+            } catch {
+              // clipboard unavailable
+            }
+          }}
+        />
       )}
 
       {/* Appointment send review modal */}
       {apptLinkReview !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-          onClick={() => setApptLinkReview(null)}
-        >
-          <div
-            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">Αποστολή link ραντεβού</h2>
-              <button
-                type="button"
-                onClick={() => setApptLinkReview(null)}
-                aria-label="Κλείσιμο"
-                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
-              >
-                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Loading state */}
-            {apptLinkReview.loading && (
-              <div className="flex items-center gap-3 py-4">
-                <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
-                <p className="text-sm text-zinc-500">Ετοιμάζεται το link ραντεβού...</p>
+        <SendViaViberModal
+          title="Αποστολή link ραντεβού"
+          loadingText="Ετοιμάζεται το link ραντεβού..."
+          successText="Το link ραντεβού στάλθηκε με Viber."
+          warning={
+            apptLinkReview.warning === 'missing_appointment_time' ? (
+              <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                Η ώρα ή η ημερομηνία ραντεβού δεν έχει συμπληρωθεί. Το μήνυμα δεν θα περιέχει ώρα.
               </div>
-            )}
-
-            {/* Draft failed */}
-            {!apptLinkReview.loading && !apptLinkReview.message && apptLinkReview.error && (
-              <>
-                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-                  {apptLinkReview.error}
-                </p>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setApptLinkReview(null)}
-                    className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Main content: shown once message is available */}
-            {!apptLinkReview.loading && apptLinkReview.message && (
-              <>
-                {apptLinkReview.recipient && (
-                  <p className="mb-2 text-xs text-zinc-500">
-                    {'Παραλήπτης Viber: '}
-                    <span className="font-medium text-zinc-700">{apptLinkReview.recipient}</span>
-                  </p>
-                )}
-
-                {apptLinkReview.warning === 'missing_appointment_time' && (
-                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    Η ώρα ή η ημερομηνία ραντεβού δεν έχει συμπληρωθεί. Το μήνυμα δεν θα περιέχει ώρα.
-                  </div>
-                )}
-
-                <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
-                <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
-                  {apptLinkReview.message}
-                </div>
-
-                {/* Success banner */}
-                {apptLinkReview.sent && (
-                  <div className="mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700">
-                    Το link ραντεβού στάλθηκε με Viber.
-                  </div>
-                )}
-
-                {/* Send error / fallback banner */}
-                {apptLinkReview.error && !apptLinkReview.sent && (
-                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    {apptLinkReview.error}
-                  </div>
-                )}
-
-                {/* Primary: Viber send button (hidden after success) */}
-                {!apptLinkReview.sent && (
-                  <button
-                    type="button"
-                    disabled={apptLinkReview.sending}
-                    onClick={async () => {
-                      const review = apptLinkReview;
-                      const supabase = createBrowserSupabaseClient();
-                      const { data: { session: s } } = await supabase.auth.getSession();
-                      if (!s) {
-                        setApptLinkReview({ ...review, error: 'Δεν βρέθηκε session. Δοκίμασε ξανά.' });
-                        return;
-                      }
-                      setApptLinkReview({ ...review, sending: true, error: null });
-                      try {
-                        const res = await fetch(`/api/customers/${customerId}/appointment-link`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${s.access_token}`,
-                          },
-                          body: JSON.stringify({ mode: 'send', taskId: review.taskId, responseUrl: review.responseUrl }),
-                        });
-                        const json = await res.json() as {
-                          ok?: boolean;
-                          sent?: boolean;
-                          fallbackReason?: string;
-                        };
-                        if (!res.ok || !json.ok) {
-                          setApptLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                          return;
-                        }
-                        if (json.sent) {
-                          setApptLinkReview({ ...review, sending: false, sent: true, error: null });
-                        } else {
-                          const reason = json.fallbackReason;
-                          const fallbackMsg =
-                            reason === 'missing_mobile' || reason === 'missing_customer'
-                              ? 'Δεν υπάρχει διαθέσιμο κινητό για αποστολή Viber.'
-                              : reason === 'provider_unavailable'
-                              ? 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.'
-                              : 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.';
-                          setApptLinkReview({ ...review, sending: false, error: fallbackMsg });
-                        }
-                      } catch {
-                        setApptLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                      }
-                    }}
-                    className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {apptLinkReview.sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
-                  </button>
-                )}
-
-                {/* Secondary buttons row */}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(apptLinkReview.message ?? '');
-                        setApptLinkReview(prev => prev ? { ...prev, copied: true } : null);
-                      } catch {
-                        // ignore
-                      }
-                    }}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    {apptLinkReview.copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
-                  </button>
-                  {apptLinkReview.responseUrl && (
-                    <button
-                      type="button"
-                      onClick={() => window.open(apptLinkReview.responseUrl!, '_blank', 'noopener,noreferrer')}
-                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                    >
-                      Άνοιγμα link
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setApptLinkReview(null)}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+            ) : null
+          }
+          loading={apptLinkReview.loading}
+          message={apptLinkReview.message}
+          recipient={apptLinkReview.recipient}
+          responseUrl={apptLinkReview.responseUrl}
+          sending={apptLinkReview.sending}
+          sent={apptLinkReview.sent}
+          error={apptLinkReview.error}
+          copied={apptLinkReview.copied}
+          onClose={() => setApptLinkReview(null)}
+          onSend={() =>
+            executeViberSend({
+              endpoint: `/api/customers/${customerId}/appointment-link`,
+              body: { taskId: apptLinkReview.taskId, responseUrl: apptLinkReview.responseUrl },
+              update: (patch) => setApptLinkReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
+              defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
+            })
+          }
+          onCopy={async () => {
+            try {
+              await navigator.clipboard.writeText(apptLinkReview.message ?? '');
+              setApptLinkReview((prev) => (prev ? { ...prev, copied: true } : null));
+            } catch {
+              // ignore
+            }
+          }}
+        />
       )}
 
       {/* Upload link review modal */}
       {uploadLinkReview !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/20"
-          onClick={() => setUploadLinkReview(null)}
-        >
-          <div
-            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="mb-1 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">Αποστολή link φωτογραφιών</h2>
-              <button
-                type="button"
-                onClick={() => setUploadLinkReview(null)}
-                aria-label="Κλείσιμο"
-                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
-              >
-                <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            {!uploadLinkReview.loading && uploadLinkReview.message && !uploadLinkReview.sent && (
-              <p className="mb-3 text-xs text-zinc-400">Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις.</p>
-            )}
-
-            {/* Loading state */}
-            {uploadLinkReview.loading && (
-              <div className="flex items-center gap-3 py-4">
-                <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
-                <p className="text-sm text-zinc-500">Ετοιμάζεται το link φωτογραφιών...</p>
-              </div>
-            )}
-
-            {/* Draft failed */}
-            {!uploadLinkReview.loading && !uploadLinkReview.message && uploadLinkReview.error && (
-              <>
-                <p className="mb-4 rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
-                  {uploadLinkReview.error}
-                </p>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setUploadLinkReview(null)}
-                    className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* Main content: shown once message is available */}
-            {!uploadLinkReview.loading && uploadLinkReview.message && (
-              <>
-                {uploadLinkReview.recipient && (
-                  <p className="mb-2 text-xs text-zinc-500">
-                    {'Παραλήπτης Viber: '}
-                    <span className="font-medium text-zinc-700">{uploadLinkReview.recipient}</span>
-                  </p>
-                )}
-
-                <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
-                <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
-                  {uploadLinkReview.message}
-                </div>
-
-                {/* Success banner */}
-                {uploadLinkReview.sent && (
-                  <div className="mb-3 rounded-xl bg-green-50 px-3 py-2.5 text-sm font-medium text-green-700">
-                    Το link φωτογραφιών στάλθηκε με Viber.
-                  </div>
-                )}
-
-                {/* Send error / fallback banner */}
-                {uploadLinkReview.error && !uploadLinkReview.sent && (
-                  <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                    {uploadLinkReview.error}
-                  </div>
-                )}
-
-                {/* Primary: Viber send button (hidden after success) */}
-                {!uploadLinkReview.sent && (
-                  <button
-                    type="button"
-                    disabled={uploadLinkReview.sending}
-                    onClick={async () => {
-                      const review = uploadLinkReview;
-                      const supabase = createBrowserSupabaseClient();
-                      const { data: { session: s } } = await supabase.auth.getSession();
-                      if (!s) {
-                        setUploadLinkReview({ ...review, error: 'Δεν βρέθηκε session. Δοκίμασε ξανά.' });
-                        return;
-                      }
-                      setUploadLinkReview({ ...review, sending: true, error: null });
-                      try {
-                        const res = await fetch(`/api/customers/${customerId}/upload-link`, {
-                          method: 'POST',
-                          headers: {
-                            'Content-Type': 'application/json',
-                            Authorization: `Bearer ${s.access_token}`,
-                          },
-                          body: JSON.stringify({ mode: 'send', responseUrl: review.responseUrl }),
-                        });
-                        const json = await res.json() as {
-                          ok?: boolean;
-                          sent?: boolean;
-                          fallbackReason?: string;
-                        };
-                        if (!res.ok || !json.ok) {
-                          setUploadLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                          return;
-                        }
-                        if (json.sent) {
-                          setUploadLinkReview({ ...review, sending: false, sent: true, error: null });
-                        } else {
-                          const reason = json.fallbackReason;
-                          const fallbackMsg =
-                            reason === 'missing_mobile' || reason === 'missing_customer'
-                              ? 'Δεν υπάρχει διαθέσιμο κινητό για αποστολή Viber.'
-                              : reason === 'provider_unavailable'
-                              ? 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.'
-                              : 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.';
-                          setUploadLinkReview({ ...review, sending: false, error: fallbackMsg });
-                        }
-                      } catch {
-                        setUploadLinkReview({ ...review, sending: false, error: 'Αποτυχία αποστολής. Δοκίμασε ξανά.' });
-                      }
-                    }}
-                    className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {uploadLinkReview.sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
-                  </button>
-                )}
-
-                {/* Secondary buttons row */}
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      try {
-                        await navigator.clipboard.writeText(uploadLinkReview.message ?? '');
-                        setUploadLinkReview(prev => prev ? { ...prev, copied: true } : null);
-                      } catch {
-                        // ignore
-                      }
-                    }}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    {uploadLinkReview.copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
-                  </button>
-                  {uploadLinkReview.responseUrl && (
-                    <button
-                      type="button"
-                      onClick={() => window.open(uploadLinkReview.responseUrl!, '_blank', 'noopener,noreferrer')}
-                      className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                    >
-                      Άνοιγμα link
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => setUploadLinkReview(null)}
-                    className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
+        <SendViaViberModal
+          title="Αποστολή link φωτογραφιών"
+          subtitle="Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις."
+          loadingText="Ετοιμάζεται το link φωτογραφιών..."
+          successText="Το link φωτογραφιών στάλθηκε με Viber."
+          loading={uploadLinkReview.loading}
+          message={uploadLinkReview.message}
+          recipient={uploadLinkReview.recipient}
+          responseUrl={uploadLinkReview.responseUrl}
+          sending={uploadLinkReview.sending}
+          sent={uploadLinkReview.sent}
+          error={uploadLinkReview.error}
+          copied={uploadLinkReview.copied}
+          onClose={() => setUploadLinkReview(null)}
+          onSend={() =>
+            executeViberSend({
+              endpoint: `/api/customers/${customerId}/upload-link`,
+              body: { responseUrl: uploadLinkReview.responseUrl },
+              update: (patch) => setUploadLinkReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
+              defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
+            })
+          }
+          onCopy={async () => {
+            try {
+              await navigator.clipboard.writeText(uploadLinkReview.message ?? '');
+              setUploadLinkReview((prev) => (prev ? { ...prev, copied: true } : null));
+            } catch {
+              // ignore
+            }
+          }}
+        />
       )}
 
       {/* Quick action modals */}
