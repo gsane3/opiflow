@@ -15,6 +15,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authenticateBusinessRequest } from '@/lib/api/auth';
 import {
   createServiceSupabaseClient,
   createAppointmentResponseToken,
@@ -29,12 +30,6 @@ export const runtime = 'nodejs';
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function getBearerToken(request: NextRequest): string | null {
-  const h = request.headers.get('authorization');
-  if (!h || !h.startsWith('Bearer ')) return null;
-  return h.slice(7);
-}
 
 function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
@@ -165,36 +160,13 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });
   }
 
-  const token = getBearerToken(request);
-  if (!token) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
-  }
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, userId, businessId } = auth.ctx;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const business = await getBusiness(supabase, user.id);
-    if (!business) {
-      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-    const businessId = business.id;
-    const businessName = business.name ?? null;
+    const business = await getBusiness(supabase, userId);
+    const businessName = business?.name ?? null;
 
     let body: unknown;
     try {

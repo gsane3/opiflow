@@ -3,33 +3,13 @@
 // offer_response_tokens and appointment_response_tokens.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authenticateBusinessRequest } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
-
-function getBearerToken(request: NextRequest): string | null {
-  const h = request.headers.get('authorization');
-  if (!h || !h.startsWith('Bearer ')) return null;
-  return h.slice(7);
-}
-
-async function getBusinessId(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('id')
-    .eq('owner_id', userId)
-    .maybeSingle();
-  return (data as unknown as { id: string } | null)?.id ?? null;
-}
 
 function isWithin24h(respondedAt: string): boolean {
   try {
@@ -117,37 +97,17 @@ function customerDisplayName(c: CustomerRow | undefined): string {
 // ---------------------------------------------------------------------------
 
 export async function GET(request: NextRequest) {
-  const token = getBearerToken(request);
-  if (!token) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: 'notifications_query_failed' }, { status: 500 });
-  }
-
-  try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const businessId = await getBusinessId(supabase, user.id);
-    if (!businessId) {
-      // No business yet: return empty list rather than 404 to avoid breaking the bell.
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) {
+    // No business yet: return empty list rather than 404 to avoid breaking the bell.
+    if (auth.error.status === 404) {
       return NextResponse.json({ ok: true, notifications: [] });
     }
+    return auth.error;
+  }
+  const { supabase, businessId } = auth.ctx;
 
+  try {
     // -------------------------------------------------------------------------
     // 1. Offer response tokens
     // -------------------------------------------------------------------------

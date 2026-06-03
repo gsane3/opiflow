@@ -3,6 +3,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authenticateBusinessRequest } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
@@ -96,25 +97,7 @@ function isValidEnum<T extends string>(
   return typeof value === 'string' && (validValues as readonly string[]).includes(value);
 }
 
-function getBearerToken(request: NextRequest): string | null {
-  const h = request.headers.get('authorization');
-  if (!h || !h.startsWith('Bearer ')) return null;
-  return h.slice(7);
-}
-
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
-
-async function getBusinessId(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('id')
-    .eq('owner_id', userId)
-    .maybeSingle();
-  return (data as unknown as { id: string } | null)?.id ?? null;
-}
 
 async function validateCustomerBelongsToBusiness(
   supabase: SupabaseClient,
@@ -247,35 +230,11 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const token = getBearerToken(request);
-  if (!token) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: 'offer_query_failed' }, { status: 500 });
-  }
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const businessId = await getBusinessId(supabase, user.id);
-    if (!businessId) {
-      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
     const { id } = await params;
 
     const { data, error } = await supabase
@@ -316,35 +275,11 @@ export async function PATCH(
     );
   }
 
-  const token = getBearerToken(request);
-  if (!token) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: 'offer_update_failed' }, { status: 500 });
-  }
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const businessId = await getBusinessId(supabase, user.id);
-    if (!businessId) {
-      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
     const { id } = await params;
 
     let body: unknown;

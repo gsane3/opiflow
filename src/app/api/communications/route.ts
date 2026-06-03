@@ -4,7 +4,7 @@
 // because the service-role client bypasses RLS.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authenticateBusinessRequest } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
@@ -22,8 +22,6 @@ const COMMUNICATION_COLUMNS = [
 const VALID_CHANNELS = ['call', 'sms', 'viber', 'email'] as const;
 const VALID_DIRECTIONS = ['inbound', 'outbound'] as const;
 const VALID_POST_STATUSES = ['completed', 'failed'] as const;
-
-type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
 
 interface CommunicationRow {
   id: string;
@@ -46,30 +44,11 @@ interface CommunicationCustomerRow {
   status: string | null;
 }
 
-function getBearerToken(request: NextRequest): string | null {
-  const h = request.headers.get('authorization');
-  if (!h || !h.startsWith('Bearer ')) return null;
-  return h.slice(7);
-}
-
 function isValidEnum<T extends string>(
   value: unknown,
   validValues: readonly T[]
 ): value is T {
   return typeof value === 'string' && (validValues as readonly string[]).includes(value);
-}
-
-async function getBusinessId(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('id')
-    .eq('owner_id', userId)
-    .maybeSingle();
-
-  return (data as unknown as { id: string } | null)?.id ?? null;
 }
 
 function asCommunicationRow(value: unknown): CommunicationRow {
@@ -107,36 +86,11 @@ function jsonNoStore(body: object, init?: ResponseInit): NextResponse {
 }
 
 export async function GET(request: NextRequest) {
-  const token = getBearerToken(request);
-  if (!token) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: 'communications_query_failed' }, { status: 500 });
-  }
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const businessId = await getBusinessId(supabase, user.id);
-    if (!businessId) {
-      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
     const { searchParams } = request.nextUrl;
     const channelParam = searchParams.get('channel');
     const directionParam = searchParams.get('direction');
@@ -219,36 +173,11 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const token = getBearerToken(request);
-  if (!token) {
-    return jsonNoStore({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return jsonNoStore({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return jsonNoStore({ ok: false, error: 'communications_create_failed' }, { status: 500 });
-  }
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return jsonNoStore({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const businessId = await getBusinessId(supabase, user.id);
-    if (!businessId) {
-      return jsonNoStore({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
     let body: Record<string, unknown>;
     try {
       body = await request.json();
@@ -321,36 +250,11 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const token = getBearerToken(request);
-  if (!token) {
-    return jsonNoStore({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return jsonNoStore({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return jsonNoStore({ ok: false, error: 'communication_delete_failed' }, { status: 500 });
-  }
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return jsonNoStore({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const businessId = await getBusinessId(supabase, user.id);
-    if (!businessId) {
-      return jsonNoStore({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
     const id = request.nextUrl.searchParams.get('id');
     if (!id) {
       return jsonNoStore({ ok: false, error: 'missing_id' }, { status: 400 });
@@ -389,36 +293,11 @@ export async function DELETE(request: NextRequest) {
 }
 
 export async function PATCH(request: NextRequest) {
-  const token = getBearerToken(request);
-  if (!token) {
-    return jsonNoStore({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: SupabaseClient;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return jsonNoStore({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return jsonNoStore({ ok: false, error: 'communication_update_failed' }, { status: 500 });
-  }
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   try {
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return jsonNoStore({ ok: false, error: 'invalid_auth' }, { status: 401 });
-    }
-
-    const businessId = await getBusinessId(supabase, user.id);
-    if (!businessId) {
-      return jsonNoStore({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
     const id = request.nextUrl.searchParams.get('id');
     if (!id) {
       return jsonNoStore({ ok: false, error: 'missing_id' }, { status: 400 });

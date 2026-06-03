@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authenticateBusinessRequest } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
@@ -12,24 +12,6 @@ const EMAIL_PROVIDER_TIMEOUT_MS = 15_000;
 const EMAIL_SEND_RATE_LIMIT_MAX = 5;
 const EMAIL_SEND_RATE_LIMIT_WINDOW_MS = 60_000;
 const emailSendRateLimitStore = new Map<string, { count: number; resetAt: number }>();
-
-function getBearerToken(req: NextRequest): string | null {
-  const h = req.headers.get('authorization');
-  if (!h || !h.startsWith('Bearer ')) return null;
-  return h.slice(7);
-}
-
-async function getBusinessId(
-  supabase: ReturnType<typeof createServerSupabaseClient>,
-  userId: string
-): Promise<string | null> {
-  const { data } = await supabase
-    .from('businesses')
-    .select('id')
-    .eq('owner_id', userId)
-    .maybeSingle();
-  return (data as { id?: string } | null)?.id ?? null;
-}
 
 function getClientIp(req: NextRequest): string {
   const forwarded = req.headers.get('x-forwarded-for');
@@ -50,34 +32,9 @@ function isRateLimited(ip: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
-  const token = getBearerToken(req);
-  if (!token) {
-    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401 });
-  }
-
-  let supabase: ReturnType<typeof createServerSupabaseClient>;
-  try {
-    supabase = createServerSupabaseClient();
-  } catch (err) {
-    if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
-    }
-    return NextResponse.json({ ok: false, error: 'email_send_failed' }, { status: 500 });
-  }
-
-  const {
-    data: { user },
-    error: authError,
-  } = await supabase.auth.getUser(token);
-
-  if (authError || !user) {
-    return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
-  }
-
-  const businessId = await getBusinessId(supabase, user.id);
-  if (!businessId) {
-    return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
-  }
+  const auth = await authenticateBusinessRequest(req);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
 
   if (isRateLimited(getClientIp(req))) {
     return NextResponse.json({ ok: false, error: 'rate_limited' }, { status: 429 });
