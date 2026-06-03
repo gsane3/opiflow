@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { RequireAdmin } from '@/components/admin/RequireAdmin';
 
 interface CustomerDto {
   id: string;
@@ -51,7 +52,7 @@ function customerTitle(customer: CustomerDto): string {
   return customer.name ?? customer.companyName ?? customer.crmNumber ?? 'Customer';
 }
 
-export default function BackendCustomersListPage() {
+function BackendCustomersListPageInner() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('Press load to view backend customers.');
   const [customers, setCustomers] = useState<CustomerDto[]>([]);
@@ -165,5 +166,13 @@ export default function BackendCustomersListPage() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function BackendCustomersListPage() {
+  return (
+    <RequireAdmin>
+      <BackendCustomersListPageInner />
+    </RequireAdmin>
   );
 }

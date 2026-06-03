@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { RequireAdmin } from '@/components/admin/RequireAdmin';
 
 interface CustomerDto {
   id: string;
@@ -57,7 +58,7 @@ function customerTitle(customer: CustomerDto | null): string {
   return customer.name ?? customer.companyName ?? customer.crmNumber ?? 'Linked customer';
 }
 
-export default function CommunicationsBackendPage() {
+function CommunicationsBackendPageInner() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string>('Πάτησε φόρτωση για να δεις τις πρόσφατες πραγματικές κλήσεις.');
   const [items, setItems] = useState<CommunicationDto[]>([]);
@@ -172,5 +173,13 @@ export default function CommunicationsBackendPage() {
         )}
       </section>
     </main>
+  );
+}
+
+export default function CommunicationsBackendPage() {
+  return (
+    <RequireAdmin>
+      <CommunicationsBackendPageInner />
+    </RequireAdmin>
   );
 }

@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { RequireAdmin } from '@/components/admin/RequireAdmin';
 
 // ---------------------------------------------------------------------------
 // Types matching the API response
@@ -148,7 +149,7 @@ function importErrorMessage(error: string | undefined): string {
 // Page
 // ---------------------------------------------------------------------------
 
-export default function PhonePoolBackendPage() {
+function PhonePoolBackendPageInner() {
   // Pool state
   const [loading, setLoading] = useState(false);
   const [loadMessage, setLoadMessage] = useState<string | null>(null);
@@ -842,5 +843,13 @@ export default function PhonePoolBackendPage() {
       </section>
 
     </main>
+  );
+}
+
+export default function PhonePoolBackendPage() {
+  return (
+    <RequireAdmin>
+      <PhonePoolBackendPageInner />
+    </RequireAdmin>
   );
 }

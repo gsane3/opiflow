@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { RequireAdmin } from '@/components/admin/RequireAdmin';
 
 type PageState = 'loading' | 'no_config' | 'no_session' | 'loading_business' | 'no_business' | 'ready' | 'error';
 
@@ -45,7 +46,7 @@ function Field({ label, value }: { label: string; value: string | number | null 
   );
 }
 
-export default function BusinessBackendPage() {
+function BusinessBackendPageInner() {
   const [state, setState] = useState<PageState>('loading');
   const [business, setBusiness] = useState<Business | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -235,5 +236,13 @@ export default function BusinessBackendPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function BusinessBackendPage() {
+  return (
+    <RequireAdmin>
+      <BusinessBackendPageInner />
+    </RequireAdmin>
   );
 }

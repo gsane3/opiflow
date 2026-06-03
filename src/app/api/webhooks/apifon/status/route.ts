@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 
 export const runtime = 'nodejs';
 
@@ -196,7 +197,7 @@ export async function POST(request: NextRequest) {
     const url = new URL(request.url);
     const querySecret = url.searchParams.get('secret') ?? '';
     const headerSecret = request.headers.get('x-apifon-webhook-secret') ?? '';
-    if (querySecret !== webhookSecret && headerSecret !== webhookSecret) {
+    if (!timingSafeEqualSecret(querySecret, webhookSecret) && !timingSafeEqualSecret(headerSecret, webhookSecret)) {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
   } else if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {

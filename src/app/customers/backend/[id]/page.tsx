@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { RequireAdmin } from '@/components/admin/RequireAdmin';
 
 // ---------------------------------------------------------------------------
 // DTOs
@@ -189,7 +190,7 @@ type TimelineItem =
   | { kind: 'comm'; item: CommunicationDto; date: string }
   | { kind: 'task'; item: TaskDto; date: string };
 
-export default function BackendCustomerDetailPage() {
+function BackendCustomerDetailPageInner() {
   const params = useParams<{ id: string }>();
   const customerId = params.id;
 
@@ -674,5 +675,13 @@ export default function BackendCustomerDetailPage() {
       </section>
 
     </div>
+  );
+}
+
+export default function BackendCustomerDetailPage() {
+  return (
+    <RequireAdmin>
+      <BackendCustomerDetailPageInner />
+    </RequireAdmin>
   );
 }

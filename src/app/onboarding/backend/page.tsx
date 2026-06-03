@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { RequireAdmin } from '@/components/admin/RequireAdmin';
 
 type SessionState = 'loading' | 'no_config' | 'no_session' | 'ready';
 type AdminState = 'checking' | 'ok' | 'forbidden' | 'not_configured' | 'error';
@@ -13,7 +14,7 @@ interface BusinessResult {
   name: string;
 }
 
-export default function OnboardingBackendPage() {
+function OnboardingBackendPageInner() {
   const [sessionState, setSessionState] = useState<SessionState>('loading');
   const [adminState, setAdminState] = useState<AdminState>('checking');
   const [accessToken, setAccessToken] = useState<string | null>(null);
@@ -290,5 +291,13 @@ export default function OnboardingBackendPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+export default function OnboardingBackendPage() {
+  return (
+    <RequireAdmin>
+      <OnboardingBackendPageInner />
+    </RequireAdmin>
   );
 }

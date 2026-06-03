@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { transcribeAndBriefCallAudio } from '@/lib/server/openai-call-audio';
+import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -35,7 +36,7 @@ export async function POST(request: NextRequest) {
   const webhookSecret = process.env.PBX_WEBHOOK_SECRET ?? '';
   if (webhookSecret) {
     const headerSecret = request.headers.get('x-pbx-webhook-secret') ?? '';
-    if (headerSecret !== webhookSecret) {
+    if (!timingSafeEqualSecret(headerSecret, webhookSecret)) {
       return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
     }
   } else if (process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {
