@@ -86,6 +86,9 @@ interface Notification {
   href: string;
   respondedAt: string;
   isNew: boolean;
+  taskId: string | null;
+  requestedDueDate: string | null;
+  requestedDueTime: string | null;
 }
 
 function customerDisplayName(c: CustomerRow | undefined): string {
@@ -244,6 +247,9 @@ export async function GET(request: NextRequest) {
         href: customerId ? `/customers/${customerId}` : '/offers',
         respondedAt: tok.responded_at,
         isNew: isWithin24h(tok.responded_at),
+        taskId: null,
+        requestedDueDate: null,
+        requestedDueTime: null,
       };
     });
 
@@ -293,6 +299,9 @@ export async function GET(request: NextRequest) {
         href: customerId ? `/customers/${customerId}` : '/tasks',
         respondedAt: tok.responded_at,
         isNew: isWithin24h(tok.responded_at),
+        taskId: tok.task_id,
+        requestedDueDate: tok.requested_due_date,
+        requestedDueTime: tok.requested_due_time,
       };
     });
 
