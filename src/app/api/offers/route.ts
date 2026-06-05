@@ -175,6 +175,11 @@ function calculateTotals(
 }
 
 // Generate the next OFFER-YYYY-N number for the business.
+// The running number N is a single business-global sequence shared across ALL
+// customers and ALL years: customer A getting OFFER-2026-15 means customer B's
+// next offer is OFFER-2026-16. We derive N from the highest trailing number across
+// every existing offer_number for the business (regardless of year prefix) + 1, so
+// the sequence never resets. The current year is still used in the visible prefix.
 // Race risk is acceptable at private beta scale, consistent with crm_number in customers API.
 async function generateOfferNumber(
   supabase: SupabaseClient,
@@ -185,11 +190,16 @@ async function generateOfferNumber(
   const { data } = await supabase
     .from('offers')
     .select('offer_number')
-    .eq('business_id', businessId)
-    .like('offer_number', `${prefix}%`);
+    .eq('business_id', businessId);
   let maxN = 0;
-  for (const row of ((data ?? []) as unknown as { offer_number: string }[])) {
-    const n = parseInt(row.offer_number.slice(prefix.length), 10);
+  for (const row of ((data ?? []) as unknown as { offer_number: string | null }[])) {
+    const num = row.offer_number;
+    if (!num) continue;
+    // Take the trailing integer regardless of the prefix/year so the sequence is
+    // a single global running counter for the whole business.
+    const match = num.match(/(\d+)\s*$/);
+    if (!match) continue;
+    const n = parseInt(match[1], 10);
     if (!isNaN(n) && n > maxN) maxN = n;
   }
   return `${prefix}${maxN + 1}`;

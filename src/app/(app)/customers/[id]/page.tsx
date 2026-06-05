@@ -312,18 +312,6 @@ export default function CustomerDetailPage() {
   const [customerSaveState, setCustomerSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [customerSaveError, setCustomerSaveError] = useState<string | null>(null);
 
-  const [isAiSuggesting, setIsAiSuggesting] = useState(false);
-  const [aiSuggestError, setAiSuggestError] = useState<string | null>(null);
-  const [aiSuggestionActive, setAiSuggestionActive] = useState(false);
-  const [aiSuggestionWarnings, setAiSuggestionWarnings] = useState<string[]>([]);
-  const [aiSuggestionConfidence, setAiSuggestionConfidence] = useState<'low' | 'medium' | 'high' | null>(null);
-  const [aiPreviousMemory, setAiPreviousMemory] = useState<{
-    statusSummary: string | null;
-    businessNotes: string | null;
-    personalNotes: string | null;
-    nextBestAction: string | null;
-  } | null>(null);
-
   const [isRejectPanelOpen, setIsRejectPanelOpen] = useState(false);
   const [rejectDraftText, setRejectDraftText] = useState('');
   const [rejectSaveState, setRejectSaveState] = useState<'idle' | 'copying' | 'saving' | 'saved' | 'error'>('idle');
@@ -337,6 +325,8 @@ export default function CustomerDetailPage() {
   const [taskNote, setTaskNote] = useState('');
   const [taskSaving, setTaskSaving] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
+  // Task wizard step (1: τίτλος, 2: ημερομηνία, 3: σημείωση).
+  const [taskStep, setTaskStep] = useState(1);
 
   const [apptTitle, setApptTitle] = useState('');
   const [apptDate, setApptDate] = useState('');
@@ -344,6 +334,17 @@ export default function CustomerDetailPage() {
   const [apptNote, setApptNote] = useState('');
   const [apptSaving, setApptSaving] = useState(false);
   const [apptError, setApptError] = useState<string | null>(null);
+  // Appointment wizard step (1: τίτλος, 2: ημερομηνία, 3: ώρα, 4: αποστολή).
+  const [apptStep, setApptStep] = useState(1);
+  // True once the appointment has been saved (entering step 4) so we don't
+  // re-create it if the operator stays on the send step.
+  const [apptSaved, setApptSaved] = useState(false);
+  // The appointment task created in step 4 (drives the Viber send wiring).
+  const [createdApptTask, setCreatedApptTask] = useState<TaskDto | null>(null);
+
+  // Prominent status control (under the hero). Reuses the customer PATCH path.
+  const [statusSaving, setStatusSaving] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   const [offerSaveError, setOfferSaveError] = useState<string | null>(null);
 
@@ -586,17 +587,8 @@ export default function CustomerDetailPage() {
     };
   }
 
-  function clearAiState() {
-    setAiSuggestionActive(false);
-    setAiSuggestionWarnings([]);
-    setAiSuggestionConfidence(null);
-    setAiPreviousMemory(null);
-    setAiSuggestError(null);
-  }
-
   function startEditContact() {
     if (!customer) return;
-    clearAiState();
     setCustomerDraft(buildCustomerDraft(customer));
     setEditMode('contact');
     setCustomerSaveError(null);
@@ -605,7 +597,6 @@ export default function CustomerDetailPage() {
 
   function startEditMemory() {
     if (!customer) return;
-    clearAiState();
     setCustomerDraft(buildCustomerDraft(customer));
     setEditMode('memory');
     setCustomerSaveError(null);
@@ -614,7 +605,6 @@ export default function CustomerDetailPage() {
 
   function startEditNotes() {
     if (!customer) return;
-    clearAiState();
     setCustomerDraft(buildCustomerDraft(customer));
     setEditMode('notes');
     setCustomerSaveError(null);
@@ -626,88 +616,39 @@ export default function CustomerDetailPage() {
     setCustomerDraft(null);
     setCustomerSaveError(null);
     setCustomerSaveState('idle');
-    setAiSuggestionActive(false);
-    setAiSuggestionWarnings([]);
-    setAiSuggestionConfidence(null);
-    setAiPreviousMemory(null);
   }
 
-  async function suggestMemoryUpdate() {
-    if (!customer) return;
-    setIsAiSuggesting(true);
-    setAiSuggestError(null);
-    setAiSuggestionWarnings([]);
-    setAiSuggestionConfidence(null);
+  // Prominent status control: PATCH only the status field (same endpoint the
+  // edit card used) and update the customer in place.
+  async function updateCustomerStatus(nextStatus: string) {
+    if (!customer || nextStatus === customer.status) return;
+    setStatusSaving(nextStatus);
+    setStatusError(null);
     try {
       const supabase = createBrowserSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setAiSuggestError('Δεν βρέθηκε ενεργή σύνδεση. Δοκίμασε ξανά.');
+        setStatusError('Δεν αποθηκεύτηκε η αλλαγή. Δοκίμασε ξανά.');
         return;
       }
-      const res = await fetch('/api/ai/customer-memory', {
-        method: 'POST',
+      const res = await fetch(`/api/customers/${customerId}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ customerId: customer.id, triggerEvent: 'manual' }),
+        body: JSON.stringify({ status: nextStatus }),
       });
-      const json = await res.json() as {
-        ok?: boolean;
-        suggestion?: {
-          proposedStatusSummary: string | null;
-          proposedBusinessNotes: string | null;
-          proposedPersonalNotes: string | null;
-          proposedNextBestAction: string | null;
-          confidence: 'low' | 'medium' | 'high';
-          warnings: string[];
-        };
-        error?: string;
-      };
-      if (!res.ok || !json.ok || !json.suggestion) {
-        if (res.status === 429) {
-          setAiSuggestError('Πολλές αιτήσεις. Περίμενε λίγο και δοκίμασε ξανά.');
-        } else {
-          setAiSuggestError('Αδυναμία πρότασης από AI. Δοκίμασε ξανά.');
-        }
-        return;
+      const json = await res.json() as { ok?: boolean; customer?: CustomerDto; error?: string };
+      if (res.ok && json.ok && json.customer) {
+        setCustomer(json.customer);
+      } else {
+        setStatusError('Δεν αποθηκεύτηκε η αλλαγή. Δοκίμασε ξανά.');
       }
-      const s = json.suggestion;
-      setAiPreviousMemory({
-        statusSummary: customer.statusSummary ?? null,
-        businessNotes: customer.businessNotes ?? null,
-        personalNotes: customer.personalNotes ?? null,
-        nextBestAction: customer.nextBestAction ?? null,
-      });
-      setCustomerDraft({
-        name: customer.name,
-        companyName: customer.companyName,
-        phone: customer.phone,
-        mobilePhone: customer.mobilePhone,
-        landlinePhone: customer.landlinePhone,
-        email: customer.email,
-        address: customer.address,
-        status: customer.status,
-        source: customer.source,
-        preferredContactMethod: customer.preferredContactMethod,
-        needsSummary: customer.needsSummary,
-        notes: customer.notes,
-        statusSummary: s.proposedStatusSummary ?? customer.statusSummary ?? null,
-        businessNotes: s.proposedBusinessNotes ?? customer.businessNotes ?? null,
-        personalNotes: s.proposedPersonalNotes ?? customer.personalNotes ?? null,
-        nextBestAction: s.proposedNextBestAction ?? customer.nextBestAction ?? null,
-      });
-      setEditMode('memory');
-      setAiSuggestionActive(true);
-      setAiSuggestionConfidence(s.confidence);
-      setAiSuggestionWarnings(s.warnings);
-      setCustomerSaveError(null);
-      setCustomerSaveState('idle');
     } catch {
-      setAiSuggestError('Αδυναμία πρότασης από AI. Δοκίμασε ξανά.');
+      setStatusError('Δεν αποθηκεύτηκε η αλλαγή. Δοκίμασε ξανά.');
     } finally {
-      setIsAiSuggesting(false);
+      setStatusSaving(null);
     }
   }
 
@@ -737,10 +678,6 @@ export default function CustomerDetailPage() {
         setCustomerSaveState('saved');
         setEditMode(null);
         setCustomerDraft(null);
-        setAiSuggestionActive(false);
-        setAiSuggestionWarnings([]);
-        setAiSuggestionConfidence(null);
-        setAiPreviousMemory(null);
         setTimeout(() => setCustomerSaveState('idle'), 2500);
       } else {
         setCustomerSaveState('error');
@@ -835,12 +772,16 @@ export default function CustomerDetailPage() {
     setTaskNote('');
     setTaskSaving(false);
     setTaskError(null);
+    setTaskStep(1);
     setApptTitle('');
     setApptDate('');
     setApptTime('');
     setApptNote('');
     setApptSaving(false);
     setApptError(null);
+    setApptStep(1);
+    setApptSaved(false);
+    setCreatedApptTask(null);
     setOfferSaveError(null);
   }
 
@@ -851,18 +792,23 @@ export default function CustomerDetailPage() {
     return `${year}-${month}-${day}`;
   }
 
-  async function saveAppointmentFromModal() {
+  // Saves the appointment task and returns the created task (or null on
+  // failure). Used by the wizard when entering step 4 ("Αποστολή"); the modal
+  // stays open so the operator can pick Viber/Email. Validation is identical to
+  // before; the wizard also guards each step, so reaching here means the three
+  // required fields are present.
+  async function saveAppointmentFromModal(): Promise<TaskDto | null> {
     if (!apptTitle.trim()) {
       setApptError('Συμπλήρωσε τίτλο ραντεβού.');
-      return;
+      return null;
     }
     if (!apptDate) {
       setApptError('Συμπλήρωσε ημερομηνία.');
-      return;
+      return null;
     }
     if (!apptTime) {
       setApptError('Συμπλήρωσε ώρα.');
-      return;
+      return null;
     }
     setApptSaving(true);
     setApptError(null);
@@ -872,7 +818,7 @@ export default function CustomerDetailPage() {
       if (!session) {
         setApptSaving(false);
         setApptError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
-        return;
+        return null;
       }
       const res = await fetch('/api/tasks', {
         method: 'POST',
@@ -891,18 +837,80 @@ export default function CustomerDetailPage() {
           note: apptNote.trim() || null,
         }),
       });
-      const json = await res.json() as { ok?: boolean; error?: string };
-      if (res.ok && json.ok) {
-        closeQuickModal();
+      const json = await res.json() as { ok?: boolean; task?: TaskDto; error?: string };
+      if (res.ok && json.ok && json.task) {
+        setApptSaving(false);
+        setApptSaved(true);
         setRefreshTick(t => t + 1);
+        return json.task;
       } else {
         setApptSaving(false);
         setApptError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+        return null;
       }
     } catch {
       setApptSaving(false);
       setApptError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+      return null;
     }
+  }
+
+  // Builds a mailto: link prefilled with the appointment title/date/time and,
+  // when present, the customer's response link. Used by step 4 (Email option).
+  function buildAppointmentMailto(responseUrl: string | null): string {
+    const to = customer?.email ?? '';
+    const subject = `Ραντεβού: ${apptTitle.trim()}`;
+    const dt = apptTime ? `${apptDate} ${apptTime}` : apptDate;
+    const lines = [
+      'Καλησπέρα σας,',
+      '',
+      `Σας προτείνουμε ραντεβού με θέμα: ${apptTitle.trim()}.`,
+      `Ημερομηνία και ώρα: ${dt}.`,
+    ];
+    if (responseUrl) {
+      lines.push('', `Για επιβεβαίωση ή αλλαγή, χρησιμοποιήστε τον σύνδεσμο: ${responseUrl}`);
+    }
+    lines.push('', 'Ευχαριστούμε.');
+    const body = lines.join('\n');
+    return `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
+  // Wizard "Next" handler. When advancing into step 4, save the appointment
+  // first (once) and, if the operator picked Viber later, the just-created task
+  // drives the existing appointment-link send flow.
+  async function appointmentWizardNext() {
+    if (apptStep === 1) {
+      if (!apptTitle.trim()) { setApptError('Συμπλήρωσε τίτλο ραντεβού.'); return; }
+      setApptError(null);
+      setApptStep(2);
+      return;
+    }
+    if (apptStep === 2) {
+      if (!apptDate) { setApptError('Συμπλήρωσε ημερομηνία.'); return; }
+      setApptError(null);
+      setApptStep(3);
+      return;
+    }
+    if (apptStep === 3) {
+      if (!apptTime) { setApptError('Συμπλήρωσε ώρα.'); return; }
+      setApptError(null);
+      // Save on entering the send step (only once).
+      if (!apptSaved) {
+        const created = await saveAppointmentFromModal();
+        if (!created) return; // stay on step 3, error already shown
+        setCreatedApptTask(created);
+      }
+      setApptStep(4);
+    }
+  }
+
+  // Step 4 → Viber: close the wizard and open the existing appointment-link
+  // review/send modal for the just-created appointment.
+  function sendAppointmentViaViber() {
+    if (!createdApptTask) return;
+    const task = createdApptTask;
+    closeQuickModal();
+    void openApptLinkModal(task);
   }
 
   async function saveOfferFromCustomerForm(offer: Offer) {
@@ -1279,6 +1287,22 @@ export default function CustomerDetailPage() {
     }
   }
 
+  // Task wizard "Next": validate the current step, then advance.
+  function taskWizardNext() {
+    if (taskStep === 1) {
+      if (!taskTitle.trim()) { setTaskError('Συμπλήρωσε τι θέλετε να κάνετε.'); return; }
+      setTaskError(null);
+      setTaskStep(2);
+      return;
+    }
+    if (taskStep === 2) {
+      // Date is prefilled to today, but guard anyway.
+      if (!taskDate) { setTaskError('Συμπλήρωσε ημερομηνία.'); return; }
+      setTaskError(null);
+      setTaskStep(3);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Edit task/appointment helpers
   // ---------------------------------------------------------------------------
@@ -1613,6 +1637,45 @@ export default function CustomerDetailPage() {
         )}
       </section>
 
+      {/* Prominent status control */}
+      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+        <div className="mb-2.5 flex items-center justify-between gap-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Κατάσταση πελάτη</h2>
+          {statusSaving && (
+            <span className="text-xs font-medium text-indigo-500">Αποθήκευση...</span>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {Object.entries(STATUS_LABELS).map(([key, label]) => {
+            const active = customer.status === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => updateCustomerStatus(key)}
+                disabled={statusSaving !== null || editMode !== null}
+                aria-pressed={active}
+                className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
+                  active
+                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
+                    : 'bg-zinc-50 text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-100'
+                } ${statusSaving === key ? 'opacity-70' : ''}`}
+              >
+                {label}
+              </button>
+            );
+          })}
+        </div>
+        {editMode !== null && (
+          <p className="mt-2.5 text-xs text-zinc-400">Ολοκλήρωσε πρώτα την επεξεργασία στοιχείων για να αλλάξεις κατάσταση.</p>
+        )}
+        {statusError && (
+          <p className="mt-2.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 ring-1 ring-red-100">
+            {statusError}
+          </p>
+        )}
+      </section>
+
       {/* Reject panel */}
       {isRejectPanelOpen && (
         <div className="rounded-2xl bg-red-50 p-4 ring-1 ring-red-200 space-y-3">
@@ -1943,18 +2006,6 @@ export default function CustomerDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Status</label>
-                <select
-                  value={customerDraft.status}
-                  onChange={e => setCustomerDraft(d => d ? { ...d, status: e.target.value } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                >
-                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                    <option key={k} value={k}>{v}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-500">Πηγή</label>
                 <select
                   value={customerDraft.source ?? ''}
@@ -2056,14 +2107,6 @@ export default function CustomerDetailPage() {
             <div className="flex items-center gap-2 shrink-0">
               <button
                 type="button"
-                onClick={suggestMemoryUpdate}
-                disabled={isAiSuggesting}
-                className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {isAiSuggesting ? 'Ανάλυση...' : 'Πρότεινε με AI'}
-              </button>
-              <button
-                type="button"
                 onClick={startEditMemory}
                 className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
               >
@@ -2073,36 +2116,8 @@ export default function CustomerDetailPage() {
           )}
         </div>
 
-        {editMode !== 'memory' && (
-          <div className="px-4 pt-2 pb-0">
-            <p className="text-[11px] text-zinc-400">Τα δεδομένα του πελάτη αποστέλλονται στο AI για πρόταση.</p>
-            {aiSuggestError && (
-              <p className="mt-1 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">{aiSuggestError}</p>
-            )}
-          </div>
-        )}
-
         {editMode === 'memory' && customerDraft ? (
           <div className="space-y-4 px-4 py-4">
-            {aiSuggestionActive && (
-              <div className={`rounded-xl px-3 py-2 text-xs ring-1 ${
-                aiSuggestionConfidence === 'high'
-                  ? 'bg-green-50 text-green-800 ring-green-200'
-                  : aiSuggestionConfidence === 'medium'
-                  ? 'bg-indigo-50 text-indigo-800 ring-indigo-200'
-                  : 'bg-amber-50 text-amber-800 ring-amber-200'
-              }`}>
-                <span className="font-semibold">
-                  {aiSuggestionConfidence === 'high' ? 'AI: Υψηλή εμπιστοσύνη' : aiSuggestionConfidence === 'medium' ? 'AI: Μέτρια εμπιστοσύνη' : 'AI: Χαμηλή εμπιστοσύνη'}
-                </span>
-                <span className="ml-1">Προτεινόμενη ενημέρωση από AI. Έλεγξε και αποθήκευσε ή απόρριψε.</span>
-                {aiSuggestionWarnings.length > 0 && (
-                  <ul className="mt-1 list-disc list-inside space-y-0.5">
-                    {aiSuggestionWarnings.map((w, i) => <li key={i}>{w}</li>)}
-                  </ul>
-                )}
-              </div>
-            )}
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Τρέχουσα κατάσταση</label>
               <textarea
@@ -2112,9 +2127,6 @@ export default function CustomerDetailPage() {
                 placeholder="Σύντομη περιγραφή της τρέχουσας κατάστασης του πελάτη."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              {aiSuggestionActive && aiPreviousMemory?.statusSummary && aiPreviousMemory.statusSummary.trim() && (
-                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.statusSummary.trim(), 160)}</p>
-              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Επαγγελματικές σημειώσεις</label>
@@ -2125,9 +2137,6 @@ export default function CustomerDetailPage() {
                 placeholder="Πληροφορίες για την επαγγελματική δραστηριότητα, ανάγκες, προτιμήσεις."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              {aiSuggestionActive && aiPreviousMemory?.businessNotes && aiPreviousMemory.businessNotes.trim() && (
-                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.businessNotes.trim(), 160)}</p>
-              )}
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Προσωπικά που αξίζει να θυμόμαστε</label>
@@ -2138,11 +2147,7 @@ export default function CustomerDetailPage() {
                 placeholder="Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              {aiSuggestionActive && aiPreviousMemory?.personalNotes && aiPreviousMemory.personalNotes.trim() ? (
-                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.personalNotes.trim(), 160)}</p>
-              ) : (
-                <p className="mt-1 text-[11px] text-zinc-400">Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο.</p>
-              )}
+              <p className="mt-1 text-[11px] text-zinc-400">Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο.</p>
             </div>
             <div>
               <label className="block text-xs font-medium text-zinc-600 mb-1">Επόμενη ενέργεια</label>
@@ -2153,11 +2158,7 @@ export default function CustomerDetailPage() {
                 placeholder="Σύντομη υπενθύμιση για την επόμενη ενέργεια."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              {aiSuggestionActive && aiPreviousMemory?.nextBestAction && aiPreviousMemory.nextBestAction.trim() ? (
-                <p className="mt-1 text-[11px] text-zinc-400">Προηγούμενο: {truncate(aiPreviousMemory.nextBestAction.trim(), 160)}</p>
-              ) : (
-                <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε task.</p>
-              )}
+              <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε task.</p>
             </div>
             {customerSaveError && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">
@@ -3000,10 +3001,10 @@ export default function CustomerDetailPage() {
             onClick={e => e.stopPropagation()}
           >
 
-            {/* Task modal */}
+            {/* Task wizard */}
             {quickModal === 'task' && (
               <>
-                <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
                   <h2 className="text-base font-semibold text-zinc-900">Νέο task</h2>
                   <button
                     type="button"
@@ -3016,65 +3017,108 @@ export default function CustomerDetailPage() {
                     </svg>
                   </button>
                 </div>
-                <div className="space-y-3">
+                {/* Step indicator */}
+                <div className="mb-4 flex items-center gap-2">
+                  <p className="text-xs font-medium text-indigo-600">Βήμα {taskStep}/3</p>
+                  <div className="flex flex-1 gap-1">
+                    {[1, 2, 3].map(n => (
+                      <span
+                        key={n}
+                        className={`h-1.5 flex-1 rounded-full ${n <= taskStep ? 'bg-indigo-500' : 'bg-zinc-200'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 1: τίτλος */}
+                {taskStep === 1 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τι θέλετε να κάνετε;</label>
                     <input
                       autoFocus
                       type="text"
                       value={taskTitle}
                       onChange={e => setTaskTitle(e.target.value)}
-                      placeholder="Γράψε τι πρέπει να γίνει."
+                      onKeyDown={e => { if (e.key === 'Enter' && taskTitle.trim()) { e.preventDefault(); taskWizardNext(); } }}
+                      placeholder="π.χ. Να καλέσω για επιβεβαίωση."
                       className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
+                    <p className="mt-1 text-xs text-zinc-400">Το επόμενο βήμα που θέλετε να θυμάστε.</p>
                   </div>
+                )}
+
+                {/* Step 2: ημερομηνία (deadline) */}
+                {taskStep === 2 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία (deadline)</label>
                     <input
                       type="date"
                       value={taskDate}
                       onChange={e => setTaskDate(e.target.value)}
                       className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
-                    <p className="mt-1 text-xs text-zinc-400">Αν δεν επιλέξεις, ορίζεται για σήμερα.</p>
+                    <p className="mt-1 text-xs text-zinc-400">Προκαθορισμένη ημερομηνία: σήμερα.</p>
                   </div>
+                )}
+
+                {/* Step 3: σημείωση */}
+                {taskStep === 3 && (
                   <div>
                     <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
                     <textarea
-                      rows={3}
+                      rows={4}
                       value={taskNote}
                       onChange={e => setTaskNote(e.target.value)}
+                      placeholder="Προαιρετική σημείωση."
                       className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
+                    <p className="mt-1 text-xs text-zinc-400">Προαιρετικό.</p>
                   </div>
-                </div>
+                )}
+
                 {taskError && (
                   <p className="mt-2 text-xs font-medium text-red-600">{taskError}</p>
                 )}
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={saveTaskFromModal}
-                    disabled={!taskTitle.trim() || taskSaving}
-                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {taskSaving ? 'Αποθηκεύεται...' : 'Αποθήκευση'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
+
+                {/* Wizard nav */}
+                <div className="mt-5 flex gap-2">
+                  {taskStep > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => { setTaskError(null); setTaskStep(s => Math.max(1, s - 1)); }}
+                      disabled={taskSaving}
+                      className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                    >
+                      Πίσω
+                    </button>
+                  )}
+                  {taskStep < 3 ? (
+                    <button
+                      type="button"
+                      onClick={taskWizardNext}
+                      disabled={taskStep === 1 && !taskTitle.trim()}
+                      className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Επόμενο
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={saveTaskFromModal}
+                      disabled={!taskTitle.trim() || taskSaving}
+                      className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {taskSaving ? 'Αποθηκεύεται...' : 'Αποθήκευση'}
+                    </button>
+                  )}
                 </div>
               </>
             )}
 
-            {/* Appointment modal */}
+            {/* Appointment wizard */}
             {quickModal === 'appointment' && (
               <>
-                <div className="mb-4 flex items-center justify-between gap-2">
+                <div className="mb-1 flex items-center justify-between gap-2">
                   <h2 className="text-base font-semibold text-zinc-900">Ραντεβού</h2>
                   <button
                     type="button"
@@ -3087,68 +3131,165 @@ export default function CustomerDetailPage() {
                     </svg>
                   </button>
                 </div>
-                <div className="space-y-3">
+                {/* Step indicator */}
+                <div className="mb-4 flex items-center gap-2">
+                  <p className="text-xs font-medium text-indigo-600">Βήμα {apptStep}/4</p>
+                  <div className="flex flex-1 gap-1">
+                    {[1, 2, 3, 4].map(n => (
+                      <span
+                        key={n}
+                        className={`h-1.5 flex-1 rounded-full ${n <= apptStep ? 'bg-indigo-500' : 'bg-zinc-200'}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Step 1: τίτλος ραντεβού (η αιτία) */}
+                {apptStep === 1 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος ραντεβού</label>
                     <input
                       autoFocus
                       type="text"
                       value={apptTitle}
                       onChange={e => setApptTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter' && apptTitle.trim()) { e.preventDefault(); void appointmentWizardNext(); } }}
                       placeholder="π.χ. Συνάντηση αξιολόγησης"
                       className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
+                    <p className="mt-1 text-xs text-zinc-400">Η αιτία του ραντεβού.</p>
                   </div>
+                )}
+
+                {/* Step 2: ημερομηνία */}
+                {apptStep === 2 && (
                   <div>
                     <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
                     <input
+                      autoFocus
                       type="date"
                       value={apptDate}
                       onChange={e => setApptDate(e.target.value)}
                       className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
+                )}
+
+                {/* Step 3: ώρα */}
+                {apptStep === 3 && (
                   <div>
                     <label className="mb-1 block text-sm font-medium text-zinc-600">Ώρα</label>
                     <input
+                      autoFocus
                       type="time"
                       value={apptTime}
                       onChange={e => setApptTime(e.target.value)}
                       className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
-                    <textarea
-                      rows={3}
-                      value={apptNote}
-                      onChange={e => setApptNote(e.target.value)}
-                      className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                    />
+                )}
+
+                {/* Step 4: αποστολή ραντεβού */}
+                {apptStep === 4 && (
+                  <div className="space-y-3">
+                    <div className="rounded-2xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100">
+                      <p className="text-sm font-semibold text-zinc-800">{apptTitle.trim()}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">{apptTime ? `${apptDate} · ${apptTime}` : apptDate}</p>
+                    </div>
+                    {apptSaving ? (
+                      <div className="flex items-center gap-3 py-2">
+                        <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
+                        <p className="text-sm text-zinc-600">Αποθήκευση ραντεβού...</p>
+                      </div>
+                    ) : (
+                      <>
+                        <p className="text-sm font-medium text-zinc-600">Αποστολή ραντεβού</p>
+                        <div className="grid grid-cols-2 gap-3">
+                          {/* Viber */}
+                          <button
+                            type="button"
+                            onClick={sendAppointmentViaViber}
+                            disabled={!createdApptTask}
+                            className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-[#7360F2] px-3 py-4 text-center transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            <svg className="h-7 w-7 text-white" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                              <path d="M12.01 2C6.74 2 3 5.3 3 10.06c0 2.13.77 4.02 2.2 5.46.27.27.4.65.36 1.03l-.2 2.07c-.05.5.46.87.92.66l2.3-1.05c.27-.12.57-.14.86-.06.78.2 1.6.31 2.47.31 5.27 0 9.01-3.3 9.01-8.06C20.99 5.3 17.27 2 12.01 2z" />
+                            </svg>
+                            <span className="text-xs font-semibold text-white">Viber</span>
+                          </button>
+                          {/* Email */}
+                          {customer.email ? (
+                            <a
+                              href={buildAppointmentMailto(null)}
+                              className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-indigo-600 px-3 py-4 text-center transition hover:bg-indigo-700"
+                            >
+                              <svg className="h-7 w-7 text-white" fill="none" strokeWidth={1.8} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                              </svg>
+                              <span className="text-xs font-semibold text-white">Email</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              disabled
+                              title="Ο πελάτης δεν έχει email"
+                              className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-zinc-100 px-3 py-4 text-center cursor-not-allowed"
+                            >
+                              <svg className="h-7 w-7 text-zinc-300" fill="none" strokeWidth={1.8} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+                              </svg>
+                              <span className="text-xs font-semibold text-zinc-400">Email</span>
+                            </button>
+                          )}
+                        </div>
+                        {!customer.email && (
+                          <p className="text-xs text-zinc-400">Ο πελάτης δεν έχει email. Πρόσθεσέ το από τα στοιχεία επικοινωνίας για αποστολή με email.</p>
+                        )}
+                        <p className="text-xs text-green-600">Το ραντεβού αποθηκεύτηκε. Διάλεξε τρόπο αποστολής ή κλείσε.</p>
+                      </>
+                    )}
                   </div>
-                </div>
-                <p className="mt-3 text-xs text-zinc-400">
-                  Η αποστολή στον πελάτη θα γίνει σε επόμενο βήμα.
-                </p>
+                )}
+
                 {apptError && (
                   <p className="mt-2 text-xs font-medium text-red-600">{apptError}</p>
                 )}
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={saveAppointmentFromModal}
-                    disabled={!apptTitle.trim() || !apptDate || !apptTime || apptSaving}
-                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {apptSaving ? 'Αποθηκεύεται...' : 'Αποθήκευση'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
+
+                {/* Wizard nav */}
+                <div className="mt-5 flex gap-2">
+                  {apptStep > 1 && apptStep < 4 && (
+                    <button
+                      type="button"
+                      onClick={() => { setApptError(null); setApptStep(s => Math.max(1, s - 1)); }}
+                      disabled={apptSaving}
+                      className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                    >
+                      Πίσω
+                    </button>
+                  )}
+                  {apptStep < 4 ? (
+                    <button
+                      type="button"
+                      onClick={appointmentWizardNext}
+                      disabled={
+                        apptSaving ||
+                        (apptStep === 1 && !apptTitle.trim()) ||
+                        (apptStep === 2 && !apptDate) ||
+                        (apptStep === 3 && !apptTime)
+                      }
+                      className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {apptStep === 3 ? (apptSaving ? 'Αποθηκεύεται...' : 'Επόμενο') : 'Επόμενο'}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={closeQuickModal}
+                      className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                    >
+                      Κλείσιμο
+                    </button>
+                  )}
                 </div>
               </>
             )}

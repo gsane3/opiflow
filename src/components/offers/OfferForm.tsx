@@ -9,13 +9,33 @@ import { norm } from '@/lib/search';
 function todayStr(): string {
   return new Date().toISOString().split('T')[0];
 }
-function in30daysStr(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 30);
-  return d.toISOString().split('T')[0];
-}
 function newItem(): OfferItem {
   return { id: crypto.randomUUID(), description: '', quantity: 1, unitPrice: 0 };
+}
+
+// Parse a numeric input value; empty / invalid strings become 0 for calculations.
+function parseNum(value: string): number {
+  if (value.trim() === '') return 0;
+  const n = parseFloat(value);
+  return Number.isNaN(n) ? 0 : n;
+}
+
+const VALID_PRESETS = [15, 30] as const;
+type ValidChoice = 15 | 30 | 'custom';
+
+function dateAfterDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return d.toISOString().split('T')[0];
+}
+
+// Whole days between today (00:00) and an ISO YYYY-MM-DD date, clamped to >= 1.
+function daysUntil(iso: string): number {
+  const target = new Date(iso + 'T00:00:00');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diff = Math.round((target.getTime() - today.getTime()) / 86_400_000);
+  return diff > 0 ? diff : 1;
 }
 
 interface Props {
@@ -46,7 +66,15 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
   const customerInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [offerDate, setOfferDate] = useState(initial?.offerDate ?? todayStr());
-  const [validUntil, setValidUntil] = useState(initial?.validUntil ?? in30daysStr());
+  // Validity is captured as a choice of presets (15 / 30 days) or a custom day count.
+  // The actual `validUntil` (YYYY-MM-DD) is derived from this on save.
+  const initialValidDays = initial?.validUntil ? daysUntil(initial.validUntil) : 30;
+  const [validChoice, setValidChoice] = useState<ValidChoice>(
+    VALID_PRESETS.includes(initialValidDays as 15 | 30) ? (initialValidDays as 15 | 30) : (initial?.validUntil ? 'custom' : 30)
+  );
+  const [customDays, setCustomDays] = useState<number>(
+    initial?.validUntil && !VALID_PRESETS.includes(initialValidDays as 15 | 30) ? initialValidDays : 30
+  );
   const [vatRate, setVatRate] = useState(initial?.vatRate ?? bp?.defaultVatRate ?? 24);
   const [notes, setNotes] = useState(initial?.notes ?? '');
   const [terms, setTerms] = useState(initial?.terms ?? bp?.defaultOfferTerms ?? '');
@@ -59,6 +87,10 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
   const [error, setError] = useState('');
 
   const totals = calculateTotals(items, vatRate);
+
+  // Resolve the validity choice to a concrete day count and expiry date (YYYY-MM-DD).
+  const validDays = validChoice === 'custom' ? (customDays > 0 ? customDays : 1) : validChoice;
+  const validUntil = dateAfterDays(validDays);
 
   const filteredCustomers = useMemo(() => {
     const q = norm(customerQuery.trim());
@@ -244,10 +276,61 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
             <label className={labelCls}>Ημερομηνία</label>
             <input type="date" value={offerDate} onChange={(e) => setOfferDate(e.target.value)} className={inputCls} />
           </div>
-          <div className="flex-1">
-            <label className={labelCls}>Ισχύει μέχρι</label>
-            <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className={inputCls} />
+        </div>
+
+        {/* Validity */}
+        <div>
+          <label className={labelCls}>Ισχύει μέχρι</label>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setValidChoice(15)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                validChoice === 15
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:ring-indigo-300'
+              }`}
+            >
+              15 ημέρες
+            </button>
+            <button
+              type="button"
+              onClick={() => setValidChoice(30)}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                validChoice === 30
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:ring-indigo-300'
+              }`}
+            >
+              30 ημέρες
+            </button>
+            <button
+              type="button"
+              onClick={() => setValidChoice('custom')}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition ${
+                validChoice === 'custom'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-white text-zinc-600 ring-1 ring-zinc-200 hover:ring-indigo-300'
+              }`}
+            >
+              Custom
+            </button>
+            {validChoice === 'custom' && (
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={customDays === 0 ? '' : customDays}
+                  onChange={(e) => setCustomDays(Math.floor(parseNum(e.target.value)))}
+                  placeholder="0"
+                  className="w-20 rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                />
+                <span className="text-xs text-zinc-500">ημέρες</span>
+              </div>
+            )}
           </div>
+          <p className="mt-1.5 text-xs text-zinc-400">Λήξη: {validUntil}</p>
         </div>
 
         {/* Line items */}
@@ -280,10 +363,12 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
                     <p className="mb-1 text-xs text-zinc-500">Ποσ.</p>
                     <input
                       type="number"
+                      inputMode="decimal"
                       min={0}
                       step={0.5}
-                      value={item.quantity}
-                      onChange={(e) => updateItem(item.id, 'quantity', Number(e.target.value))}
+                      value={item.quantity === 0 ? '' : item.quantity}
+                      onChange={(e) => updateItem(item.id, 'quantity', parseNum(e.target.value))}
+                      placeholder="0"
                       className={inputCls}
                     />
                   </div>
@@ -291,10 +376,12 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
                     <p className="mb-1 text-xs text-zinc-500">Τιμή (€)</p>
                     <input
                       type="number"
+                      inputMode="decimal"
                       min={0}
                       step={0.01}
-                      value={item.unitPrice}
-                      onChange={(e) => updateItem(item.id, 'unitPrice', Number(e.target.value))}
+                      value={item.unitPrice === 0 ? '' : item.unitPrice}
+                      onChange={(e) => updateItem(item.id, 'unitPrice', parseNum(e.target.value))}
+                      placeholder="€"
                       className={inputCls}
                     />
                   </div>
@@ -323,10 +410,12 @@ export default function OfferForm({ initial, customers, nextOfferNumber, onSave,
             <label className={labelCls}>ΦΠΑ %</label>
             <input
               type="number"
+              inputMode="decimal"
               min={0}
               max={100}
-              value={vatRate}
-              onChange={(e) => setVatRate(Number(e.target.value))}
+              value={vatRate === 0 ? '' : vatRate}
+              onChange={(e) => setVatRate(parseNum(e.target.value))}
+              placeholder="0"
               className={inputCls}
             />
           </div>

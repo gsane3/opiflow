@@ -392,6 +392,21 @@ export async function POST(
       }
     }
 
+    // Appointment link sent → nudge the customer to 'contacted', but only from an
+    // earlier pipeline stage so we never downgrade an already-advanced customer
+    // (e.g. 'offer_sent' / 'won' / 'lost'). The .in() guard makes this a no-op for
+    // any non-early status. Best-effort and non-fatal: the message was already sent.
+    try {
+      await supabase
+        .from('customers')
+        .update({ status: 'contacted', updated_at: new Date().toISOString() })
+        .eq('id', customerId)
+        .eq('business_id', businessId)
+        .in('status', ['new_lead', 'contacted']);
+    } catch {
+      // intentionally swallowed: the appointment link was already sent
+    }
+
     return NextResponse.json({
       ok: true,
       sent: true,

@@ -486,6 +486,23 @@ export async function POST(
     );
   }
 
+  // Advance the linked customer through the pipeline based on the response:
+  // accepted → 'won', rejected → 'lost'. Best-effort and non-fatal: the offer
+  // status (the primary action) was already updated above, so a failure here
+  // must not turn the customer's response into an error.
+  if (offer.customer_id) {
+    const customerStatus = response === 'accepted' ? 'won' : 'lost';
+    try {
+      await supabase
+        .from('customers')
+        .update({ status: customerStatus, updated_at: nowIso })
+        .eq('id', offer.customer_id)
+        .eq('business_id', tokenRow.business_id);
+    } catch {
+      // intentionally swallowed: the offer response was already recorded
+    }
+  }
+
   // Insert communications row (CRM audit trail)
   const commSummary = buildCommunicationSummary(response, offer.offer_number, comment);
   const channel = resolveChannel(tokenRow.sent_channel);

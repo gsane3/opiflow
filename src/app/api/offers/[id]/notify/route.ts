@@ -396,13 +396,22 @@ export async function POST(
       }
     }
 
-    // Sent successfully → give the customer an opportunity value (the offer total)
-    // so we can build sales stats later. Non-fatal if it fails.
-    if (offer.customer_id && typeof offer.total === 'number' && offer.total > 0) {
+    // Sent successfully → advance the customer through the pipeline.
+    //  - status = 'offer_sent' so the funnel reflects that an offer is out.
+    //  - opportunity_value = offer total (when known) so we can build sales stats later.
+    // Both are best-effort and non-fatal: the offer (Viber message) was already sent.
+    if (offer.customer_id) {
       try {
+        const customerUpdate: Record<string, unknown> = {
+          status: 'offer_sent',
+          updated_at: new Date().toISOString(),
+        };
+        if (typeof offer.total === 'number' && offer.total > 0) {
+          customerUpdate.opportunity_value = offer.total;
+        }
         await supabase
           .from('customers')
-          .update({ opportunity_value: offer.total, updated_at: new Date().toISOString() })
+          .update(customerUpdate)
           .eq('id', offer.customer_id)
           .eq('business_id', businessId);
       } catch {
