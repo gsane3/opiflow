@@ -304,6 +304,7 @@ export default function CustomerDetailPage() {
   const [uploadSessions, setUploadSessions] = useState<UploadSessionDto[]>([]);
   const [openingFileKey, setOpeningFileKey] = useState<string | null>(null);
   const [fileOpenError, setFileOpenError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
   const [editMode, setEditMode] = useState<'contact' | 'memory' | 'notes' | null>(null);
@@ -329,12 +330,10 @@ export default function CustomerDetailPage() {
   const [rejectSaveError, setRejectSaveError] = useState<string | null>(null);
   const [rejectCopyMessage, setRejectCopyMessage] = useState<string | null>(null);
 
-  type QuickModal = 'message' | 'file' | 'task' | 'appointment' | 'offer' | null;
+  type QuickModal = 'task' | 'appointment' | 'offer' | null;
   const [quickModal, setQuickModal] = useState<QuickModal>(null);
-  const [msgDraft, setMsgDraft] = useState('');
-  const [msgCopied, setMsgCopied] = useState(false);
   const [taskTitle, setTaskTitle] = useState('');
-  const [taskDate, setTaskDate] = useState('');
+  const [taskDate, setTaskDate] = useState(() => getLocalDateInputValue());
   const [taskNote, setTaskNote] = useState('');
   const [taskSaving, setTaskSaving] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
@@ -831,10 +830,8 @@ export default function CustomerDetailPage() {
 
   function closeQuickModal() {
     setQuickModal(null);
-    setMsgDraft('');
-    setMsgCopied(false);
     setTaskTitle('');
-    setTaskDate('');
+    setTaskDate(getLocalDateInputValue());
     setTaskNote('');
     setTaskSaving(false);
     setTaskError(null);
@@ -1013,9 +1010,13 @@ export default function CustomerDetailPage() {
   }
 
   async function openIntakeSendModal() {
+    setActionError(null);
     const supabase = createBrowserSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      setActionError('Δεν βρέθηκε σύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
 
     setIntakeSendReview({
       responseUrl: null,
@@ -1069,9 +1070,13 @@ export default function CustomerDetailPage() {
   }
 
   async function openApptLinkModal(task: TaskDto) {
+    setActionError(null);
     const supabase = createBrowserSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      setActionError('Δεν βρέθηκε σύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
 
     setApptLinkReview({
       taskId: task.id,
@@ -1129,9 +1134,13 @@ export default function CustomerDetailPage() {
   }
 
   async function openUploadLinkModal() {
+    setActionError(null);
     const supabase = createBrowserSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) return;
+    if (!session) {
+      setActionError('Δεν βρέθηκε σύνδεση. Δοκίμασε ξανά.');
+      return;
+    }
 
     setUploadLinkReview({
       responseUrl: null,
@@ -1221,15 +1230,6 @@ export default function CustomerDetailPage() {
       setTimeout(() => setFileOpenError(null), 4000);
     } finally {
       setOpeningFileKey(null);
-    }
-  }
-
-  async function copyMsgDraft() {
-    try {
-      await navigator.clipboard.writeText(msgDraft);
-      setMsgCopied(true);
-    } catch {
-      setMsgCopied(false);
     }
   }
 
@@ -1667,7 +1667,7 @@ export default function CustomerDetailPage() {
         <div className="grid grid-cols-3 gap-3">
           {(customer.mobilePhone || customer.phone || customer.landlinePhone) ? (
             <a
-              href={`tel:${customer.mobilePhone ?? customer.landlinePhone ?? customer.phone}`}
+              href={`tel:${(customer.mobilePhone ?? customer.landlinePhone ?? customer.phone ?? '').replace(/[^+\d]/g, '')}`}
               className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-2 py-4 text-center transition hover:bg-green-700 active:bg-green-800"
             >
               <span className="text-lg leading-none opacity-70">📞</span>
@@ -1730,7 +1730,8 @@ export default function CustomerDetailPage() {
           <button
             type="button"
             onClick={openIntakeSendModal}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+            disabled={!customer.mobilePhone && !customer.phone}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-zinc-50"
           >
             <span className="text-lg leading-none opacity-70">📋</span>
             <span className="text-xs font-medium text-zinc-700">Link στοιχείων</span>
@@ -1738,12 +1739,18 @@ export default function CustomerDetailPage() {
           <button
             type="button"
             onClick={openUploadLinkModal}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
+            disabled={!customer.mobilePhone && !customer.phone}
+            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-zinc-50"
           >
             <span className="text-lg leading-none opacity-70">📷</span>
             <span className="text-xs font-medium text-zinc-700">Link φωτογραφιών</span>
           </button>
         </div>
+        {actionError && (
+          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 ring-1 ring-red-100">
+            {actionError}
+          </p>
+        )}
       </section>
 
       {/* Next best action card */}
@@ -2446,7 +2453,8 @@ export default function CustomerDetailPage() {
                       <button
                         type="button"
                         onClick={() => openApptLinkModal(task)}
-                        className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                        disabled={!customer.mobilePhone && !customer.phone}
+                        className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-zinc-50"
                       >
                         Αποστολή link ραντεβού
                       </button>
@@ -2740,7 +2748,7 @@ export default function CustomerDetailPage() {
           onClick={() => setSelectedCall(null)}
         >
           <div
-            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
             onClick={e => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-2">
@@ -2836,7 +2844,7 @@ export default function CustomerDetailPage() {
           }
           loadingText="Δημιουργία link απάντησης..."
           successText="Η προσφορά στάλθηκε με Viber."
-          openLabel="Άνοιγμα προσφοράς"
+          openLabel="Άνοιγμα link"
           loading={offerSendReview.loading}
           message={offerSendReview.message}
           recipient={offerSendReview.recipient}
@@ -2845,7 +2853,7 @@ export default function CustomerDetailPage() {
           sent={offerSendReview.sent}
           error={offerSendReview.error}
           copied={offerSendReview.copied}
-          onClose={() => setOfferSendReview(null)}
+          onClose={() => { setOfferSendReview(null); setRefreshTick(t => t + 1); }}
           onSend={() =>
             executeViberSend({
               endpoint: `/api/offers/${offerSendReview.offerId}/notify`,
@@ -2882,7 +2890,7 @@ export default function CustomerDetailPage() {
           sent={intakeSendReview.sent}
           error={intakeSendReview.error}
           copied={intakeSendReview.copied}
-          onClose={() => setIntakeSendReview(null)}
+          onClose={() => { setIntakeSendReview(null); setRefreshTick(t => t + 1); }}
           onSend={() =>
             executeViberSend({
               endpoint: `/api/customers/${customerId}/intake-link`,
@@ -2924,7 +2932,7 @@ export default function CustomerDetailPage() {
           sent={apptLinkReview.sent}
           error={apptLinkReview.error}
           copied={apptLinkReview.copied}
-          onClose={() => setApptLinkReview(null)}
+          onClose={() => { setApptLinkReview(null); setRefreshTick(t => t + 1); }}
           onSend={() =>
             executeViberSend({
               endpoint: `/api/customers/${customerId}/appointment-link`,
@@ -2960,7 +2968,7 @@ export default function CustomerDetailPage() {
           sent={uploadLinkReview.sent}
           error={uploadLinkReview.error}
           copied={uploadLinkReview.copied}
-          onClose={() => setUploadLinkReview(null)}
+          onClose={() => { setUploadLinkReview(null); setRefreshTick(t => t + 1); }}
           onSend={() =>
             executeViberSend({
               endpoint: `/api/customers/${customerId}/upload-link`,
@@ -2988,103 +2996,9 @@ export default function CustomerDetailPage() {
           onClick={closeQuickModal}
         >
           <div
-            className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
             onClick={e => e.stopPropagation()}
           >
-
-            {/* Message modal */}
-            {quickModal === 'message' && (
-              <>
-                <div className="mb-4 flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-zinc-900">Μήνυμα</h2>
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    aria-label="Κλείσιμο"
-                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
-                  >
-                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <label className="mb-1.5 block text-sm font-medium text-zinc-600">
-                  Μήνυμα
-                </label>
-                <textarea
-                  rows={5}
-                  value={msgDraft}
-                  onChange={e => { setMsgDraft(e.target.value); setMsgCopied(false); }}
-                  placeholder="Γράψε το μήνυμα εδώ..."
-                  className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                />
-                {msgCopied && (
-                  <p className="mt-1.5 text-xs text-zinc-500">Αντιγράφηκε.</p>
-                )}
-                <p className="mt-2 text-xs text-zinc-400">
-                  Δεν στάλθηκε μήνυμα από την εφαρμογή.
-                </p>
-                <div className="mt-4 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={copyMsgDraft}
-                    disabled={!msgDraft.trim()}
-                    className="flex-1 rounded-2xl bg-indigo-600 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Αντιγραφή
-                  </button>
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
-
-            {/* File modal */}
-            {quickModal === 'file' && (
-              <>
-                <div className="mb-4 flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-zinc-900">Αρχεία πελάτη</h2>
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    aria-label="Κλείσιμο"
-                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
-                  >
-                    <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                <p className="mb-4 text-sm text-zinc-500">
-                  Τα αρχεία θα αποθηκεύονται όταν συνδεθεί χώρος αποθήκευσης.
-                </p>
-                <div className="space-y-2">
-                  {(['Φωτογραφίες', 'Βίντεο', 'Έγγραφα'] as const).map((label) => (
-                    <div
-                      key={label}
-                      className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200/60"
-                    >
-                      <span className="flex-1 text-sm font-medium text-zinc-600">{label}</span>
-                      <span className="text-xs text-zinc-400">0</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="mt-4 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={closeQuickModal}
-                    className="rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-                  >
-                    Κλείσιμο
-                  </button>
-                </div>
-              </>
-            )}
 
             {/* Task modal */}
             {quickModal === 'task' && (
@@ -3106,6 +3020,7 @@ export default function CustomerDetailPage() {
                   <div>
                     <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
                     <input
+                      autoFocus
                       type="text"
                       value={taskTitle}
                       onChange={e => setTaskTitle(e.target.value)}
@@ -3121,6 +3036,7 @@ export default function CustomerDetailPage() {
                       onChange={e => setTaskDate(e.target.value)}
                       className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
+                    <p className="mt-1 text-xs text-zinc-400">Αν δεν επιλέξεις, ορίζεται για σήμερα.</p>
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
@@ -3175,6 +3091,7 @@ export default function CustomerDetailPage() {
                   <div>
                     <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
                     <input
+                      autoFocus
                       type="text"
                       value={apptTitle}
                       onChange={e => setApptTitle(e.target.value)}

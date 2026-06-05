@@ -164,7 +164,7 @@ export function SendViaViberModal({
       onClick={onClose}
     >
       <div
-        className="mx-4 w-full max-w-md rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+        className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

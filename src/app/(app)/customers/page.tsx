@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, type FormEvent } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Card, EmptyState } from '@/components/ui';
@@ -121,11 +121,6 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [refreshTick, setRefreshTick] = useState(0);
-  const [showAdd, setShowAdd] = useState(false);
-  const [addName, setAddName] = useState('');
-  const [addPhone, setAddPhone] = useState('');
-  const [addBusy, setAddBusy] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -286,49 +281,6 @@ export default function CustomersPage() {
   const leadsCount = customers.filter((c) => LEAD_STATUSES.has(c.status)).length;
   const followUpCount = customers.filter((c) => c.status === 'follow_up_needed').length;
 
-  // Main view
-  async function handleAddCustomer(e: FormEvent) {
-    e.preventDefault();
-    const name = addName.trim();
-    const phone = addPhone.trim();
-    if (!name && !phone) {
-      setAddError('Βάλε όνομα ή τηλέφωνο.');
-      return;
-    }
-    setAddBusy(true);
-    setAddError(null);
-    try {
-      const supabase = createBrowserSupabaseClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setAddError('Δεν υπάρχει σύνδεση. Δοκίμασε ξανά.');
-        setAddBusy(false);
-        return;
-      }
-      const res = await fetch('/api/customers', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ name: name || null, phone: phone || null, source: 'manual_entry' }),
-      });
-      const json = await res.json();
-      if (res.ok && json.ok) {
-        setShowAdd(false);
-        setAddName('');
-        setAddPhone('');
-        setRefreshTick((t) => t + 1);
-      } else {
-        setAddError('Αποτυχία. Δοκίμασε ξανά.');
-      }
-    } catch {
-      setAddError('Αποτυχία. Δοκίμασε ξανά.');
-    } finally {
-      setAddBusy(false);
-    }
-  }
-
   return (
     <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
 
@@ -344,16 +296,15 @@ export default function CustomersPage() {
           </p>
         </div>
         <div className="mt-1 flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => { setAddError(null); setShowAdd(true); }}
+          <Link
+            href="/customers/new"
             className="inline-flex items-center gap-1 rounded-full bg-indigo-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
           >
             <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
             Νέος
-          </button>
+          </Link>
           <button
             type="button"
             onClick={() => setRefreshTick((t) => t + 1)}
@@ -367,55 +318,6 @@ export default function CustomersPage() {
           </button>
         </div>
       </div>
-
-      {/* Add-customer modal */}
-      {showAdd && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4"
-          onClick={() => setShowAdd(false)}
-        >
-          <form
-            onSubmit={handleAddCustomer}
-            onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-sm space-y-3 rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
-          >
-            <h2 className="text-base font-semibold text-zinc-900">Νέος πελάτης</h2>
-            <input
-              type="text"
-              autoFocus
-              value={addName}
-              onChange={(e) => setAddName(e.target.value)}
-              placeholder="Όνομα"
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500"
-            />
-            <input
-              type="tel"
-              inputMode="tel"
-              value={addPhone}
-              onChange={(e) => setAddPhone(e.target.value)}
-              placeholder="Τηλέφωνο (π.χ. 69…)"
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500"
-            />
-            {addError && <p className="text-xs text-red-600">{addError}</p>}
-            <div className="flex gap-2 pt-1">
-              <button
-                type="submit"
-                disabled={addBusy}
-                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {addBusy ? 'Αποθήκευση…' : 'Αποθήκευση'}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowAdd(false)}
-                className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
-              >
-                Άκυρο
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {/* Search card */}
       <div className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
