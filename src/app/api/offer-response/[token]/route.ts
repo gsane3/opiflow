@@ -509,6 +509,27 @@ export async function POST(
     } catch {
       // intentionally swallowed: the offer response was already recorded
     }
+
+    // On acceptance, auto-create a follow-up task so a won deal doesn't go cold —
+    // core to the "Customer Action Management" promise. Best-effort & non-fatal.
+    if (response === 'accepted') {
+      try {
+        await supabase.from('tasks').insert({
+          business_id: tokenRow.business_id,
+          customer_id: offer.customer_id,
+          offer_id: offer.id,
+          title: `Επικοινωνία για προγραμματισμό — αποδεκτή προσφορά ${offer.offer_number}`,
+          type: 'call_back',
+          status: 'open',
+          priority: 'high',
+          due_date: isoDate,
+          note: 'Αυτόματη εργασία: ο πελάτης αποδέχτηκε την προσφορά μέσω δημόσιου link.',
+          created_from_ai: false,
+        });
+      } catch {
+        // non-fatal: the offer response was already recorded
+      }
+    }
   }
 
   // Insert communications row (CRM audit trail)
