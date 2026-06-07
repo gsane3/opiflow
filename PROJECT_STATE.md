@@ -94,10 +94,18 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 1. ✅ **RESOLVED — project confusion.** Live = `oluhmzt`; 031 is applied there; the PBX is
    repointed with a working service key. (The earlier "031 missing / 0 rows" was from querying
    the dead `hgboy`, because `.env.local` was stale.)
-2. **`browser_sip_endpoints` has 0 rows** (1 business with an active number) → the provisioner
-   must **proactively create rows**: call `ensure_browser_sip_endpoint` per
-   business-with-active-number (POST `/rest/v1/rpc/ensure_browser_sip_endpoint`), then mint +
-   generate. **(Not yet implemented — next coding step.)**
+2. ✅ DONE: provisioner self-creates endpoint rows (direct INSERT — the `ensure_browser_sip_endpoint`
+   RPC has a 42702 ambiguous-`sip_username` bug; app no longer mints, provisioner is sole authority;
+   conf written 0640 root:asterisk). Endpoint clone of yorgospro001 + outbound = ready & reviewed.
+3. 🔴 **HARD BLOCKER — per-user INBOUND needs the PROVIDER, not code.** tcpdump of a real inbound
+   call proved **InterTelecom sends EVERY call to `INVITE sip:IT658318@...` / `To: IT658318`** — the
+   dialed DID (`+302104400811`) is **absent from the entire SIP exchange** (0 occurrences; no
+   Diversion / P-Called-Party-ID). So Asterisk cannot tell which number was dialed → DID→user routing
+   is impossible until InterTelecom either (A) delivers the dialed number in the INVITE R-URI/To (or a
+   Diversion/P-Called header) — i.e. enable **DID/DDI delivery** — and provisions the 30-50 DIDs, OR
+   (B) gives a **separate SIP account per DID**. This is a provider request. Capture method (tcpdump
+   UDP 5060 host 146.120.226.3) is proven → once they enable DID delivery, re-capture + finalize the
+   dialplan in minutes. Per-user ENDPOINTS + OUTBOUND already work without this.
 3. **Secret handling boundary:** the assistant **cannot read `.env.local` or move raw
    secrets** (safety rule + auto-mode classifier blocks `vercel env pull`, prod-secret
    reads). The user ships each secret via:
@@ -106,24 +114,28 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
    The committed `sync-sip-to-asterisk.mjs` and the ARA runbook are now out of date.
 
 ## G. Plan / next steps (telephony activation)
-1. Apply migration **031** to **hgboy**.
-2. Enhance `provision-asterisk.py` to self-create endpoint rows (proactive → scales to 30-50 users with zero manual work).
-3. Wire **additively** (backups taken): `#include pjsip_opiflow_users.conf` in pjsip.conf;
-   `#include extensions_opiflow.conf` in extensions.conf; in `from-intertelecom` change
-   `Dial(PJSIP/yorgospro001&groundwire001)` → `Dial(PJSIP/${OPIFLOW_EP}&groundwire001)`
-   with `OPIFLOW_EP` defaulting to `yorgospro001`; `include => opiflow-inbound`.
-4. Set `SIP_CRED_ENC_KEY` on Vercel (same value as the box) → **flip** to per-user.
-5. Test one provisioned business: inbound rings the right endpoint + outbound works.
-6. `cron` the provisioner (every minute).
-   Rollback at any point: unset Vercel key (app → shared `yorgospro001`); remove includes + reload.
+1. ✅ Migration 031 applied (on the live project `oluhmzt`).
+2. ✅ Provisioner self-creates endpoint rows; app no longer mints (provisioner = SOLE password
+   authority); conf written 0640 root:asterisk. Per-user endpoint clone of `yorgospro001` + outbound = ready.
+3. ⏸ **BLOCKED on InterTelecom (see F.3):** per-user INBOUND needs the provider to deliver the
+   dialed DID in the SIP INVITE (or per-DID SIP accounts). Until then the live wiring (the `#include`s +
+   the `from-intertelecom` `Dial→${OPIFLOW_EP}` tweak + flipping `SIP_CRED_ENC_KEY` on Vercel) is ON HOLD —
+   applying it now would route every inbound to the shared endpoint anyway.
+4. When the provider enables DID delivery: re-capture a test call (`tcpdump -i any 'udp port 5060 and host
+   146.120.226.3'`), finalise the dialplan to the delivered DID form, apply the additive includes + the
+   `Dial→${OPIFLOW_EP}` tweak (default `yorgospro001`), reload, set `SIP_CRED_ENC_KEY` on Vercel (same value
+   as the box `/etc/opiflow/sip.env`), test, then `cron` the provisioner. Rollback: unset the Vercel key
+   (app → shared `yorgospro001`) + remove the includes + reload.
 
 ## H. Cleanup pending (org)
 - **Delete OLD projects** (keep only the new): old Supabase project + Vercel `yorgos`
-  (directsourcing.gr) — **confirm each is unused before deleting**; keep Supabase `hgboy`
+  (directsourcing.gr) — **confirm each is unused before deleting**; keep Supabase `oluhmzt`
   + Vercel `opiflow`. After any key/password rotation, **re-update `.env.local`** AND
   re-ship the new service key to the PBX + update Vercel env.
-- Remove/replace the superseded `scripts/sync-sip-to-asterisk.mjs`; rewrite
-  `docs/ASTERISK_REALTIME_PROVISIONING.md` for the static-config approach.
+- ✅ Deleted the superseded ARA files (`scripts/sync-sip-to-asterisk.mjs`,
+  `supabase/asterisk/ara_pjsip_realtime.sql`, `docs/ASTERISK_REALTIME_PROVISIONING.md`) + 5
+  never-imported components + stray `modulo` + stale `supabase/migrations_combined.sql`. A fresh
+  static-provisioner runbook will be written once InterTelecom unblocks inbound.
 - Decide the orphaned AI-suggestion scaffolding in `src/app/(app)/customers/[id]/page.tsx`
   (declared/set, never used) → **recommend discard** (`git checkout`).
 

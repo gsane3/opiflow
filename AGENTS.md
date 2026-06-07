@@ -8,7 +8,7 @@ updated before every `/compact`** and after any significant change.
 - Product: **Opiflow** — Greek mobile-first business-phone + CRM for service technicians
   (was "yorgos"/"deskop"). Next.js 16 + React 19 + Tailwind v4 + Supabase + jsSIP.
 - **Live app:** https://opiflow.vercel.app · **Vercel:** `sane127/opiflow`
-- **Live Supabase project:** `hgboywgjddphzeiwtezw` (NOT any older ref)
+- **Live Supabase project:** `oluhmztfimmgmbxoioea` (the deployed app uses this; `hgboywgjddphzeiwtezw` is the OLD/dead project to delete)
 - **GitHub:** `gsane3/yorgos` (rename pending → opiflow) · **Local:** `E:\yorgos` (rename pending)
 - **PBX:** `root@46.224.138.115` (Hetzner Ubuntu, Asterisk 20.6), key `~/.ssh/yorgos_pbx_vps_600`
 - Migrations are applied **manually via the Supabase SQL editor** (don't `supabase db push`).

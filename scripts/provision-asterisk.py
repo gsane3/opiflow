@@ -13,8 +13,8 @@ config per user. For each Opiflow business it:
   3. reloads pjsip / dialplan ONLY if a file actually changed.
 
 It NEVER touches the existing trunk / yorgospro001 / groundwire config. Activation
-is via two `#include` lines + one dialplan tweak (see
-docs/ASTERISK_REALTIME_PROVISIONING.md). Idempotent and safe to run every minute.
+is via two `#include` lines + one dialplan tweak (see PROJECT_STATE.md telephony
+sections). Idempotent and safe to run every minute.
 
 Env (required):  SUPABASE_URL  SUPABASE_SERVICE_ROLE_KEY  SIP_CRED_ENC_KEY
 Env (optional):
