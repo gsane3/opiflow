@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-07 — session 8 (native push notifications built — Android-first, iOS via cloud-Mac; env-gated/inert until FCM keys set; Codemagic CI added).
+> **Last updated:** 2026-06-07 — session 8 (native push: built → **ACTIVATED & LIVE on Android** via Firebase FCM + Codemagic build, tested on emulator; iOS path audited — needs a plugin swap, see D/G).
 
 ---
 
@@ -54,6 +54,27 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-07 — session 8 (cont.) — push ACTIVATED on Android + iOS audit:**
+  - **Firebase project `opiflowai`** created (project number `1047198609682`). `android/app/google-services.json`
+    committed (PR #22). **`FCM_SERVICE_ACCOUNT_JSON` set on Vercel** → `/api/health` shows `push:true` (PR #23 added the flag).
+  - **Android app BUILT & push TESTED LIVE** on a BlueStacks emulator (no Android phone available). Build path =
+    **Codemagic** (free `mac_mini_m2`); fixes needed: free plan rejects `linux_x2` (PR #25 → mac), Capacitor 7 needs
+    **JDK 21** which the Mac lacked → auto-install via brew (PR #27). `codemagic.yaml` `android-debug` workflow = no-signing
+    installable APK. GitHub Actions for the workflow was blocked (OAuth token lacks `workflow` scope) → used Codemagic.
+  - **PR #28 — one-tap "Δοκιμή ειδοποίησης"** in Settings (`/api/push/test` + `NotificationsPanel`) — web-loaded, so it
+    appears in the installed wrapper with no APK rebuild. End-to-end confirmed working on Android.
+  - **Vercel free-plan build queue froze** after many rapid merges (1 concurrent build) — cleared by cancelling queued
+    deploys in the dashboard (CLI has no `cancel`). Note for future: batch merges or expect queue lag.
+  - **🔴 iOS audit (workflow, 6 agents, adversarially verified = CONFIRMED):** the current `@capacitor/push-notifications`
+    returns a **raw APNs token on iOS**, which our **FCM HTTP v1 server rejects** (needs an FCM registration token) → iOS push
+    would silently fail (and the row could be pruned). **Android is unaffected** (it already gets a real FCM token). **Fix =
+    Option A:** swap client to **`@capacitor-firebase/messaging` v7** (+ `@capacitor-firebase/app`, `firebase`) → unified FCM
+    token on both platforms; **server stays as-is** (the `apns` relay block already exists). Native gotchas: commit `ios/`
+    (or CI-patch) so the AppDelegate has the **3 APNs-forwarding methods** the plugin needs (NOT `FirebaseApp.configure()` —
+    `@capacitor-firebase/app` auto-inits); register **GoogleService-Info.plist in the Xcode target** (Copy Bundle Resources),
+    not just on disk; upload an **APNs Auth Key (.p8) to Firebase**. The plugin swap also changes Android's JS API → must
+    re-test the Android APK before merging. `codemagic.yaml` `ios-release` workflow verified ~correct (one real bug: plist
+    must be in the bundle). Full plan in section G.
 - **2026-06-07 — session 8 (native push notifications → app-store path):**
   - **Native push (Android-first, iOS-ready) — built, env-gated, INERT until FCM keys.** Same
     safe pattern as per-user SIP: wired end-to-end but a silent no-op until configured.
@@ -128,11 +149,11 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 - **Vercel CLI:** logged in + linked `sane127/opiflow`.
 - **App features:** customer-memory AI ("✨ Σύνοψη από κλήσεις") wired & live on the customer card; repo
   audited + cleaned (no dead code / no orphaned scaffolding); working tree clean.
-- **Native apps:** Android scaffold ready (`android/`, appId `ai.opiflow.app`, mic perms, App-Links).
-  **Push notifications BUILT but INERT** (migration 032 + FCM HTTP v1 sender + register API + client +
-  offer/appointment triggers) — flips on when `FCM_*` env is set on Vercel + `google-services.json`
-  added for the Android build. iOS not yet created (`ios/` absent — needs Mac/cloud-Mac). `codemagic.yaml`
-  added for cloud-Mac builds. Store-blockers already covered: in-app account deletion, privacy + terms.
+- **Native apps:** 🟢 **Android DONE** — installable debug APK builds on Codemagic; push **ACTIVE & tested** on emulator
+  (Firebase `opiflowai`, `FCM_SERVICE_ACCOUNT_JSON` live, migration 032 applied, one-tap test button works). For Google
+  Play: build the signed `.aab` (`android-release` workflow) + Play Console ($25). 🟡 **iOS NOT started** — needs Apple
+  Developer ($99/yr) + the **plugin swap to `@capacitor-firebase/messaging`** (see G) before push works on iPhone; build via
+  Codemagic `ios-release` → TestFlight. `ios/` not yet generated. Store-blockers already covered: in-app account deletion, privacy + terms.
 - **Open infra (user's side):** delete old Supabase `hgboy` + Vercel `yorgos`; email InterTelecom about DID
   delivery (the per-user inbound unblock); local folder rename `E:\yorgos`→`E:\opiflow` (memory already pre-copied).
 - **App-store path (user's side):** apply migration 032 (SQL editor); Firebase project + service-account
