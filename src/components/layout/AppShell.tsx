@@ -7,6 +7,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { registerNativePush } from '@/lib/native/push';
 import BottomNav from './BottomNav';
 import DesktopSidebar from './DesktopSidebar';
+import PushToast from './PushToast';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -110,6 +111,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-[100dvh] overflow-x-hidden">
+      <PushToast />
       <DesktopSidebar />
       <div className="flex min-w-0 flex-1 flex-col md:pl-60">
         {/* Bottom padding clears the mobile nav + iOS home indicator. */}

@@ -74,6 +74,24 @@ export async function registerNativePush(navigate?: (url: string) => void): Prom
       if (navigate) navigate(url);
       else window.location.assign(url);
     });
+    // Foreground messages are NOT auto-shown in the system tray — surface them as
+    // an in-app banner (see PushToast). Fires only on a real device that receives
+    // FCM while the app is open.
+    await FirebaseMessaging.addListener('notificationReceived', (event) => {
+      const n = event?.notification;
+      if (!n) return;
+      const data = n.data as Record<string, unknown> | undefined;
+      const url = typeof data?.url === 'string' ? data.url : undefined;
+      try {
+        window.dispatchEvent(
+          new CustomEvent('opiflow:push', {
+            detail: { title: n.title ?? 'Opiflow', body: n.body ?? '', url },
+          })
+        );
+      } catch {
+        // ignore
+      }
+    });
 
     let perm = await FirebaseMessaging.checkPermissions();
     if (perm.receive === 'prompt' || perm.receive === 'prompt-with-rationale') {

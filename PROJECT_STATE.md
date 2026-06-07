@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-07 — session 8 (native push: built → **ACTIVATED & LIVE on Android** via Firebase FCM + Codemagic build, tested on emulator; iOS path audited — needs a plugin swap, see D/G).
+> **Last updated:** 2026-06-07 — session 8 (native push ACTIVE on Android via Firebase FCM; client swapped to `@capacitor-firebase/messaging` for iOS+Android; BlueStacks can't receive FCM so live test deferred to iPhone/TestFlight; Apple Dev paid & pending; iOS build prepped).
 
 ---
 
@@ -54,6 +54,26 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-07 — session 8 (cont. 2) — FCM plugin swap + Android-verify + iOS prep:**
+  - **PR #30 — client push swapped to `@capacitor-firebase/messaging` v7** (+`@capacitor-firebase/app`, `firebase`):
+    unified **FCM registration token on iOS AND Android** (the old `@capacitor/push-notifications` gave a raw APNs token
+    on iOS that FCM v1 rejects). **Server unchanged.** Merged to master because the Capacitor app loads its JS live from
+    `opiflow.vercel.app` — the live JS MUST match the new-plugin APK.
+  - **`/api/push/test` + Settings button now report per-device diagnostics** (`tokenCount`, per-token FCM result) — used
+    to diagnose "sent but nothing arrives".
+  - **🔬 Android delivery diagnosis (workflow, adversarially CONFIRMED): NO real bug.** The test reached FCM (`sent=1`),
+    but **BlueStacks emulators cannot reliably RECEIVE FCM** (modified Google Play Services don't keep the push socket
+    alive). Our payload/manifest/permissions are correct → on a **real** Android 8-14 device (backgrounded) the
+    notification displays. **Live Android proof deferred** to a real phone (technician at rollout) or the **iPhone via
+    TestFlight**. A direct Firebase-Console test would ALSO fail on BlueStacks (same delivery path) → BlueStacks can't
+    prove push, period.
+  - **PR #31 — foreground in-app banner (`PushToast`)** + `notificationReceived` listener: shows an in-app banner when a
+    push arrives while the app is OPEN (system tray only auto-shows when backgrounded). Pure JS/React — **no new native
+    plugin** (zero iOS-build risk). Plus this changelog/state update.
+  - **iOS code fully prepped (waiting on Apple):** `codemagic.yaml` `ios-release` CI-patches the AppDelegate with the 3
+    APNs-forwarding methods `@capacitor-firebase/messaging` needs + registers `GoogleService-Info.plist` in the Xcode
+    target (`scripts/ci/ios-appdelegate-patch.py`, `ios-register-plist.rb`); `npm ci --ignore-scripts` (avoids flaky
+    `sharp` 502). **User has paid the $99 Apple Developer fee — awaiting approval (~24-48h).**
 - **2026-06-07 — session 8 (cont.) — push ACTIVATED on Android + iOS audit:**
   - **Firebase project `opiflowai`** created (project number `1047198609682`). `android/app/google-services.json`
     committed (PR #22). **`FCM_SERVICE_ACCOUNT_JSON` set on Vercel** → `/api/health` shows `push:true` (PR #23 added the flag).
