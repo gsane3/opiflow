@@ -48,17 +48,25 @@ This runbook uses **Option A**.
 The app stores the SIP password **encrypted** (`sip_password_enc`). Asterisk needs
 the **plaintext** (or an `md5_cred`) in `ps_auths`. Pick one:
 
-- **A1 — Sync job (most secure at rest):** a small cron/worker decrypts with
-  `SIP_CRED_ENC_KEY` and upserts `ps_auths.password`. The app DB never exposes
-  plaintext. Sketch:
+- **A1 — Sync job (recommended):** run **`scripts/sync-sip-to-asterisk.mjs`** on
+  the Asterisk box via cron. It reads `browser_sip_endpoints` from Supabase,
+  decrypts each password with `SIP_CRED_ENC_KEY`, and upserts
+  `ps_auths`/`ps_aors`/`ps_endpoints` — and removes rows for revoked/suspended
+  businesses. The Asterisk DB stays on localhost; the app DB never exposes
+  plaintext. Setup:
 
-  ```js
-  // runs where SIP_CRED_ENC_KEY is available (e.g. a Vercel cron / small worker)
-  // 1) read browser_sip_endpoints (status='active') from Supabase
-  // 2) decryptSecret(sip_password_enc)  // src/lib/server/sip-credentials.ts
-  // 3) upsert into Asterisk DB: ps_auths(id, auth_type='userpass', username, password)
-  //                              ps_aors(id, max_contacts=1, remove_existing=yes)
-  //                              ps_endpoints(id, transport, aors, auth, webrtc=yes, …)
+  ```bash
+  npm i pg     # only dependency; Node 18+ (built-in fetch + crypto)
+  export SUPABASE_URL=https://<project>.supabase.co \
+         SUPABASE_SERVICE_ROLE_KEY=… \
+         SIP_CRED_ENC_KEY=…           # same key as the app \
+         ASTERISK_DATABASE_URL=postgres://user:pass@localhost:5432/asterisk \
+         PHONE_SIP_REALM=…            # optional
+  node scripts/sync-sip-to-asterisk.mjs            # one-shot (ideal for cron)
+  node scripts/sync-sip-to-asterisk.mjs --watch    # or loop every 60s
+
+  # cron (every minute):
+  # * * * * * cd /opt/opiflow && node scripts/sync-sip-to-asterisk.mjs >> /var/log/opiflow-sip-sync.log 2>&1
   ```
 
 - **A2 — Shared DB view (simplest ops):** point Asterisk ODBC at a DB/schema that
