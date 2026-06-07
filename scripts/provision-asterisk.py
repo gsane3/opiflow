@@ -34,6 +34,7 @@ import re
 import sys
 import json
 import base64
+import shutil
 import secrets
 import subprocess
 import urllib.request
@@ -138,9 +139,51 @@ def sb_patch(path, body):
     urllib.request.urlopen(req, timeout=20).read()
 
 
+def sb_insert(path, body, resolution="ignore-duplicates"):
+    req = urllib.request.Request(
+        f"{SUPABASE_URL}/rest/v1/{path}",
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={
+            "apikey": SERVICE_KEY,
+            "Authorization": f"Bearer {SERVICE_KEY}",
+            "Content-Type": "application/json",
+            "Prefer": f"resolution={resolution},return=minimal",
+        },
+    )
+    urllib.request.urlopen(req, timeout=20).read()
+
+
+def ensure_endpoint_rows():
+    """Proactively create a browser_sip_endpoints row (status 'planned', deterministic
+    sip_username 'biz_<id>') for every business that has an assigned number, so provisioning
+    never waits for a user to open the phone first. We INSERT directly because the bundled
+    ensure_browser_sip_endpoint() RPC has an ambiguous-column bug ('sip_username'); we ignore
+    duplicates so existing active rows + their passwords are never touched."""
+    bizs = sb_get("businesses?business_phone_number=not.is.null&select=id,owner_id")
+    ok = 0
+    for b in bizs:
+        username = "biz_" + str(b["id"]).replace("-", "")
+        try:
+            sb_insert("browser_sip_endpoints?on_conflict=sip_username", {
+                "business_id": b["id"],
+                "user_id": b.get("owner_id"),
+                "sip_username": username,
+                "status": "planned",
+            })
+            ok += 1
+        except Exception as e:
+            sys.stderr.write(f"[provision] ensure row failed for {b.get('id')}: {e}\n")
+    sys.stderr.write(f"[provision] ensure_endpoint_rows: {ok}/{len(bizs)} businesses\n")
+
+
 def digits(s):
     return re.sub(r"\D", "", s or "")
 
+
+# --- ensure a row exists for every business with a number (idempotent) --------
+if not DRY:
+    ensure_endpoint_rows()
 
 # --- fetch business endpoints + their assigned DIDs ---------------------------
 endpoints = sb_get(
@@ -256,13 +299,20 @@ if DRY:
 
 # --- write atomically + reload only what changed ------------------------------
 def write_if_changed(path, content):
+    # These files contain plaintext SIP passwords → write them 0640 root:asterisk
+    # (asterisk-readable, NOT world-readable) atomically before the rename.
     new = content.encode()
     old = open(path, "rb").read() if os.path.exists(path) else None
     if old == new:
         return False
     tmp = path + ".tmp"
-    with open(tmp, "wb") as f:
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o640)
+    with os.fdopen(fd, "wb") as f:
         f.write(new)
+    try:
+        shutil.chown(tmp, user="root", group="asterisk")
+    except Exception:
+        pass
     os.replace(tmp, path)
     return True
 
