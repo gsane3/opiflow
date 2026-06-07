@@ -19,6 +19,35 @@
 
 workflows:
   # -------------------------------------------------------------------------
+  # Android DEBUG — installable test .apk, NO signing/keystore needed.
+  # Start here: this is the fastest "see it on my phone" build. Codemagic emails
+  # the .apk download link when it finishes. google-services.json is committed,
+  # so FCM push works in the build.
+  # -------------------------------------------------------------------------
+  android-debug:
+    name: Opiflow Android (debug APK — test)
+    instance_type: linux_x2
+    max_build_duration: 45
+    environment:
+      node: 20
+    scripts:
+      - name: Install JS deps
+        script: npm ci
+      - name: Capacitor sync (Android)
+        script: npx cap sync android
+      - name: Build debug APK
+        script: |
+          cd android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+    artifacts:
+      - android/app/build/outputs/**/*.apk
+    publishing:
+      email:
+        recipients:
+          - georgiostsipos@gmail.com
+
+  # -------------------------------------------------------------------------
   # Android — builds a signed .aab for Google Play
   # -------------------------------------------------------------------------
   android-release:
