@@ -24,6 +24,21 @@ export interface PushPayload {
   data?: Record<string, string>;
 }
 
+/** Per-device send outcome (for diagnostics). */
+export interface PushSendDetail {
+  platform: string;
+  ok: boolean;
+  error?: string;
+}
+
+/** Aggregate result of a multi-device send. */
+export interface PushSendResult {
+  sent: number;
+  failed: number;
+  tokenCount: number;
+  details: PushSendDetail[];
+}
+
 interface ServiceAccount {
   projectId: string;
   clientEmail: string;
@@ -179,25 +194,29 @@ async function pruneToken(token: string): Promise<void> {
 export async function sendPushToUser(
   userId: string,
   payload: PushPayload
-): Promise<{ sent: number; failed: number }> {
+): Promise<PushSendResult> {
   const sa = loadServiceAccount();
-  if (!sa) return { sent: 0, failed: 0 }; // inert
+  if (!sa) return { sent: 0, failed: 0, tokenCount: 0, details: [] }; // inert
 
   const tokens = await fetchTokensForUser(userId);
-  if (tokens.length === 0) return { sent: 0, failed: 0 };
+  if (tokens.length === 0) return { sent: 0, failed: 0, tokenCount: 0, details: [] };
 
   const accessToken = await getAccessToken(sa);
-  if (!accessToken) return { sent: 0, failed: tokens.length };
+  if (!accessToken) {
+    return {
+      sent: 0,
+      failed: tokens.length,
+      tokenCount: tokens.length,
+      details: tokens.map((t) => ({ platform: t.platform, ok: false, error: 'no_access_token' })),
+    };
+  }
 
   const endpoint = `https://fcm.googleapis.com/v1/projects/${sa.projectId}/messages:send`;
   const data: Record<string, string> = { ...(payload.data ?? {}) };
   if (payload.url) data.url = payload.url;
 
-  let sent = 0;
-  let failed = 0;
-
-  await Promise.all(
-    tokens.map(async (t) => {
+  const details = await Promise.all(
+    tokens.map(async (t): Promise<PushSendDetail> => {
       const message = {
         message: {
           token: t.token,
@@ -221,11 +240,8 @@ export async function sendPushToUser(
           },
           body: JSON.stringify(message),
         });
-        if (res.ok) {
-          sent++;
-          return;
-        }
-        failed++;
+        if (res.ok) return { platform: t.platform, ok: true };
+
         // Prune tokens FCM reports as permanently gone (uninstalled / rotated).
         let errCode = '';
         try {
@@ -239,13 +255,15 @@ export async function sendPushToUser(
         if (res.status === 404 || errCode === 'UNREGISTERED') {
           await pruneToken(t.token);
         }
+        return { platform: t.platform, ok: false, error: errCode || `http_${res.status}` };
       } catch {
-        failed++;
+        return { platform: t.platform, ok: false, error: 'network' };
       }
     })
   );
 
-  return { sent, failed };
+  const sent = details.filter((d) => d.ok).length;
+  return { sent, failed: details.length - sent, tokenCount: tokens.length, details };
 }
 
 /**
