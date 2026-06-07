@@ -1,9 +1,9 @@
 {
-  "appId": "ai.deskop.app",
-  "appName": "deskop",
+  "appId": "ai.opiflow.app",
+  "appName": "Opiflow",
   "webDir": "public",
   "server": {
-    "url": "https://deskop.ai",
+    "url": "https://opiflow.vercel.app",
     "androidScheme": "https",
     "cleartext": false
   },

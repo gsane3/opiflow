@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const SITE = 'https://deskop.com';
+const SITE = 'https://opiflow.vercel.app';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

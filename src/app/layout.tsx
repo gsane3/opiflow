@@ -10,15 +10,15 @@ const geist = Geist({
 
 export const metadata: Metadata = {
   title: {
-    default: 'deskop',
-    template: '%s · deskop',
+    default: 'Opiflow',
+    template: '%s · Opiflow',
   },
   description: 'Ο AI βοηθός σου για πελάτες, follow-ups και προσφορές.',
-  applicationName: 'deskop',
+  applicationName: 'Opiflow',
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'deskop',
+    title: 'Opiflow',
     statusBarStyle: 'default',
   },
   // Phone numbers are surfaced through explicit call actions, not auto-detected
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 // Mobile-first viewport: device width, no forced zoom lock (a11y), and
 // viewport-fit=cover so we can pad around the iOS notch / home indicator.
 export const viewport: Viewport = {
-  themeColor: '#4f46e5',
+  themeColor: '#00c499',
   colorScheme: 'light',
   width: 'device-width',
   initialScale: 1,

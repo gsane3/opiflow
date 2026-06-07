@@ -488,12 +488,12 @@ export default function SettingsPage() {
                       {phoneInfo.business.business_phone_number}
                     </p>
                     <p className="mt-0.5 text-xs text-zinc-400">
-                      Ο αριθμός ενεργοποιείται αυτόματα από το deskop.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
+                      Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.
                     </p>
                   </>
                 ) : (
                   <p className="mt-0.5 text-xs text-zinc-400">
-                    Ο αριθμός ενεργοποιείται αυτόματα από το deskop.ai. Δεν χρειάζεται χειροκίνητη ρύθμιση.
+                    Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.
                   </p>
                 )}
               </div>

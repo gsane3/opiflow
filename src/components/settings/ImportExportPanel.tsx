@@ -138,7 +138,7 @@ export default function ImportExportPanel() {
       const headers = ['crmNumber', 'name', 'companyName', 'phone', 'mobilePhone', 'landlinePhone', 'email', 'address', 'source', 'status', 'opportunityValue', 'needsSummary', 'notes', 'createdAt'];
       const rows = customers.map((c) => headers.map((h) => (c[h] ?? '') as string | number));
       const today = new Date().toISOString().slice(0, 10);
-      downloadFile(`deskop-pelates-${today}.csv`, buildCsv(headers, rows), 'text/csv;charset=utf-8');
+      downloadFile(`opiflow-pelates-${today}.csv`, buildCsv(headers, rows), 'text/csv;charset=utf-8');
       setMessage({ tone: 'ok', text: `Εξήχθησαν ${customers.length} πελάτες.` });
     } catch {
       setMessage({ tone: 'err', text: 'Η εξαγωγή απέτυχε. Δοκίμασε ξανά.' });

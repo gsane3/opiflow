@@ -104,7 +104,7 @@ function buildUploadMessage(uploadUrl: string, businessName: string | null): str
     '',
     'Φιλικά,',
     name,
-    'μέσω DeskopAI Assistant',
+    'μέσω Opiflow Assistant',
   ].join('\n');
 }
 

@@ -251,7 +251,7 @@ export function parseBackupJson(json: string): ParsedBackup | null {
     if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return null;
 
     // New wrapped format
-    if (parsed.app === 'deskop.ai' && parsed.type === 'local_backup') {
+    if ((parsed.app === 'opiflow.ai' || parsed.app === 'deskop.ai') && parsed.type === 'local_backup') {
       const state = parsed.state;
       if (typeof state !== 'object' || state === null || Array.isArray(state)) return null;
       return {
@@ -273,7 +273,7 @@ export function parseBackupJson(json: string): ParsedBackup | null {
 
 export function exportStateJson(): string {
   const envelope: BackupEnvelope = {
-    app: 'deskop.ai',
+    app: 'opiflow.ai',
     type: 'local_backup',
     version: 1,
     exportedAt: new Date().toISOString(),

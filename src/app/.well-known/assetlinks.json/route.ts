@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 // Returns 404 until ANDROID_SHA256_CERT_FINGERPRINTS is set (comma-separated
 // upper-case SHA-256 signing-certificate fingerprints from `keytool -list` or
 // the Play Console "App signing" page). The package name defaults to the
-// Capacitor appId. Once set, verified App Links open deskop.ai URLs in-app.
+// Capacitor appId. Once set, verified App Links open opiflow.vercel.app URLs in-app.
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -20,7 +20,7 @@ export async function GET() {
     return NextResponse.json({ error: 'not_configured' }, { status: 404 });
   }
 
-  const packageName = process.env.ANDROID_PACKAGE_NAME?.trim() || 'ai.deskop.app';
+  const packageName = process.env.ANDROID_PACKAGE_NAME?.trim() || 'ai.opiflow.app';
 
   return NextResponse.json([
     {

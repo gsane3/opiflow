@@ -1,13 +1,14 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import StoreBadges from '@/components/marketing/StoreBadges';
+import { OpiflowMark } from '@/components/brand/OpiflowLogo';
 
 export const metadata: Metadata = {
-  title: 'deskop.com — Το τηλέφωνό σου γίνεται CRM',
+  title: 'Opiflow — Κάθε κλήση γίνεται ενέργεια',
   description:
     'Επαγγελματικό τηλέφωνο με AI για τεχνικούς. Κάθε κλήση γίνεται καρτέλα πελάτη, AI brief και επόμενη ενέργεια. Στείλε link στον πελάτη μέσω Viber και κλείσε τη δουλειά.',
   openGraph: {
-    title: 'deskop.com — Το τηλέφωνό σου γίνεται CRM',
+    title: 'Opiflow — Κάθε κλήση γίνεται ενέργεια',
     description:
       'Κάθε κλήση γίνεται καρτέλα πελάτη, AI brief και επόμενη ενέργεια. Φτιαγμένο για τεχνικούς.',
     type: 'website',
@@ -18,13 +19,10 @@ export const metadata: Metadata = {
 function Logo() {
   return (
     <div className="flex items-center gap-2">
-      <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-indigo-600">
-        <svg className="h-4.5 w-4.5 text-white" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-        </svg>
-      </span>
-      <span className="text-lg font-bold tracking-tight text-zinc-900">
-        deskop
+      <OpiflowMark className="h-8 w-8" />
+      <span className="text-lg font-bold tracking-tight">
+        <span className="text-zinc-900">opiflow</span>
+        <span className="text-indigo-600">.ai</span>
       </span>
     </div>
   );
@@ -116,7 +114,7 @@ export default function LandingPage() {
             </span>
             <h1 className="mt-5 text-4xl font-bold leading-[1.1] tracking-tight text-zinc-900 md:text-5xl">
               Το τηλέφωνό σου<br className="hidden md:block" /> γίνεται{' '}
-              <span className="text-indigo-600">CRM</span>.
+              <span className="text-indigo-600">ενέργεια</span>.
             </h1>
             <p className="mt-5 max-w-md text-base leading-relaxed text-zinc-600 md:text-lg">
               Επαγγελματικό τηλέφωνο με AI. Κάθε κλήση γίνεται καρτέλα πελάτη, περίληψη και επόμενη
@@ -284,7 +282,7 @@ export default function LandingPage() {
             <Link href="/login" className="transition hover:text-zinc-800">Σύνδεση</Link>
             <Link href="/register" className="transition hover:text-zinc-800">Εγγραφή</Link>
           </div>
-          <p className="text-xs text-zinc-400">© 2026 deskop.com</p>
+          <p className="text-xs text-zinc-400">© 2026 opiflow.ai</p>
         </div>
       </footer>
     </div>

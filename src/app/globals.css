@@ -7,6 +7,29 @@
     "Helvetica Neue", Arial, "Noto Sans", sans-serif;
 }
 
+/* ── Opiflow brand palette ────────────────────────────────────────────────
+   The app standardised on Tailwind's `indigo-*` scale as its single accent.
+   Opiflow's brand accent is emerald #00C499 (brand deck "CAM."), so we remap
+   the whole `indigo` ramp to an accessible emerald scale. Every existing
+   `bg-indigo-600`, `text-indigo-700`, `ring-indigo-500`, … instantly becomes
+   Opiflow emerald with zero churn across the 70+ component files.
+     • 500 = #00C499 is the exact brand emerald (accents, rings, active dots, logo).
+     • 600/700 are deepened so white text on filled buttons stays legible.
+   The secondary brand blue (#3361FF) lives on Tailwind's own `blue-*` scale. */
+@theme {
+  --color-indigo-50: #ecfdf7;
+  --color-indigo-100: #cff8ec;
+  --color-indigo-200: #9fefd8;
+  --color-indigo-300: #5fe2c2;
+  --color-indigo-400: #1fd0a6;
+  --color-indigo-500: #00c499;
+  --color-indigo-600: #00a07c;
+  --color-indigo-700: #00805f;
+  --color-indigo-800: #00664b;
+  --color-indigo-900: #064e3b;
+  --color-indigo-950: #032f24;
+}
+
 /* Mobile-app baseline. */
 html {
   -webkit-text-size-adjust: 100%;

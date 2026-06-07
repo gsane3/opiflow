@@ -1,4 +1,4 @@
-package ai.deskop.app;
+package ai.opiflow.app;
 
 import com.getcapacitor.BridgeActivity;
 

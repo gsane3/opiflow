@@ -11,7 +11,7 @@ export async function GET() {
   return NextResponse.json(
     {
       ok: missing.length === 0,
-      service: 'deskop',
+      service: 'opiflow',
       time: new Date().toISOString(),
       coreConfigured: missing.length === 0,
       integrations: integrationStatus(),

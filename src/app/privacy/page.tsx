@@ -3,21 +3,21 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Πολιτική Απορρήτου',
-  description: 'Πολιτική Απορρήτου και προστασία δεδομένων (GDPR) της υπηρεσίας deskop.',
+  description: 'Πολιτική Απορρήτου και προστασία δεδομένων (GDPR) της υπηρεσίας Opiflow.',
 };
 
 export default function PrivacyPage() {
   return (
     <main className="min-h-[100dvh] bg-white">
       <div className="mx-auto max-w-2xl px-5 py-12">
-        <Link href="/" className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">← deskop</Link>
+        <Link href="/" className="text-sm font-semibold text-indigo-600 hover:text-indigo-700">← Opiflow</Link>
         <h1 className="mt-6 text-3xl font-bold tracking-tight text-zinc-900">Πολιτική Απορρήτου</h1>
         <p className="mt-2 text-sm text-zinc-400">Τελευταία ενημέρωση: Ιούνιος 2026 · Συμμόρφωση με GDPR (ΕΕ 2016/679)</p>
 
         <div className="mt-8 space-y-7 text-[15px] leading-relaxed text-zinc-700">
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900">Υπεύθυνος επεξεργασίας</h2>
-            <p>deskop. Επικοινωνία για θέματα προσωπικών δεδομένων: <a href="mailto:privacy@deskop.ai" className="font-medium text-indigo-600 hover:text-indigo-700">privacy@deskop.ai</a>.</p>
+            <p>Opiflow. Επικοινωνία για θέματα προσωπικών δεδομένων: <a href="mailto:privacy@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">privacy@opiflow.ai</a>.</p>
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900">Τι δεδομένα συλλέγουμε</h2>
@@ -42,7 +42,7 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900">Τα δικαιώματά σας (GDPR)</h2>
-            <p>Έχετε δικαίωμα πρόσβασης, διόρθωσης, διαγραφής, φορητότητας (εξαγωγή), περιορισμού και εναντίωσης. Η εξαγωγή πελατών είναι διαθέσιμη μέσα στην εφαρμογή (Ρυθμίσεις → Δεδομένα). Για διαγραφή λογαριασμού & δεδομένων επικοινωνήστε στο <a href="mailto:privacy@deskop.ai" className="font-medium text-indigo-600 hover:text-indigo-700">privacy@deskop.ai</a>. Έχετε επίσης δικαίωμα καταγγελίας στην Αρχή Προστασίας Δεδομένων Προσωπικού Χαρακτήρα.</p>
+            <p>Έχετε δικαίωμα πρόσβασης, διόρθωσης, διαγραφής, φορητότητας (εξαγωγή), περιορισμού και εναντίωσης. Η εξαγωγή πελατών είναι διαθέσιμη μέσα στην εφαρμογή (Ρυθμίσεις → Δεδομένα). Για διαγραφή λογαριασμού & δεδομένων επικοινωνήστε στο <a href="mailto:privacy@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">privacy@opiflow.ai</a>. Έχετε επίσης δικαίωμα καταγγελίας στην Αρχή Προστασίας Δεδομένων Προσωπικού Χαρακτήρα.</p>
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900">Ασφάλεια</h2>
