@@ -339,7 +339,7 @@ function OnboardingPageContent() {
     <div className="flex min-h-full flex-col">
       <header className="border-b border-zinc-100 bg-white px-4 py-4">
         <div className="mx-auto max-w-lg">
-          <p className="text-sm font-bold text-zinc-900">deskop.ai</p>
+          <p className="text-sm font-bold text-zinc-900">opiflow.ai</p>
           <div className="mt-3 flex gap-1.5">
             {STEPS.map((_, i) => (
               <div
@@ -397,7 +397,7 @@ function OnboardingPageContent() {
                   }}
                 />
                 <p className="mt-3 text-xs text-zinc-400">
-                  Το τηλέφωνο εδώ είναι κινητό επικοινωνίας. Ο επαγγελματικός αριθμός σου δίνεται αυτόματα από το deskop.ai.
+                  Το τηλέφωνο εδώ είναι κινητό επικοινωνίας. Ο επαγγελματικός αριθμός σου δίνεται αυτόματα από το Opiflow.
                 </p>
               </>
             )}

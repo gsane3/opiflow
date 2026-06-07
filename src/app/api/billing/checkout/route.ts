@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
   if ('error' in auth) return auth.error;
   const { businessId } = auth.ctx;
 
-  const origin = request.headers.get('origin') ?? 'https://deskop.ai';
+  const origin = request.headers.get('origin') ?? 'https://opiflow.vercel.app';
   const result = await createCheckoutSession({
     priceId: process.env.STRIPE_PRICE_ID,
     businessId,

@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { OpiflowMark } from '@/components/brand/OpiflowLogo';
 
 const navItems = [
   {
@@ -189,7 +190,11 @@ export default function DesktopSidebar() {
     <aside className="hidden md:flex flex-col fixed inset-y-0 left-0 z-40 w-60 border-r border-zinc-200 bg-white">
       {/* Brand */}
       <div className="flex h-16 items-center gap-2 border-b border-zinc-100 px-5">
-        <span className="text-lg font-bold text-zinc-900">deskop.ai</span>
+        <OpiflowMark className="h-7 w-7" />
+        <span className="text-lg font-bold">
+          <span className="text-zinc-900">opiflow</span>
+          <span className="text-indigo-600">.ai</span>
+        </span>
       </div>
 
       {/* Nav */}

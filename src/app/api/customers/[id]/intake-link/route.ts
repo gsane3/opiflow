@@ -104,7 +104,7 @@ function buildIntakeMessage(responseUrl: string, businessName: string | null): s
     '',
     'Φιλικά,',
     name,
-    'μέσω DeskopAI Assistant',
+    'μέσω Opiflow Assistant',
   ].join('\n');
 }
 

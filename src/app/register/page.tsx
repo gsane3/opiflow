@@ -114,7 +114,7 @@ export default function RegisterPage() {
         {/* Wordmark */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-1">
-            <span className="text-[22px] font-bold tracking-tight text-zinc-900">deskop</span>
+            <span className="text-[22px] font-bold tracking-tight text-zinc-900">opiflow</span>
             <span className="text-[22px] font-bold tracking-tight text-indigo-600">.ai</span>
             <svg
               className="ml-0.5 h-3.5 w-3.5 text-indigo-400"
@@ -126,7 +126,7 @@ export default function RegisterPage() {
             </svg>
           </div>
           <h1 className="mt-6 text-2xl font-bold text-zinc-900 text-center leading-snug">
-            Καλωσόρισες στο deskop.ai
+            Καλωσόρισες στο Opiflow
           </h1>
           <p className="mt-2 text-sm text-zinc-500 text-center">
             Δημιούργησε τον λογαριασμό σου σε λίγα δευτερόλεπτα.

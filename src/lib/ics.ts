@@ -41,7 +41,7 @@ export function buildAppointmentIcs(opts: {
   const lines = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//deskop.ai//Appointments//EL',
+    'PRODID:-//opiflow.ai//Appointments//EL',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     'BEGIN:VEVENT',

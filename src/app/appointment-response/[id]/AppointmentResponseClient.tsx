@@ -355,7 +355,7 @@ export default function AppointmentResponseClient({ token }: Props) {
     if (business?.phone) descParts.push(`Τηλ: ${business.phone}`);
     if (visibleNote) descParts.push(visibleNote);
     const ics = buildAppointmentIcs({
-      uid: `${token.slice(0, 16)}@deskop.ai`,
+      uid: `${token.slice(0, 16)}@opiflow.ai`,
       title: appointment.title,
       date: appointment.dueDate,
       time: appointment.dueTime,

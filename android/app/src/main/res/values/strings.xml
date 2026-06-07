@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">deskop</string>
-    <string name="title_activity_main">deskop</string>
-    <string name="package_name">ai.deskop.app</string>
-    <string name="custom_url_scheme">ai.deskop.app</string>
+    <string name="app_name">Opiflow</string>
+    <string name="title_activity_main">Opiflow</string>
+    <string name="package_name">ai.opiflow.app</string>
+    <string name="custom_url_scheme">ai.opiflow.app</string>
 </resources>

@@ -140,7 +140,7 @@ function buildApptMessage(task: TaskRow, responseUrl: string, businessName: stri
     '',
     'Φιλικά,',
     name,
-    'μέσω DeskopAI Assistant',
+    'μέσω Opiflow Assistant',
   ].join('\n');
 }
 

@@ -4,9 +4,9 @@ import { NextResponse } from 'next/server';
 // /.well-known/apple-app-site-association as application/json (no extension).
 //
 // Returns 404 until APPLE_APP_ID is set (format: <TeamID>.<bundleId>, e.g.
-// "ABCDE12345.ai.deskop.app"), so a misconfigured deploy never publishes a
+// "ABCDE12345.ai.opiflow.app"), so a misconfigured deploy never publishes a
 // broken association that would silently disable Universal Links. Once set,
-// taps on deskop.ai links open the installed app instead of the browser.
+// taps on opiflow.vercel.app links open the installed app instead of the browser.
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +23,7 @@ export async function GET() {
       details: [
         {
           appID: appId,
-          // Open every deskop.ai path in-app; Apple always excludes /.well-known.
+          // Open every opiflow.vercel.app path in-app; Apple always excludes /.well-known.
           paths: ['*'],
         },
       ],

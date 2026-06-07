@@ -603,7 +603,7 @@ export default function OfferResponseClient({ token }: Props) {
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-zinc-400">deskop.ai</p>
+        <p className="text-center text-xs text-zinc-400">opiflow.ai</p>
 
       </div>
     </div>
