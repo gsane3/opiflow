@@ -15,12 +15,14 @@
     "cap:ios": "cap open ios"
   },
   "dependencies": {
+    "@capacitor-firebase/app": "^7.5.0",
+    "@capacitor-firebase/messaging": "^7.5.0",
     "@capacitor/android": "^7.6.6",
     "@capacitor/cli": "^7.6.6",
     "@capacitor/core": "^7.6.6",
     "@capacitor/ios": "^7.6.6",
-    "@capacitor/push-notifications": "^7.0.6",
     "@supabase/supabase-js": "^2.106.0",
+    "firebase": "^11.10.0",
     "jssip": "^3.13.8",
     "next": "16.2.6",
     "react": "19.2.4",
