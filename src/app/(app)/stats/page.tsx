@@ -231,7 +231,6 @@ export default function StatsPage() {
   }
 
   const { customers, tasks, offers } = data;
-  void tasks; // tasks are loaded with the same pattern but not surfaced as a stat yet
 
   // ---------------------------------------------------------------------------
   // Computations
@@ -240,6 +239,11 @@ export default function StatsPage() {
   const monthStart = new Date();
   monthStart.setDate(1);
   monthStart.setHours(0, 0, 0, 0);
+
+  // Agenda health: open / overdue tasks.
+  const todayStr = new Date().toISOString().split('T')[0];
+  const openTasks = tasks.filter((t) => t.status === 'open');
+  const overdueTasks = openTasks.filter((t) => t.dueDate && t.dueDate < todayStr);
 
   const openOffers = offers.filter((o) => OPEN_OFFER_STATUSES.has(o.status));
 
@@ -373,6 +377,11 @@ export default function StatsPage() {
               label="Ποσοστό επιτυχίας"
               value={`${winRate}%`}
               hint={`${wonCount} κερδισμένοι / ${lostCount} χαμένοι`}
+            />
+            <MetricCard
+              label="Εκκρεμείς εργασίες"
+              value={String(openTasks.length)}
+              hint={overdueTasks.length > 0 ? `${overdueTasks.length} εκπρόθεσμες` : 'καμία εκπρόθεσμη'}
             />
           </div>
 
