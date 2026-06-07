@@ -1,50 +1,108 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import {
+  isSipProvisioningEnabled,
+  encryptSecret,
+  decryptSecret,
+  generateSipPassword,
+} from '@/lib/server/sip-credentials';
+
+export const runtime = 'nodejs';
 
 // GET /api/phone/browser-token
 //
 // Returns browser SIP credentials for the authenticated user's business.
-// Credentials are read from server-side environment variables only:
-//   PHONE_SIP_WSS_URL, PHONE_SIP_USERNAME, PHONE_SIP_PASSWORD, PHONE_SIP_REALM
 //
-// Gate logic:
+// Two modes, chosen automatically:
+//   A) PER-USER (multi-tenant): enabled once SIP_CRED_ENC_KEY is set (i.e. the
+//      Asterisk per-user endpoints are provisioned). Each business is issued its
+//      OWN SIP credential — username is the deterministic biz_<id> created by
+//      ensure_browser_sip_endpoint; the password is generated on first use and
+//      stored AES-256-GCM encrypted in browser_sip_endpoints.sip_password_enc.
+//   B) SHARED ENV (default / current behaviour): credentials come from
+//      PHONE_SIP_WSS_URL, PHONE_SIP_USERNAME, PHONE_SIP_PASSWORD, PHONE_SIP_REALM.
+//
+// The per-user path is fully fail-safe: ANY error (table not migrated, no key,
+// decrypt failure, etc.) falls through to the shared-env path, so the existing
+// line keeps working until the Asterisk side is ready.
+//
+// Gate logic (unchanged):
 //   1. Bearer token required.
 //   2. Supabase getUser(token) must succeed.
 //   3. Business must exist (owner_id match).
-//   4. business.business_phone_number must be set -- used as the "number assigned" gate.
-//   5. ensure_browser_sip_endpoint is called best-effort; RPC errors are non-fatal.
-//   6. SIP credentials are read from env after all ownership checks pass.
+//   4. business.business_phone_number must be set (the "number assigned" gate).
+//   5. Subscription must allow activation.
+//   6. ensure_browser_sip_endpoint is called best-effort.
 //
-// sipPassword is returned only after auth and business checks pass.
-// It is never logged or included in error responses.
+// sipPassword is returned only after all auth/business checks pass. It is never
+// logged or included in error responses.
 
-// Cache-Control applied to every response: credentials must not be cached.
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
+
+type SupabaseServer = ReturnType<typeof createServerSupabaseClient>;
+
+/**
+ * Resolves the business's own SIP credential, generating + persisting an
+ * encrypted password on first use. Returns null on any failure (caller then
+ * falls back to shared env credentials).
+ */
+async function resolvePerUserCredential(
+  supabase: SupabaseServer,
+  businessId: string
+): Promise<{ sipUsername: string; sipPassword: string } | null> {
+  const { data: rows, error } = await supabase
+    .from('browser_sip_endpoints')
+    .select('id, sip_username, sip_password_enc, status')
+    .eq('business_id', businessId)
+    .neq('status', 'revoked')
+    .limit(1);
+
+  if (error || !rows || rows.length === 0) return null;
+  const row = rows[0] as {
+    id: string;
+    sip_username: string | null;
+    sip_password_enc: string | null;
+    status: string;
+  };
+  if (!row.sip_username) return null;
+
+  // Reuse the existing password, or mint + persist one on first use.
+  let plaintext: string | null = row.sip_password_enc ? decryptSecret(row.sip_password_enc) : null;
+  if (!plaintext) {
+    plaintext = generateSipPassword();
+    const enc = encryptSecret(plaintext);
+    const { error: upErr } = await supabase
+      .from('browser_sip_endpoints')
+      .update({
+        sip_password_enc: enc,
+        sip_password_set_at: new Date().toISOString(),
+        status: 'active',
+        wss_url: process.env.PHONE_SIP_WSS_URL?.trim() || null,
+        sip_realm: process.env.PHONE_SIP_REALM?.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', row.id);
+    if (upErr) return null;
+  }
+
+  return { sipUsername: row.sip_username, sipPassword: plaintext };
+}
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return NextResponse.json(
-      { ok: false, error: 'missing_auth' },
-      { status: 401, headers: NO_STORE }
-    );
+    return NextResponse.json({ ok: false, error: 'missing_auth' }, { status: 401, headers: NO_STORE });
   }
   const token = authHeader.slice(7);
 
-  let supabase: ReturnType<typeof createServerSupabaseClient>;
+  let supabase: SupabaseServer;
   try {
     supabase = createServerSupabaseClient();
   } catch (err) {
     if (err instanceof Error && err.message.includes('Missing Supabase server')) {
-      return NextResponse.json(
-        { ok: false, error: 'missing_supabase_config' },
-        { status: 503, headers: NO_STORE }
-      );
+      return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503, headers: NO_STORE });
     }
-    return NextResponse.json(
-      { ok: false, error: 'phone_token_route_failed' },
-      { status: 500, headers: NO_STORE }
-    );
+    return NextResponse.json({ ok: false, error: 'phone_token_route_failed' }, { status: 500, headers: NO_STORE });
   }
 
   try {
@@ -53,10 +111,7 @@ export async function GET(request: NextRequest) {
       error: authError,
     } = await supabase.auth.getUser(token);
     if (authError || !user) {
-      return NextResponse.json(
-        { ok: false, error: 'invalid_auth' },
-        { status: 401, headers: NO_STORE }
-      );
+      return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401, headers: NO_STORE });
     }
 
     // Resolve the user's business.
@@ -67,25 +122,15 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     if (businessError) {
-      return NextResponse.json(
-        { ok: false, error: 'business_query_failed' },
-        { status: 500, headers: NO_STORE }
-      );
+      return NextResponse.json({ ok: false, error: 'business_query_failed' }, { status: 500, headers: NO_STORE });
     }
     if (!business) {
-      return NextResponse.json(
-        { ok: false, error: 'business_not_found' },
-        { status: 404, headers: NO_STORE }
-      );
+      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404, headers: NO_STORE });
     }
 
     // Gate: business must have an assigned phone number.
-    // This check replaces the RPC-row count used previously.
     if (!business.business_phone_number) {
-      return NextResponse.json(
-        { ok: false, error: 'no_number_assigned' },
-        { status: 409, headers: NO_STORE }
-      );
+      return NextResponse.json({ ok: false, error: 'no_number_assigned' }, { status: 409, headers: NO_STORE });
     }
 
     // Gate: subscription must allow access (pending_manual_review, trialing, or active).
@@ -97,42 +142,59 @@ export async function GET(request: NextRequest) {
 
     const subStatus = subRow ? (subRow as { status: string }).status : null;
     const activationAllowed =
-      subStatus !== null &&
-      ['pending_manual_review', 'trialing', 'active'].includes(subStatus);
+      subStatus !== null && ['pending_manual_review', 'trialing', 'active'].includes(subStatus);
 
     if (!activationAllowed) {
       return NextResponse.json(
-        {
-          ok: false,
-          ready: false,
-          error: 'activation_required',
-          message: 'activation_required',
-        },
+        { ok: false, ready: false, error: 'activation_required', message: 'activation_required' },
         { status: 403, headers: NO_STORE }
       );
     }
 
-    // Best-effort: create/update the browser SIP endpoint row in the DB.
-    // RPC errors are non-fatal for this PoC -- env-based credentials are used regardless.
+    // Best-effort: create/refresh the per-business browser SIP endpoint row.
     try {
       await supabase.rpc('ensure_browser_sip_endpoint', {
         p_business_id: business.id,
         p_user_id: user.id,
       });
     } catch {
-      // Intentionally swallowed. The RPC is a bookkeeping step;
-      // credential delivery does not depend on it for the env-var PoC path.
+      // Bookkeeping only; credential delivery does not depend on it.
     }
 
-    // Auth and business ownership checks passed. Read SIP credentials from env.
-    // Values are never logged.
     const sipWssUrl = process.env.PHONE_SIP_WSS_URL?.trim() || null;
-    const sipUsername = process.env.PHONE_SIP_USERNAME?.trim() || null;
-    const sipPassword = process.env.PHONE_SIP_PASSWORD?.trim() || null;
     const sipRealm = process.env.PHONE_SIP_REALM?.trim() || null;
 
-    const credentialsReady =
-      sipWssUrl !== null && sipUsername !== null && sipPassword !== null;
+    // --- Mode A: per-user credential (enabled once SIP_CRED_ENC_KEY is set) ---
+    // Any failure falls through to the shared-env path below.
+    if (isSipProvisioningEnabled() && sipWssUrl) {
+      try {
+        const perUser = await resolvePerUserCredential(supabase, business.id);
+        if (perUser) {
+          return NextResponse.json(
+            {
+              ok: true,
+              ready: true,
+              sipUsername: perUser.sipUsername,
+              sipRealm,
+              wssUrl: sipWssUrl,
+              sipPassword: perUser.sipPassword,
+              perUser: true,
+              expiresAt: null,
+              message: 'per_user_endpoint_ready',
+            },
+            { headers: NO_STORE }
+          );
+        }
+      } catch {
+        // Fall through to shared env credentials.
+      }
+    }
+
+    // --- Mode B: shared env credentials (default / current behaviour) ---
+    const sipUsername = process.env.PHONE_SIP_USERNAME?.trim() || null;
+    const sipPassword = process.env.PHONE_SIP_PASSWORD?.trim() || null;
+
+    const credentialsReady = sipWssUrl !== null && sipUsername !== null && sipPassword !== null;
 
     if (credentialsReady) {
       return NextResponse.json(
@@ -143,6 +205,7 @@ export async function GET(request: NextRequest) {
           sipRealm,
           wssUrl: sipWssUrl,
           sipPassword,
+          perUser: false,
           expiresAt: null,
           message: 'browser_endpoint_ready',
         },
@@ -150,19 +213,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Credentials not yet configured in env. Return a safe not-ready response.
     return NextResponse.json(
-      {
-        ok: true,
-        ready: false,
-        message: 'browser_endpoint_not_configured',
-      },
+      { ok: true, ready: false, message: 'browser_endpoint_not_configured' },
       { headers: NO_STORE }
     );
   } catch {
-    return NextResponse.json(
-      { ok: false, error: 'phone_token_route_failed' },
-      { status: 500, headers: NO_STORE }
-    );
+    return NextResponse.json({ ok: false, error: 'phone_token_route_failed' }, { status: 500, headers: NO_STORE });
   }
 }
