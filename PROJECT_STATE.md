@@ -26,7 +26,7 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 |---|---|
 | Live app | **https://opiflow.vercel.app** |
 | Vercel project | **`sane127/opiflow`** (CLI logged in as `georgiostsipos-2366`) |
-| Supabase project (LIVE) | **`hgboywgjddphzeiwtezw`** → https://hgboywgjddphzeiwtezw.supabase.co |
+| Supabase project (LIVE) | **`oluhmztfimmgmbxoioea`** → https://oluhmztfimmgmbxoioea.supabase.co (confirmed in the deployed client bundle) |
 | GitHub repo | `github.com/gsane3/yorgos` — **TO RENAME → `opiflow`** |
 | Local folder | `E:\yorgos` — **TO RENAME → `E:\opiflow`** |
 | PBX | Hetzner CPX22, Ubuntu 24.04, **`root@46.224.138.115`**, Asterisk 20.6 active |
@@ -34,10 +34,13 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 | Shared SIP user | `yorgospro001` (= app's `PHONE_SIP_USERNAME`) + `groundwire001` (interim mobile) |
 | Health | `GET /api/health` (booleans only) |
 
-> ⚠️ OLD/duplicate projects likely exist and are **to be deleted** (section H):
-> a stale Supabase project (memory once wrongly said `oluhmztfimmgmbxoioea`) and a
-> Vercel project `yorgos` → `directsourcing.gr`. **`.env.local` currently points at
-> the LIVE Supabase `hgboy`.**
+> ⚠️ **`hgboywgjddphzeiwtezw` is the OLD Supabase project — safe to DELETE.** The live
+> app's deployed bundle uses `oluhmztfimmgmbxoioea`. **BUT the local `.env.local` is STALE:
+> it still holds the OLD `hgboy` keys**, and the PBX `/etc/opiflow/sip.env` was seeded from
+> it → the PBX currently points at the dead `hgboy`. **Fix: update `.env.local` to the
+> `oluhmzt` keys, then re-ship the new service key to the PBX.** The "031 missing / 0 rows"
+> earlier was just because we were querying the dead `hgboy` — 031 + data live on `oluhmzt`.
+> Also delete the old Vercel project `yorgos` (→ `directsourcing.gr`) only if truly unused.
 
 ## C. Stack & architecture
 - Next.js 16 (App Router, Turbopack) + React 19 + TypeScript + Tailwind v4.
@@ -77,20 +80,24 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 
 ## E. Current state (where we are NOW)
 - **App:** rebrand LIVE and healthy. Per-user-SIP code shipped but **INERT** — `SIP_CRED_ENC_KEY`
-  not set on Vercel, and **migration 031 is NOT yet applied to the live Supabase (hgboy)**.
-- **PBX:** SSH access established (key `~/.ssh/yorgos_pbx_vps_600`). Deployed but **not
-  wired into live Asterisk**: `/opt/opiflow/provision-asterisk.py` + `/etc/opiflow/sip.env`
-  (`SUPABASE_URL`→hgboy, `SIP_CRED_ENC_KEY` generated on box, `SUPABASE_SERVICE_ROLE_KEY`
-  shipped from `.env.local`). Config backups: `/etc/asterisk/{pjsip,extensions}.conf.opiflow-bak.20260607114549`.
+  not yet set on Vercel.
+- **Supabase:** live = **`oluhmztfimmgmbxoioea`**; **migration 031 IS applied there** (verified:
+  `sip_password_enc` exists). Data: **1 business, 1 active number, 0 `browser_sip_endpoints` rows.**
+  (`hgboy` = old, to be deleted; the local `.env.local` was stale → user updated it to oluhmzt.)
+- **PBX:** SSH access (key `~/.ssh/yorgos_pbx_vps_600`). `/opt/opiflow/provision-asterisk.py` +
+  `/etc/opiflow/sip.env` now correctly point at **oluhmzt** with a working service key
+  (verified: `--dry-run` connects; 0 users to provision yet). **Not yet wired into live Asterisk.**
+  Backups `/etc/asterisk/{pjsip,extensions}.conf.opiflow-bak.20260607114549`.
 - **Vercel CLI:** logged in + linked `sane127/opiflow`.
 
 ## F. Open problems / blockers
-1. **Migration 031 NOT on live Supabase (hgboy)** — `sip_password_enc` / `telephony_mode`
-   return 42703 "does not exist" → A/B + presence not actually live; provisioner can't run.
-   Needs: a Postgres connection string (psql) or the SQL editor on the **hgboy** project.
-2. **`browser_sip_endpoints` has 0 rows** on hgboy → provisioner has nothing to do until
-   rows exist → enhance it to proactively `ensure_browser_sip_endpoint` per
-   business-with-active-number (or users open the phone after 031).
+1. ✅ **RESOLVED — project confusion.** Live = `oluhmzt`; 031 is applied there; the PBX is
+   repointed with a working service key. (The earlier "031 missing / 0 rows" was from querying
+   the dead `hgboy`, because `.env.local` was stale.)
+2. **`browser_sip_endpoints` has 0 rows** (1 business with an active number) → the provisioner
+   must **proactively create rows**: call `ensure_browser_sip_endpoint` per
+   business-with-active-number (POST `/rest/v1/rpc/ensure_browser_sip_endpoint`), then mint +
+   generate. **(Not yet implemented — next coding step.)**
 3. **Secret handling boundary:** the assistant **cannot read `.env.local` or move raw
    secrets** (safety rule + auto-mode classifier blocks `vercel env pull`, prod-secret
    reads). The user ships each secret via:
