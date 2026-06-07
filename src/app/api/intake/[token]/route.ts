@@ -5,8 +5,12 @@ import {
   markIntakeTokenOpened,
   markIntakeTokenSubmitted,
 } from '@/lib/server/intake-tokens';
+import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
 
 export const runtime = 'nodejs';
+
+// Public endpoint — rate-limit by IP to deter abuse/scraping.
+const publicLimiter = makePublicLimiter(40, 60_000);
 
 const CUSTOMER_COLUMNS = [
   'id',
@@ -140,6 +144,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const limited = await publicLimiter(request);
+  if (limited) return limited;
+
   const contentType = request.headers.get('content-type') ?? '';
   const acceptsJson = contentType.includes('application/json');
   const acceptsForm =

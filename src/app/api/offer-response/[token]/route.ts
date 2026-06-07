@@ -12,8 +12,12 @@ import {
 } from '@/lib/server/offer-response-tokens';
 import type { OfferResponseTokenRow } from '@/lib/server/offer-response-tokens';
 import { sendPushToBusinessOwner } from '@/lib/server/push';
+import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
 
 export const runtime = 'nodejs';
+
+// Public endpoint — rate-limit by IP to deter abuse/scraping.
+const publicLimiter = makePublicLimiter(40, 60_000);
 
 // ---------------------------------------------------------------------------
 // Column lists
@@ -348,6 +352,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const limited = await publicLimiter(request);
+  if (limited) return limited;
+
   // Content-type guard
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
