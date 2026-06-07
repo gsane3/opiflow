@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-07 — session 7 (rebrand → Opiflow + PBX wiring, paused to organize).
+> **Last updated:** 2026-06-07 — session 7 (rebrand → Opiflow; telephony deep-dive + InterTelecom DID blocker; repo audit + cleanup; customer-memory AI feature wired).
 
 ---
 
@@ -68,7 +68,25 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
     Backward-compatible / **inert until activated**.
   - **PR #14 (33e1bad) SIP sync worker (ARA approach)** — `scripts/sync-sip-to-asterisk.mjs`.
     ⚠️ **Superseded** by the static-config provisioner (the PBX has no DB).
-  - **PBX wiring (uncommitted/in-progress)** — `scripts/provision-asterisk.py`.
+  - **PR #15-16 — canonical docs + project-ref fix:** `PROJECT_STATE.md` + `AGENTS.md` (auto-loaded);
+    corrected the live Supabase ref to `oluhmztfimmgmbxoioea` (the hgboy mix-up).
+  - **PR #17 — telephony pre-flip fixes (adversarial-reviewed):** app `browser-token` no longer mints
+    (provisioner = SOLE password authority → kills the dual-writer race / silent 401s); provisioner
+    self-creates endpoint rows (direct INSERT — `ensure_browser_sip_endpoint` RPC has a 42702 bug) +
+    writes conf 0640 root:asterisk.
+  - **PR #18 — dead-code cleanup (3-agent audit):** removed 5 unused components + the superseded ARA
+    telephony files (`sync-sip-to-asterisk.mjs`, `ara_pjsip_realtime.sql`, `ASTERISK_REALTIME_PROVISIONING.md`)
+    + junk; **REVERTED the orphaned AI scaffolding** in `customers/[id]/page.tsx` (long-standing loose end — gone).
+  - **PR #19 — docs archive:** moved the pre-rebrand `docs/00-07` spec bundle + MVP-era checklists to
+    `docs/archive/`; deleted obsolete mojibake doc. `docs/` now = DEPLOY, PRODUCTION_ROADMAP, SETUP_AND_COSTS, NATIVE_WRAPPER, ci-workflow.
+  - **PR #20 — customer-memory AI wired:** `src/components/customers/CustomerSummaryFromCalls.tsx` — the
+    previously-unwired `/api/ai/customer-memory` endpoint is now a "✨ Σύνοψη από κλήσεις (AI)" button on the
+    customer card: consolidates recent call briefs + tasks + offers → proposed status summary + **next best
+    action** (review-first → Αποδοχή PATCHes the memory fields that already render). Per-call brief tap-to-view already worked.
+  - **PBX deep-dive (live, via SSH):** provisioner deployed + verified at `/opt/opiflow/provision-asterisk.py`;
+    per-user endpoint clone of `yorgospro001` + outbound ready, INERT (not yet `#include`d). **🔴 InterTelecom does
+    NOT deliver the dialed DID** (tcpdump of a real inbound: every call → `INVITE sip:IT658318@...`, the DID is absent) →
+    per-user INBOUND routing is BLOCKED on the provider (needs DID/DDI delivery or per-DID accounts).
 - **2026-06-03 … 06-05 — sessions 1-6 (pre-rebrand, as "deskop"):** launch-readiness
   (mobile shell, security lockdown, dead-code removal, public pages, server onboarding
   gating, shared auth helper, Viber-modal dedup); marketing site; Google/Apple OAuth;
@@ -82,13 +100,17 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 - **App:** rebrand LIVE and healthy. Per-user-SIP code shipped but **INERT** — `SIP_CRED_ENC_KEY`
   not yet set on Vercel.
 - **Supabase:** live = **`oluhmztfimmgmbxoioea`**; **migration 031 IS applied there** (verified:
-  `sip_password_enc` exists). Data: **1 business, 1 active number, 0 `browser_sip_endpoints` rows.**
-  (`hgboy` = old, to be deleted; the local `.env.local` was stale → user updated it to oluhmzt.)
+  `sip_password_enc` exists). Data: **1 business, 1 active number, 1 provisioned `browser_sip_endpoints` row**
+  (the provisioner self-creates rows + mints passwords). (`hgboy` = old, to be deleted; `.env.local` updated to oluhmzt.)
 - **PBX:** SSH access (key `~/.ssh/yorgos_pbx_vps_600`). `/opt/opiflow/provision-asterisk.py` +
   `/etc/opiflow/sip.env` now correctly point at **oluhmzt** with a working service key
   (verified: `--dry-run` connects; 0 users to provision yet). **Not yet wired into live Asterisk.**
   Backups `/etc/asterisk/{pjsip,extensions}.conf.opiflow-bak.20260607114549`.
 - **Vercel CLI:** logged in + linked `sane127/opiflow`.
+- **App features:** customer-memory AI ("✨ Σύνοψη από κλήσεις") wired & live on the customer card; repo
+  audited + cleaned (no dead code / no orphaned scaffolding); working tree clean.
+- **Open infra (user's side):** delete old Supabase `hgboy` + Vercel `yorgos`; email InterTelecom about DID
+  delivery (the per-user inbound unblock); local folder rename `E:\yorgos`→`E:\opiflow` (memory already pre-copied).
 
 ## F. Open problems / blockers
 1. ✅ **RESOLVED — project confusion.** Live = `oluhmzt`; 031 is applied there; the PBX is

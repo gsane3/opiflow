@@ -6,6 +6,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import OfferForm from '@/components/offers/OfferForm';
 import { SendViaViberModal, executeViberSend } from '@/components/customers/SendViaViberModal';
+import CustomerSummaryFromCalls from '@/components/customers/CustomerSummaryFromCalls';
 import type { Offer, Customer } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -2221,6 +2222,7 @@ export default function CustomerDetailPage() {
                 Τελευταία ενημέρωση: {new Date(customer.memoryUpdatedAt).toLocaleString('el-GR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
               </p>
             )}
+            <CustomerSummaryFromCalls customerId={customer.id} onApplied={(c) => setCustomer(c as CustomerDto)} />
           </div>
         )}
       </section>
