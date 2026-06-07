@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-07 — session 8 (native push ACTIVE on Android via Firebase FCM; client swapped to `@capacitor-firebase/messaging` for iOS+Android; BlueStacks can't receive FCM so live test deferred to iPhone/TestFlight; Apple Dev paid & pending; iOS build prepped).
+> **Last updated:** 2026-06-07 — session 8 (native push live on Android; full **product audit**; **Team multi-user** built; product-hardening batch: offer-status fix, honest billing/telephony UI, rate-limiting, RLS net, auto-task, stats metric). **2 migrations to apply: 033 + 034.**
 
 ---
 
@@ -54,6 +54,23 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-07 — session 8 (cont. 4) — PRODUCT AUDIT + Team multi-user + hardening batch:**
+  - **Full product audit** (8-agent workflow, adversarially criticized): ~70% built-and-works, ~20%
+    half-built/inert, ~10% missing. Not yet self-serve-paid-ready; strong hand-held beta. Key gaps found:
+    offer-status-stuck bug, no Sentry, env-gated providers unverified, misleading telephony UX, Team
+    vaporware at the auth layer, RLS-bypassed-everywhere, billing dead buttons, native = thin webview/no PWA.
+  - **PR #37 — Team multi-user (v1):** `resolveBusinessContext` (membership-first, owner_id fallback →
+    owner always safe) in `auth.ts` + `businesses/me`; **migration 033** `business_invites`; `/api/team/{members,
+    invites,accept}`; Settings `TeamPanel`; public `/join/[token]`. Owner/admin gate. **Needs migration 033 +
+    a 2-account test.**
+  - **PR #34 (B1):** offer→`sent_manually` on Viber send (was stuck at Draft) + label «Στάλθηκε»; hide dead
+    billing buttons unless Stripe configured (`/api/health` now reports `billing`); telephony presence marked
+    «Σύντομα» (no false routing promise); new **SystemStatusCard** (which integrations are live).
+  - **PR #35 (B2):** rate-limit public token write endpoints (offer/appointment/intake) via shared limiter.
+  - **PR #36 (B3):** auto high-priority follow-up task when an offer is accepted (won deal).
+  - **PR #38 (B2/B3):** **migration 034** RLS defense-in-depth (enable RLS on service-only tables; anon denied;
+    service_role bypasses → zero app impact); stats page real open/overdue tasks metric.
+  - **🔑 Apply migrations 033 + 034** in the Supabase SQL editor (live = `oluhmzt`). Verify provider keys in Vercel.
 - **2026-06-07 — session 8 (cont. 3) — ✅ ANDROID PUSH CONFIRMED ON A REAL DEVICE.** Installed the debug APK on a
   physical Android phone (had to disable Play Protect scanning to sideload the unsigned-by-Play debug APK — normal).
   The in-app **foreground banner (PushToast) displayed** and the test reported "2/2 devices" — end-to-end push works on
@@ -179,8 +196,16 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   Play: build the signed `.aab` (`android-release` workflow) + Play Console ($25). 🟡 **iOS NOT started** — needs Apple
   Developer ($99/yr) + the **plugin swap to `@capacitor-firebase/messaging`** (see G) before push works on iPhone; build via
   Codemagic `ios-release` → TestFlight. `ios/` not yet generated. Store-blockers already covered: in-app account deletion, privacy + terms.
-- **Open infra (user's side):** delete old Supabase `hgboy` + Vercel `yorgos`; email InterTelecom about DID
-  delivery (the per-user inbound unblock); local folder rename `E:\yorgos`→`E:\opiflow` (memory already pre-copied).
+- **Open infra (user's side):** **apply migrations 033 + 034** (SQL editor); verify provider keys in Vercel
+  (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `APIFON_*`, `RESEND_*` — the SystemStatusCard now shows which are live);
+  test Team with a 2nd account; delete old Supabase `hgboy` + Vercel `yorgos`; email InterTelecom about DID
+  delivery; local folder rename `E:\yorgos`→`E:\opiflow` (memory pre-copied).
+- **Product roadmap REMAINING (from the audit, for a focused follow-up):** **#53 Sentry** (needs a Sentry
+  account + `SENTRY_DSN`; `observability.ts` stub ready to wire); **#56** email delivery for intake/appointment/
+  upload links (reuse the send-offer Resend path; touches the 3443-line customer detail UI); **#57** surface
+  Viber delivery/seen status in the timeline (data already flows via the apifon webhook → `viber_messages`);
+  **#58γ** make the `pbx-recording` webhook multi-tenant (low priority — single business + inbound blocked);
+  **#59 monetization** (DEFERRED by user — payments later); offline/PWA for the native wrapper (field signal).
 - **App-store path (user's side):** apply migration 032 (SQL editor); Firebase project + service-account
   JSON → set `FCM_*` on Vercel; Google Play Console ($25) + build signed `.aab`; Apple Developer ($99/yr)
   + cloud-Mac for the iOS/TestFlight build + APNs key in Firebase. See `docs/NATIVE_WRAPPER.md`.
