@@ -8,6 +8,7 @@ import BusinessForm from '@/components/settings/BusinessForm';
 import ImportExportPanel from '@/components/settings/ImportExportPanel';
 import AccountPanel from '@/components/settings/AccountPanel';
 import TelephonyPanel from '@/components/settings/TelephonyPanel';
+import NotificationsPanel from '@/components/settings/NotificationsPanel';
 
 type SettingsSection = 'business' | 'providers' | 'data' | 'account';
 
@@ -512,6 +513,9 @@ export default function SettingsPage() {
 
           {/* Telephony: availability + A/B onboarding model (keep own number / Opiflow number) */}
           <TelephonyPanel businessPhoneNumber={phoneInfo?.business?.business_phone_number ?? null} />
+
+          {/* Native push: one-tap test notification */}
+          <NotificationsPanel />
         </>
       ) : (
         <>
