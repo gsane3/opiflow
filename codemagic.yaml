@@ -39,13 +39,20 @@ workflows:
         script: npx cap sync android
       - name: Build debug APK
         script: |
-          set -e
-          # Capacitor 7 compiles its Android modules at Java 21.
-          export JAVA_HOME=$(/usr/libexec/java_home -v 21)
-          echo "Using JAVA_HOME=$JAVA_HOME"; java -version
+          # Capacitor 7 compiles its Android modules at Java 21. Find JDK 21 on
+          # the machine; if it isn't installed, install it via Homebrew.
+          echo "== Installed JDKs =="; /usr/libexec/java_home -V 2>&1 || true
+          JDK21="$(/usr/libexec/java_home -v 21 2>/dev/null || true)"
+          if [ -z "$JDK21" ]; then
+            echo "== JDK 21 not found — installing via Homebrew =="
+            brew install openjdk@21
+            JDK21="$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home"
+          fi
+          export JAVA_HOME="$JDK21"
+          echo "== Using JAVA_HOME=$JAVA_HOME =="; "$JAVA_HOME/bin/java" -version
           cd android
           chmod +x ./gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon -Dorg.gradle.java.home="$JAVA_HOME"
     artifacts:
       - android/app/build/outputs/**/*.apk
     publishing:
