@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import {
-  isSipProvisioningEnabled,
-  encryptSecret,
-  decryptSecret,
-  generateSipPassword,
-} from '@/lib/server/sip-credentials';
+import { isSipProvisioningEnabled, decryptSecret } from '@/lib/server/sip-credentials';
 
 export const runtime = 'nodejs';
 
@@ -16,9 +11,10 @@ export const runtime = 'nodejs';
 // Two modes, chosen automatically:
 //   A) PER-USER (multi-tenant): enabled once SIP_CRED_ENC_KEY is set (i.e. the
 //      Asterisk per-user endpoints are provisioned). Each business is issued its
-//      OWN SIP credential — username is the deterministic biz_<id> created by
-//      ensure_browser_sip_endpoint; the password is generated on first use and
-//      stored AES-256-GCM encrypted in browser_sip_endpoints.sip_password_enc.
+//      OWN SIP credential — username biz_<id>; the password is minted ONLY by the
+//      PBX provisioner (the sole authority) and stored AES-256-GCM encrypted in
+//      browser_sip_endpoints.sip_password_enc. The app only DECRYPTS it (never
+//      mints), so app/Asterisk credential divergence is structurally impossible.
 //   B) SHARED ENV (default / current behaviour): credentials come from
 //      PHONE_SIP_WSS_URL, PHONE_SIP_USERNAME, PHONE_SIP_PASSWORD, PHONE_SIP_REALM.
 //
@@ -42,9 +38,11 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 type SupabaseServer = ReturnType<typeof createServerSupabaseClient>;
 
 /**
- * Resolves the business's own SIP credential, generating + persisting an
- * encrypted password on first use. Returns null on any failure (caller then
- * falls back to shared env credentials).
+ * Resolves the business's own SIP credential by DECRYPTING the password the
+ * PBX provisioner already minted. The provisioner is the SOLE password
+ * authority — the app NEVER mints — so the app-issued credential can never
+ * diverge from what Asterisk has. Returns null (→ shared-env fallback) until
+ * the provisioner has written a password for this business.
  */
 async function resolvePerUserCredential(
   supabase: SupabaseServer,
@@ -64,26 +62,10 @@ async function resolvePerUserCredential(
     sip_password_enc: string | null;
     status: string;
   };
-  if (!row.sip_username) return null;
-
-  // Reuse the existing password, or mint + persist one on first use.
-  let plaintext: string | null = row.sip_password_enc ? decryptSecret(row.sip_password_enc) : null;
-  if (!plaintext) {
-    plaintext = generateSipPassword();
-    const enc = encryptSecret(plaintext);
-    const { error: upErr } = await supabase
-      .from('browser_sip_endpoints')
-      .update({
-        sip_password_enc: enc,
-        sip_password_set_at: new Date().toISOString(),
-        status: 'active',
-        wss_url: process.env.PHONE_SIP_WSS_URL?.trim() || null,
-        sip_realm: process.env.PHONE_SIP_REALM?.trim() || null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', row.id);
-    if (upErr) return null;
-  }
+  // Decrypt only — never mint. Fall back to shared env until the provisioner has minted.
+  if (!row.sip_username || !row.sip_password_enc) return null;
+  const plaintext = decryptSecret(row.sip_password_enc);
+  if (!plaintext) return null;
 
   return { sipUsername: row.sip_username, sipPassword: plaintext };
 }
