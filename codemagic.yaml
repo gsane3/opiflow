@@ -26,7 +26,9 @@ workflows:
   # -------------------------------------------------------------------------
   android-debug:
     name: Opiflow Android (debug APK — test)
-    instance_type: linux_x2
+    # mac_mini_m2 = the instance the Codemagic free plan includes (500 min/mo).
+    # macOS builds Android fine (JDK + Android SDK preinstalled).
+    instance_type: mac_mini_m2
     max_build_duration: 45
     environment:
       node: 20
