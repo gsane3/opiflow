@@ -34,7 +34,7 @@ workflows:
       node: 20
     scripts:
       - name: Install JS deps
-        script: npm ci
+        script: npm ci --ignore-scripts # skip sharp/@capacitor/assets native download (not needed to build; flaky 502s)
       - name: Capacitor sync (Android)
         script: npx cap sync android
       - name: Build debug APK
@@ -73,7 +73,7 @@ workflows:
         - opiflow_android # define KEYSTORE_PATH, CM_KEYSTORE_PASSWORD, etc. in this group
     scripts:
       - name: Install JS deps
-        script: npm ci
+        script: npm ci --ignore-scripts # skip sharp/@capacitor/assets native download (not needed to build; flaky 502s)
       - name: Restore google-services.json
         script: |
           # Optional: if you stored it as a base64 env var GOOGLE_SERVICES_JSON
@@ -114,7 +114,7 @@ workflows:
         bundle_identifier: ai.opiflow.app
     scripts:
       - name: Install JS deps
-        script: npm ci
+        script: npm ci --ignore-scripts # skip sharp/@capacitor/assets native download (not needed to build; flaky 502s)
       - name: Add iOS platform (idempotent)
         script: |
           if [ ! -d "ios" ]; then
@@ -124,7 +124,18 @@ workflows:
         script: |
           if [ -n "$GOOGLE_SERVICE_INFO_PLIST" ]; then
             echo "$GOOGLE_SERVICE_INFO_PLIST" | base64 --decode > ios/App/App/GoogleService-Info.plist
+            echo "Wrote ios/App/App/GoogleService-Info.plist"
+          else
+            echo "WARNING: GOOGLE_SERVICE_INFO_PLIST not set — iOS push will NOT work"
           fi
+      - name: iOS Firebase native wiring
+        # cap add ios regenerates a bare AppDelegate + does not reference the plist,
+        # so wire both up here (idempotent). @capacitor-firebase/messaging needs the
+        # 3 APNs-forwarding methods; the plist must be in the bundle for Firebase.
+        script: |
+          python3 scripts/ci/ios-appdelegate-patch.py ios/App/App/AppDelegate.swift
+          gem install xcodeproj --no-document
+          ruby scripts/ci/ios-register-plist.rb
       - name: Capacitor sync (iOS)
         script: npx cap sync ios
       - name: Set up signing
@@ -136,6 +147,7 @@ workflows:
             --scheme "App"
     artifacts:
       - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
     publishing:
       app_store_connect:
         auth: integration

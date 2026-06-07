@@ -37,7 +37,7 @@ Then in Xcode add `NSMicrophoneUsageDescription` to `Info.plist` (for calls/reco
 The app **already registers for push and the server already sends it** — it is wired but **inert** until the FCM service account is set, exactly like the per-user SIP feature. This is the piece that gives the wrapper "native value" so the **iOS build can pass App Store guideline 4.2** (a pure web-view risks rejection for public release).
 
 **How it works in code (already shipped):**
-- Client: `src/lib/native/push.ts` (`registerNativePush`) runs from `AppShell` after login — on native only it requests permission, registers with FCM/APNs, and POSTs the device token to `/api/push/register`. Tapping a notification deep-links via `data.url`.
+- Client: `src/lib/native/push.ts` (`registerNativePush`) runs from `AppShell` after login — on native only it requests permission and gets a **unified FCM token via `@capacitor-firebase/messaging`** (iOS AND Android — the older `@capacitor/push-notifications` returned a raw APNs token on iOS that FCM v1 rejects), then POSTs it to `/api/push/register`. Tapping a notification deep-links via `data.url`.
 - Storage: migration `032_device_push_tokens.sql` (`device_push_tokens`, one row per device token).
 - Server: `src/lib/server/push.ts` sends via **FCM HTTP v1** (`sendPushToUser` / `sendPushToBusinessOwner`). Already triggered when a customer **accepts/rejects an offer** or **responds to an appointment** (`/api/offer-response`, `/api/appointment-response`). Add more triggers by calling `sendPushToBusinessOwner(businessId, { title, body, url })` anywhere on the server.
 
@@ -57,7 +57,7 @@ The app **already registers for push and the server already sends it** — it is
 
 ## Important notes
 
-- **Apple guideline 4.2 (minimum functionality):** a pure web-view wrapper can be rejected for public release. For internal pilots use **TestFlight** (no review friction). For public release, native value is needed — **native push notifications are now implemented** (`@capacitor/push-notifications`, see the Push section above) and fire on offer/appointment responses; a **native calling layer** is the next candidate.
+- **Apple guideline 4.2 (minimum functionality):** a pure web-view wrapper can be rejected for public release. For internal pilots use **TestFlight** (no review friction). For public release, native value is needed — **native push notifications are now implemented** (`@capacitor-firebase/messaging` — unified FCM token on iOS+Android, see the Push section above) and fire on offer/appointment responses; a **native calling layer** is the next candidate.
 - **Icons:** the PWA icons (`public/icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `apple-touch-icon.png`) and native sources (`assets/icon.png`, `assets/splash.png`) are committed, generated from `public/icon.svg` + `public/icon-maskable.svg` via `node scripts/generate-icons.cjs`. Re-run that after changing the brand mark.
 - **Deep links (Universal / App Links):** the app serves the association files itself, env-gated, so taps on `opiflow.vercel.app` links open the installed app instead of the browser:
   - **iOS** — `GET /.well-known/apple-app-site-association`: set `APPLE_APP_ID` to `<TeamID>.ai.opiflow.app`, then add the Associated Domain `applinks:opiflow.vercel.app` in Xcode → Signing & Capabilities.
