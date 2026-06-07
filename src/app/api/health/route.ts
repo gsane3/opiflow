@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { missingRequiredEnv, integrationStatus } from '@/lib/env';
+import { isPushEnabled } from '@/lib/server/push';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -14,7 +15,7 @@ export async function GET() {
       service: 'opiflow',
       time: new Date().toISOString(),
       coreConfigured: missing.length === 0,
-      integrations: integrationStatus(),
+      integrations: { ...integrationStatus(), push: isPushEnabled() },
     },
     { status: missing.length === 0 ? 200 : 503, headers: { 'Cache-Control': 'no-store' } }
   );
