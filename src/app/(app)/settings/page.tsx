@@ -7,6 +7,7 @@ import type { BusinessProfile } from '@/lib/types';
 import BusinessForm from '@/components/settings/BusinessForm';
 import ImportExportPanel from '@/components/settings/ImportExportPanel';
 import AccountPanel from '@/components/settings/AccountPanel';
+import TelephonyPanel from '@/components/settings/TelephonyPanel';
 
 type SettingsSection = 'business' | 'providers' | 'data' | 'account';
 
@@ -508,6 +509,9 @@ export default function SettingsPage() {
               )}
             </div>
           </div>
+
+          {/* Telephony: availability + A/B onboarding model (keep own number / Opiflow number) */}
+          <TelephonyPanel businessPhoneNumber={phoneInfo?.business?.business_phone_number ?? null} />
         </>
       ) : (
         <>

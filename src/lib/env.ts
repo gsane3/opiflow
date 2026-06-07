@@ -14,6 +14,9 @@ export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   email: ['RESEND_API_KEY', 'EMAIL_FROM'],
   viber: ['APIFON_CLIENT_ID', 'APIFON_API_KEY'],
   telephony: ['PHONE_SIP_WSS_URL', 'PHONE_SIP_USERNAME', 'PHONE_SIP_PASSWORD'],
+  // Per-user SIP provisioning switch: when set (a valid 32-byte key), the browser
+  // phone is issued each business's OWN SIP credential instead of the shared env one.
+  sipPerUser: ['SIP_CRED_ENC_KEY'],
   webhookSecrets: ['PBX_WEBHOOK_SECRET', 'APIFON_WEBHOOK_SECRET'],
 };
 
