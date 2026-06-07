@@ -54,6 +54,11 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-07 — session 8 (cont. 3) — ✅ ANDROID PUSH CONFIRMED ON A REAL DEVICE.** Installed the debug APK on a
+  physical Android phone (had to disable Play Protect scanning to sideload the unsigned-by-Play debug APK — normal).
+  The in-app **foreground banner (PushToast) displayed** and the test reported "2/2 devices" — end-to-end push works on
+  real hardware, proving the BlueStacks no-show was purely the emulator (as the workflow concluded). Android push =
+  **DONE & verified**. Remaining: iOS (waiting on Apple approval).
 - **2026-06-07 — session 8 (cont. 2) — FCM plugin swap + Android-verify + iOS prep:**
   - **PR #30 — client push swapped to `@capacitor-firebase/messaging` v7** (+`@capacitor-firebase/app`, `firebase`):
     unified **FCM registration token on iOS AND Android** (the old `@capacitor/push-notifications` gave a raw APNs token
@@ -169,7 +174,7 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 - **Vercel CLI:** logged in + linked `sane127/opiflow`.
 - **App features:** customer-memory AI ("✨ Σύνοψη από κλήσεις") wired & live on the customer card; repo
   audited + cleaned (no dead code / no orphaned scaffolding); working tree clean.
-- **Native apps:** 🟢 **Android DONE** — installable debug APK builds on Codemagic; push **ACTIVE & tested** on emulator
+- **Native apps:** 🟢 **Android DONE & CONFIRMED ON A REAL PHONE** (push delivered + foreground banner shown); APK builds on Codemagic; push **ACTIVE**
   (Firebase `opiflowai`, `FCM_SERVICE_ACCOUNT_JSON` live, migration 032 applied, one-tap test button works). For Google
   Play: build the signed `.aab` (`android-release` workflow) + Play Console ($25). 🟡 **iOS NOT started** — needs Apple
   Developer ($99/yr) + the **plugin swap to `@capacitor-firebase/messaging`** (see G) before push works on iPhone; build via
