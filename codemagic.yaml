@@ -149,6 +149,18 @@ workflows:
         script: |
           /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist
+      - name: Voice Info.plist (mic + background modes)
+        # Native Twilio Voice calling needs microphone access (or iOS rejects the
+        # call) and VoIP/audio background modes (so calls survive backgrounding and
+        # incoming VoIP push can wake the app). Idempotent over the generated plist.
+        script: |
+          PL=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Delete :NSMicrophoneUsageDescription" "$PL" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Η Opiflow χρειάζεται το μικρόφωνο για τις τηλεφωνικές σας κλήσεις." "$PL"
+          /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" "$PL" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PL"
+          /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string voip" "$PL"
       - name: CocoaPods install
         # Materialize App.xcworkspace/Pods before signing so use-profiles patches
         # the real App project. Mirrors Codemagic's official Capacitor recipe.
