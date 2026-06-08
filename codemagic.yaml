@@ -111,9 +111,12 @@ workflows:
       cocoapods: default
       groups:
         - opiflow_ios # define GOOGLE_SERVICE_INFO_PLIST (base64 of GoogleService-Info.plist) in this Codemagic group
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: ai.opiflow.app
+      vars:
+        BUNDLE_ID: ai.opiflow.app
+    # NOTE: no `ios_signing:` block — that only FETCHES an existing profile and
+    # fails ("No matching profiles found") for a brand-new app. We sign manually
+    # in the "Set up signing" step below with `--create`, so Codemagic creates the
+    # distribution certificate + App Store profile via the opiflow_asc ASC key.
     scripts:
       - name: Install JS deps
         script: npm ci --ignore-scripts # skip sharp/@capacitor/assets native download (not needed to build; flaky 502s)
@@ -141,7 +144,15 @@ workflows:
       - name: Capacitor sync (iOS)
         script: npx cap sync ios
       - name: Set up signing
-        script: xcode-project use-profiles
+        # Manual signing: create (if missing) + fetch the App Store profile and a
+        # distribution certificate via the opiflow_asc ASC API key, then apply them.
+        script: |
+          keychain initialize
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+          keychain add-certificates
+          xcode-project use-profiles
       - name: Build .ipa
         script: |
           xcode-project build-ipa \
