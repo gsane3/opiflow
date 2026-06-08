@@ -142,13 +142,19 @@ workflows:
           ruby scripts/ci/ios-register-plist.rb
       - name: Capacitor sync (iOS)
         script: npx cap sync ios
-      - name: Export compliance (skip encryption prompt)
-        # The app uses only standard HTTPS/TLS (exempt). Set the flag so App Store
-        # Connect stops asking "Missing Compliance" on every upload. Delete-then-Add
-        # keeps it idempotent across the freshly generated Info.plist.
+      - name: Export compliance + build number
+        # (1) Export-compliance flag (HTTPS-only → exempt) so TestFlight stops asking.
+        # (2) Bump CFBundleVersion to a strictly-increasing value — `cap add ios`
+        #     regenerates Info.plist with CFBundleVersion=1 every build, which App
+        #     Store Connect rejects ("bundle version must be higher than '1'").
+        #     Epoch seconds are monotonic + unique, so every upload is accepted.
         script: |
-          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" ios/App/App/Info.plist 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" ios/App/App/Info.plist
+          PL=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Delete :ITSAppUsesNonExemptEncryption" "$PL" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PL"
+          BN=$(date +%s)
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BN" "$PL" 2>/dev/null || /usr/libexec/PlistBuddy -c "Add :CFBundleVersion string $BN" "$PL"
+          echo "CFBundleVersion => $BN"
       - name: Voice Info.plist (mic + background modes)
         # Native Twilio Voice calling needs microphone access (or iOS rejects the
         # call) and VoIP/audio background modes (so calls survive backgrounding and
