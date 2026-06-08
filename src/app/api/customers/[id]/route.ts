@@ -28,7 +28,7 @@ const VALID_SOURCES = [
   'inbound_call', 'missed_call', 'manual_entry', 'other',
 ] as const;
 
-const VALID_CONTACT_METHODS = ['viber', 'email', 'phone'] as const;
+const VALID_CONTACT_METHODS = ['viber', 'whatsapp', 'sms', 'email', 'phone'] as const;
 
 const VALID_INTAKE_STATUSES = [
   'none', 'pending', 'sent', 'opened', 'submitted', 'expired', 'revoked',

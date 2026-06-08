@@ -19,6 +19,15 @@ interface IntakeApiResponse {
   error?: string;
 }
 
+type PreferredContactMethod = 'viber' | 'whatsapp' | 'sms' | 'email';
+
+const CONTACT_METHOD_OPTIONS: { value: PreferredContactMethod; label: string }[] = [
+  { value: 'viber', label: 'Viber' },
+  { value: 'whatsapp', label: 'WhatsApp' },
+  { value: 'sms', label: 'SMS' },
+  { value: 'email', label: 'Email' },
+];
+
 interface IntakeFormClientProps {
   token: string;
   initialCustomer?: IntakeCustomer | null;
@@ -38,6 +47,8 @@ export default function IntakeFormClient({
   const [email, setEmail] = useState(initialCustomer?.email ?? '');
   const [address, setAddress] = useState(initialCustomer?.address ?? '');
   const [comments, setComments] = useState('');
+  const [preferredContactMethod, setPreferredContactMethod] =
+    useState<PreferredContactMethod>('viber');
   const [loading, setLoading] = useState(!initialSubmitted && !initialCustomer && !initialError);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(initialSubmitted);
@@ -113,6 +124,7 @@ export default function IntakeFormClient({
           email,
           address,
           comments,
+          preferredContactMethod,
         }),
       });
 
@@ -223,6 +235,34 @@ export default function IntakeFormClient({
                   placeholder="Οδός, αριθμός, περιοχή"
                 />
               </label>
+
+              <fieldset className="block">
+                <legend className="text-sm font-medium text-zinc-700">
+                  Πώς προτιμάς να επικοινωνούμε;
+                </legend>
+                <input type="hidden" name="preferredContactMethod" value={preferredContactMethod} />
+                <div className="mt-2 grid grid-cols-2 gap-2" role="radiogroup">
+                  {CONTACT_METHOD_OPTIONS.map((option) => {
+                    const selected = preferredContactMethod === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => setPreferredContactMethod(option.value)}
+                        className={`flex min-h-[44px] items-center justify-center rounded-xl border px-4 text-base font-medium transition ${
+                          selected
+                            ? 'border-indigo-600 bg-indigo-600 text-white'
+                            : 'border-zinc-200 bg-white text-zinc-700 hover:border-indigo-400'
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </fieldset>
 
               <label className="block">
                 <span className="text-sm font-medium text-zinc-700">Σχόλια</span>

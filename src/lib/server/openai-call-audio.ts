@@ -5,6 +5,10 @@
 
 const OPENAI_TRANSCRIPTION_URL = 'https://api.openai.com/v1/audio/transcriptions';
 const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
+// Deepgram diarization path (optional, env-gated via DEEPGRAM_API_KEY).
+const DEEPGRAM_LISTEN_URL =
+  'https://api.deepgram.com/v1/listen?model=nova-2&language=el&diarize=true&punctuate=true&smart_format=true';
+const DEEPGRAM_MODEL_LABEL = 'deepgram-nova-2';
 const TRANSCRIPTION_TIMEOUT_MS = 60_000;
 const BRIEF_TIMEOUT_MS = 30_000;
 
@@ -29,6 +33,137 @@ export interface TranscribeAndBriefResult {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// ---------------------------------------------------------------------------
+// Deepgram diarization (optional). Returns a speaker-labeled Greek transcript,
+// e.g. "Ομιλητής 1: ...\nΟμιλητής 2: ...", or null on any failure so the
+// caller can fall back to the existing OpenAI transcription path.
+// ---------------------------------------------------------------------------
+
+interface DeepgramWord {
+  word: string;
+  punctuated_word?: string;
+  speaker?: number;
+}
+
+// Pull the words[] array out of the Deepgram response, regardless of whether
+// diarized words live on the alternative directly or under paragraphs.
+function extractDeepgramWords(data: unknown): DeepgramWord[] {
+  if (!isRecord(data)) return [];
+  const results = data['results'];
+  if (!isRecord(results)) return [];
+  const channels = results['channels'];
+  if (!Array.isArray(channels) || channels.length === 0) return [];
+  const channel = channels[0];
+  if (!isRecord(channel)) return [];
+  const alternatives = channel['alternatives'];
+  if (!Array.isArray(alternatives) || alternatives.length === 0) return [];
+  const alt = alternatives[0];
+  if (!isRecord(alt)) return [];
+
+  const rawWords = alt['words'];
+  if (!Array.isArray(rawWords)) return [];
+
+  const words: DeepgramWord[] = [];
+  for (const w of rawWords) {
+    if (!isRecord(w)) continue;
+    const word = w['word'];
+    if (typeof word !== 'string') continue;
+    const punctuated = w['punctuated_word'];
+    const speaker = w['speaker'];
+    words.push({
+      word,
+      punctuated_word: typeof punctuated === 'string' ? punctuated : undefined,
+      speaker: typeof speaker === 'number' ? speaker : undefined,
+    });
+  }
+  return words;
+}
+
+// Group consecutive words by their `speaker` index into labeled lines.
+// Speaker indices are 0-based in Deepgram; we render them 1-based for humans.
+function buildDiarizedTranscript(words: DeepgramWord[]): string {
+  if (words.length === 0) return '';
+
+  const lines: string[] = [];
+  let currentSpeaker: number | undefined;
+  let buffer: string[] = [];
+
+  const flush = () => {
+    if (buffer.length === 0) return;
+    const label =
+      currentSpeaker === undefined
+        ? 'Ομιλητής'
+        : `Ομιλητής ${currentSpeaker + 1}`;
+    lines.push(`${label}: ${buffer.join(' ').trim()}`);
+    buffer = [];
+  };
+
+  for (const w of words) {
+    if (w.speaker !== currentSpeaker && buffer.length > 0) {
+      flush();
+    }
+    currentSpeaker = w.speaker;
+    buffer.push(w.punctuated_word ?? w.word);
+  }
+  flush();
+
+  return lines.join('\n').trim();
+}
+
+// POST the raw audio bytes to Deepgram and return a diarized transcript.
+// Returns null on missing key, network error, timeout, bad status, or empty
+// result — every null path is a clean signal to fall back to OpenAI.
+async function transcribeWithDeepgram(audioFile: File): Promise<string | null> {
+  const apiKey = process.env.DEEPGRAM_API_KEY?.trim();
+  if (!apiKey) return null;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TRANSCRIPTION_TIMEOUT_MS);
+
+  try {
+    const body = await audioFile.arrayBuffer();
+    const res = await fetch(DEEPGRAM_LISTEN_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        Authorization: `Token ${apiKey}`,
+        'Content-Type': audioFile.type || 'audio/wav',
+      },
+      body,
+    });
+
+    if (!res.ok) {
+      console.error('openai-call-audio: deepgram returned', res.status);
+      return null;
+    }
+
+    let data: unknown;
+    try {
+      data = await res.json();
+    } catch {
+      console.error('openai-call-audio: failed to parse deepgram response');
+      return null;
+    }
+
+    const words = extractDeepgramWords(data);
+    const diarized = buildDiarizedTranscript(words);
+    if (!diarized) {
+      console.error('openai-call-audio: deepgram returned no transcript');
+      return null;
+    }
+    return diarized;
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('openai-call-audio: deepgram timed out');
+    } else {
+      console.error('openai-call-audio: deepgram fetch error');
+    }
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Safely extract text from the OpenAI Responses API response shape.
@@ -65,7 +200,8 @@ function extractResponsesText(data: unknown): string | null {
 function buildBriefPrompt(
   transcript: string,
   callerNumber: string | null,
-  dialStatus: string | null
+  dialStatus: string | null,
+  hasSpeakerLabels: boolean
 ): string {
   const contextLines: string[] = [];
   if (callerNumber) contextLines.push(`Αριθμός καλούντος: ${callerNumber}`);
@@ -75,10 +211,19 @@ function buildBriefPrompt(
     ? `Μεταδεδομένα: ${contextLines.join(', ')}\n\n`
     : '';
 
+  const speakerGuidance = hasSpeakerLabels
+    ? [
+        'Η μεταγραφή έχει ετικέτες ομιλητών (π.χ. "Ομιλητής 1", "Ομιλητής 2").',
+        'Χρησιμοποίησέ τες για να καταλάβεις ποιος είπε τι (πελάτης vs τεχνικός/επαγγελματίας) και απόδωσε σωστά αιτήματα και συμφωνίες στον σωστό ομιλητή.',
+        'Μην αναφέρεις τις ετικέτες "Ομιλητής X" αυτούσιες στο brief· απλώς απόδωσε σωστά ποιος ζητά τι.',
+      ]
+    : [];
+
   return [
     'Είσαι βοηθός CRM για Έλληνα επαγγελματία.',
     'Βασίσου ΑΠΟΚΛΕΙΣΤΙΚΑ στη μεταγραφή κλήσης παρακάτω.',
     'Μην επινοείς λεπτομέρειες που δεν υπάρχουν στη μεταγραφή.',
+    ...speakerGuidance,
     'Γράψε πολύ σύντομο CRM brief σε επαγγελματικά ελληνικά, 2-3 γραμμές μόνο.',
     'Ξεκίνα με: AI brief από ηχογράφηση:',
     'Συμπέριλαβε μόνο: τι ζητά ο πελάτης, τυχόν συμφωνηθέν επόμενο βήμα, τι λείπει αν είναι σημαντικό.',
@@ -134,69 +279,96 @@ export async function transcribeAndBriefCallAudio(
   const apiKey = process.env.OPENAI_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const transcriptionModel =
+  const openaiTranscriptionModel =
     process.env.OPENAI_TRANSCRIPTION_MODEL?.trim() || 'gpt-4o-transcribe';
   const briefModel =
     process.env.OPENAI_BRIEF_MODEL?.trim() || 'gpt-4o';
 
   // ---------------------------------------------------------------------------
   // Step 1: Transcription
+  //
+  // Preferred path: Deepgram nova-2 with 2-speaker diarization (env-gated on
+  // DEEPGRAM_API_KEY). Produces a speaker-labeled transcript ("Ομιλητής 1: …").
+  // If Deepgram is unset, fails, or returns nothing, we fall back to the
+  // original OpenAI flat transcription below. `transcriptionModel` records
+  // which path actually produced the transcript.
   // ---------------------------------------------------------------------------
-  const transcriptionForm = new FormData();
-  transcriptionForm.append('file', input.audioFile);
-  transcriptionForm.append('model', transcriptionModel);
-  transcriptionForm.append('language', 'el');
-  transcriptionForm.append('response_format', 'json');
+  let transcript: string | null = null;
+  let transcriptionModel: string = openaiTranscriptionModel;
+  let hasSpeakerLabels = false;
 
-  const transcriptionController = new AbortController();
-  const transcriptionTimer = setTimeout(
-    () => transcriptionController.abort(),
-    TRANSCRIPTION_TIMEOUT_MS
-  );
+  const diarized = await transcribeWithDeepgram(input.audioFile);
+  if (diarized) {
+    transcript = diarized;
+    transcriptionModel = DEEPGRAM_MODEL_LABEL;
+    hasSpeakerLabels = true;
+  }
 
-  let transcript: string;
-  try {
-    const res = await fetch(OPENAI_TRANSCRIPTION_URL, {
-      method: 'POST',
-      signal: transcriptionController.signal,
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: transcriptionForm,
-    });
+  // Fallback: OpenAI transcription (also the default when DEEPGRAM_API_KEY is
+  // unset). Unchanged behavior from before.
+  if (transcript === null) {
+    const transcriptionForm = new FormData();
+    transcriptionForm.append('file', input.audioFile);
+    transcriptionForm.append('model', openaiTranscriptionModel);
+    transcriptionForm.append('language', 'el');
+    transcriptionForm.append('response_format', 'json');
 
-    if (!res.ok) {
-      console.error('openai-call-audio: transcription returned', res.status);
-      return null;
-    }
+    const transcriptionController = new AbortController();
+    const transcriptionTimer = setTimeout(
+      () => transcriptionController.abort(),
+      TRANSCRIPTION_TIMEOUT_MS
+    );
 
-    let data: unknown;
     try {
-      data = await res.json();
-    } catch {
-      console.error('openai-call-audio: failed to parse transcription response');
-      return null;
-    }
+      const res = await fetch(OPENAI_TRANSCRIPTION_URL, {
+        method: 'POST',
+        signal: transcriptionController.signal,
+        headers: { Authorization: `Bearer ${apiKey}` },
+        body: transcriptionForm,
+      });
 
-    if (!isRecord(data) || typeof data['text'] !== 'string' || !data['text'].trim()) {
-      console.error('openai-call-audio: transcription response missing text field');
-      return null;
-    }
+      if (!res.ok) {
+        console.error('openai-call-audio: transcription returned', res.status);
+        return null;
+      }
 
-    transcript = data['text'].trim();
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      console.error('openai-call-audio: transcription timed out');
-    } else {
-      console.error('openai-call-audio: transcription fetch error');
+      let data: unknown;
+      try {
+        data = await res.json();
+      } catch {
+        console.error('openai-call-audio: failed to parse transcription response');
+        return null;
+      }
+
+      if (!isRecord(data) || typeof data['text'] !== 'string' || !data['text'].trim()) {
+        console.error('openai-call-audio: transcription response missing text field');
+        return null;
+      }
+
+      transcript = data['text'].trim();
+      transcriptionModel = openaiTranscriptionModel;
+      hasSpeakerLabels = false;
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        console.error('openai-call-audio: transcription timed out');
+      } else {
+        console.error('openai-call-audio: transcription fetch error');
+      }
+      return null;
+    } finally {
+      clearTimeout(transcriptionTimer);
     }
-    return null;
-  } finally {
-    clearTimeout(transcriptionTimer);
   }
 
   // ---------------------------------------------------------------------------
   // Step 2: Brief generation via Responses API
   // ---------------------------------------------------------------------------
-  const briefPrompt = buildBriefPrompt(transcript, input.callerNumber, input.dialStatus);
+  const briefPrompt = buildBriefPrompt(
+    transcript,
+    input.callerNumber,
+    input.dialStatus,
+    hasSpeakerLabels
+  );
 
   const briefController = new AbortController();
   const briefTimer = setTimeout(() => briefController.abort(), BRIEF_TIMEOUT_MS);

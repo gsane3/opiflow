@@ -66,7 +66,7 @@ export type CustomerSource =
   | 'manual_entry'
   | 'other';
 
-export type PreferredContactMethod = 'viber' | 'email' | 'phone';
+export type PreferredContactMethod = 'viber' | 'whatsapp' | 'sms' | 'email' | 'phone';
 
 export interface Customer {
   id: string;

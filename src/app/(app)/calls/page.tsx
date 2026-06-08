@@ -8,6 +8,7 @@ import type { Customer } from '@/lib/types';
 import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPhone';
 import { recordingFileName } from '@/lib/call-recorder';
 import { findCustomerByPhone, phonesMatch } from '@/lib/phone';
+import { BottomSheet } from '@/components/ui';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -118,6 +119,24 @@ function extractAiBrief(summary: string | null): string | null {
   const withoutMeta = summary.split('\n\n---')[0];
   const text = withoutMeta.replace(/^AI brief [^:\n]+:\s*/, '').trim();
   return text.length > 0 ? text : null;
+}
+
+// A customer counts as "named/saved" only when it has a real name or company
+// that is not just the phone number echoed back or an auto placeholder. Used to
+// decide whether the post-call intake-link prompt should fire. Customers created
+// silently on an inbound call (phone-only) have no name -> treated as needing the
+// link. The phone arg lets us reject names that merely repeat the number.
+function isNamedCustomer(customer: Customer | null | undefined, phone: string): boolean {
+  if (!customer) return false;
+  const name = (customer.name ?? '').trim();
+  const company = (customer.companyName ?? '').trim();
+  const candidate = name || company;
+  if (!candidate) return false;
+  // mapCustomer falls back to 'Πελάτης' / crmNumber / the phone when unnamed.
+  if (candidate === 'Πελάτης') return false;
+  if (customer.crmNumber && candidate === customer.crmNumber) return false;
+  if (phone && phonesMatch(candidate, phone)) return false;
+  return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -1428,6 +1447,76 @@ function CallReviewModal({
 }
 
 // ---------------------------------------------------------------------------
+// Post-call intake-link prompt (HYBRID: operator-confirmed send)
+// ---------------------------------------------------------------------------
+
+type IntakeSendState =
+  | { phase: 'ask' }
+  | { phase: 'sending' }
+  | { phase: 'done'; ok: boolean; message: string };
+
+function IntakeLinkPrompt({
+  phone,
+  state,
+  onConfirm,
+  onClose,
+}: {
+  phone: string | null;
+  state: IntakeSendState;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const busy = state.phase === 'sending';
+
+  return (
+    <BottomSheet
+      open
+      onClose={onClose}
+      title="Αποστολή λινκ στοιχείων;"
+      description={
+        phone
+          ? `Στείλε στον ${phone} έναν σύνδεσμο για να συμπληρώσει τα στοιχεία του.`
+          : 'Στείλε έναν σύνδεσμο για να συμπληρωθούν τα στοιχεία της επαφής.'
+      }
+    >
+      {state.phase === 'done' ? (
+        <div className="space-y-3">
+          <p className={`text-sm ${state.ok ? 'text-green-700' : 'text-red-600'}`}>
+            {state.message}
+          </p>
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+          >
+            Κλείσιμο
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-2.5">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
+          >
+            {busy ? 'Αποστολή...' : 'Ναι, στείλε'}
+          </button>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+          >
+            Όχι
+          </button>
+        </div>
+      )}
+    </BottomSheet>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
@@ -1459,6 +1548,11 @@ export default function CallsPage() {
   const recordedBlobRef = useRef<{ blob: Blob; mimeType: string } | null>(null);
   const [pendingDialTarget, setPendingDialTarget] = useState<string | null>(null);
   const [detailsOpen, setDetailsOpen] = useState(false);
+  // HYBRID intake-link prompt shown after the call-review flow when the other
+  // party is not yet a saved/named customer. Holds the call event being acted on
+  // plus the send state machine; null = no prompt visible.
+  const [intakePromptEvent, setIntakePromptEvent] = useState<CallEndedEvent | null>(null);
+  const [intakeSendState, setIntakeSendState] = useState<IntakeSendState>({ phase: 'ask' });
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
@@ -1676,12 +1770,117 @@ export default function CallsPage() {
   }
 
   function handleSkipReviewedCall() {
+    const justReviewed = pendingCallReview;
     setPendingCallReview(null);
     setCallReviewError(null);
     setCallReviewSaved(false);
     setCallReviewBrief(null);
     setCallReviewTranscribing(false);
     recordedBlobRef.current = null;
+
+    // HYBRID step: after the review flow closes, offer to send the intake link
+    // — but only for completed calls to an unknown/unnamed number. Missed/failed
+    // calls and already-named saved customers are skipped. The link is NEVER
+    // auto-sent; the operator must confirm in the prompt below.
+    if (!justReviewed) return;
+    if (justReviewed.status !== 'completed') return;
+    if (!justReviewed.phone) return;
+    const existing = findCustomerByPhone(customers, justReviewed.phone) ?? null;
+    if (isNamedCustomer(existing, justReviewed.phone)) return;
+    setIntakeSendState({ phase: 'ask' });
+    setIntakePromptEvent(justReviewed);
+  }
+
+  // Ensures a customer exists for the call's phone (creating a phone-only one if
+  // needed), then sends the intake link via the preferred-channel backend
+  // (mode:'send' -> Viber with SMS fallback). Refreshes the customers list so a
+  // newly created contact appears in the CRM tabs.
+  async function handleSendIntakeLink() {
+    const event = intakePromptEvent;
+    const token = tokenRef.current;
+    if (!event || !event.phone || !token) {
+      setIntakeSendState({
+        phase: 'done',
+        ok: false,
+        message: 'Αδύνατη η αποστολή. Δοκίμασε ξανά.',
+      });
+      return;
+    }
+    setIntakeSendState({ phase: 'sending' });
+
+    try {
+      // 1) Resolve or create the customer for this number.
+      let customerId =
+        findCustomerByPhone(customers, event.phone)?.id ?? null;
+      let createdCustomer: Customer | null = null;
+
+      if (!customerId) {
+        // Outbound calls have no inbound_call provenance, and 'outbound_call' is
+        // not a valid source enum — fall back to 'manual_entry' for those.
+        const source = event.direction === 'inbound' ? 'inbound_call' : 'manual_entry';
+        const createResp = await fetch('/api/customers', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ phone: event.phone, source }),
+        });
+        const createJson = await createResp.json();
+        if (!createJson.ok || !createJson.customer) {
+          setIntakeSendState({
+            phase: 'done',
+            ok: false,
+            message: 'Αδύνατη η δημιουργία επαφής. Δοκίμασε ξανά.',
+          });
+          return;
+        }
+        createdCustomer = mapCustomer(createJson.customer as Record<string, unknown>);
+        customerId = createdCustomer.id;
+      }
+
+      // 2) Send the intake link (backend picks preferred channel, Viber->SMS).
+      const sendResp = await fetch(
+        `/api/customers/${encodeURIComponent(customerId)}/intake-link`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ mode: 'send' }),
+        }
+      );
+      const sendJson = await sendResp.json().catch(() => null);
+
+      // Reflect the new customer in the CRM list regardless of send outcome.
+      if (createdCustomer) handleContactAdded(createdCustomer);
+
+      if (sendResp.ok && sendJson?.ok === true && sendJson?.sent === true) {
+        setIntakeSendState({
+          phase: 'done',
+          ok: true,
+          message: 'Ο σύνδεσμος στάλθηκε.',
+        });
+      } else {
+        setIntakeSendState({
+          phase: 'done',
+          ok: false,
+          message: 'Δεν στάλθηκε ο σύνδεσμος. Δοκίμασε ξανά από την καρτέλα του πελάτη.',
+        });
+      }
+    } catch {
+      setIntakeSendState({
+        phase: 'done',
+        ok: false,
+        message: 'Αδύνατη η αποστολή. Δοκίμασε ξανά.',
+      });
+    }
+  }
+
+  function closeIntakePrompt() {
+    setIntakePromptEvent(null);
+    setIntakeSendState({ phase: 'ask' });
   }
 
   // Shows the after-call review modal instead of immediately saving.
@@ -2094,6 +2293,16 @@ export default function CallsPage() {
           transcribing={callReviewTranscribing}
           onSave={handleSaveReviewedCall}
           onSkip={handleSkipReviewedCall}
+        />
+      )}
+
+      {/* HYBRID post-call intake-link prompt (operator-confirmed send) */}
+      {intakePromptEvent && (
+        <IntakeLinkPrompt
+          phone={intakePromptEvent.phone}
+          state={intakeSendState}
+          onConfirm={handleSendIntakeLink}
+          onClose={closeIntakePrompt}
         />
       )}
 

@@ -11,9 +11,12 @@
 //   revoked or expired). Uses the verified canonical URL to build the
 //   message so the sent link matches what the user reviewed.
 //   If responseUrl is absent: creates a fresh token as fallback.
-//   In both cases: looks up customer phone and calls Apifon.
+//   In both cases: looks up customer phone and sends via the customer's
+//   PREFERRED channel (Viber with SMS fallback, or SMS direct). The message
+//   TEXT always carries the response URL so SMS delivers a usable link.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import {
   createServiceSupabaseClient,
@@ -22,7 +25,8 @@ import {
   buildOfferResponseUrl,
   markOfferResponseTokenSent,
 } from '@/lib/server/offer-response-tokens';
-import { sendViberMessage, normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
+import { normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
+import { sendViaPreferredChannel } from '@/lib/server/send-channel';
 
 export const runtime = 'nodejs';
 
@@ -83,10 +87,42 @@ interface CustomerRow {
   id: string;
   mobile_phone: string | null;
   phone: string | null;
+  preferred_contact_method?: string | null;
 }
 
 interface TokenRow {
   id: string;
+}
+
+type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
+
+// Fetch a customer (business-scoped) including preferred_contact_method.
+// Degrades gracefully if migration 035 (preferred_contact_method present /
+// extended) has not been applied yet: on a column error we retry without it.
+async function fetchOfferCustomer(
+  supabase: SupabaseClient,
+  customerId: string,
+  businessId: string
+): Promise<CustomerRow | null> {
+  const withPref = await supabase
+    .from('customers')
+    .select('id, mobile_phone, phone, preferred_contact_method')
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  if (!withPref.error) {
+    return (withPref.data as unknown as CustomerRow | null) ?? null;
+  }
+
+  const base = await supabase
+    .from('customers')
+    .select('id, mobile_phone, phone')
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  return (base.data as unknown as CustomerRow | null) ?? null;
 }
 
 const VALID_MODES = ['draft', 'send'] as const;
@@ -202,14 +238,9 @@ export async function POST(
       // Look up customer phone for display in the review modal.
       let recipient: string | null = null;
       if (offer.customer_id) {
-        const { data: customerData } = await supabase
-          .from('customers')
-          .select('id, mobile_phone, phone')
-          .eq('id', offer.customer_id)
-          .eq('business_id', businessId)
-          .maybeSingle();
+        const customerData = await fetchOfferCustomer(supabase, offer.customer_id, businessId);
         if (customerData) {
-          recipient = selectViberPhone(customerData as unknown as CustomerRow);
+          recipient = selectViberPhone(customerData);
         }
       }
 
@@ -304,12 +335,7 @@ export async function POST(
       });
     }
 
-    const { data: customerData } = await supabase
-      .from('customers')
-      .select('id, mobile_phone, phone')
-      .eq('id', offer.customer_id)
-      .eq('business_id', businessId)
-      .maybeSingle();
+    const customerData = await fetchOfferCustomer(supabase, offer.customer_id, businessId);
 
     if (!customerData) {
       return NextResponse.json({
@@ -322,7 +348,7 @@ export async function POST(
       });
     }
 
-    const customer = customerData as unknown as CustomerRow;
+    const customer = customerData;
     const rawPhone = selectViberPhone(customer);
 
     if (!rawPhone) {
@@ -352,33 +378,26 @@ export async function POST(
       ? `offer-notif:${businessId.slice(0, 8)}:${verifiedTokenId.slice(0, 8)}`
       : `offer-notif:${businessId.slice(0, 8)}:${offerId.slice(0, 8)}`;
 
-    const viberResult = await sendViberMessage({
+    // Send via the customer's preferred channel (Viber with SMS fallback, or
+    // SMS direct). messageText already contains the response URL, so SMS —
+    // which has no action button — still delivers a usable link.
+    const sendResult = await sendViaPreferredChannel({
+      preferred: customer.preferred_contact_method ?? null,
       phone: rawPhone,
       text: messageText,
       customerId: offer.customer_id,
       referenceId,
     });
 
-    if (viberResult.skipped) {
-      const skipReason =
-        viberResult.reason === 'missing_apifon_config' ? 'provider_unavailable' : 'missing_mobile';
+    if (!sendResult.ok) {
+      const reason =
+        sendResult.reason === 'missing_apifon_config' ? 'provider_unavailable' : 'provider_failed';
       return NextResponse.json({
         ok: true,
         sent: false,
-        channel: 'viber',
+        channel: sendResult.channel,
         status: 'fallback_required',
-        reason: skipReason,
-        message: messageText,
-      });
-    }
-
-    if (!viberResult.ok) {
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        channel: 'viber',
-        status: 'fallback_required',
-        reason: 'provider_failed',
+        reason,
         message: messageText,
       });
     }
@@ -388,7 +407,7 @@ export async function POST(
       try {
         await markOfferResponseTokenSent({
           tokenId: verifiedTokenId,
-          sentChannel: 'viber',
+          sentChannel: sendResult.channel === 'sms' ? 'sms' : 'viber',
           sentTo: rawPhone,
         });
       } catch {
@@ -434,14 +453,19 @@ export async function POST(
       // intentionally swallowed: the Viber message was already sent
     }
 
+    // Surface requestId / messageId from whichever underlying send succeeded.
+    const sentDetail = (sendResult.channel === 'sms' ? sendResult.sms : sendResult.viber) as
+      | { requestId?: string | null; messageId?: string | null }
+      | undefined;
+
     return NextResponse.json({
       ok: true,
       sent: true,
-      channel: 'viber',
+      channel: sendResult.channel,
       status: 'sent',
       reason: null,
-      requestId: viberResult.requestId,
-      messageId: viberResult.messageId,
+      requestId: sentDetail?.requestId ?? null,
+      messageId: sentDetail?.messageId ?? null,
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });

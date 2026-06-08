@@ -5,8 +5,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { createCustomerIntakeToken, markIntakeTokenSent } from '@/lib/server/intake-tokens';
-import { sendIntakeViberMessage } from '@/lib/server/apifon-viber';
 import { generateCallBrief } from '@/lib/server/call-brief';
 import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 
@@ -367,65 +365,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'customer_link_failed' }, { status: 500 });
     }
 
-    let intakeTokenId: string | null = null;
-    let viberSendStatus: string | null = null;
-    let viberMessageId: string | null = null;
-    let viberRequestId: string | null = null;
-    let viberReferenceId: string | null = null;
-    let viberResponseBody: unknown = null;
-    let viberSendError: string | null = null;
-
-    if (customerLink.customerId) {
-      try {
-        const intakeToken = await createCustomerIntakeToken({
-          businessId,
-          customerId: customerLink.customerId,
-          phone: normalizePhone(callerNumber),
-        });
-
-        intakeTokenId = intakeToken.row.id;
-
-        const viberRef = uniqueId ? `pbx:${uniqueId}` : null;
-        viberReferenceId = viberRef;
-
-        const viberResult = await sendIntakeViberMessage({
-          phone: normalizePhone(callerNumber),
-          intakeUrl: intakeToken.intakeUrl,
-          customerId: customerLink.customerId,
-          tokenId: intakeToken.row.id,
-          referenceId: viberRef,
-        });
-
-        if (viberResult.ok) {
-          viberSendStatus = 'sent';
-          viberMessageId = viberResult.messageId;
-          viberRequestId = viberResult.requestId;
-          viberResponseBody = viberResult.responseBody;
-
-          await markIntakeTokenSent({
-            tokenId: intakeToken.row.id,
-            sentChannel: 'viber',
-            sentToPhone: normalizePhone(callerNumber),
-          });
-        } else if (viberResult.skipped) {
-          viberSendStatus = `skipped:${viberResult.reason}`;
-        } else {
-          viberSendStatus = `failed:${viberResult.error}`;
-          viberSendError = viberResult.error;
-          viberResponseBody = viberResult.responseBody;
-        }
-
-        await supabase
-          .from('customers')
-          .update({
-            intake_status: viberResult.ok ? 'waiting_sms' : 'none',
-          })
-          .eq('id', customerLink.customerId)
-          .eq('business_id', businessId);
-      } catch (err) {
-        viberSendStatus = err instanceof Error ? `failed:${err.message}` : 'failed:unknown_error';
-      }
-    }
+    // HYBRID intake link: the customer is auto-created/matched above, but the
+    // intake LINK is intentionally NOT auto-sent here. It is sent only when the
+    // operator confirms via the post-call prompt (wired elsewhere). So this
+    // webhook no longer creates an intake token or sends a Viber message.
 
     const summaryParts = [
       'PBX inbound call completed.',
@@ -437,12 +380,12 @@ export async function POST(request: NextRequest) {
       consentAnnounced !== null ? `consent_announced=${consentAnnounced}` : null,
       customerLink.customerCreated ? 'customer_created=true' : null,
       customerLink.customerMatched ? 'customer_matched=true' : null,
-      viberSendStatus ? `viber_send_status=${viberSendStatus}` : null,
     ].filter(Boolean).join(' ');
 
-    // Generate a demo-safe AI brief from call metadata only (non-fatal).
-    // Not a transcript -- uses structured metadata to produce a draft for human review.
-    // customers.needs_summary is intentionally NOT updated here.
+    // Generate an AI brief ONLY when a real recording exists (non-fatal).
+    // generateCallBrief returns null when recordingExists !== true, so missed /
+    // no-recording calls never get a fabricated brief. The intake link is no
+    // longer auto-sent, so intakeUrlCreated/viberSendStatus are always false/null.
     let aiBrief: string | null = null;
     try {
       aiBrief = await generateCallBrief({
@@ -454,16 +397,31 @@ export async function POST(request: NextRequest) {
         recordingFallbackApplied,
         customerCreated: customerLink.customerCreated,
         customerMatched: customerLink.customerMatched,
-        intakeUrlCreated: intakeTokenId !== null,
-        viberSendStatus,
+        intakeUrlCreated: false,
+        viberSendStatus: null,
       });
     } catch {
       // AI brief failure is non-fatal.
     }
 
-    const communicationSummary = aiBrief
-      ? `${aiBrief}\n\n---\nPBX metadata:\n${summaryParts}`
-      : summaryParts;
+    let communicationSummary: string;
+    if (aiBrief) {
+      // Real recording -> AI brief + PBX metadata footer.
+      communicationSummary = `${aiBrief}\n\n---\nPBX metadata:\n${summaryParts}`;
+    } else {
+      // No AI brief (no recording). Use a clear non-AI label instead of an AI
+      // guess. Distinguish "not answered" from "answered but not recorded".
+      const status = (dialStatus ?? '').toUpperCase();
+      const notAnswered =
+        status === '' ||
+        status === 'NOANSWER' ||
+        status === 'BUSY' ||
+        status === 'CANCEL' ||
+        status === 'FAILED' ||
+        status === 'CONGESTION';
+      const label = notAnswered ? 'Αναπάντητη κλήση' : 'Κλήση χωρίς ηχογράφηση';
+      communicationSummary = `${label}\n\n---\nPBX metadata:\n${summaryParts}`;
+    }
 
     const { data: communicationRow, error: communicationError } = await supabase
       .from('communications')
@@ -490,44 +448,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'communication_store_failed' }, { status: 500 });
     }
 
-    // Insert viber_messages row if a Viber send was attempted or skipped.
-    // Non-fatal: failure here does not roll back the communication row.
-    if (viberSendStatus !== null) {
-      const viberNow = new Date().toISOString();
-      const simpleViberStatus =
-        viberSendStatus === 'sent' ? 'sent'
-        : viberSendStatus.startsWith('skipped') ? 'skipped'
-        : viberSendStatus.startsWith('failed') ? 'failed'
-        : 'created';
-      const senderIdEnv =
-        process.env.APIFON_VIBER_SENDER_ID?.trim() ||
-        process.env.APIFON_SENDER_ID?.trim() ||
-        null;
-      const commId =
-        (communicationRow as unknown as { id: string } | null)?.id ?? null;
-      const { error: viberRowError } = await supabase
-        .from('viber_messages')
-        .insert({
-          business_id: businessId,
-          customer_id: customerLink.customerId,
-          communication_id: commId,
-          intake_token_id: intakeTokenId,
-          provider: 'apifon',
-          provider_request_id: viberRequestId,
-          provider_message_id: viberMessageId,
-          reference_id: viberReferenceId,
-          recipient_phone: normalizePhone(callerNumber),
-          sender_id: senderIdEnv,
-          status: simpleViberStatus,
-          raw_send_response: isRecord(viberResponseBody) ? viberResponseBody : null,
-          error: viberSendError,
-          sent_at: simpleViberStatus === 'sent' ? viberNow : null,
-          failed_at: simpleViberStatus === 'failed' ? viberNow : null,
-        });
-      if (viberRowError) {
-        console.error('viber_messages insert failed (non-fatal):', viberRowError.message);
-      }
-    }
+    // No viber_messages logging here anymore: the intake link is not auto-sent
+    // by this webhook. The post-call operator-confirmation flow is responsible
+    // for sending the link and logging any viber_messages / send rows.
 
     await supabase
       .from('provider_webhook_events')

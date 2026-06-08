@@ -74,6 +74,12 @@ function extractText(data: unknown): string | null {
 }
 
 export async function generateCallBrief(input: CallBriefInput): Promise<string | null> {
+  // Missed / no-recording calls must NOT get a fabricated AI brief. Only call
+  // the LLM when there is a real recording (recordingExists === true) — the
+  // transcription path will provide actual content to brief. Anything else
+  // (false / null) returns null so the caller can apply a clear non-AI label.
+  if (input.recordingExists !== true) return null;
+
   const apiKey = process.env.ANTHROPIC_API_KEY?.trim();
   if (!apiKey) return null;
 

@@ -10,8 +10,10 @@
 //   customer_intake_tokens (scoped to this customer and business, must not
 //   be revoked or expired). Uses the verified canonical URL.
 //   If responseUrl is absent: revokes existing + creates a fresh token.
-//   In both cases: looks up customer phone and calls Apifon via
-//   sendIntakeViberMessage.
+//   In both cases: looks up customer phone and sends via the customer's
+//   PREFERRED channel — the nicer Viber action-button message when the
+//   preference resolves to Viber, otherwise SMS (with Viber->SMS fallback).
+//   The message TEXT always contains the link so SMS carries it too.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
@@ -24,6 +26,7 @@ import {
   markIntakeTokenSent,
 } from '@/lib/server/intake-tokens';
 import { sendIntakeViberMessage, normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
+import { sendViaPreferredChannel, channelForCustomer } from '@/lib/server/send-channel';
 
 export const runtime = 'nodejs';
 
@@ -60,10 +63,44 @@ interface CustomerRow {
   id: string;
   mobile_phone: string | null;
   phone: string | null;
+  preferred_contact_method?: string | null;
 }
 
 interface IntakeTokenLookupRow {
   id: string;
+}
+
+// Fetch the customer (business-scoped) including preferred_contact_method.
+// Degrades gracefully if migration 035 (preferred_contact_method extended /
+// present) has not been applied yet: on a column error we retry without it.
+async function fetchCustomer(
+  supabase: SupabaseClient,
+  customerId: string,
+  businessId: string
+): Promise<{ customer: CustomerRow | null; error: boolean }> {
+  const withPref = await supabase
+    .from('customers')
+    .select('id, mobile_phone, phone, preferred_contact_method')
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  if (!withPref.error) {
+    return { customer: (withPref.data as unknown as CustomerRow | null) ?? null, error: false };
+  }
+
+  // Likely the preferred_contact_method column is missing — retry without it.
+  const base = await supabase
+    .from('customers')
+    .select('id, mobile_phone, phone')
+    .eq('id', customerId)
+    .eq('business_id', businessId)
+    .maybeSingle();
+
+  if (base.error) {
+    return { customer: null, error: true };
+  }
+  return { customer: (base.data as unknown as CustomerRow | null) ?? null, error: false };
 }
 
 function looksLikeGreekMobile(phone: string | null | undefined): boolean {
@@ -155,12 +192,11 @@ export async function POST(
     const { id: customerId } = await params;
 
     // Verify the customer belongs to this business.
-    const { data: customerData, error: customerError } = await supabase
-      .from('customers')
-      .select('id, mobile_phone, phone')
-      .eq('id', customerId)
-      .eq('business_id', businessId)
-      .maybeSingle();
+    const { customer: customerData, error: customerError } = await fetchCustomer(
+      supabase,
+      customerId,
+      businessId
+    );
 
     if (customerError) {
       return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
@@ -169,7 +205,7 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
     }
 
-    const customer = customerData as unknown as CustomerRow;
+    const customer = customerData;
     const serviceClient = createServiceSupabaseClient();
     const now = new Date().toISOString();
 
@@ -305,32 +341,79 @@ export async function POST(
       ? `intake-notif:${businessId.slice(0, 8)}:${verifiedTokenId.slice(0, 8)}`
       : `intake-notif:${businessId.slice(0, 8)}:${customerId.slice(0, 8)}`;
 
+    // The message TEXT always carries the intake URL so SMS (which has no
+    // action button) still delivers a usable link.
     const messageText = buildIntakeMessage(intakeUrl, businessName);
 
-    const viberResult = await sendIntakeViberMessage({
-      phone: rawPhone,
-      intakeUrl,
-      customerId,
-      tokenId: verifiedTokenId,
-      referenceId,
-      messageText,
-    });
+    const preferred = customer.preferred_contact_method ?? null;
 
-    if (viberResult.skipped) {
-      const fallbackReason =
-        viberResult.reason === 'missing_apifon_config' ? 'provider_unavailable' : 'missing_mobile';
+    // Track the channel actually used so we record it on the token.
+    let sent = false;
+    let fallbackReason: string | null = null;
+    let sentChannel: 'viber' | 'sms' | null = null;
+
+    if (channelForCustomer(preferred) === 'viber') {
+      // Preferred channel resolves to Viber: use the nicer Viber action-button
+      // message first, and only fall back to SMS if Viber is skipped/fails.
+      const viberResult = await sendIntakeViberMessage({
+        phone: rawPhone,
+        intakeUrl,
+        customerId,
+        tokenId: verifiedTokenId,
+        referenceId,
+        messageText,
+      });
+
+      if (viberResult.ok) {
+        sent = true;
+        sentChannel = 'viber';
+      } else {
+        // Viber skipped or failed → SMS fallback. The text already contains the
+        // URL, so the link is delivered.
+        const smsFallback = await sendViaPreferredChannel({
+          preferred: 'sms',
+          phone: rawPhone,
+          text: messageText,
+          customerId,
+          referenceId,
+        });
+
+        if (smsFallback.ok) {
+          sent = true;
+          sentChannel = smsFallback.channel === 'sms' ? 'sms' : 'viber';
+        } else if (viberResult.skipped) {
+          fallbackReason =
+            viberResult.reason === 'missing_apifon_config'
+              ? 'provider_unavailable'
+              : 'missing_mobile';
+        } else {
+          fallbackReason = 'provider_failed';
+        }
+      }
+    } else {
+      // Preferred channel is SMS: send via the dispatcher (SMS direct).
+      const result = await sendViaPreferredChannel({
+        preferred,
+        phone: rawPhone,
+        text: messageText,
+        customerId,
+        referenceId,
+      });
+
+      sent = result.ok;
+      if (result.ok) {
+        sentChannel = result.channel === 'sms' ? 'sms' : 'viber';
+      } else {
+        fallbackReason =
+          result.reason === 'missing_apifon_config' ? 'provider_unavailable' : 'provider_failed';
+      }
+    }
+
+    if (!sent) {
       return NextResponse.json({
         ok: true,
         sent: false,
         fallbackReason,
-      });
-    }
-
-    if (!viberResult.ok) {
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        fallbackReason: 'provider_failed',
       });
     }
 
@@ -339,7 +422,7 @@ export async function POST(
       try {
         await markIntakeTokenSent({
           tokenId: verifiedTokenId,
-          sentChannel: 'viber',
+          sentChannel: sentChannel ?? 'viber',
           sentToPhone: rawPhone,
         });
       } catch {

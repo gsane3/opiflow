@@ -12,6 +12,19 @@ export const runtime = 'nodejs';
 // Public endpoint — rate-limit by IP to deter abuse/scraping.
 const publicLimiter = makePublicLimiter(40, 60_000);
 
+// Public intake form only offers these four; the full DB set also allows
+// 'phone'. 'whatsapp' and 'sms' are only valid AFTER migration 035 widens the
+// customers_preferred_contact_method_check constraint — so persisting the value
+// must degrade gracefully (see POST below).
+const VALID_PREFERRED_CONTACT_METHODS = ['viber', 'whatsapp', 'sms', 'email'] as const;
+type PreferredContactMethod = (typeof VALID_PREFERRED_CONTACT_METHODS)[number];
+
+function preferredContactMethod(value: unknown): PreferredContactMethod | null {
+  return (VALID_PREFERRED_CONTACT_METHODS as readonly string[]).includes(value as string)
+    ? (value as PreferredContactMethod)
+    : null;
+}
+
 const CUSTOMER_COLUMNS = [
   'id',
   'business_id',
@@ -194,6 +207,7 @@ export async function POST(
     const email = str(raw.email);
     const address = str(raw.address);
     const comments = str(raw.comments);
+    const preferred = preferredContactMethod(raw.preferredContactMethod);
 
     if (!firstName && !lastName) {
       if (acceptsForm) {
@@ -242,6 +256,31 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
     }
 
+    // Persist the customer's preferred contact channel in its OWN isolated
+    // update so it can never break the core intake submission above. The DB
+    // CHECK constraint only allows 'whatsapp'/'sms' AFTER migration 035 is
+    // applied — if it's not yet applied, this update is rejected and we simply
+    // swallow the error (the rest of the submission already succeeded).
+    let updatedRow = asCustomerRow(data);
+    if (preferred) {
+      try {
+        const { data: prefData, error: prefError } = await supabase
+          .from('customers')
+          .update({ preferred_contact_method: preferred, updated_at: new Date().toISOString() })
+          .eq('id', customer.id)
+          .eq('business_id', customer.business_id)
+          .select(CUSTOMER_COLUMNS)
+          .maybeSingle();
+
+        if (!prefError && prefData) {
+          updatedRow = asCustomerRow(prefData);
+        }
+      } catch {
+        // Constraint not yet applied (or transient failure) — intentionally
+        // ignore; the intake submission remains successful.
+      }
+    }
+
     await markIntakeTokenSubmitted(tokenRow.id);
 
     if (acceptsForm) {
@@ -250,7 +289,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      customer: publicCustomer(asCustomerRow(data)),
+      customer: publicCustomer(updatedRow),
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'intake_submit_failed' }, { status: 500 });
