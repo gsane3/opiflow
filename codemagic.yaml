@@ -109,6 +109,8 @@ workflows:
       node: 20
       xcode: latest
       cocoapods: default
+      groups:
+        - opiflow_ios # define GOOGLE_SERVICE_INFO_PLIST (base64 of GoogleService-Info.plist) in this Codemagic group
       ios_signing:
         distribution_type: app_store
         bundle_identifier: ai.opiflow.app
