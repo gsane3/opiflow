@@ -254,6 +254,45 @@ function offerStatusBadgeClass(status: string): string {
   return 'bg-amber-100 text-amber-700';
 }
 
+// --- Timeline communication helpers (#57: outbound message delivery status) ---
+const COMM_CHANNEL_LABELS: Record<string, string> = {
+  call: 'Κλήση',
+  viber: 'Viber',
+  sms: 'SMS',
+  email: 'Email',
+  whatsapp: 'WhatsApp',
+};
+function commChannelLabel(channel: string): string {
+  return COMM_CHANNEL_LABELS[channel] ?? channel;
+}
+
+const COMM_STATUS_LABELS: Record<string, string> = {
+  started: 'Ξεκίνησε',
+  sent: 'Εστάλη',
+  delivered: 'Παραδόθηκε',
+  seen: 'Διαβάστηκε',
+  failed: 'Απέτυχε',
+  completed: 'Ολοκληρώθηκε',
+};
+function commStatusLabel(status: string): string {
+  return COMM_STATUS_LABELS[status] ?? status;
+}
+
+function commStatusBadgeClass(status: string): string {
+  if (status === 'seen') return 'bg-green-100 text-green-700';
+  if (status === 'delivered') return 'bg-blue-100 text-blue-700';
+  if (status === 'failed') return 'bg-red-100 text-red-600';
+  if (status === 'sent') return 'bg-zinc-100 text-zinc-600';
+  return 'bg-zinc-100 text-zinc-500';
+}
+
+function commDotClass(channel: string): string {
+  if (channel === 'call') return 'bg-indigo-500';
+  if (channel === 'viber') return 'bg-violet-500';
+  if (channel === 'email') return 'bg-amber-500';
+  return 'bg-blue-500';
+}
+
 function taskToneDot(status: string, priority: string): string {
   if (status === 'ai_draft') return 'bg-amber-500';
   if (status === 'completed') return 'bg-green-400';
@@ -372,6 +411,7 @@ export default function CustomerDetailPage() {
     loading: boolean;
     sending: boolean;
     sent: boolean;
+    sentChannel: 'viber' | 'email' | null;
     error: string | null;
     copied: boolean;
   }
@@ -385,6 +425,7 @@ export default function CustomerDetailPage() {
     loading: boolean;
     sending: boolean;
     sent: boolean;
+    sentChannel: 'viber' | 'email' | null;
     error: string | null;
     copied: boolean;
     warning: string | null;
@@ -398,6 +439,7 @@ export default function CustomerDetailPage() {
     loading: boolean;
     sending: boolean;
     sent: boolean;
+    sentChannel: 'viber' | 'email' | null;
     error: string | null;
     copied: boolean;
   }
@@ -1226,6 +1268,7 @@ export default function CustomerDetailPage() {
       loading: true,
       sending: false,
       sent: false,
+      sentChannel: null,
       error: null,
       copied: false,
     });
@@ -1287,6 +1330,7 @@ export default function CustomerDetailPage() {
       loading: true,
       sending: false,
       sent: false,
+      sentChannel: null,
       error: null,
       copied: false,
       warning: null,
@@ -1350,6 +1394,7 @@ export default function CustomerDetailPage() {
       loading: true,
       sending: false,
       sent: false,
+      sentChannel: null,
       error: null,
       copied: false,
     });
@@ -2385,21 +2430,24 @@ export default function CustomerDetailPage() {
                   onClick={entry.item.channel === 'call' ? () => setSelectedCall(entry.item) : undefined}
                   onKeyDown={entry.item.channel === 'call' ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedCall(entry.item); } } : undefined}
                 >
-                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${
-                    entry.item.channel === 'call' ? 'bg-indigo-500' : 'bg-blue-500'
-                  }`} />
+                  <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${commDotClass(entry.item.channel)}`} />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`text-xs font-semibold ${entry.item.channel === 'call' ? 'text-indigo-600' : 'text-blue-600'}`}>
-                        {entry.item.channel === 'call' ? 'Κλήση' : entry.item.channel}
+                      <span className={`text-xs font-semibold ${entry.item.channel === 'call' ? 'text-indigo-600' : 'text-zinc-600'}`}>
+                        {commChannelLabel(entry.item.channel)}
                       </span>
                       <span className="shrink-0 text-xs text-zinc-400">
                         {formatDateShort(entry.item.createdAt)}
                       </span>
                     </div>
-                    <p className="text-xs text-zinc-400">
-                      {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'} · {entry.item.status}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-zinc-400">
+                        {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'}
+                      </span>
+                      <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${commStatusBadgeClass(entry.item.status)}`}>
+                        {commStatusLabel(entry.item.status)}
+                      </span>
+                    </div>
                     {entry.item.summary && (
                       <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
                         {truncate(entry.item.summary.replace(/^AI brief[:\s]*/i, ''), 180)}
@@ -3033,83 +3081,103 @@ export default function CustomerDetailPage() {
         />
       )}
 
-      {/* Appointment send review modal */}
-      {apptLinkReview !== null && (
-        <SendViaViberModal
-          title="Αποστολή link ραντεβού"
-          loadingText="Ετοιμάζεται το link ραντεβού..."
-          successText="Το link ραντεβού στάλθηκε με Viber."
-          warning={
-            apptLinkReview.warning === 'missing_appointment_time' ? (
-              <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-                Η ώρα ή η ημερομηνία ραντεβού δεν έχει συμπληρωθεί. Το μήνυμα δεν θα περιέχει ώρα.
-              </div>
-            ) : null
-          }
-          loading={apptLinkReview.loading}
-          message={apptLinkReview.message}
-          recipient={apptLinkReview.recipient}
-          responseUrl={apptLinkReview.responseUrl}
-          sending={apptLinkReview.sending}
-          sent={apptLinkReview.sent}
-          error={apptLinkReview.error}
-          copied={apptLinkReview.copied}
-          onClose={() => { setApptLinkReview(null); setRefreshTick(t => t + 1); }}
-          onSend={() =>
+      {/* Appointment send review — multi-channel (Viber / Email αυτόματα, ή WhatsApp/SMS) */}
+      <SendChannelSheet
+        open={apptLinkReview !== null}
+        onClose={() => { setApptLinkReview(null); setRefreshTick(t => t + 1); }}
+        title="Επιβεβαίωση ραντεβού"
+        subtitle={
+          apptLinkReview?.warning === 'missing_appointment_time'
+            ? 'Η ώρα/ημερομηνία ραντεβού δεν έχει συμπληρωθεί — το μήνυμα δεν θα περιέχει ώρα.'
+            : 'Διάλεξε τρόπο: Viber, WhatsApp ή Email.'
+        }
+        loading={apptLinkReview?.loading}
+        loadingText="Ετοιμάζεται το link ραντεβού..."
+        message={apptLinkReview?.message ?? null}
+        link={apptLinkReview?.responseUrl ?? null}
+        recipientPhone={customer.mobilePhone ?? customer.phone}
+        recipientEmail={customer.email}
+        emailSubject="Επιβεβαίωση ραντεβού"
+        viber={{
+          kind: 'backend',
+          onSend: () =>
             executeViberSend({
               endpoint: `/api/customers/${customerId}/appointment-link`,
-              body: { taskId: apptLinkReview.taskId, responseUrl: apptLinkReview.responseUrl },
-              update: (patch) => setApptLinkReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              body: { taskId: apptLinkReview?.taskId, responseUrl: apptLinkReview?.responseUrl },
+              update: (patch) => setApptLinkReview((prev) => (prev ? { ...prev, ...patch, ...((patch.sending || patch.sent) ? { sentChannel: 'viber' as const } : {}) } : null)),
               providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
               defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
-            })
-          }
-          onCopy={async () => {
-            try {
-              await navigator.clipboard.writeText(apptLinkReview.message ?? '');
-              setApptLinkReview((prev) => (prev ? { ...prev, copied: true } : null));
-            } catch {
-              // ignore
-            }
-          }}
-        />
-      )}
+            }),
+          sending: apptLinkReview?.sending && apptLinkReview?.sentChannel === 'viber',
+          sent: apptLinkReview?.sent && apptLinkReview?.sentChannel === 'viber',
+          error: apptLinkReview?.sentChannel === 'viber' ? apptLinkReview?.error : null,
+        }}
+        email={
+          customer.email
+            ? {
+                kind: 'backend',
+                onSend: () =>
+                  executeViberSend({
+                    endpoint: `/api/customers/${customerId}/appointment-link`,
+                    body: { taskId: apptLinkReview?.taskId, responseUrl: apptLinkReview?.responseUrl, channel: 'email' },
+                    update: (patch) => setApptLinkReview((prev) => (prev ? { ...prev, ...patch, ...((patch.sending || patch.sent) ? { sentChannel: 'email' as const } : {}) } : null)),
+                    providerUnavailableMsg: 'Το email δεν είναι ρυθμισμένο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
+                    defaultFallbackMsg: 'Δεν έγινε αποστολή με email. Μπορείς να αντιγράψεις το μήνυμα.',
+                  }),
+                sending: apptLinkReview?.sending && apptLinkReview?.sentChannel === 'email',
+                sent: apptLinkReview?.sent && apptLinkReview?.sentChannel === 'email',
+                error: apptLinkReview?.sentChannel === 'email' ? apptLinkReview?.error : null,
+              }
+            : null
+        }
+      />
 
-      {/* Upload link review modal */}
-      {uploadLinkReview !== null && (
-        <SendViaViberModal
-          title="Αίτημα φωτογραφιών"
-          subtitle="Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις."
-          loadingText="Ετοιμάζεται το link φωτογραφιών..."
-          successText="Το link φωτογραφιών στάλθηκε με Viber."
-          loading={uploadLinkReview.loading}
-          message={uploadLinkReview.message}
-          recipient={uploadLinkReview.recipient}
-          responseUrl={uploadLinkReview.responseUrl}
-          sending={uploadLinkReview.sending}
-          sent={uploadLinkReview.sent}
-          error={uploadLinkReview.error}
-          copied={uploadLinkReview.copied}
-          onClose={() => { setUploadLinkReview(null); setRefreshTick(t => t + 1); }}
-          onSend={() =>
+      {/* Upload link review — multi-channel (Viber / Email αυτόματα, ή WhatsApp/SMS) */}
+      <SendChannelSheet
+        open={uploadLinkReview !== null}
+        onClose={() => { setUploadLinkReview(null); setRefreshTick(t => t + 1); }}
+        title="Αίτημα φωτογραφιών"
+        subtitle="Διάλεξε τρόπο: Viber, WhatsApp ή Email."
+        loading={uploadLinkReview?.loading}
+        loadingText="Ετοιμάζεται το link φωτογραφιών..."
+        message={uploadLinkReview?.message ?? null}
+        link={uploadLinkReview?.responseUrl ?? null}
+        recipientPhone={customer.mobilePhone ?? customer.phone}
+        recipientEmail={customer.email}
+        emailSubject="Αποστολή φωτογραφιών"
+        viber={{
+          kind: 'backend',
+          onSend: () =>
             executeViberSend({
               endpoint: `/api/customers/${customerId}/upload-link`,
-              body: { responseUrl: uploadLinkReview.responseUrl },
-              update: (patch) => setUploadLinkReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              body: { responseUrl: uploadLinkReview?.responseUrl },
+              update: (patch) => setUploadLinkReview((prev) => (prev ? { ...prev, ...patch, ...((patch.sending || patch.sent) ? { sentChannel: 'viber' as const } : {}) } : null)),
               providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
               defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
-            })
-          }
-          onCopy={async () => {
-            try {
-              await navigator.clipboard.writeText(uploadLinkReview.message ?? '');
-              setUploadLinkReview((prev) => (prev ? { ...prev, copied: true } : null));
-            } catch {
-              // ignore
-            }
-          }}
-        />
-      )}
+            }),
+          sending: uploadLinkReview?.sending && uploadLinkReview?.sentChannel === 'viber',
+          sent: uploadLinkReview?.sent && uploadLinkReview?.sentChannel === 'viber',
+          error: uploadLinkReview?.sentChannel === 'viber' ? uploadLinkReview?.error : null,
+        }}
+        email={
+          customer.email
+            ? {
+                kind: 'backend',
+                onSend: () =>
+                  executeViberSend({
+                    endpoint: `/api/customers/${customerId}/upload-link`,
+                    body: { responseUrl: uploadLinkReview?.responseUrl, channel: 'email' },
+                    update: (patch) => setUploadLinkReview((prev) => (prev ? { ...prev, ...patch, ...((patch.sending || patch.sent) ? { sentChannel: 'email' as const } : {}) } : null)),
+                    providerUnavailableMsg: 'Το email δεν είναι ρυθμισμένο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
+                    defaultFallbackMsg: 'Δεν έγινε αποστολή με email. Μπορείς να αντιγράψεις το μήνυμα.',
+                  }),
+                sending: uploadLinkReview?.sending && uploadLinkReview?.sentChannel === 'email',
+                sent: uploadLinkReview?.sent && uploadLinkReview?.sentChannel === 'email',
+                error: uploadLinkReview?.sentChannel === 'email' ? uploadLinkReview?.error : null,
+              }
+            : null
+        }
+      />
 
       {/* Quick action modals */}
       {quickModal !== null && quickModal !== 'offer' && (
@@ -3598,14 +3666,32 @@ export default function CustomerDetailPage() {
             executeViberSend({
               endpoint: `/api/customers/${customerId}/intake-link`,
               body: { responseUrl: intakeSendReview?.responseUrl },
-              update: (patch) => setIntakeSendReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              update: (patch) => setIntakeSendReview((prev) => (prev ? { ...prev, ...patch, ...((patch.sending || patch.sent) ? { sentChannel: 'viber' as const } : {}) } : null)),
               providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
               defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
             }),
-          sending: intakeSendReview?.sending,
-          sent: intakeSendReview?.sent,
-          error: intakeSendReview?.error,
+          sending: intakeSendReview?.sending && intakeSendReview?.sentChannel === 'viber',
+          sent: intakeSendReview?.sent && intakeSendReview?.sentChannel === 'viber',
+          error: intakeSendReview?.sentChannel === 'viber' ? intakeSendReview?.error : null,
         }}
+        email={
+          customer.email
+            ? {
+                kind: 'backend',
+                onSend: () =>
+                  executeViberSend({
+                    endpoint: `/api/customers/${customerId}/intake-link`,
+                    body: { responseUrl: intakeSendReview?.responseUrl, channel: 'email' },
+                    update: (patch) => setIntakeSendReview((prev) => (prev ? { ...prev, ...patch, ...((patch.sending || patch.sent) ? { sentChannel: 'email' as const } : {}) } : null)),
+                    providerUnavailableMsg: 'Το email δεν είναι ρυθμισμένο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
+                    defaultFallbackMsg: 'Δεν έγινε αποστολή με email. Μπορείς να αντιγράψεις το μήνυμα.',
+                  }),
+                sending: intakeSendReview?.sending && intakeSendReview?.sentChannel === 'email',
+                sent: intakeSendReview?.sent && intakeSendReview?.sentChannel === 'email',
+                error: intakeSendReview?.sentChannel === 'email' ? intakeSendReview?.error : null,
+              }
+            : null
+        }
       />
 
       {/* "Άλλα" bottom sheet (overflow for the hero quick-action row) */}

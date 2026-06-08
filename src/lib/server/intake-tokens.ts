@@ -15,7 +15,7 @@ export interface IntakeTokenRow {
   customer_id: string;
   token_hash: string;
   status: 'pending' | 'sent' | 'opened' | 'submitted' | 'expired' | 'revoked';
-  sent_channel: 'viber' | 'sms' | 'manual' | null;
+  sent_channel: 'viber' | 'sms' | 'email' | 'manual' | null;
   sent_to_phone: string | null;
   expires_at: string;
   opened_at: string | null;
@@ -84,7 +84,7 @@ export async function createCustomerIntakeToken(params: {
   businessId: string;
   customerId: string;
   phone?: string | null;
-  sentChannel?: 'viber' | 'sms' | 'manual' | null;
+  sentChannel?: 'viber' | 'sms' | 'email' | 'manual' | null;
   expiryHours?: number;
 }): Promise<CreateIntakeTokenResult> {
   const supabase = createServiceSupabaseClient();
@@ -125,7 +125,7 @@ export async function createCustomerIntakeToken(params: {
 
 export async function markIntakeTokenSent(params: {
   tokenId: string;
-  sentChannel: 'viber' | 'sms' | 'manual';
+  sentChannel: 'viber' | 'sms' | 'email' | 'manual';
   sentToPhone?: string | null;
 }): Promise<void> {
   const supabase = createServiceSupabaseClient();

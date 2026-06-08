@@ -18,12 +18,24 @@ export const log = {
   error: (m: string, c?: Record<string, unknown>) => emit('error', m, c),
 };
 
-/** Capture an exception for monitoring. Structured-logs now; wire Sentry later. */
+/**
+ * Capture an exception for monitoring. Always structured-logs; additionally
+ * forwards to Sentry when SENTRY_DSN is configured. The Sentry import is lazy
+ * (fire-and-forget) so this module never pulls the SDK into a bundle that does
+ * not use monitoring, and stays a safe no-op when the DSN is unset.
+ */
 export function captureException(err: unknown, context?: Record<string, unknown>): void {
   const info =
     err instanceof Error
       ? { name: err.name, message: err.message }
       : { message: String(err) };
   emit('error', 'exception', { ...info, ...(context ?? {}) });
-  // if (process.env.SENTRY_DSN) Sentry.captureException(err, { extra: context });
+
+  if (process.env.SENTRY_DSN) {
+    void import('@sentry/nextjs')
+      .then((Sentry) => Sentry.captureException(err, { extra: context }))
+      .catch(() => {
+        // monitoring must never throw into the caller
+      });
+  }
 }

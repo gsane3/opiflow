@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { recordOutboundMessage } from '@/lib/server/record-message';
 
 export const runtime = 'nodejs';
 
@@ -85,6 +86,7 @@ export async function POST(req: NextRequest) {
   // company's verified sender domain cannot be abused as an open relay.
   const recipientEmail = to.trim();
   const likePattern = recipientEmail.replace(/([\\%_])/g, '\\$1');
+  let recipientCustomerId: string | null = null;
   try {
     const { data: recipientMatch } = await supabase
       .from('customers')
@@ -96,6 +98,7 @@ export async function POST(req: NextRequest) {
     if (!recipientMatch) {
       return NextResponse.json({ ok: false, error: 'recipient_not_allowed' }, { status: 403 });
     }
+    recipientCustomerId = (recipientMatch as { id?: string } | null)?.id ?? null;
   } catch {
     return NextResponse.json({ ok: false, error: 'recipient_check_failed' }, { status: 500 });
   }
@@ -167,6 +170,16 @@ export async function POST(req: NextRequest) {
       } catch {
         // intentionally swallowed: the email was already sent
       }
+    }
+
+    // Log to the customer timeline (#57). Best-effort; non-fatal.
+    if (recipientCustomerId) {
+      await recordOutboundMessage({
+        businessId,
+        customerId: recipientCustomerId,
+        channel: 'email',
+        summary: 'Αποστολή προσφοράς',
+      });
     }
 
     return NextResponse.json({ ok: true, id: data.id });

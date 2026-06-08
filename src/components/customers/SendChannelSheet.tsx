@@ -58,6 +58,14 @@ export interface SendChannelSheetProps {
     | { kind: 'forward' }
     | null;
   /**
+   * Email backend auto-send (server sends the email via Resend). When provided
+   * (and recipientEmail is set), the Email button triggers this instead of the
+   * mailto: deep link. Omit to keep the plain mailto: behaviour.
+   */
+  email?:
+    | { kind: 'backend'; onSend: () => void; sending?: boolean; sent?: boolean; error?: string | null }
+    | null;
+  /**
    * Optional callback fired right before any channel action runs (Viber
    * forward, WhatsApp, Email, SMS). Lets the caller react to "a channel was
    * used" — e.g. the reject flow marks the customer as lost. Should be
@@ -83,6 +91,7 @@ export function SendChannelSheet({
   recipientEmail,
   emailSubject,
   viber,
+  email,
   onChannelUse,
 }: SendChannelSheetProps) {
   const [copied, setCopied] = useState(false);
@@ -141,7 +150,9 @@ export function SendChannelSheet({
           {/* Channel list */}
           <div className="space-y-2">
             {/* Viber */}
-            {viber?.kind === 'backend' && <ViberBackendButton viber={viber} />}
+            {viber?.kind === 'backend' && (
+              <BackendSendButton channel="Viber" variant="primary" state={viber} />
+            )}
             {viber?.kind === 'forward' && (
               <Button
                 variant="primary"
@@ -189,24 +200,28 @@ export function SendChannelSheet({
               </button>
             )}
 
-            {/* Email */}
-            {showEmail && (
-              <Button
-                variant="secondary"
-                size="lg"
-                fullWidth
-                className={channelButtonClass}
-                onClick={() => {
-                  onChannelUse?.();
-                  window.location.href = buildEmailHref(
-                    recipientEmail as string,
-                    emailSubject,
-                    fullText,
-                  );
-                }}
-              >
-                Αποστολή με Email
-              </Button>
+            {/* Email — backend auto-send when wired, else a mailto: deep link. */}
+            {email?.kind === 'backend' && showEmail ? (
+              <BackendSendButton channel="Email" variant="secondary" state={email} />
+            ) : (
+              showEmail && (
+                <Button
+                  variant="secondary"
+                  size="lg"
+                  fullWidth
+                  className={channelButtonClass}
+                  onClick={() => {
+                    onChannelUse?.();
+                    window.location.href = buildEmailHref(
+                      recipientEmail as string,
+                      emailSubject,
+                      fullText,
+                    );
+                  }}
+                >
+                  Αποστολή με Email
+                </Button>
+              )
             )}
 
             {/* SMS */}
@@ -256,18 +271,22 @@ export function SendChannelSheet({
 }
 
 /**
- * The backend Viber send button + its sending/sent/error states. Split out so
- * the success state can replace the button entirely.
+ * A backend auto-send button (Viber or Email) + its sending/sent/error states.
+ * Split out so the success state can replace the button entirely.
  */
-function ViberBackendButton({
-  viber,
+function BackendSendButton({
+  channel,
+  variant,
+  state,
 }: {
-  viber: { kind: 'backend'; onSend: () => void; sending?: boolean; sent?: boolean; error?: string | null };
+  channel: 'Viber' | 'Email';
+  variant: 'primary' | 'secondary';
+  state: { onSend: () => void; sending?: boolean; sent?: boolean; error?: string | null };
 }) {
-  if (viber.sent) {
+  if (state.sent) {
     return (
       <div className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-green-50 px-4 text-sm font-semibold text-green-700 ring-1 ring-green-600/20">
-        Στάλθηκε με Viber ✓
+        {`Στάλθηκε με ${channel} ✓`}
       </div>
     );
   }
@@ -275,18 +294,18 @@ function ViberBackendButton({
   return (
     <div className="space-y-2">
       <Button
-        variant="primary"
+        variant={variant}
         size="lg"
         fullWidth
-        loading={viber.sending}
+        loading={state.sending}
         className={channelButtonClass}
-        onClick={viber.onSend}
+        onClick={state.onSend}
       >
-        {viber.sending ? 'Αποστολή…' : 'Αποστολή με Viber'}
+        {state.sending ? 'Αποστολή…' : `Αποστολή με ${channel}`}
       </Button>
-      {viber.error && (
+      {state.error && (
         <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
-          {viber.error}
+          {state.error}
         </p>
       )}
     </div>
