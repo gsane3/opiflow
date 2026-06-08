@@ -22,3 +22,12 @@ supabase/.temp/
 # Python
 __pycache__/
 *.pyc
+
+# Signing / push secrets — NEVER commit (Apple .p8 ASC+APNs keys, certs, profiles)
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+cert_key
+cert_key.pub
+cert_key*.pem
