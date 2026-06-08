@@ -229,12 +229,34 @@ export async function POST(request: NextRequest) {
   let businessId: string | null = null;
 
   if (calledNumberRaw) {
-    const normalizedCalled = normalizePhone(calledNumberRaw);
-    if (normalizedCalled) {
+    // The PBX delivers the dialed DID in whatever form the trunk sends (e.g.
+    // '302104400811' from the INVITE R-URI), while business_phone_numbers stores
+    // the full E.164 form ('+302104400811'). Match against every plausible form
+    // so the lookup is robust to '+', the '30' country code, and local format.
+    const digits = calledNumberRaw.replace(/\D/g, '');
+    if (digits) {
+      const candidates = new Set<string>();
+      candidates.add(digits);
+      candidates.add(`+${digits}`);
+      if (digits.startsWith('00')) {
+        const intl = digits.slice(2);
+        candidates.add(intl);
+        candidates.add(`+${intl}`);
+      }
+      if (digits.startsWith('30') && digits.length > 10) {
+        const local = digits.slice(2);
+        candidates.add(local);
+        candidates.add(`+${local}`);
+        candidates.add(`30${local}`);
+        candidates.add(`+30${local}`);
+      } else if (digits.length === 10) {
+        candidates.add(`30${digits}`);
+        candidates.add(`+30${digits}`);
+      }
       const { data: bizRow, error: bizRowError } = await supabase
         .from('business_phone_numbers')
         .select('business_id')
-        .eq('e164_number', normalizedCalled)
+        .in('e164_number', Array.from(candidates))
         .eq('status', 'active')
         .maybeSingle();
       if (!bizRowError && bizRow) {
