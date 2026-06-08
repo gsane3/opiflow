@@ -85,7 +85,9 @@ export async function POST(request: NextRequest) {
         .eq('id', businessId)
         .maybeSingle();
       const did = (data as { business_phone_number?: string | null } | null)?.business_phone_number?.trim();
-      if (did) callerId = did.startsWith('+') ? did : `+${did.replace(/^00/, '')}`;
+      // Match the browser path's OPIFLOW_DID (e.g. 302104400811, no leading +),
+      // which InterTelecom trusts for the asserted identity (PAI/RPID).
+      if (did) callerId = did.replace(/^\+/, '');
     } catch {
       // fall through — Asterisk can still route, just without the per-DID CLI
     }
