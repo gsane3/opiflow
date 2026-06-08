@@ -386,7 +386,7 @@ export default function SearchPage() {
       {/* Results: Tasks */}
       {hasQuery && matchedTasks.length > 0 && (
         <section className="rounded-[28px] bg-white px-5 py-6 shadow-sm ring-1 ring-zinc-200/60">
-          <h2 className="text-sm font-semibold text-zinc-900">Tasks</h2>
+          <h2 className="text-sm font-semibold text-zinc-900">Εργασίες</h2>
           <ul className="mt-3 divide-y divide-zinc-100">
             {matchedTasks.map((t) => (
               <li key={t.id}>

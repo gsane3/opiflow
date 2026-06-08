@@ -118,7 +118,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         <main className="min-w-0 flex-1 overflow-x-hidden pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6 scroll-smooth bg-[#F5F5F7]">{children}</main>
 
         {/* Global AI assistant: dictate or type any action from anywhere. */}
-        {!pathname.startsWith('/cmd') && (
+        {!pathname.startsWith('/cmd') && !pathname.startsWith('/customers/') && (
           <Link
             href="/cmd"
             aria-label="AI βοηθός"

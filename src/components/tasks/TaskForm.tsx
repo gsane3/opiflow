@@ -99,7 +99,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
   return (
     <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
       <h3 className="mb-4 text-base font-semibold text-zinc-900">
-        {initial ? 'Επεξεργασία task' : 'Νέο task'}
+        {initial ? 'Επεξεργασία εργασίας' : 'Νέα εργασία'}
       </h3>
 
       <div className="flex flex-col gap-4">
@@ -131,7 +131,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
         <div>
           <label className={labelCls}>
             Πελάτης{' '}
-            <span className="text-xs font-normal text-zinc-400">(προαιρετικό)</span>
+            <span className="text-xs font-normal text-zinc-500">(προαιρετικό)</span>
           </label>
           <div className="relative">
             <input
@@ -215,7 +215,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
           <div className="w-32">
             <label className={labelCls}>
               Ώρα{' '}
-              <span className="text-xs font-normal text-zinc-400">(opt)</span>
+              <span className="text-xs font-normal text-zinc-500">(προαιρετικό)</span>
             </label>
             <input
               type="time"
@@ -244,7 +244,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
         <div>
           <label className={labelCls}>
             Σημείωση{' '}
-            <span className="text-xs font-normal text-zinc-400">(προαιρετικό)</span>
+            <span className="text-xs font-normal text-zinc-500">(προαιρετικό)</span>
           </label>
           <textarea
             rows={2}

@@ -197,7 +197,7 @@ function CallActionSheet({
     call.status === 'failed'
       ? `Αποτυχημένη ${directionLabel.toLowerCase()}`
       : call.status === 'missed'
-      ? 'Αναπάντητη'
+      ? 'Χαμένη κλήση'
       : directionLabel;
   const actionSheetBrief = extractAiBrief(call.summary);
 
@@ -324,10 +324,10 @@ function CallActionSheet({
       setTaskTitle('Κλήση πίσω');
       setTaskType('call_back');
     } else if (call.direction === 'inbound' && call.status === 'completed') {
-      setTaskTitle('Follow-up εισερχόμενης κλήσης');
+      setTaskTitle('Να ξαναμιλήσω (εισερχόμενη κλήση)');
       setTaskType('other');
     } else {
-      setTaskTitle('Follow-up κλήσης');
+      setTaskTitle('Να ξαναμιλήσω (κλήση)');
       setTaskType('other');
     }
     setView('create_task');
@@ -553,7 +553,7 @@ function CallActionSheet({
                 disabled={busy}
                 className="w-full rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:opacity-50"
               >
-                Δημιουργία task
+                Δημιουργία εργασίας
               </button>
 
               {/* Cancel */}
@@ -709,7 +709,7 @@ function CallActionSheet({
           <>
             {/* Create task form */}
             <div className="px-5 pb-3 pt-1 text-center">
-              <p className="text-base font-semibold text-zinc-900">Δημιουργία task</p>
+              <p className="text-base font-semibold text-zinc-900">Δημιουργία εργασίας</p>
               {call.customerId && call.customer?.name && (
                 <p className="mt-0.5 text-xs text-zinc-500">
                   Θα συνδεθεί με {call.customer.name}
@@ -744,7 +744,7 @@ function CallActionSheet({
                 >
                   <option value="call_back">Κλήση πίσω</option>
                   <option value="send_offer">Αποστολή προσφοράς</option>
-                  <option value="follow_up_offer">Follow-up προσφοράς</option>
+                  <option value="follow_up_offer">Να ξαναμιλήσω για προσφορά</option>
                   <option value="ask_for_photos_documents">Αίτηση φωτογραφιών</option>
                   <option value="book_appointment">Κλείσιμο ραντεβού</option>
                   <option value="visit_customer">Επίσκεψη πελάτη</option>
@@ -793,7 +793,7 @@ function CallActionSheet({
                 disabled={busy}
                 className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
               >
-                Αποθήκευση task
+                Αποθήκευση εργασίας
               </button>
 
               {/* Back */}
@@ -833,7 +833,12 @@ function RecentTab({
   calls: BackendCall[];
   onSelect: (call: BackendCall) => void;
 }) {
-  const sorted = [...calls].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 20);
+  // Newest first, then float missed calls to the top so they are impossible to
+  // overlook. Date order is preserved within each group (stable, safe).
+  const sorted = [...calls]
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .sort((a, b) => Number(b.status === 'missed') - Number(a.status === 'missed'))
+    .slice(0, 20);
 
   if (sorted.length === 0) {
     return (
@@ -842,7 +847,7 @@ function RecentTab({
           <PhoneIcon className="h-6 w-6 text-indigo-400" />
         </div>
         <p className="text-sm font-medium text-zinc-700">Δεν υπάρχουν κλήσεις ακόμα.</p>
-        <p className="mt-1.5 text-sm text-zinc-400">
+        <p className="mt-1.5 text-sm text-zinc-700">
           Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ.
         </p>
       </div>
@@ -850,18 +855,35 @@ function RecentTab({
   }
 
   return (
-    <ul className="space-y-2">
+    <ul className="space-y-2.5">
       {sorted.map((call) => {
         const linkedCustomer = call.customer;
         const displayName =
           linkedCustomer?.name ??
           linkedCustomer?.companyName ??
           call.phone ??
-          'Αγνωστος';
+          'Άγνωστος αριθμός';
         const isMissed = call.status === 'missed';
+        const isInbound = call.direction === 'inbound';
         const isUnknown = !linkedCustomer?.name && !linkedCustomer?.companyName;
         const initial = displayName.charAt(0).toUpperCase();
         const aiBrief = extractAiBrief(call.summary);
+
+        // Call-type framing: missed is the priority state, then inbound/outbound.
+        const typeLabel = isMissed
+          ? 'Χαμένη κλήση'
+          : isInbound
+          ? 'Εισερχόμενη'
+          : 'Εξερχόμενη';
+
+        // One next-step line per item, in plain Greek.
+        const nextStep = isMissed
+          ? 'Πάρε τον/την πελάτη πίσω.'
+          : call.customerId
+          ? 'Δες την καρτέλα του πελάτη.'
+          : call.phone
+          ? 'Καταχώρησε τον αριθμό ως πελάτη.'
+          : 'Άνοιξε για επιλογές.';
 
         return (
           <li key={call.id}>
@@ -872,12 +894,20 @@ function RecentTab({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') onSelect(call);
               }}
-              className="flex w-full cursor-pointer items-start gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-100/60"
+              className={`flex w-full cursor-pointer items-start gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 transition hover:bg-zinc-50/60 active:bg-zinc-100/60 ${
+                isMissed
+                  ? 'border-l-4 border-amber-400 ring-amber-200/70'
+                  : 'ring-zinc-200/60'
+              }`}
             >
               {/* Avatar */}
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
+              <div
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold ${
+                  isMissed ? 'bg-amber-50 text-amber-600' : 'bg-indigo-50 text-indigo-600'
+                }`}
+              >
                 {isUnknown ? (
-                  <PhoneIcon className="h-4 w-4 text-indigo-500" />
+                  <PhoneIcon className={`h-4 w-4 ${isMissed ? 'text-amber-500' : 'text-indigo-500'}`} />
                 ) : (
                   initial
                 )}
@@ -885,46 +915,92 @@ function RecentTab({
 
               {/* Content */}
               <div className="min-w-0 flex-1">
+                {/* Who + when */}
                 <div className="flex items-start justify-between gap-2">
                   <p className="truncate text-[15px] font-semibold leading-snug text-zinc-900">
                     {displayName}
                   </p>
-                  <span className="shrink-0 whitespace-nowrap text-[10px] text-zinc-400">
+                  <span className="shrink-0 whitespace-nowrap text-[11px] text-zinc-500">
                     {fmtDate(call.createdAt)}
                   </span>
                 </div>
 
                 {linkedCustomer?.companyName && linkedCustomer.companyName !== displayName && (
-                  <p className="truncate text-xs text-zinc-400">{linkedCustomer.companyName}</p>
+                  <p className="truncate text-xs text-zinc-500">{linkedCustomer.companyName}</p>
                 )}
 
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-zinc-400">
-                    {CALL_DIRECTION_LABEL[call.direction] ?? call.direction}
-                  </span>
-                  {isMissed && (
-                    <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200">
-                      Αναπάντητη
+                {/* Type: incoming / outgoing / missed */}
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  {isMissed ? (
+                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
+                      {typeLabel}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600">
+                      {typeLabel}
                     </span>
                   )}
                 </div>
 
+                {/* AI call summary */}
                 {aiBrief && (
-                  <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-zinc-400">
+                  <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-zinc-600">
+                    <span className="font-medium text-zinc-700">Σύνοψη κλήσης: </span>
                     {aiBrief}
                   </p>
                 )}
 
-                {/* Discreet signal + customer link */}
-                <div className="mt-1.5 flex items-center justify-between gap-2">
-                  {linkedCustomer && (
-                    <span className="text-[10px] text-zinc-300">Έχει συνδεδεμένο πελάτη</span>
-                  )}
-                  {call.customerId && (
+                {/* Next suggested step */}
+                <p className="mt-1.5 text-[11px] text-zinc-500">{nextStep}</p>
+
+                {/* One primary action per item */}
+                <div className="mt-2.5 flex flex-wrap items-center gap-2">
+                  {isMissed && call.phone ? (
+                    <a
+                      href={`tel:${call.phone}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                    >
+                      Κλήση πίσω
+                    </a>
+                  ) : call.customerId ? (
                     <Link
                       href={`/customers/${call.customerId}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="shrink-0 rounded-full border border-indigo-100 bg-indigo-50 px-3 py-1 text-[10px] font-medium text-indigo-600 transition hover:bg-indigo-100"
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                    >
+                      Άνοιγμα πελάτη
+                    </Link>
+                  ) : call.phone ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(call);
+                      }}
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                    >
+                      Δημιουργία πελάτη
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelect(call);
+                      }}
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                    >
+                      Επιλογές
+                    </button>
+                  )}
+
+                  {/* When a missed call is also linked, keep quick access to the customer. */}
+                  {isMissed && call.customerId && (
+                    <Link
+                      href={`/customers/${call.customerId}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
                     >
                       Άνοιγμα πελάτη
                     </Link>

@@ -50,22 +50,27 @@ export default function RecentCommunicationsSection({ communications, customerMa
   return (
     <section className="space-y-3">
       <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-        Πρόσφατες επικοινωνίες
+        Τελευταίες επικοινωνίες
       </h2>
       <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden">
         <ul className="divide-y divide-zinc-100">
           {recent.map((comm) => {
             const customerName = comm.customerId ? customerMap[comm.customerId] : undefined;
+            // What happened (channel + direction), in plain Greek.
             const title =
               comm.channel === 'sms'
-                ? 'SMS από CRM'
+                ? comm.direction === 'inbound'
+                  ? 'Εισερχόμενο SMS'
+                  : 'SMS'
                 : comm.direction === 'inbound'
                 ? 'Εισερχόμενη κλήση'
                 : comm.direction === 'outbound'
                 ? 'Εξερχόμενη κλήση'
-                : 'Κλήση από CRM';
-            const detail = [customerName, comm.phone].filter(Boolean).join(' · ');
+                : 'Κλήση';
+            // Who: prefer the customer name, fall back to the phone number.
+            const who = customerName ?? comm.phone ?? undefined;
             const timeLabel = formatTime(comm.createdAt);
+            const subtitle = who ? `${who} · ${timeLabel}` : timeLabel;
             const icon = comm.channel === 'sms' ? <SmsCommIcon /> : <CallCommIcon />;
 
             const inner = (
@@ -73,9 +78,7 @@ export default function RecentCommunicationsSection({ communications, customerMa
                 {icon}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-zinc-800">{title}</p>
-                  <p className="truncate text-xs text-zinc-400">
-                    {detail ? `${detail} · ${timeLabel}` : timeLabel}
-                  </p>
+                  <p className="truncate text-xs text-zinc-500">{subtitle}</p>
                 </div>
               </div>
             );

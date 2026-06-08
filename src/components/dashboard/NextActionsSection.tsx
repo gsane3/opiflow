@@ -30,10 +30,10 @@ const FILTER_CATEGORIES: Record<FilterId, ItemCategory[]> = {
 
 const FILTER_EMPTY: Record<FilterId, string> = {
   all: 'Δεν υπάρχουν άμεσες προτεραιότητες.',
-  urgent: 'Δεν υπάρχουν επείγοντα tasks.',
-  tasks: 'Δεν υπάρχουν tasks για σήμερα.',
+  urgent: 'Δεν υπάρχουν επείγουσες εργασίες.',
+  tasks: 'Δεν υπάρχουν εργασίες για σήμερα.',
   offers: 'Δεν υπάρχουν προσφορές που χρειάζονται ενέργεια.',
-  followups: 'Δεν υπάρχουν εκκρεμότητες follow-up.',
+  followups: 'Δεν υπάρχει κάτι για να ξαναμιλήσεις.',
 };
 
 interface ActionItem {
@@ -223,9 +223,9 @@ interface Props {
 const FILTER_DEFS: { id: FilterId; label: string }[] = [
   { id: 'all', label: 'Όλα' },
   { id: 'urgent', label: 'Επείγοντα' },
-  { id: 'tasks', label: 'Tasks' },
+  { id: 'tasks', label: 'Εργασίες' },
   { id: 'offers', label: 'Προσφορές' },
-  { id: 'followups', label: 'Follow-up' },
+  { id: 'followups', label: 'Να ξαναμιλήσω' },
 ];
 
 export default function NextActionsSection({
@@ -343,7 +343,7 @@ export default function NextActionsSection({
       {lastCompletedTaskTitle && onUndoCompleteTask && (
         <div className={`flex items-center justify-between gap-3 rounded-xl bg-green-50 px-3 py-2 ring-1 ring-green-200${compact ? ' mx-4 my-2' : ''}`}>
           <div className="min-w-0">
-            <p className="text-xs font-medium text-green-800">Το task ολοκληρώθηκε.</p>
+            <p className="text-xs font-medium text-green-800">Η εργασία ολοκληρώθηκε.</p>
             <p className="truncate text-xs text-green-700">{lastCompletedTaskTitle}</p>
           </div>
           <button
@@ -377,7 +377,7 @@ export default function NextActionsSection({
                     />
                     <div className="min-w-0 flex-1">
                       {item.customerName && (
-                        <p className="truncate text-xs text-zinc-400">{item.customerName}</p>
+                        <p className="truncate text-xs text-zinc-500">{item.customerName}</p>
                       )}
                       <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
                     </div>
@@ -451,7 +451,7 @@ export default function NextActionsSection({
                           !item.customerName ? (
                             <span className="text-[10px] text-zinc-300">Χωρίς πελάτη</span>
                           ) : item.hasExistingTask || createdFollowUpOfferIds.has(item.offerId) ? (
-                            <span className="text-[10px] font-medium text-zinc-400">Υπάρχει task</span>
+                            <span className="text-[10px] font-medium text-zinc-500">Υπάρχει εργασία</span>
                           ) : onCreateOfferFollowUpTask ? (
                             <button
                               type="button"
@@ -461,7 +461,7 @@ export default function NextActionsSection({
                               }}
                               className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
                             >
-                              Task follow-up
+                              Να ξαναμιλήσω
                             </button>
                           ) : null
                         )}

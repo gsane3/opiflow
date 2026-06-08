@@ -26,7 +26,7 @@ const navItems = [
   },
   {
     href: '/cmd',
-    label: 'AI εντολές',
+    label: 'Βοηθός',
     icon: (active: boolean) => (
       <svg
         className={`h-5 w-5 shrink-0 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}
@@ -102,7 +102,7 @@ const navItems = [
   },
   {
     href: '/tasks',
-    label: 'Tasks',
+    label: 'Εργασίες',
     icon: (active: boolean) => (
       <svg
         className={`h-5 w-5 shrink-0 ${active ? 'text-indigo-600' : 'text-zinc-400'}`}

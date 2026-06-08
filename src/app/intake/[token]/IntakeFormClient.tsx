@@ -43,7 +43,7 @@ export default function IntakeFormClient({
   const [submitted, setSubmitted] = useState(initialSubmitted);
   const [message, setMessage] = useState(
     initialSubmitted
-      ? 'Ευχαριστούμε. Τα στοιχεία σας καταχωρήθηκαν.'
+      ? 'Τα στοιχεία σας στάλθηκαν. Η επιχείρηση θα ενημερωθεί.'
       : initialError ??
           (initialCustomer
             ? 'Συμπληρώστε τα στοιχεία σας για να ολοκληρώσουμε την καρτέλα.'
@@ -67,7 +67,7 @@ export default function IntakeFormClient({
 
         if (!response.ok || !json.ok || !json.customer) {
           setCustomer(null);
-          setMessage('Ο σύνδεσμος δεν είναι διαθέσιμος ή έχει λήξει.');
+          setMessage('Το link δεν είναι πλέον ενεργό. Επικοινωνήστε με την επιχείρηση.');
           return;
         }
 
@@ -125,7 +125,7 @@ export default function IntakeFormClient({
 
       setCustomer(json.customer);
       setSubmitted(true);
-      setMessage('Ευχαριστούμε. Τα στοιχεία σας καταχωρήθηκαν.');
+      setMessage('Τα στοιχεία σας στάλθηκαν. Η επιχείρηση θα ενημερωθεί.');
     } catch {
       setMessage('Δεν μπορέσαμε να αποθηκεύσουμε τα στοιχεία. Δοκιμάστε ξανά.');
     } finally {
@@ -134,45 +134,40 @@ export default function IntakeFormClient({
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-8">
+    <main className="min-h-screen bg-zinc-50 px-4 py-10">
       <div className="mx-auto max-w-lg">
-        <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-zinc-100">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-            Ασφαλής φόρμα στοιχείων
-          </p>
-          <h1 className="mt-2 text-2xl font-bold text-zinc-900">
+        <header className="px-1 text-center">
+          <h1 className="text-2xl font-bold text-[#0B1120]">
             Συμπλήρωση στοιχείων
           </h1>
-          <p className="mt-2 text-sm leading-6 text-zinc-500">
-            Μετά την τηλεφωνική επικοινωνία, συμπληρώστε τα βασικά στοιχεία σας για να συνεχίσουμε σωστά.
+          <p className="mt-2 text-base leading-7 text-zinc-600">
+            Συμπληρώστε τα βασικά στοιχεία σας για να σας εξυπηρετήσουμε σωστά.
           </p>
+        </header>
 
-          <div className="mt-5 rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-600">
-            {loading ? (
-              <p>Φόρτωση...</p>
-            ) : customer ? (
-              <div className="space-y-1">
-                <p>
-                  <span className="font-semibold text-zinc-800">Καρτέλα:</span>{' '}
-                  {customer.crmNumber ?? 'Νέα καρτέλα'}
+        <section className="mt-6 rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60">
+          {customer ? (
+            <div className="rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-700">
+              <p>
+                <span className="font-semibold text-zinc-900">Καρτέλα:</span>{' '}
+                {customer.crmNumber ?? 'Νέα καρτέλα'}
+              </p>
+              {customer.phoneMasked ? (
+                <p className="mt-1">
+                  <span className="font-semibold text-zinc-900">Τηλέφωνο:</span>{' '}
+                  {customer.phoneMasked}
                 </p>
-                {customer.phoneMasked ? (
-                  <p>
-                    <span className="font-semibold text-zinc-800">Τηλέφωνο:</span>{' '}
-                    {customer.phoneMasked}
-                  </p>
-                ) : null}
-              </div>
-            ) : submitted ? (
-              <p>Η φόρμα υποβλήθηκε.</p>
-            ) : (
-              <p>Δεν βρέθηκε ενεργή φόρμα.</p>
-            )}
-          </div>
+              ) : null}
+            </div>
+          ) : loading ? (
+            <p className="rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-700">Φόρτωση...</p>
+          ) : null}
 
-          <p className="mt-4 rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
-            {message}
-          </p>
+          {message ? (
+            <p className="mt-4 rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+              {message}
+            </p>
+          ) : null}
 
           {customer && !submitted ? (
             <form action={`/api/intake/${encodeURIComponent(token)}`} method="post" onSubmit={handleSubmit} className="mt-5 space-y-4">
@@ -184,7 +179,7 @@ export default function IntakeFormClient({
                     value={firstName}
                     onChange={(event) => setFirstName(event.target.value)}
                     autoComplete="given-name"
-                    className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
                     placeholder="π.χ. Γιώργος"
                   />
                 </label>
@@ -196,7 +191,7 @@ export default function IntakeFormClient({
                     value={lastName}
                     onChange={(event) => setLastName(event.target.value)}
                     autoComplete="family-name"
-                    className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
                     placeholder="π.χ. Παπαδόπουλος"
                   />
                 </label>
@@ -212,7 +207,7 @@ export default function IntakeFormClient({
                   autoComplete="email"
                   inputMode="email"
                   autoCapitalize="none"
-                  className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
+                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
                   placeholder="name@example.com"
                 />
               </label>
@@ -224,7 +219,7 @@ export default function IntakeFormClient({
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
                   autoComplete="street-address"
-                  className="mt-1 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
+                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
                   placeholder="Οδός, αριθμός, περιοχή"
                 />
               </label>
@@ -235,7 +230,7 @@ export default function IntakeFormClient({
                   name="comments"
                   value={comments}
                   onChange={(event) => setComments(event.target.value)}
-                  className="mt-1 min-h-28 w-full rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-indigo-400"
+                  className="mt-1 min-h-28 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base outline-none focus:border-indigo-400"
                   placeholder="Οτιδήποτε θέλετε να μας ενημερώσετε."
                 />
               </label>
@@ -243,7 +238,7 @@ export default function IntakeFormClient({
               <button
                 type="submit"
                 disabled={saving}
-                className="w-full rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
+                className="h-12 w-full rounded-xl bg-indigo-600 px-5 text-base font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {saving ? 'Αποθήκευση...' : 'Αποστολή στοιχείων'}
               </button>
@@ -251,15 +246,15 @@ export default function IntakeFormClient({
           ) : null}
 
           {submitted ? (
-            <div className="mt-5 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700">
-              Η καρτέλα σας ενημερώθηκε. Ευχαριστούμε.
+            <div className="mt-5 rounded-2xl bg-green-50 p-4 text-center text-sm font-medium text-green-700">
+              Τα στοιχεία σας στάλθηκαν. Η επιχείρηση θα ενημερωθεί.
             </div>
           ) : null}
-        </section>
 
-        <p className="mt-4 text-center text-xs text-zinc-400">
-          Τα στοιχεία χρησιμοποιούνται μόνο για την εξυπηρέτησή σας.
-        </p>
+          <p className="mt-6 text-center text-sm text-zinc-500">
+            Τα στοιχεία χρησιμοποιούνται μόνο για την εξυπηρέτησή σας.
+          </p>
+        </section>
       </div>
     </main>
   );

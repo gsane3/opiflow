@@ -236,6 +236,13 @@ export function SendViaViberModal({
               <div className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">{error}</div>
             )}
 
+            {/* Reassurance: nothing is sent until the operator presses send. */}
+            {!sent && (
+              <p className="mb-2 text-xs text-zinc-500">
+                Δεν στέλνεται τίποτα πριν πατήσεις αποστολή.
+              </p>
+            )}
+
             {/* Primary: Viber send button (hidden after success) */}
             {!sent && (
               <button
@@ -244,7 +251,7 @@ export function SendViaViberModal({
                 onClick={onSend}
                 className="mb-3 w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
               >
-                {sending ? 'Αποστολή...' : 'Αποστολή με Viber'}
+                {sending ? 'Αποστολή...' : 'Αποστολή'}
               </button>
             )}
 

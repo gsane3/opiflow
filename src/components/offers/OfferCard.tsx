@@ -54,53 +54,68 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
   const expiryState = getExpiryState(offer);
 
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+    <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
+      {/* Customer + offer number */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-zinc-900">
-              {customerName ?? 'Χωρίς πελάτη'}
-            </span>
-            <span className="text-xs text-zinc-400">{offer.offerNumber}</span>
-            {offer.isDemo && (
-              <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">
-                Demo
-              </span>
-            )}
-          </div>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
-            <span className="font-semibold text-zinc-800">{fmtEur(offer.total)}</span>
-            <OfferStatusBadge status={offer.status} />
-            {expiryState === 'expired' && (
-              <span className="rounded-full bg-red-100 px-2 py-0.5 font-semibold text-red-700">
-                Έληξε
-              </span>
-            )}
-            {expiryState === 'expiring_soon' && (
-              <span className="rounded-full bg-orange-100 px-2 py-0.5 font-semibold text-orange-700">
-                Λήγει σύντομα
-              </span>
-            )}
-          </div>
-          <p className="mt-1 text-xs text-zinc-400">
-            Εκδόθηκε {formatDate(offer.offerDate)} · Ισχύει μέχρι {formatDate(offer.validUntil)}
+          <p className="truncate text-base font-semibold text-zinc-900">
+            {customerName ?? 'Χωρίς πελάτη'}
           </p>
+          <p className="mt-0.5 text-xs font-medium text-zinc-500">{offer.offerNumber}</p>
         </div>
+        {offer.isDemo && (
+          <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
+            Demo
+          </span>
+        )}
       </div>
 
+      {/* Total + status + expiry */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Link
-          href={`/offers/${offer.id}`}
-          className="rounded-xl bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
-        >
-          Προεπισκόπηση
-        </Link>
+        <span className="text-lg font-bold text-zinc-900">{fmtEur(offer.total)}</span>
+        <OfferStatusBadge status={offer.status} />
+        {expiryState === 'expired' && (
+          <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+            Έληξε
+          </span>
+        )}
+        {expiryState === 'expiring_soon' && (
+          <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-semibold text-orange-700">
+            Λήγει σύντομα
+          </span>
+        )}
+      </div>
 
+      {/* Dates */}
+      <p className="mt-2 text-xs text-zinc-500">
+        Εκδόθηκε {formatDate(offer.offerDate)} · Ισχύει μέχρι {formatDate(offer.validUntil)}
+      </p>
+
+      {offer.status === 'sent_manually' && (
+        <p className="mt-1 text-xs text-zinc-500">
+          Στάλθηκε χειροκίνητα εκτός της εφαρμογής.
+        </p>
+      )}
+
+      {/* Primary action */}
+      <Link
+        href={`/offers/${offer.id}`}
+        className="mt-3 flex h-12 w-full items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700"
+      >
+        Προεπισκόπηση
+      </Link>
+
+      {/* Secondary controls: change status + delete */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <label className="sr-only" htmlFor={`offer-status-${offer.id}`}>
+          Αλλαγή κατάστασης
+        </label>
         <select
+          id={`offer-status-${offer.id}`}
           value={offer.status}
           onChange={(e) => onStatusChange(offer.id, e.target.value as OfferStatus)}
-          className="rounded-xl border border-zinc-200 bg-white px-2 py-1.5 text-xs text-zinc-700 outline-none focus:border-indigo-400"
-          aria-label="Αλλαγή status"
+          className="h-12 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:border-indigo-400"
+          aria-label="Αλλαγή κατάστασης"
         >
           {ALL_STATUSES.map((s) => (
             <option key={s} value={s}>
@@ -113,39 +128,34 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="rounded-xl border border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-400 transition hover:text-red-600 hover:bg-zinc-50"
+            className="h-12 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-red-600"
           >
             Διαγραφή
           </button>
         )}
       </div>
+
       {confirmingDelete && (
-        <div className="mt-2 space-y-1.5">
-          <p className="text-xs font-medium text-zinc-700">Να διαγραφεί αυτή η προσφορά;</p>
-          <p className="text-xs text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+        <div className="mt-3 space-y-2 rounded-xl bg-zinc-50 p-3 ring-1 ring-zinc-200/60">
+          <p className="text-sm font-semibold text-zinc-800">Να διαγραφεί αυτή η προσφορά;</p>
+          <p className="text-xs text-zinc-600">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={handleDelete}
-              className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-700"
+              className="h-12 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700"
             >
               Ναι, διαγραφή
             </button>
             <button
               type="button"
               onClick={() => setConfirmingDelete(false)}
-              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+              className="h-12 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
             >
               Πίσω
             </button>
           </div>
         </div>
-      )}
-
-      {offer.status === 'sent_manually' && (
-        <p className="mt-2 text-xs text-zinc-400">
-          Η προσφορά στάλθηκε χειροκίνητα εκτός της εφαρμογής.
-        </p>
       )}
     </div>
   );
