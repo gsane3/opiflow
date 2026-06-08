@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-07 — session 8 (native push live on Android; full **product audit**; **Team multi-user** built; product-hardening batch: offer-status fix, honest billing/telephony UI, rate-limiting, RLS net, auto-task, stats metric). **2 migrations to apply: 033 + 034.**
+> **Last updated:** 2026-06-08 — session 9 (**TELEPHONY MULTI-DID LIVE**: inbound DID routing + per-user SIP + outbound caller-ID per DID, all tested; webhook URL/secret/DID-match fixed; Vercel `sharp` build fixed; big **UX/CAM redesign** batch + customer-detail v2). **Blocker F.3 RESOLVED.** Still to apply: migrations 033 + 034.
 
 ---
 
@@ -54,6 +54,29 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-08 — session 9 — 🟢 TELEPHONY MULTI-DID ACTIVATED (inbound + outbound) + webhook/build fixes:**
+  - **HARD BLOCKER F.3 RESOLVED:** InterTelecom now **delivers the dialed DID** in the inbound INVITE
+    (R-URI + To user-part, form `30XXXXXXXXXX`) — confirmed via tcpdump of a real call.
+  - **Inbound DID routing LIVE:** `#include`d the provisioner files; rewrote `from-intertelecom` `_.` to read
+    the DID, resolve the per-business endpoint via `[opiflow-inbound]` (default `yorgospro001`), and
+    `Dial(PJSIP/${OPIFLOW_EP}&yorgospro001&groundwire001)` (ring-both during transition). Confirmed: call to the
+    DID routed to `biz_<id>`; browser rang.
+  - **Per-user SIP ACTIVATED:** `SIP_CRED_ENC_KEY` set on Vercel → browser registers as `biz_<id>` (per-user).
+  - **Outbound caller-ID per DID (Stage 3) LIVE:** provisioner emits `set_var=OPIFLOW_DID=30…` per endpoint;
+    trunk `[intertelecom]` gained `send_pai/send_rpid/trust_id_outbound=yes`; `from-webrtc` stamps
+    `CALLERID(num)=${OPIFLOW_DID}` before Dial. Confirmed: callee saw the business DID (210…).
+  - **Webhook fixes:** `PBX_WEBHOOK_URL` pointed at the DEAD old project `yorgos-umber.vercel.app` (404) →
+    repointed to `https://www.opiflow.ai/api/webhooks/voice/pbx` (secret verified matching). PBX scripts now pass
+    the **DID as `called_number`**; app webhook (PR #46) matches the DID against all forms (E.164/+30/local) so
+    multi-tenant business resolution works (previously always fell back to PBX_BUSINESS_ID).
+  - **Vercel build fix (PR #45):** `vercel.json` `installCommand: npm install --ignore-scripts` — Node 24 couldn't
+    compile the old `sharp` pulled by `@capacitor/assets` (unused on web). Deploys green again.
+  - **Provider model:** on-demand DIDs per region (NOT bulk upfront) — request numbers as customers sign up
+    (matches the app's `phone_number_requests`/city-assignment model). Email drafted; **pending InterTelecom reply**
+    (mobile 69x availability? per-number CLI verification? KYB/EETT obligations? provisioning API?).
+  - **UX/CAM redesign batch (PRs #41-#44):** action-cockpit redesign of every screen; customer-detail v2 (manual
+    uploads+gallery, multi-channel send Viber/WhatsApp/Email, hero action bar, menu cleanup); offer email→`Στάλθηκε`;
+    notifications persistent mark-as-read + wider coverage. All `next build` green.
 - **2026-06-07 — session 8 (cont. 4) — PRODUCT AUDIT + Team multi-user + hardening batch:**
   - **Full product audit** (8-agent workflow, adversarially criticized): ~70% built-and-works, ~20%
     half-built/inert, ~10% missing. Not yet self-serve-paid-ready; strong hand-held beta. Key gaps found:
@@ -217,7 +240,7 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
 2. ✅ DONE: provisioner self-creates endpoint rows (direct INSERT — the `ensure_browser_sip_endpoint`
    RPC has a 42702 ambiguous-`sip_username` bug; app no longer mints, provisioner is sole authority;
    conf written 0640 root:asterisk). Endpoint clone of yorgospro001 + outbound = ready & reviewed.
-3. 🔴 **HARD BLOCKER — per-user INBOUND needs the PROVIDER, not code.** tcpdump of a real inbound
+3. ✅ **RESOLVED 2026-06-08 (session 9) — DID delivery enabled; full multi-DID (inbound DID routing + per-user SIP + outbound caller-ID per DID) is LIVE & tested.** Historical context below. tcpdump of a real inbound
    call proved **InterTelecom sends EVERY call to `INVITE sip:IT658318@...` / `To: IT658318`** — the
    dialed DID (`+302104400811`) is **absent from the entire SIP exchange** (0 occurrences; no
    Diversion / P-Called-Party-ID). So Asterisk cannot tell which number was dialed → DID→user routing
