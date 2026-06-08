@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-08 — session 9 (**TELEPHONY MULTI-DID LIVE** + **CALL-FLOW v2**: missed-call labels, hybrid intake-link prompt, preferred-channel sends + Viber→SMS, Deepgram diarization, 1h reminder cron; earlier: UX/CAM redesign + customer-detail v2 + Vercel `sharp` fix). **Blocker F.3 RESOLVED.** Migrations **033/034/035 APPLIED**; `SIP_CRED_ENC_KEY`+`CRON_SECRET`+`DEEPGRAM_API_KEY` set on Vercel; **hourly PBX cron live**. **Pending (external): Apifon SMS sender «opiflow» approval → `APIFON_SMS_SENDER`.**
+> **Last updated:** 2026-06-08 — session 10 (**B3 batch: PR #50** — #56 email delivery for intake/upload/appointment links, #57 outbound-message timeline with Viber/SMS/email delivery status, #53 Sentry env-gated). Earlier session 9: **TELEPHONY MULTI-DID LIVE** + **CALL-FLOW v2** (missed-call labels, hybrid intake-link prompt, preferred-channel sends + Viber→SMS, Deepgram diarization, 1h reminder cron); UX/CAM redesign + customer-detail v2 + Vercel `sharp` fix. **Blocker F.3 RESOLVED.** Migrations **033/034/035 APPLIED**; **036 PENDING (apply in Supabase SQL editor)**. `SIP_CRED_ENC_KEY`+`CRON_SECRET`+`DEEPGRAM_API_KEY` set on Vercel; **hourly PBX cron live**. **Pending (external): Apifon SMS sender «opiflow» approval → `APIFON_SMS_SENDER`; InterTelecom on-demand DIDs reply; Apifon WhatsApp/SMS automation reply. Optional: set `SENTRY_DSN` to activate Sentry.**
 
 ---
 
@@ -54,6 +54,27 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-08 — session 10 — B3 batch (PR #50, squash → master `806ecc8`, `next build` green ±DSN, tsc clean):**
+  - **#56 Email delivery for links:** new `src/lib/server/customer-email.ts` (Resend, env-gated on
+    `RESEND_API_KEY`/`EMAIL_FROM`, sends ONLY to the loaded customer's own email). The 3 link routes
+    (`intake-link`/`upload-link`/`appointment-link`) accept `{ channel:'email' }` in `mode:'send'`. `SendChannelSheet`
+    gained an `email` backend prop; **upload + appointment review modals migrated `SendViaViberModal` → `SendChannelSheet`**
+    (now Viber/WhatsApp/Email/SMS, like intake). `markIntake/UploadTokenSent` accept `'email'`.
+  - **#57 Outbound-message timeline:** new `src/lib/server/record-message.ts` — every successful send (Viber/SMS/email)
+    writes a `communications` row (`status:'sent'`) + a linked `viber_messages` row with the Apifon ids. The
+    `apifon/status` webhook propagates `delivered/seen/failed` onto that `communications` row (**tenant-scoped by
+    `business_id`** + anti-regression guard). Timeline UI renders channel + status badge (Εστάλη/Παραδόθηκε/Διαβάστηκε/Απέτυχε).
+    Offer sends (Viber + `/api/email/send-offer`) also log to the timeline now.
+  - **#53 Sentry (env-gated):** `@sentry/nextjs@10` (first line to support Next 16). `src/instrumentation.ts` (+`onRequestError`),
+    `src/instrumentation-client.ts`, conditional `withSentryConfig` in `next.config.ts` — **wraps ONLY when `SENTRY_DSN`/
+    `NEXT_PUBLIC_SENTRY_DSN` set → zero build/runtime impact without a DSN**. CSP `connect-src` adds the ingest origin when
+    `NEXT_PUBLIC_SENTRY_DSN` set; `sendDefaultPii:false`. `env.ts` integration `monitoring`. (Vercel uses `--ignore-scripts`,
+    so source-map upload needs `@sentry/cli` + `SENTRY_AUTH_TOKEN`; error capture works without uploaded maps.)
+  - **Migration 036** (`036_email_channel_and_outbound_timeline.sql`): widens `sent_channel` CHECK on
+    `customer_intake_tokens` + `customer_upload_tokens` to allow `'email'` (idempotent, NULL-safe). **APPLY MANUALLY in
+    Supabase SQL editor.** App is migration-graceful (token marking is best-effort) so email + timeline work even pre-036.
+  - **Adversarial review** (3 dims → verify): fixed 2 confirmed findings — per-channel `sending` state (Viber/Email buttons
+    no longer both spin), and tenant-scoping the webhook `communications` update by `business_id`.
 - **2026-06-08 — session 9 (cont.) — CALL-FLOW v2 + external setup DONE + provider/legal decisions:**
   - **PR #48 — Call-flow v2** (all env-gated / migration-graceful, `next build` green):
     - **Missed-call labels:** no fabricated AI brief without a recording → unanswered = «Αναπάντητη κλήση»,
@@ -247,11 +268,9 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `APIFON_*`, `RESEND_*` — the SystemStatusCard now shows which are live);
   test Team with a 2nd account; delete old Supabase `hgboy` + Vercel `yorgos`; email InterTelecom about DID
   delivery; local folder rename `E:\yorgos`→`E:\opiflow` (memory pre-copied).
-- **Product roadmap REMAINING (from the audit, for a focused follow-up):** **#53 Sentry** (needs a Sentry
-  account + `SENTRY_DSN`; `observability.ts` stub ready to wire); **#56** email delivery for intake/appointment/
-  upload links (reuse the send-offer Resend path; touches the 3443-line customer detail UI); **#57** surface
-  Viber delivery/seen status in the timeline (data already flows via the apifon webhook → `viber_messages`);
-  **#58γ** make the `pbx-recording` webhook multi-tenant (low priority — single business + inbound blocked);
+- **Product roadmap REMAINING (from the audit, for a focused follow-up):** ✅ **#53 Sentry DONE** (PR #50, env-gated
+  — set `SENTRY_DSN` to activate); ✅ **#56 email delivery DONE** (PR #50); ✅ **#57 delivery status in timeline DONE**
+  (PR #50); **#58γ** make the `pbx-recording` webhook multi-tenant (low priority — single business + inbound blocked);
   **#59 monetization** (DEFERRED by user — payments later); offline/PWA for the native wrapper (field signal).
 - **App-store path (user's side):** apply migration 032 (SQL editor); Firebase project + service-account
   JSON → set `FCM_*` on Vercel; Google Play Console ($25) + build signed `.aab`; Apple Developer ($99/yr)
