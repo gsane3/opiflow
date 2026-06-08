@@ -2060,7 +2060,7 @@ export default function CustomerDetailPage() {
       >
         <div className="px-4 py-4">
           {editMode === null && (
-            <div className="mb-3 flex justify-end">
+            <div className="mb-3 flex justify-start">
               <Button variant="secondary" size="sm" onClick={startEditContact}>
                 Επεξεργασία
               </Button>
@@ -3078,7 +3078,7 @@ export default function CustomerDetailPage() {
       {/* Upload link review modal */}
       {uploadLinkReview !== null && (
         <SendViaViberModal
-          title="Αποστολή link φωτογραφιών"
+          title="Αίτημα φωτογραφιών"
           subtitle="Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις."
           loadingText="Ετοιμάζεται το link φωτογραφιών..."
           successText="Το link φωτογραφιών στάλθηκε με Viber."
@@ -3583,7 +3583,7 @@ export default function CustomerDetailPage() {
       <SendChannelSheet
         open={intakeSendReview != null}
         onClose={() => { setIntakeSendReview(null); setRefreshTick(t => t + 1); }}
-        title="Αποστολή link στοιχείων"
+        title="Αίτημα στοιχείων"
         subtitle="Διάλεξε τρόπο: Viber, WhatsApp ή Email."
         loading={intakeSendReview?.loading}
         loadingText="Ετοιμάζεται το μήνυμα..."
@@ -3625,34 +3625,23 @@ export default function CustomerDetailPage() {
           />
           <SheetRow
             icon={<span aria-hidden>📋</span>}
-            label="Link στοιχείων"
+            label="Αίτημα στοιχείων"
             description={hasPhone ? undefined : 'Χρειάζεται τηλέφωνο'}
             disabled={!hasPhone}
             onClick={() => { setMoreSheetOpen(false); void openIntakeSendModal(); }}
           />
           <SheetRow
             icon={<span aria-hidden>📷</span>}
-            label="Link φωτογραφιών"
+            label="Αίτημα φωτογραφιών"
             description={hasPhone ? undefined : 'Χρειάζεται τηλέφωνο'}
             disabled={!hasPhone}
             onClick={() => { setMoreSheetOpen(false); void openUploadLinkModal(); }}
           />
           <SheetRow
-            icon={<span aria-hidden>🔁</span>}
-            label="Αλλαγή κατάστασης"
-            onClick={() => { setMoreSheetOpen(false); setStatusSheetOpen(true); }}
-          />
-          <SheetRow
             icon={<span aria-hidden>✨</span>}
-            label="Σύνοψη με AI"
+            label="Σύνοψη κλήσεων με AI"
             description="Πρόταση επόμενης κίνησης"
             onClick={() => revealSection('ws-memory', setSummaryOpen)}
-          />
-          <SheetRow
-            icon={<span aria-hidden>🗂️</span>}
-            label="Αρχεία"
-            description="Φωτογραφίες και βίντεο πελάτη"
-            onClick={() => revealSection('ws-files', setFilesOpen)}
           />
           {customer.address && (
             <SheetRow

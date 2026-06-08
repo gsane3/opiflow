@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   }
 
-  const { to, subject, text, html } = body as Record<string, unknown>;
+  const { to, subject, text, html, offerId } = body as Record<string, unknown>;
 
   if (typeof to !== 'string' || !EMAIL_RE.test(to.trim())) {
     return NextResponse.json({ ok: false, error: 'invalid_email' }, { status: 400 });
@@ -138,6 +138,35 @@ export async function POST(req: NextRequest) {
 
     if (!res.ok) {
       return NextResponse.json({ ok: false, error: 'provider_error' }, { status: 502 });
+    }
+
+    // Email sent successfully -> advance the OFFER's own status so it no longer
+    // reads as "Πρόχειρη" after a real send (label "Στάλθηκε"). Mirrors the Viber
+    // notify route. Best-effort & non-fatal: the email was already sent, so a
+    // status-update failure must not change the email response. Only acts when an
+    // offerId was provided, and never regresses an offer that already reached a
+    // final state (accepted/rejected/expired) or was already sent.
+    if (typeof offerId === 'string' && offerId.trim()) {
+      try {
+        const { data: offerRow } = await supabase
+          .from('offers')
+          .select('id, status')
+          .eq('id', offerId.trim())
+          .eq('business_id', businessId)
+          .maybeSingle();
+        if (
+          offerRow &&
+          (offerRow.status === 'draft' || offerRow.status === 'ready_to_send')
+        ) {
+          await supabase
+            .from('offers')
+            .update({ status: 'sent_manually', updated_at: new Date().toISOString() })
+            .eq('id', offerRow.id)
+            .eq('business_id', businessId);
+        }
+      } catch {
+        // intentionally swallowed: the email was already sent
+      }
     }
 
     return NextResponse.json({ ok: true, id: data.id });

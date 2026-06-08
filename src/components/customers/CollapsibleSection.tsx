@@ -79,8 +79,21 @@ export default function CollapsibleSection({
               <p className="mt-0.5 text-xs text-zinc-500">{description}</p>
             )}
           </div>
+        </button>
+        {/* Header action (e.g. "+" / "Επεξεργασία") sits LEFT of the chevron and does not toggle. */}
+        {headerAction != null && (
+          <div className="flex shrink-0 items-center pl-1">{headerAction}</div>
+        )}
+        {/* Chevron is its own toggle affordance, kept to the far right. */}
+        <button
+          type="button"
+          onClick={toggle}
+          tabIndex={-1}
+          aria-label={expanded ? 'Σύμπτυξη' : 'Ανάπτυξη'}
+          className="flex shrink-0 items-center pl-2 pr-4 transition hover:bg-zinc-50"
+        >
           <svg
-            className={`h-5 w-5 shrink-0 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`h-5 w-5 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none"
             strokeWidth={2}
             stroke="currentColor"
@@ -90,9 +103,6 @@ export default function CollapsibleSection({
             <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
           </svg>
         </button>
-        {headerAction != null && (
-          <div className="flex shrink-0 items-center pr-3 pl-1">{headerAction}</div>
-        )}
       </div>
       {expanded && (
         <div id={bodyId} className="border-t border-zinc-100">

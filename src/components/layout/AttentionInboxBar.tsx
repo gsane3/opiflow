@@ -8,16 +8,20 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 // Types
 // ---------------------------------------------------------------------------
 
+type NotificationKind = 'offer' | 'appointment' | 'intake' | 'upload' | 'call' | 'sms';
+
 // Shape returned by GET /api/notifications
 interface ApiNotification {
   id: string;
-  kind: 'offer' | 'appointment';
+  kind: NotificationKind;
   response: string;
   title: string;
   description: string;
   customerId: string | null;
   customerName: string;
   href: string;
+  // Canonical event timestamp; respondedAt mirrors it for backward compatibility.
+  eventAt?: string;
   respondedAt: string;
   isNew: boolean;
   taskId: string | null;
@@ -28,12 +32,14 @@ interface ApiNotification {
 // Internal display shape
 interface Notification {
   id: string;
+  kind: NotificationKind;
   title: string;
   description: string;
   href: string;
+  // ISO timestamp of the underlying event (used for the persistent seen logic).
+  eventAt: string;
   timeLabel: string;
   typeLabel: string;
-  isNew: boolean;
   isTimeChange: boolean;
   taskId: string | null;
   requestedDueDate: string | null;
@@ -41,10 +47,32 @@ interface Notification {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Persistent "last seen" + resolved-handling helpers
 // ---------------------------------------------------------------------------
 
+// Persisted ISO timestamp of the last time the operator opened the bell. Any
+// notification whose event time is newer than this is considered unseen.
+const LAST_SEEN_KEY = 'opiflow_notifs_last_seen_at';
+// Time-change requests the operator has resolved (kept so they don't reappear).
 const HANDLED_KEY = 'deskop_handled_notifs';
+
+function loadLastSeen(): string {
+  if (typeof window === 'undefined') return '';
+  try {
+    return localStorage.getItem(LAST_SEEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function persistLastSeen(iso: string) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(LAST_SEEN_KEY, iso);
+  } catch {
+    // ignore storage errors
+  }
+}
 
 function loadHandled(): Set<string> {
   if (typeof window === 'undefined') return new Set();
@@ -64,16 +92,24 @@ function persistHandled(s: Set<string>) {
   }
 }
 
-function formatTimeLabel(respondedAt: string): string {
+// A notification counts as "newer than seen" when its event time is strictly
+// after the given seen timestamp. An empty seen value means everything is new.
+function isAfter(eventAt: string, seenIso: string): boolean {
+  if (!eventAt) return false;
+  if (!seenIso) return true;
+  return eventAt > seenIso;
+}
+
+function formatTimeLabel(eventAt: string): string {
   try {
-    const diff = Date.now() - new Date(respondedAt).getTime();
+    const diff = Date.now() - new Date(eventAt).getTime();
     const minutes = Math.floor(diff / 60000);
     if (minutes < 2) return 'Μόλις τώρα';
     if (minutes < 60) return `${minutes} λεπτά πριν`;
     const hours = Math.floor(diff / 3600000);
     if (hours < 24) return 'Σήμερα';
     if (hours < 48) return 'Χθες';
-    const d = new Date(respondedAt);
+    const d = new Date(eventAt);
     const day = String(d.getDate()).padStart(2, '0');
     const month = String(d.getMonth() + 1).padStart(2, '0');
     return `${day}/${month}/${d.getFullYear()}`;
@@ -82,21 +118,77 @@ function formatTimeLabel(respondedAt: string): string {
   }
 }
 
+const TYPE_LABELS: Record<NotificationKind, string> = {
+  offer: 'Προσφορά',
+  appointment: 'Ραντεβού',
+  intake: 'Στοιχεία',
+  upload: 'Αρχεία',
+  call: 'Κλήση',
+  sms: 'SMS',
+};
+
 function mapApiToNotification(n: ApiNotification): Notification {
+  const eventAt = n.eventAt ?? n.respondedAt;
   return {
     id: n.id,
+    kind: n.kind,
     title: n.title,
     description: n.description,
     href: n.href,
-    timeLabel: formatTimeLabel(n.respondedAt),
-    typeLabel: n.kind === 'offer' ? 'Προσφορά' : 'Ραντεβού',
-    isNew: n.isNew,
+    eventAt,
+    timeLabel: formatTimeLabel(eventAt),
+    typeLabel: TYPE_LABELS[n.kind] ?? 'Ειδοποίηση',
     isTimeChange:
       n.kind === 'appointment' && n.response === 'time_change_requested' && !!n.taskId,
     taskId: n.taskId,
     requestedDueDate: n.requestedDueDate,
     requestedDueTime: n.requestedDueTime,
   };
+}
+
+// Inline icon per kind (kept tiny + monochrome so it inherits text colour).
+function KindIcon({ kind, className }: { kind: NotificationKind; className?: string }) {
+  const cls = className ?? 'h-4 w-4';
+  switch (kind) {
+    case 'call':
+      return (
+        <svg className={cls} fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+        </svg>
+      );
+    case 'sms':
+      return (
+        <svg className={cls} fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.76c0 1.6 1.123 2.994 2.707 3.227 1.068.157 2.148.279 3.238.364.466.037.893.281 1.153.671L12 21l2.652-3.978c.26-.39.687-.634 1.153-.671 1.09-.085 2.17-.207 3.238-.364 1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
+        </svg>
+      );
+    case 'upload':
+      return (
+        <svg className={cls} fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+        </svg>
+      );
+    case 'intake':
+      return (
+        <svg className={cls} fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
+        </svg>
+      );
+    case 'offer':
+      return (
+        <svg className={cls} fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 6h.008v.008H6V6Z" />
+        </svg>
+      );
+    case 'appointment':
+    default:
+      return (
+        <svg className={cls} fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
+        </svg>
+      );
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -107,7 +199,14 @@ export default function AttentionInboxBar() {
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
-  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+
+  // Persistent "last seen" timestamp (badge count is driven off this).
+  const [lastSeenAt, setLastSeenAt] = useState<string>(() => loadLastSeen());
+  // Snapshot of lastSeen captured the moment the panel was opened. Drives the
+  // per-item highlight WHILE the panel is open, so the operator still sees what
+  // is new even though lastSeenAt was just advanced to "now".
+  const [sessionSeenAt, setSessionSeenAt] = useState<string>('');
+
   // Time-change requests the operator has resolved (persisted per-device so they
   // don't reappear after a reload).
   const [handled, setHandled] = useState<Set<string>>(() => loadHandled());
@@ -161,12 +260,25 @@ export default function AttentionInboxBar() {
     };
   }, []);
 
-  function markRead(id: string) {
-    setReadIds((prev) => {
-      const next = new Set(prev);
-      next.add(id);
+  // Toggle the dropdown. On OPEN, snapshot the current persisted lastSeen into
+  // sessionSeenAt (so items still highlight while open) and then advance the
+  // persisted lastSeenAt to now (so the badge clears and stays cleared across
+  // reloads).
+  function toggleOpen() {
+    setOpen((wasOpen) => {
+      const next = !wasOpen;
+      if (next) {
+        setSessionSeenAt(lastSeenAt);
+        const now = new Date().toISOString();
+        persistLastSeen(now);
+        setLastSeenAt(now);
+      }
       return next;
     });
+  }
+
+  function closePanel() {
+    setOpen(false);
   }
 
   async function getToken(): Promise<string | null> {
@@ -264,15 +376,22 @@ export default function AttentionInboxBar() {
     (n) => !(n.isTimeChange && handled.has(n.id) && !results[n.id])
   );
 
-  // Badge: unread, not-yet-read, not-handled.
+  // Badge: notifications whose event time is newer than the persisted lastSeenAt
+  // (and not already resolved). Time-change items the operator handled no longer
+  // count.
   const unreadCount = visible.filter(
-    (n) => n.isNew && !readIds.has(n.id) && !handled.has(n.id)
+    (n) => isAfter(n.eventAt, lastSeenAt) && !handled.has(n.id)
   ).length;
 
+  // Per-item highlight uses the in-session snapshot so items stay highlighted
+  // while the panel is open, but are no longer highlighted after close + reopen.
+  const isUnseen = (n: Notification) => isAfter(n.eventAt, sessionSeenAt) && !handled.has(n.id);
+
   const sorted = [...visible].sort((a, b) => {
-    const aUnread = a.isNew && !readIds.has(a.id) && !handled.has(a.id) ? 0 : 1;
-    const bUnread = b.isNew && !readIds.has(b.id) && !handled.has(b.id) ? 0 : 1;
-    return aUnread - bUnread;
+    const aUnread = isUnseen(a) ? 0 : 1;
+    const bUnread = isUnseen(b) ? 0 : 1;
+    if (aUnread !== bUnread) return aUnread - bUnread;
+    return b.eventAt.localeCompare(a.eventAt);
   });
 
   return (
@@ -282,7 +401,7 @@ export default function AttentionInboxBar() {
         type="button"
         title="Ειδοποιήσεις"
         aria-label="Ειδοποιήσεις"
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggleOpen}
         className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50 active:bg-zinc-100"
       >
         <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -310,7 +429,7 @@ export default function AttentionInboxBar() {
             </div>
             <button
               type="button"
-              onClick={() => setOpen(false)}
+              onClick={closePanel}
               aria-label="Κλείσιμο"
               className="rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
             >
@@ -328,7 +447,7 @@ export default function AttentionInboxBar() {
               <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
             </div>
           ) : sorted.length === 0 ? (
-            <p className="px-4 pb-6 pt-2 text-center text-sm text-zinc-400">Δεν υπάρχουν νέες απαντήσεις.</p>
+            <p className="px-4 pb-6 pt-2 text-center text-sm text-zinc-400">Δεν υπάρχουν νέες ειδοποιήσεις.</p>
           ) : (
             <ul className="max-h-[60vh] space-y-1.5 overflow-y-auto px-3 pb-3 pt-1">
               {sorted.map((n) => {
@@ -369,7 +488,7 @@ export default function AttentionInboxBar() {
                           </button>
                           <Link
                             href={n.href}
-                            onClick={() => setOpen(false)}
+                            onClick={closePanel}
                             className="shrink-0 px-1 py-2 text-[11px] font-medium text-indigo-600 hover:underline"
                           >
                             Άνοιγμα
@@ -397,36 +516,42 @@ export default function AttentionInboxBar() {
                 }
 
                 // 3) Default — a link notification.
-                const isUnread = n.isNew && !readIds.has(n.id);
+                const unseen = isUnseen(n);
                 return (
                   <li key={n.id}>
                     <Link
                       href={n.href}
-                      onClick={() => {
-                        markRead(n.id);
-                        setOpen(false);
-                      }}
+                      onClick={closePanel}
                       className={`block rounded-xl px-3 py-2.5 transition ${
-                        isUnread ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-zinc-50 hover:bg-zinc-100'
+                        unseen ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-zinc-50 hover:bg-zinc-100'
                       }`}
                     >
-                      <div className="space-y-0.5">
-                        <div className="flex items-center gap-1.5">
-                          <span className={`text-xs font-semibold ${isUnread ? 'text-zinc-900' : 'text-zinc-500'}`}>
-                            {n.title}
-                          </span>
-                          {isUnread && (
-                            <span className="shrink-0 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                              Νέο
+                      <div className="flex items-start gap-2.5">
+                        <span
+                          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                            unseen ? 'bg-indigo-100 text-indigo-600' : 'bg-zinc-100 text-zinc-400'
+                          }`}
+                        >
+                          <KindIcon kind={n.kind} />
+                        </span>
+                        <div className="min-w-0 flex-1 space-y-0.5">
+                          <div className="flex items-center gap-1.5">
+                            <span className={`text-xs font-semibold ${unseen ? 'text-zinc-900' : 'text-zinc-500'}`}>
+                              {n.title}
                             </span>
-                          )}
-                        </div>
-                        <p className={`text-xs ${isUnread ? 'text-zinc-600' : 'text-zinc-400'}`}>{n.description}</p>
-                        <div className="flex items-center justify-between pt-0.5">
-                          <span className="text-[10px] text-zinc-400">
-                            {n.typeLabel} · {n.timeLabel}
-                          </span>
-                          <span className="text-[10px] font-medium text-indigo-600">Άνοιγμα</span>
+                            {unseen && (
+                              <span className="shrink-0 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                                Νέο
+                              </span>
+                            )}
+                          </div>
+                          <p className={`text-xs ${unseen ? 'text-zinc-600' : 'text-zinc-400'}`}>{n.description}</p>
+                          <div className="flex items-center justify-between pt-0.5">
+                            <span className="text-[10px] text-zinc-400">
+                              {n.typeLabel} · {n.timeLabel}
+                            </span>
+                            <span className="text-[10px] font-medium text-indigo-600">Άνοιγμα</span>
+                          </div>
                         </div>
                       </div>
                     </Link>

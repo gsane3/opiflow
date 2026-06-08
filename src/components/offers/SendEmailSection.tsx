@@ -55,6 +55,7 @@ export default function SendEmailSection({
           to: to.trim(),
           subject: subject.trim(),
           text: body.trim(),
+          offerId: offer.id,
           offerNumber: offer.offerNumber,
           customerName,
         }),
