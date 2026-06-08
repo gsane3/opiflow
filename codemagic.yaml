@@ -183,6 +183,12 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+        # Distribute to the INTERNAL TestFlight group only. Internal testing needs
+        # no App Review (avoids Guideline 4.2 for the web-wrapper) and no Beta App
+        # Review / test-info. Without this, submit_to_testflight tries EXTERNAL beta
+        # review and fails ("Complete test information is required ... external testing").
+        beta_groups:
+          - opiflow
       email:
         recipients:
           - georgiostsipos@gmail.com
