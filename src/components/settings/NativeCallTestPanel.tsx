@@ -36,13 +36,16 @@ export default function NativeCallTestPanel() {
       }
       if (!cancelled) setReg('registering');
       const ok = await initNativeVoice({
+        // Android fires registrationSuccess; iOS NEVER does (the plugin has no
+        // PushKit) yet login() still succeeds and OUTBOUND works — so we treat the
+        // login() return value as readiness and don't gate on this event.
         onRegistered: () => !cancelled && setReg('registered'),
-        onRegistrationFailed: (e) => { if (!cancelled) { setReg('failed'); setNote(e); } },
+        onRegistrationFailed: (e) => { if (!cancelled) setNote(e); },
         onRinging: () => !cancelled && setCall('ringing'),
         onConnected: () => !cancelled && setCall('connected'),
         onDisconnected: (d) => { if (!cancelled) { setCall('ended'); if (d.error) setNote(d.error); } },
       });
-      if (!cancelled && !ok) setReg((r) => (r === 'registering' ? 'no_token' : r));
+      if (!cancelled) setReg(ok ? 'registered' : 'no_token');
     })();
     return () => { cancelled = true; };
   }, []);

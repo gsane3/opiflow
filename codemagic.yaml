@@ -155,12 +155,16 @@ workflows:
         # incoming VoIP push can wake the app). Idempotent over the generated plist.
         script: |
           PL=ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Delete :NSMicrophoneUsageDescription" "$PL" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string Η Opiflow χρειάζεται το μικρόφωνο για τις τηλεφωνικές σας κλήσεις." "$PL"
+          # NSMicrophoneUsageDescription via plutil — PlistBuddy `-c "Add ... string <multi word>"`
+          # re-tokenizes the value on whitespace and silently writes garbage/empty for a
+          # multi-word/UTF-8 string (that was the no-mic-prompt bug). plutil takes -string as
+          # one argv element, so the Greek value is stored intact (insert-or-replace).
+          plutil -replace NSMicrophoneUsageDescription -string "Η Opiflow χρειάζεται το μικρόφωνο για τις τηλεφωνικές σας κλήσεις." "$PL"
           /usr/libexec/PlistBuddy -c "Delete :UIBackgroundModes" "$PL" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" "$PL"
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:0 string audio" "$PL"
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes:1 string voip" "$PL"
+          echo "VERIFY mic desc => [$(/usr/libexec/PlistBuddy -c 'Print :NSMicrophoneUsageDescription' "$PL")]"
       - name: CocoaPods install
         # Materialize App.xcworkspace/Pods before signing so use-profiles patches
         # the real App project. Mirrors Codemagic's official Capacitor recipe.
