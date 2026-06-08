@@ -47,6 +47,7 @@ type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
 interface BusinessRow {
   id: string;
   name: string | null;
+  email: string | null;
 }
 
 async function getBusiness(
@@ -55,7 +56,7 @@ async function getBusiness(
 ): Promise<BusinessRow | null> {
   const { data } = await supabase
     .from('businesses')
-    .select('id, name')
+    .select('id, name, email')
     .eq('owner_id', userId)
     .maybeSingle();
   return (data as unknown as BusinessRow | null) ?? null;
@@ -206,6 +207,7 @@ export async function POST(
   try {
     const business = await getBusiness(supabase, userId);
     const businessName = business?.name ?? null;
+    const businessEmail = business?.email ?? null;
 
     let body: unknown;
     try {
@@ -383,6 +385,8 @@ export async function POST(
         to: email,
         subject: 'Επιβεβαίωση ραντεβού',
         text: messageText,
+        businessName,
+        businessEmail,
       });
 
       if (!emailResult.ok) {

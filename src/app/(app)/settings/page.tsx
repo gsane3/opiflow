@@ -309,17 +309,17 @@ export default function SettingsPage() {
         </div>
 
         <div className="rounded-[28px] bg-white px-4 py-3 text-xs text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 space-y-1">
-          <p>Σήμερα, η αποστολή email λειτουργεί μόνο όταν είναι ρυθμισμένο το υπάρχον email endpoint. Αν δεν είναι ρυθμισμένο, χρησιμοποιείς αντιγραφή email draft και αποστολή από το δικό σου email client.</p>
-          <p>Η αποστολή από δικό σου επαγγελματικό domain είναι μελλοντική λειτουργία.</p>
+          <p>Τα email προς πελάτες αποστέλλονται με το όνομα της επιχείρησής σου («{'<Επιχείρηση>'} via Opiflow») και οι απαντήσεις πηγαίνουν στο email της επιχείρησης που έχεις ορίσει στα στοιχεία επικοινωνίας.</p>
+          <p>Η αποστολή απευθείας από τον δικό σου λογαριασμό Gmail / Outlook είναι μελλοντική λειτουργία.</p>
         </div>
 
         <div className="space-y-3 border-t border-zinc-100 pt-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Σύντομα</p>
           {[
             {
-              label: 'Αποστολή email από τον τομέα σου',
-              desc: 'Επαλήθευση τομέα για αποστολή προσφορών και ραντεβού από τη δική σου επαγγελματική διεύθυνση.',
-              helper: 'Σήμερα η αποστολή γίνεται μόνο όταν είναι ρυθμισμένο το υπάρχον email endpoint.',
+              label: 'Σύνδεση Gmail / Outlook',
+              desc: 'Αποστολή προσφορών και ραντεβού απευθείας από τον δικό σου λογαριασμό email, ώστε να φαίνονται 100% δικά σου.',
+              helper: 'Σήμερα τα email αποστέλλονται ως «η επιχείρησή σου via Opiflow» με απαντήσεις στο email σου.',
             },
             {
               label: 'Πηγές leads',

@@ -163,6 +163,10 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
               onChange={(e) => set('email', e.target.value)}
               placeholder="π.χ. info@example.gr"
             />
+            <p className="mt-1 text-xs text-zinc-400">
+              Διεύθυνση απαντήσεων: όταν στέλνεις email σε πελάτη, οι απαντήσεις του
+              πηγαίνουν εδώ. Το email φαίνεται να αποστέλλεται από «{profile.businessName?.trim() || 'την επιχείρησή σου'} via Opiflow».
+            </p>
           </Field>
           <Field label="Ιστότοπος">
             <input
