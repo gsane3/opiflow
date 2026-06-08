@@ -155,8 +155,14 @@ workflows:
         # profile". --warn-only surfaces a no-match in the log instead of hiding it.
         script: |
           keychain initialize
+          # --certificate-key: a PERSISTENT RSA private key (Codemagic group
+          # opiflow_ios → CERTIFICATE_PRIVATE_KEY). Without it, --create generates
+          # a throwaway key on each ephemeral VM, so the distribution cert it makes
+          # is unusable on the next run ("Cannot save Signing Certificates without
+          # certificate private key"). With it, the cert is reproducible.
           app-store-connect fetch-signing-files "$BUNDLE_ID" \
             --type IOS_APP_STORE \
+            --certificate-key @env:CERTIFICATE_PRIVATE_KEY \
             --create
           keychain add-certificates
           xcode-project use-profiles \
