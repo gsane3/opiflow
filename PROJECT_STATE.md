@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-08 — session 10 (**B3 batch: PR #50** — #56 email delivery for intake/upload/appointment links, #57 outbound-message timeline with Viber/SMS/email delivery status, #53 Sentry env-gated). Earlier session 9: **TELEPHONY MULTI-DID LIVE** + **CALL-FLOW v2** (missed-call labels, hybrid intake-link prompt, preferred-channel sends + Viber→SMS, Deepgram diarization, 1h reminder cron); UX/CAM redesign + customer-detail v2 + Vercel `sharp` fix. **Blocker F.3 RESOLVED.** Migrations **033/034/035 APPLIED**; **036 PENDING (apply in Supabase SQL editor)**. `SIP_CRED_ENC_KEY`+`CRON_SECRET`+`DEEPGRAM_API_KEY` set on Vercel; **hourly PBX cron live**. **Pending (external): Apifon SMS sender «opiflow» approval → `APIFON_SMS_SENDER`; InterTelecom on-demand DIDs reply; Apifon WhatsApp/SMS automation reply. Optional: set `SENTRY_DSN` to activate Sentry.**
+> **Last updated:** 2026-06-08 — session 10 (**🍏 iOS LIVE on TestFlight** — first build installed + login on a real iPhone via Codemagic `ios-release`, PRs #52–#58; plus **B3 batch PR #50** — #56 email delivery for intake/upload/appointment links, #57 outbound-message timeline with Viber/SMS/email delivery status, #53 Sentry env-gated). **⚠️ NATIVE ARCHITECTURE FINDING:** the iOS/Android app is a **remote-URL WebView** (`capacitor.config.json server.url = https://opiflow.vercel.app`) → it opens the marketing homepage (not login), **in-app calls (jsSIP/WebRTC mic) don't work in the iOS WKWebView**, and push needs the Firebase APNs key verified. Next pivot = a real native app (login-first entry, iPhone-native UI, **native SIP calling — Acrobits SDK vs Linphone decision pending**, push diagnosis). Earlier session 9: **TELEPHONY MULTI-DID LIVE** + **CALL-FLOW v2** (missed-call labels, hybrid intake-link prompt, preferred-channel sends + Viber→SMS, Deepgram diarization, 1h reminder cron); UX/CAM redesign + customer-detail v2 + Vercel `sharp` fix. **Blocker F.3 RESOLVED.** Migrations **033/034/035 APPLIED**; **036 PENDING (apply in Supabase SQL editor)**. `SIP_CRED_ENC_KEY`+`CRON_SECRET`+`DEEPGRAM_API_KEY` set on Vercel; **hourly PBX cron live**. **Pending (external): Apifon SMS sender «opiflow» approval → `APIFON_SMS_SENDER`; InterTelecom on-demand DIDs reply; Apifon WhatsApp/SMS automation reply. Optional: set `SENTRY_DSN` to activate Sentry.**
 
 ---
 
@@ -54,6 +54,23 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-08 — session 11 — 🍏 iOS LIVE on TestFlight (PRs #52–#58, Codemagic `ios-release`):**
+  - First `.ipa` built, signed, uploaded → **installed + logged in on a real iPhone** via TestFlight internal group «opiflow».
+  - **7 CI signing/upload fixes** (all `codemagic.yaml`): #52 inject `GOOGLE_SERVICE_INFO_PLIST` via a new `opiflow_ios` Codemagic group (iOS env had no `groups:`); #53 manual signing `app-store-connect fetch-signing-files --create` (automatic `ios_signing` only fetches → fails for a fresh app); #54 `use-profiles --project ios/App/App.xcodeproj --warn-only` + explicit `pod install` (unscoped use-profiles walked Pods.xcodeproj → App target left on Automatic signing → "App requires a provisioning profile"); #55→#56 persistent signing cert key as **base64** `CERTIFICATE_PRIVATE_KEY_B64` (raw multi-line PEM env var gets newline-flattened → "certificate-key is not valid"; also fixes "Cannot save Signing Certificates without certificate private key"); #57 `beta_groups: [opiflow]` → **internal** distribution (external submit needs test info + App Review / 4.2); #58 `ITSAppUsesNonExemptEncryption=false` (skip Export Compliance prompt).
+  - **Apple/Firebase setup done (user):** ASC key → `opiflow_asc`; App ID `ai.opiflow.app` (+Push, Team `7Q7A3NFK8T`); app record (Apple ID 6778021875); APNs `.p8` → Firebase; `GoogleService-Info.plist` (base64) + `CERTIFICATE_PRIVATE_KEY_B64` in Codemagic group `opiflow_ios`.
+  - **⚠️ NATIVE ARCHITECTURE FINDING (drives next pivot):** the app is a **remote-URL WebView** (`capacitor.config.json server.url = https://opiflow.vercel.app`). On-device that means: (a) opens the **marketing homepage**, not login; (b) **calls fail** — jsSIP/WebRTC `getUserMedia` mic is blocked in the iOS WKWebView for remote content; (c) **push not arriving** — verify the Firebase **APNs auth key** (user briefly uploaded the ASC `.p8` by mistake; confirm correct APNs `.p8` + Key ID + Team ID). Pivot options: native SIP SDK **Acrobits** (`saas.acrobits.net`, licensed, CallKit/PushKit) vs **Linphone** SDK (free, LGPL) + login-first native shell + iPhone-native UI. **DECISION PENDING.**
+- **2026-06-08 — session 11 — Per-business email sender identity (Phase 1, `next build` green, tsc clean):**
+  - New `src/lib/server/email-identity.ts`: `buildBusinessFromHeader(name, EMAIL_FROM)` → `"<Business> via Opiflow <addr>"`
+    (extracts the bare address from `EMAIL_FROM`, quotes + sanitises the display name; falls back to raw `EMAIL_FROM` when no
+    name). `resolveReplyTo(businessEmail, EMAIL_REPLY_TO)` prefers the business's own `businesses.email`, else the global
+    `EMAIL_REPLY_TO`. No DNS/OAuth — verified Opiflow domain stays the technical sender.
+  - `customer-email.ts` `SendCustomerEmailParams` gained optional `businessName` / `businessEmail`; the 3 link routes
+    (`intake`/`upload`/`appointment`) now select `businesses.email` and thread name+email through. `/api/email/send-offer`
+    loads `businesses.{name,email}` (best-effort, non-fatal) and applies the same `from`/`reply_to`.
+  - Settings: existing **Email** field (already saved to `businesses.email`) gained a helper line explaining it is the
+    reply-to address; Providers "Σύντομα" card reframed as **Σύνδεση Gmail / Outlook** (the real Phase 2).
+  - **Phase 2 (NOT built):** OAuth "Connect Gmail/Outlook" (Gmail API / MS Graph) to send genuinely from the owner's mailbox —
+    large effort incl. Google sensitive-scope verification. Tracked as a follow-up in §F.
 - **2026-06-08 — session 10 — B3 batch (PR #50, squash → master `806ecc8`, `next build` green ±DSN, tsc clean):**
   - **#56 Email delivery for links:** new `src/lib/server/customer-email.ts` (Resend, env-gated on
     `RESEND_API_KEY`/`EMAIL_FROM`, sends ONLY to the loaded customer's own email). The 3 link routes
@@ -298,6 +315,12 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
    `grep VAR= .env.local | tr -d '\r' | ssh -i ~/.ssh/yorgos_pbx_vps_600 root@46.224.138.115 "cat>>/etc/opiflow/<file>"`.
 4. **PBX has no DB** → we use **static-config generation + reload** (not Asterisk Realtime).
    The committed `sync-sip-to-asterisk.mjs` and the ARA runbook are now out of date.
+5. **Email Phase 2 (follow-up, not built):** "Connect Gmail/Outlook" via OAuth (Gmail API /
+   Microsoft Graph) so outbound email is sent genuinely from the owner's mailbox (not just
+   reply-to + display-name over the Opiflow domain, which is what Phase 1 ships). Large effort:
+   OAuth consent + token storage/refresh per business, send-on-behalf, and **Google sensitive-scope
+   verification** (security assessment) before `gmail.send` can go to non-test users. Only worth it
+   if customers report the "via Opiflow" sender as a trust problem — email is the fallback channel.
 
 ## G. Plan / next steps (telephony activation)
 1. ✅ Migration 031 applied (on the live project `oluhmzt`).
