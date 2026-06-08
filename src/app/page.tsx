@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import StoreBadges from '@/components/marketing/StoreBadges';
 import { OpiflowMark } from '@/components/brand/OpiflowLogo';
+import NativeGate from '@/components/native/NativeGate';
 
 export const metadata: Metadata = {
   title: 'Opiflow — Κάθε κλήση γίνεται ενέργεια',
@@ -82,6 +83,8 @@ const STEPS: { n: string; title: string; body: string }[] = [
 export default function LandingPage() {
   return (
     <div className="min-h-[100dvh] bg-white text-zinc-900">
+      {/* On the native app: skip the marketing page → open the product (login). */}
+      <NativeGate />
       {/* Nav */}
       <header className="sticky top-0 z-30 border-b border-zinc-100 bg-white/80 backdrop-blur-md">
         <nav className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
