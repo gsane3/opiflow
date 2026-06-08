@@ -296,7 +296,7 @@ export default function AppointmentResponseClient({ token }: Props) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-zinc-50">
-        <p className="text-sm text-zinc-400">Φόρτωση ραντεβού...</p>
+        <p className="text-sm text-zinc-500">Φόρτωση ραντεβού...</p>
       </div>
     );
   }
@@ -308,7 +308,7 @@ export default function AppointmentResponseClient({ token }: Props) {
   if (loadError) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-50 px-4 text-center">
-        <p className="text-base font-medium text-zinc-600">{loadError}</p>
+        <p className="text-base font-medium text-zinc-700">{loadError}</p>
       </div>
     );
   }
@@ -321,11 +321,11 @@ export default function AppointmentResponseClient({ token }: Props) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-50 px-4 text-center">
         <div className="mx-auto max-w-sm space-y-3">
-          <p className="text-base font-semibold text-zinc-700">
-            Ο σύνδεσμος δεν είναι έγκυρος ή έχει λήξει.
+          <p className="text-base font-semibold text-zinc-800">
+            Το link δεν είναι πλέον ενεργό.
           </p>
-          <p className="text-sm text-zinc-400">
-            Αν πιστεύετε ότι πρόκειται για σφάλμα, επικοινωνήστε με την επιχείρηση.
+          <p className="text-sm text-zinc-600">
+            Επικοινωνήστε με την επιχείρηση.
           </p>
         </div>
       </div>
@@ -369,19 +369,19 @@ export default function AppointmentResponseClient({ token }: Props) {
     <div className="min-h-screen bg-zinc-50 py-8">
       <div className="mx-auto max-w-lg space-y-5 px-4">
 
-        {/* Business header */}
+        {/* Business header — the customer's first impression */}
         {business && (
-          <div className="flex items-start gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
+          <div className="flex items-center gap-4 rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
             {business.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={business.logoUrl}
                 alt={business.name}
-                className="h-12 w-12 flex-shrink-0 rounded-lg object-contain"
+                className="h-14 w-14 flex-shrink-0 rounded-xl object-contain"
               />
             )}
             <div className="min-w-0 flex-1 space-y-0.5">
-              <p className="font-semibold text-zinc-900">{business.name}</p>
+              <p className="text-lg font-bold text-zinc-900">{business.name}</p>
               {business.phone && (
                 <p className="text-sm text-zinc-500">{business.phone}</p>
               )}
@@ -389,14 +389,14 @@ export default function AppointmentResponseClient({ token }: Props) {
                 <p className="text-sm text-zinc-500">{business.email}</p>
               )}
               {business.address && (
-                <p className="text-sm text-zinc-400">{business.address}</p>
+                <p className="text-sm text-zinc-500">{business.address}</p>
               )}
             </div>
           </div>
         )}
 
         {/* Appointment card */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <div className="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
 
           {/* Title and type */}
           <div className="space-y-0.5">
@@ -438,8 +438,8 @@ export default function AppointmentResponseClient({ token }: Props) {
 
           {/* Customer */}
           {customer && (
-            <div className="rounded-xl border border-zinc-100 p-4 space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="rounded-xl border border-zinc-200/60 p-4 space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Πελάτης
               </p>
               <p className="text-sm font-medium text-zinc-800">
@@ -452,15 +452,15 @@ export default function AppointmentResponseClient({ token }: Props) {
                 <p className="text-sm text-zinc-500">{customer.email}</p>
               )}
               {customer.address && (
-                <p className="text-sm text-zinc-400">{customer.address}</p>
+                <p className="text-sm text-zinc-500">{customer.address}</p>
               )}
             </div>
           )}
 
           {/* Linked offer */}
           {offer && (
-            <div className="rounded-xl border border-zinc-100 p-4 space-y-1">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="rounded-xl border border-zinc-200/60 p-4 space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Σχετική Προσφορά
               </p>
               <div className="flex items-center justify-between gap-2 text-sm">
@@ -475,8 +475,8 @@ export default function AppointmentResponseClient({ token }: Props) {
 
           {/* Note */}
           {visibleNote && (
-            <div className="rounded-xl border border-zinc-100 p-4">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="rounded-xl border border-zinc-200/60 p-4">
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Σημείωση
               </p>
               <p className="whitespace-pre-line text-sm text-zinc-600">{visibleNote}</p>
@@ -501,7 +501,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setAction('confirming_accept')}
-                  className="w-full rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                  className="flex h-12 w-full items-center justify-center rounded-xl bg-green-600 px-4 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
                 >
                   Αποδέχομαι το ραντεβού
                 </button>
@@ -509,7 +509,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setAction('confirming_time_change')}
-                  className="w-full rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-50"
+                  className="flex h-12 w-full items-center justify-center rounded-xl border border-indigo-200 bg-indigo-50 px-4 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-100 disabled:opacity-50"
                 >
                   Ζητώ αλλαγή ώρας
                 </button>
@@ -517,7 +517,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setAction('confirming_decline')}
-                  className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
+                  className="flex h-12 w-full items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-50"
                 >
                   Δεν μπορώ να παρευρεθώ
                 </button>
@@ -527,7 +527,7 @@ export default function AppointmentResponseClient({ token }: Props) {
             {/* Idle but canRespond is false */}
             {action === 'idle' && !canRespond && (
               <div className="rounded-xl bg-zinc-50 px-4 py-4 ring-1 ring-zinc-200 text-center">
-                <p className="text-sm text-zinc-500">
+                <p className="text-sm text-zinc-600">
                   Δεν είναι διαθέσιμη απάντηση για αυτό το ραντεβού.
                 </p>
               </div>
@@ -547,7 +547,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => void handleSubmit('accepted')}
-                    className="flex-1 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
+                    className="flex h-12 flex-1 items-center justify-center rounded-xl bg-green-600 px-4 text-sm font-semibold text-white transition hover:bg-green-700 disabled:opacity-50"
                   >
                     {isSubmitting ? 'Αποστολή...' : 'Ναι, αποδέχομαι'}
                   </button>
@@ -555,7 +555,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setAction('idle')}
-                    className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50"
+                    className="flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50"
                   >
                     Πίσω
                   </button>
@@ -593,7 +593,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => void handleSubmit('declined')}
-                    className="flex-1 rounded-xl bg-zinc-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
+                    className="flex h-12 flex-1 items-center justify-center rounded-xl bg-zinc-700 px-4 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:opacity-50"
                   >
                     {isSubmitting ? 'Αποστολή...' : 'Ναι, δεν μπορώ'}
                   </button>
@@ -601,7 +601,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setAction('idle')}
-                    className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50"
+                    className="flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50"
                   >
                     Πίσω
                   </button>
@@ -669,7 +669,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                     type="button"
                     disabled={isSubmitting || !timeChangeChoice || !appointment.dueDate || !appointment.dueTime}
                     onClick={() => void handleSubmit('time_change_requested')}
-                    className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                    className="flex h-12 flex-1 items-center justify-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                   >
                     {isSubmitting ? 'Αποστολή...' : 'Υποβολή αιτήματος'}
                   </button>
@@ -677,7 +677,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                     type="button"
                     disabled={isSubmitting}
                     onClick={() => setAction('idle')}
-                    className="rounded-xl border border-indigo-200 px-4 py-2.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-100 disabled:opacity-50"
+                    className="flex h-12 items-center justify-center rounded-xl border border-indigo-200 px-4 text-sm font-medium text-indigo-600 transition hover:bg-indigo-100 disabled:opacity-50"
                   >
                     Πίσω
                   </button>
@@ -691,14 +691,14 @@ export default function AppointmentResponseClient({ token }: Props) {
                 <div className="space-y-1">
                   <p className="text-base font-bold text-green-700">Το ραντεβού επιβεβαιώθηκε.</p>
                   <p className="text-sm text-green-600">
-                    Η επιχείρηση θα δει την αποδοχή σας στο σύστημά της.
+                    Η επιχείρηση ενημερώθηκε και βλέπει την αποδοχή σας.
                   </p>
                 </div>
                 {appointment.dueDate && appointment.dueTime && (
                   <button
                     type="button"
                     onClick={handleAddToCalendar}
-                    className="inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-green-700 ring-1 ring-green-300 transition hover:bg-green-100"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-green-700 ring-1 ring-green-300 transition hover:bg-green-100"
                   >
                     <svg className="h-4 w-4" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />
@@ -706,7 +706,7 @@ export default function AppointmentResponseClient({ token }: Props) {
                     Προσθήκη στο ημερολόγιο
                   </button>
                 )}
-                <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
+                <p className="text-xs text-zinc-500">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
               </div>
             )}
 
@@ -717,9 +717,9 @@ export default function AppointmentResponseClient({ token }: Props) {
                   Καταγράψαμε ότι δεν μπορείτε να παρευρεθείτε.
                 </p>
                 <p className="text-sm text-amber-600">
-                  Η επιχείρηση θα επικοινωνήσει μαζί σας για νέο ραντεβού.
+                  Η επιχείρηση ενημερώθηκε και θα επικοινωνήσει μαζί σας για νέο ραντεβού.
                 </p>
-                <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
+                <p className="text-xs text-zinc-500">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
               </div>
             )}
 
@@ -730,20 +730,20 @@ export default function AppointmentResponseClient({ token }: Props) {
                   Το αίτημα αλλαγής ώρας καταγράφηκε.
                 </p>
                 <p className="text-sm text-indigo-600">
-                  Η επιχείρηση θα επικοινωνήσει μαζί σας.
+                  Η επιχείρηση ενημερώθηκε και θα επικοινωνήσει μαζί σας.
                 </p>
-                <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
+                <p className="text-xs text-zinc-500">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
               </div>
             )}
 
             {/* Expired */}
             {action === 'expired' && (
               <div className="rounded-xl bg-zinc-100 px-4 py-5 ring-1 ring-zinc-200 text-center space-y-1">
-                <p className="text-base font-semibold text-zinc-600">
-                  Το ραντεβού αυτό δεν είναι πλέον ενεργό.
+                <p className="text-base font-semibold text-zinc-700">
+                  Το link δεν είναι πλέον ενεργό.
                 </p>
-                <p className="text-sm text-zinc-500">
-                  Η ημερομηνία έχει παρέλθει ή το ραντεβού δεν δέχεται πλέον απαντήσεις.
+                <p className="text-sm text-zinc-600">
+                  Επικοινωνήστε με την επιχείρηση.
                 </p>
               </div>
             )}
@@ -751,8 +751,10 @@ export default function AppointmentResponseClient({ token }: Props) {
         </div>
 
         {/* Disclaimer */}
-        <p className="text-center text-xs text-zinc-400">
-          Η απάντηση καταγράφεται από την επιχείρηση. Μετά την αποδοχή μπορείτε να προσθέσετε το ραντεβού στο ημερολόγιό σας.
+        <p className="text-center text-xs text-zinc-500">
+          {action === 'idle' || action === 'confirming_accept' || action === 'confirming_decline' || action === 'confirming_time_change'
+            ? 'Δεν στέλνεται τίποτα αυτόματα — η επιχείρηση βλέπει την απάντησή σας.'
+            : 'Η απάντησή σας καταγράφηκε από την επιχείρηση.'}
         </p>
       </div>
     </div>

@@ -77,8 +77,8 @@ const SOURCE_LABELS: Record<string, string> = {
 const STATUS_LABELS: Record<string, string> = {
   new_lead: 'Νέος',
   contacted: 'Επικοινωνία',
-  follow_up_needed: 'Follow-up',
-  offer_drafted: 'Προσφορά (draft)',
+  follow_up_needed: 'Να ξαναμιλήσω',
+  offer_drafted: 'Πρόχειρη προσφορά',
   offer_sent: 'Προσφορά εστάλη',
   won: 'Κερδήθηκε',
   lost: 'Χάθηκε',
@@ -104,7 +104,7 @@ const CONTACT_LABELS: Record<string, string> = {
 const TASK_TYPE_LABELS: Record<string, string> = {
   call_back: 'Κλήση',
   send_offer: 'Αποστολή προσφοράς',
-  follow_up_offer: 'Follow-up προσφοράς',
+  follow_up_offer: 'Να ξαναμιλήσω για προσφορά',
   ask_for_photos_documents: 'Έγγραφα/φωτογραφίες',
   book_appointment: 'Ραντεβού',
   visit_customer: 'Επίσκεψη',

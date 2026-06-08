@@ -8,7 +8,6 @@ import type { Offer, OfferStatus, Customer } from '@/lib/types';
 import { norm } from '@/lib/search';
 import OfferCard from '@/components/offers/OfferCard';
 import OfferForm from '@/components/offers/OfferForm';
-import { OFFER_STATUS_LABELS } from '@/components/offers/OfferStatusBadge';
 import OfferAnalyticsPanel from '@/components/offers/OfferAnalyticsPanel';
 
 type SortBy = 'newest' | 'amount_desc' | 'amount_asc';
@@ -18,6 +17,19 @@ const SORT_LABELS: Record<SortBy, string> = {
   amount_desc: 'Υψηλότερο ποσό',
   amount_asc: 'Χαμηλότερο ποσό',
 };
+
+// Status group tabs shown above the list. Each tab maps to a set of underlying
+// offer statuses so non-technical users see plain categories instead of the
+// raw status machine. 'all' shows everything.
+type StatusGroup = 'all' | 'drafts' | 'sent' | 'accepted' | 'rejected';
+
+const STATUS_GROUP_TABS: { key: StatusGroup; label: string; statuses: OfferStatus[] }[] = [
+  { key: 'all', label: 'Όλες', statuses: [] },
+  { key: 'drafts', label: 'Πρόχειρες', statuses: ['draft', 'ready_to_send'] },
+  { key: 'sent', label: 'Στάλθηκαν', statuses: ['sent_manually'] },
+  { key: 'accepted', label: 'Αποδέχτηκαν', statuses: ['accepted'] },
+  { key: 'rejected', label: 'Απορρίφθηκαν', statuses: ['rejected'] },
+];
 
 const selCls =
   'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
@@ -112,7 +124,14 @@ export default function OffersPage() {
 
   const [offerSearch, setOfferSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<OfferStatus | ''>('');
+  const [statusGroup, setStatusGroup] = useState<StatusGroup>('all');
   const [sortBy, setSortBy] = useState<SortBy>('newest');
+
+  // Active set of statuses for the selected group tab ([] means "all").
+  const groupStatuses = useMemo(
+    () => STATUS_GROUP_TABS.find((t) => t.key === statusGroup)?.statuses ?? [],
+    [statusGroup]
+  );
 
   const loadData = useCallback(async (token: string) => {
     setFetchError(null);
@@ -170,7 +189,7 @@ export default function OffersPage() {
     init();
   }, [loadData]);
 
-  const hasFilter = offerSearch.trim() !== '' || statusFilter !== '';
+  const hasFilter = offerSearch.trim() !== '' || statusFilter !== '' || statusGroup !== 'all';
 
   const customerMap = useMemo(
     () => Object.fromEntries(customers.map((c) => [c.id, c.name])),
@@ -204,6 +223,8 @@ export default function OffersPage() {
           norm(o.terms).includes(q);
         if (!hit) return false;
       }
+      // Group tab predicate: empty set = "Όλες" (no group constraint).
+      if (groupStatuses.length > 0 && !groupStatuses.includes(o.status)) return false;
       if (statusFilter && o.status !== statusFilter) return false;
       return true;
     });
@@ -218,11 +239,12 @@ export default function OffersPage() {
     }
 
     return result;
-  }, [offers, offerSearch, statusFilter, sortBy, customerMap]);
+  }, [offers, offerSearch, statusFilter, statusGroup, groupStatuses, sortBy, customerMap]);
 
   function clearFilters() {
     setOfferSearch('');
     setStatusFilter('');
+    setStatusGroup('all');
   }
 
   async function handleSave(offer: Offer) {
@@ -280,7 +302,7 @@ export default function OffersPage() {
       const updated = mapBackendOffer(data.offer as Record<string, unknown>);
       setOffers((prev) => prev.map((o) => (o.id === id ? updated : o)));
     } else {
-      setActionError('Αποτυχία αλλαγής status. Δοκίμασε ξανά.');
+      setActionError('Αποτυχία αλλαγής κατάστασης. Δοκίμασε ξανά.');
     }
   }
 
@@ -411,7 +433,40 @@ export default function OffersPage() {
         </div>
       )}
 
-      {/* Search + filter + sort */}
+      {/* Status group tabs — plain categories, not the raw status machine. */}
+      <div className="mb-3 flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        {STATUS_GROUP_TABS.map((tab) => {
+          const active = statusGroup === tab.key;
+          const count =
+            tab.statuses.length === 0
+              ? offers.length
+              : offers.filter((o) => tab.statuses.includes(o.status)).length;
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setStatusGroup(tab.key)}
+              aria-pressed={active}
+              className={`flex h-12 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
+                active
+                  ? 'bg-indigo-600 text-white'
+                  : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
+                  active ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-600'
+                }`}
+              >
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search + sort */}
       <div className="mb-5 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
         <input
           type="search"
@@ -420,18 +475,12 @@ export default function OffersPage() {
           placeholder="Αναζήτηση αριθμού, πελάτη, σημειώσεων, όρων..."
           className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="text-xs font-medium text-zinc-500" htmlFor="offers-sort">
+            Ταξινόμηση
+          </label>
           <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as OfferStatus | '')}
-            className={selCls}
-          >
-            <option value="">Όλα τα status</option>
-            {(Object.entries(OFFER_STATUS_LABELS) as [OfferStatus, string][]).map(([v, l]) => (
-              <option key={v} value={v}>{l}</option>
-            ))}
-          </select>
-          <select
+            id="offers-sort"
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as SortBy)}
             className={selCls}
@@ -457,14 +506,35 @@ export default function OffersPage() {
         <Card padding="none">
           <EmptyState
             title="Δεν υπάρχουν προσφορές ακόμα."
-            description="Δημιούργησε προσφορά με το κουμπί + παραπάνω ή με υπαγόρευση."
+            description="Φτιάξε την πρώτη σου προσφορά για έναν πελάτη."
+            action={
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingOffer(null);
+                  setShowForm(true);
+                }}
+                className="h-12 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                + Νέα προσφορά
+              </button>
+            }
           />
         </Card>
       ) : filteredOffers.length === 0 ? (
         <Card padding="none">
           <EmptyState
-            title="Δεν βρέθηκαν αποτελέσματα."
+            title="Δεν βρέθηκαν προσφορές με αυτά τα κριτήρια."
             description="Δοκίμασε διαφορετικούς όρους ή κάνε καθαρισμό."
+            action={
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="h-12 rounded-xl border border-zinc-200 bg-white px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              >
+                Καθαρισμός
+              </button>
+            }
           />
         </Card>
       ) : (

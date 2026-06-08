@@ -38,17 +38,13 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
     const isExpired = reason === 'expired' || isCompleted;
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 py-12">
-        <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-200">
+        <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60">
           <div className="mb-4 text-center text-3xl">{isExpired ? '⏰' : '🔒'}</div>
-          <h1 className="mb-2 text-center text-base font-semibold text-zinc-900">
-            {isExpired
-              ? 'Ο σύνδεσμος έχει ολοκληρωθεί ή έχει λήξει.'
-              : 'Ο σύνδεσμος δεν είναι διαθέσιμος.'}
+          <h1 className="mb-2 text-center text-lg font-semibold text-[#0B1120]">
+            {'Το link δεν είναι πλέον ενεργό.'}
           </h1>
-          <p className="text-center text-sm text-zinc-500">
-            {isExpired
-              ? 'Ο σύνδεσμος έχει ήδη χρησιμοποιηθεί ή δεν είναι πλέον ενεργός.'
-              : 'Ο σύνδεσμος δεν αναγνωρίζεται ή έχει ανακληθεί. Επικοινωνήστε με την επιχείρηση για νέο σύνδεσμο.'}
+          <p className="text-center text-sm text-zinc-600">
+            {'Επικοινωνήστε με την επιχείρηση.'}
           </p>
         </div>
       </div>
@@ -58,13 +54,13 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
   if (phase === 'done') {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 py-12">
-        <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-200">
+        <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60">
           <div className="mb-4 text-center text-3xl">&#x2705;</div>
-          <h1 className="mb-2 text-center text-base font-semibold text-zinc-900">
-            {'Τα αρχεία ανέβηκαν με επιτυχία.'}
+          <h1 className="mb-2 text-center text-lg font-semibold text-[#0B1120]">
+            {'Τα αρχεία ανέβηκαν. Η επιχείρηση θα ενημερωθεί.'}
           </h1>
-          <p className="text-center text-sm text-zinc-500">
-            {'Ο επαγγελματίας θα τα δει στην καρτέλα σας.'}
+          <p className="text-center text-sm text-zinc-600">
+            {'Τα στοιχεία χρησιμοποιούνται μόνο για την εξυπηρέτησή σας.'}
           </p>
         </div>
       </div>
@@ -199,12 +195,12 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-4 py-12">
-      <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-200">
+      <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60">
         <div className="mb-4 text-center text-3xl">&#x1F4F7;</div>
-        <h1 className="mb-1 text-center text-base font-semibold text-zinc-900">
+        <h1 className="mb-1 text-center text-xl font-bold text-[#0B1120]">
           {'Ανέβασμα φωτογραφιών / βίντεο'}
         </h1>
-        <p className="mb-5 text-center text-sm text-zinc-500">
+        <p className="mb-5 text-center text-sm leading-6 text-zinc-600">
           {'Ανεβάστε φωτογραφίες ή βίντεο από τη συσκευή και τον χώρο.'}
         </p>
 
@@ -222,7 +218,7 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
             />
             <label
               htmlFor="file-input"
-              className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-zinc-200 px-4 py-6 text-center transition hover:border-zinc-400 hover:bg-zinc-50 active:bg-zinc-100"
+              className="flex min-h-[48px] cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-zinc-200 px-4 py-6 text-center transition hover:border-indigo-400 hover:bg-zinc-50 active:bg-zinc-100"
             >
               <span className="text-2xl">&#x1F4C1;</span>
               <span className="text-sm font-medium text-zinc-700">
@@ -230,7 +226,7 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
                   ? `${files.length} αρχεί${files.length === 1 ? 'ο' : 'α'} επιλεγμέν${files.length === 1 ? 'ο' : 'α'}`
                   : 'Επιλογή αρχείων'}
               </span>
-              <span className="text-xs text-zinc-400">
+              <span className="text-xs text-zinc-500">
                 {`Έως ${MAX_FILES} αρχεία, max 50MB το καθένα`}
               </span>
             </label>
@@ -244,7 +240,7 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
                   className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2 text-xs text-zinc-600"
                 >
                   <span className="flex-1 truncate">{f.name}</span>
-                  <span className="shrink-0 text-zinc-400">
+                  <span className="shrink-0 text-zinc-500">
                     {(f.size / 1024 / 1024).toFixed(1)}MB
                   </span>
                 </li>
@@ -261,7 +257,7 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
               onChange={e => setComment(e.target.value)}
               disabled={phase === 'uploading'}
               placeholder={'Προαιρετικό σχόλιο...'}
-              className="min-h-20 w-full resize-none rounded-2xl border border-zinc-200 px-4 py-3 text-sm outline-none focus:border-zinc-400"
+              className="min-h-20 w-full resize-none rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base outline-none focus:border-indigo-400"
             />
           </div>
 
@@ -289,12 +285,16 @@ export default function UploadClient({ valid, reason, rawToken }: Props) {
           <button
             type="submit"
             disabled={phase === 'uploading' || phase === 'error' || files.length === 0}
-            className="w-full rounded-2xl bg-zinc-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-12 w-full rounded-xl bg-indigo-600 px-5 text-base font-semibold text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {phase === 'uploading'
               ? 'Ανεβαίνουν...'
               : 'Ανέβασμα αρχείων'}
           </button>
+
+          <p className="text-center text-sm text-zinc-500">
+            {'Τα στοιχεία χρησιμοποιούνται μόνο για την εξυπηρέτησή σας.'}
+          </p>
         </form>
       </div>
     </div>

@@ -2,20 +2,20 @@ import type { CustomerStatus, OfferStatus, TaskType, TaskPriority, CustomerSourc
 
 export function getCustomerStatusLabel(status: CustomerStatus): string {
   const labels: Record<CustomerStatus, string> = {
-    new_lead: 'Νέο lead',
-    contacted: 'Έγινε επικοινωνία',
-    follow_up_needed: 'Θέλει follow-up',
-    offer_drafted: 'Έχει draft προσφοράς',
+    new_lead: 'Νέος',
+    contacted: 'Μίλησα',
+    follow_up_needed: 'Να ξαναμιλήσω',
+    offer_drafted: 'Πρόχειρη προσφορά',
     offer_sent: 'Στάλθηκε προσφορά',
-    won: 'Κλειστή συμφωνία',
-    lost: 'Χαμένη ευκαιρία',
+    won: 'Κερδήθηκε',
+    lost: 'Χάθηκε',
   };
   return labels[status] ?? status;
 }
 
 export function getOfferStatusLabel(status: OfferStatus): string {
   const labels: Record<OfferStatus, string> = {
-    draft: 'Draft',
+    draft: 'Πρόχειρο',
     ready_to_send: 'Έτοιμη για αποστολή',
     sent_manually: 'Στάλθηκε',
     accepted: 'Αποδεκτή',
@@ -29,7 +29,7 @@ export function getTaskTypeLabel(type: TaskType): string {
   const labels: Record<TaskType, string> = {
     call_back: 'Επιστροφή κλήσης',
     send_offer: 'Αποστολή προσφοράς',
-    follow_up_offer: 'Follow-up προσφοράς',
+    follow_up_offer: 'Να ξαναμιλήσω για προσφορά',
     ask_for_photos_documents: 'Ζήτηση εγγράφων',
     book_appointment: 'Κλείσιμο ραντεβού',
     visit_customer: 'Επίσκεψη πελάτη',

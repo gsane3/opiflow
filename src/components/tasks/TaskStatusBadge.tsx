@@ -4,7 +4,7 @@ import { getEffectiveStatus } from '@/lib/types';
 export const TASK_TYPE_LABELS: Record<TaskType, string> = {
   call_back: 'Κλήση πίσω',
   send_offer: 'Αποστολή προσφοράς',
-  follow_up_offer: 'Follow-up προσφοράς',
+  follow_up_offer: 'Να ξαναμιλήσω για προσφορά',
   ask_for_photos_documents: 'Ζήτα φωτογραφίες/έγγραφα',
   book_appointment: 'Κλείσιμο ραντεβού',
   visit_customer: 'Επίσκεψη σε πελάτη',

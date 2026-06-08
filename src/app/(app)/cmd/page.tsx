@@ -1240,7 +1240,7 @@ export default function CmdPage() {
           {result.intent === 'create_offer' && !savedResult && (
             <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Draft προσφορά (προεπισκόπηση)
+                Πρόχειρη προσφορά (προεπισκόπηση)
               </p>
               {matchedCustomer && (
                 <div className="flex items-center gap-2">

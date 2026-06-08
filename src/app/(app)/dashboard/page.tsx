@@ -169,7 +169,7 @@ function StatCard({
       href={href}
       className="flex flex-col justify-between gap-2 rounded-[28px] bg-white px-4 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
     >
-      <span className="text-xs font-medium leading-snug text-zinc-500">{label}</span>
+      <span className="text-xs font-medium leading-snug text-zinc-600">{label}</span>
       <div className="flex items-end justify-between">
         <span
           className={`text-3xl font-bold leading-none ${
@@ -492,7 +492,7 @@ export default function DashboardPage() {
   const focusCard: FocusCard | null = overdueTask
     ? {
         tone: 'red',
-        label: 'Εκπρόθεσμο task',
+        label: 'Εκπρόθεσμη εργασία',
         title: overdueTask.title,
         customerName: overdueTask.customerId ? customerMap[overdueTask.customerId] : undefined,
         primaryHref: overdueTask.customerId ? `/customers/${overdueTask.customerId}` : '/tasks',
@@ -516,12 +516,30 @@ export default function DashboardPage() {
     : focusLead
     ? {
         tone: 'amber',
-        label: 'Χρειάζεται follow-up',
+        label: 'Να ξαναμιλήσω',
         title: focusLead.name,
         customerName: undefined,
         primaryHref: `/customers/${focusLead.id}`,
       }
     : null;
+
+  // Derive the hero CTA without altering focusCard: prefer "Κλήση τώρα" only when the
+  // focused action is clearly a call-back task AND the customer has a phone on file.
+  const focusTask = overdueTask ?? todayTask ?? null;
+  const focusCustomer =
+    focusTask?.customerId
+      ? customers.find((c) => c.id === focusTask.customerId)
+      : focusLead ?? undefined;
+  const focusIsCall =
+    focusTask?.type === 'call_back' && !!focusCustomer?.phone;
+  const focusCtaLabel = focusIsCall ? 'Κλήση τώρα' : 'Άνοιγμα πελάτη';
+
+  // Hero left-accent color per focusCard tone (card stays white).
+  const HERO_ACCENT: Record<FocusTone, string> = {
+    red: 'border-l-red-500',
+    amber: 'border-l-amber-500',
+    indigo: 'border-l-indigo-500',
+  };
 
   // Stat card computations
   const monthStart = new Date();
@@ -571,80 +589,79 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs capitalize text-zinc-400">{todayLabel}</p>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Καλημέρα.</h1>
-          <p className="mt-0.5 text-sm text-zinc-500">Τι χρειάζεται προσοχή;</p>
+          <p className="text-xs capitalize text-zinc-500">{todayLabel}</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">
+            Τι πρέπει να γίνει τώρα;
+          </h1>
+          <p className="mt-0.5 text-sm text-zinc-600">Τα σημαντικά επόμενα βήματα για σήμερα.</p>
         </div>
         <AttentionInboxBar />
       </div>
 
-      {/* Focus card */}
-      <div className="rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
-        {/* Label row with subtle urgency dot for overdue */}
-        <div className="flex items-center gap-1.5">
-          <p className="text-xs font-medium text-zinc-400">Επόμενη καλύτερη ενέργεια</p>
-          {focusCard?.tone === 'red' && (
-            <span className="inline-block h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />
-          )}
+      {/* Hero card - the single most important pending action */}
+      {focusCard ? (
+        <div
+          className={`rounded-[28px] border-l-4 bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 ${HERO_ACCENT[focusCard.tone]}`}
+        >
+          <div className="flex items-start gap-3">
+            {/* Icon bubble */}
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+              <FocusIcon tone={focusCard.tone} />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold text-indigo-600">Κάνε αυτό τώρα</p>
+              {focusCard.customerName && (
+                <p className="mt-1 text-sm font-medium text-zinc-600">{focusCard.customerName}</p>
+              )}
+              <p className="text-[19px] font-bold leading-snug text-zinc-900">
+                {focusCard.title}
+              </p>
+              <p className="mt-0.5 text-sm text-zinc-600">{focusCard.label}</p>
+            </div>
+          </div>
+          <Link
+            href={focusCard.primaryHref}
+            className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+          >
+            {focusCtaLabel}
+          </Link>
         </div>
+      ) : (
+        <div className="rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
+          <p className="text-[19px] font-bold leading-snug text-zinc-900">Όλα τακτοποιημένα</p>
+          <p className="mt-1 text-sm text-zinc-600">
+            Δεν υπάρχει κάτι επείγον αυτή τη στιγμή.
+          </p>
+          <Link
+            href="/customers/new"
+            className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+          >
+            Προσθήκη πελάτη
+          </Link>
+        </div>
+      )}
 
-        {focusCard ? (
-          <>
-            <div className="mt-4 flex items-start gap-3">
-              {/* Icon bubble */}
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
-                <FocusIcon tone={focusCard.tone} />
-              </div>
-              <div className="min-w-0 flex-1">
-                {focusCard.customerName && (
-                  <p className="text-xs font-medium text-zinc-400">{focusCard.customerName}</p>
-                )}
-                <p className="text-[17px] font-semibold leading-snug text-zinc-900">
-                  {focusCard.title}
-                </p>
-                <p className="mt-0.5 text-xs text-zinc-500">{focusCard.label}</p>
-              </div>
-            </div>
-            <div className="mt-5">
-              <Link
-                href={focusCard.primaryHref}
-                className="inline-flex items-center rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
-              >
-                Άνοιγμα
-              </Link>
-            </div>
-          </>
-        ) : (
-          <>
-            <p className="mt-4 text-base font-medium text-zinc-600">
-              Χωρίς επείγουσες εκκρεμότητες
-            </p>
-            <p className="mt-0.5 text-xs text-zinc-400">Ελέγξτε τις εργασίες παρακάτω.</p>
-          </>
-        )}
-      </div>
-
-      {/* Stats */}
+      {/* Four simple count cards (2x2 on mobile) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
-          label="Νέοι πελάτες μήνα"
+          label="Νέοι πελάτες"
           value={newCustomersThisMonth}
           href="/customers"
         />
         <StatCard
-          label="Εκκρεμείς προσφορές"
+          label="Να ξαναμιλήσω"
+          value={followUpCount}
+          href="/tasks"
+        />
+        <StatCard
+          label="Προσφορές"
           value={openOffers.length}
           href="/offers"
         />
         <StatCard
-          label="Ραντεβού σε αναμονή"
+          label="Ραντεβού"
           value={pendingApptTasks}
           href="/appointments"
-        />
-        <StatCard
-          label="Follow-up"
-          value={followUpCount}
-          href="/tasks"
         />
       </div>
 

@@ -11,3 +11,4 @@ export { Textarea, type TextareaProps } from './Textarea';
 export { Badge, type BadgeProps, type BadgeTone } from './Badge';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Spinner, type SpinnerProps, type SpinnerSize } from './Spinner';
+export { BottomSheet, SheetRow, type BottomSheetProps } from './BottomSheet';

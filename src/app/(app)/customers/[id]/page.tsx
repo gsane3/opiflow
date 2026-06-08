@@ -7,6 +7,8 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import OfferForm from '@/components/offers/OfferForm';
 import { SendViaViberModal, executeViberSend } from '@/components/customers/SendViaViberModal';
 import CustomerSummaryFromCalls from '@/components/customers/CustomerSummaryFromCalls';
+import CollapsibleSection from '@/components/customers/CollapsibleSection';
+import { BottomSheet, SheetRow, Button, EmptyState } from '@/components/ui';
 import type { Offer, Customer } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -133,10 +135,10 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const STATUS_LABELS: Record<string, string> = {
   new_lead: 'Νέος',
-  contacted: 'Επικοινωνία',
-  follow_up_needed: 'Follow-up',
-  offer_drafted: 'Προσφορά (draft)',
-  offer_sent: 'Προσφορά εστάλη',
+  contacted: 'Μίλησα',
+  follow_up_needed: 'Να ξαναμιλήσω',
+  offer_drafted: 'Πρόχειρη προσφορά',
+  offer_sent: 'Στάλθηκε προσφορά',
   won: 'Κερδήθηκε',
   lost: 'Χάθηκε',
 };
@@ -150,7 +152,7 @@ const CONTACT_LABELS: Record<string, string> = {
 const TASK_TYPE_LABELS: Record<string, string> = {
   call_back: 'Κλήση',
   send_offer: 'Αποστολή προσφοράς',
-  follow_up_offer: 'Follow-up προσφοράς',
+  follow_up_offer: 'Να ξαναμιλήσω για προσφορά',
   ask_for_photos_documents: 'Έγγραφα/φωτογραφίες',
   book_appointment: 'Ραντεβού',
   visit_customer: 'Επίσκεψη',
@@ -159,7 +161,7 @@ const TASK_TYPE_LABELS: Record<string, string> = {
 };
 
 const TASK_STATUS_LABELS: Record<string, string> = {
-  ai_draft: 'AI draft',
+  ai_draft: 'Πρόχειρο',
   open: 'Ανοιχτό',
   completed: 'Ολοκληρωμένο',
   cancelled: 'Ακυρωμένο',
@@ -172,9 +174,9 @@ const PRIORITY_LABELS: Record<string, string> = {
 };
 
 const OFFER_STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
+  draft: 'Πρόχειρη',
   ready_to_send: 'Έτοιμη για αποστολή',
-  sent_manually: 'Στάλθηκε χειροκίνητα',
+  sent_manually: 'Στάλθηκε',
   sent_provider: 'Στάλθηκε',
   accepted: 'Αποδεκτή',
   rejected: 'Απορρίφθηκε',
@@ -227,7 +229,7 @@ function statusBadgeClass(status: string): string {
   if (status === 'won') return 'bg-green-100 text-green-700';
   if (status === 'lost') return 'bg-red-100 text-red-600';
   if (status === 'new_lead') return 'bg-blue-50 text-blue-700';
-  if (status === 'contacted') return 'bg-emerald-100 text-emerald-700';
+  if (status === 'contacted') return 'bg-sky-100 text-sky-700';
   if (status === 'follow_up_needed') return 'bg-amber-100 text-amber-700';
   if (status === 'offer_drafted') return 'bg-purple-100 text-purple-700';
   if (status === 'offer_sent') return 'bg-blue-100 text-blue-700';
@@ -277,7 +279,7 @@ function formatFileSize(sizeBytes?: number | null): string | null {
 function appointmentStatusLabel(task: TaskDto): string {
   if (task.status === 'completed') return 'Ολοκληρωμένο';
   if (task.status === 'cancelled') return 'Ακυρωμένο';
-  if (task.status === 'ai_draft') return 'AI draft';
+  if (task.status === 'ai_draft') return 'Πρόχειρο';
   return 'Ανοιχτό';
 }
 
@@ -402,6 +404,27 @@ export default function CustomerDetailPage() {
   const [uploadLinkReview, setUploadLinkReview] = useState<UploadLinkReview | null>(null);
 
   const [selectedCall, setSelectedCall] = useState<CommunicationDto | null>(null);
+
+  // --- Presentation: sticky-bar bottom sheets + collapsible reveal control ---
+  // "Άλλα" sheet (mobile sticky bar overflow) and the "Αλλαγή κατάστασης" sheet.
+  const [moreSheetOpen, setMoreSheetOpen] = useState(false);
+  const [statusSheetOpen, setStatusSheetOpen] = useState(false);
+  // Controlled open-state for collapsible sections. Contact/summary default
+  // expanded; the rest default collapsed. The "Άλλα" sheet can also reveal the
+  // Notes / Summary / Files sections on demand.
+  const [contactOpen, setContactOpen] = useState(true);
+  const [summaryOpen, setSummaryOpen] = useState(true);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const [filesOpen, setFilesOpen] = useState(false);
+
+  // Reveal + scroll a section into view (used by the "Άλλα" sheet rows).
+  function revealSection(id: string, setOpen?: (v: boolean) => void) {
+    setOpen?.(true);
+    setMoreSheetOpen(false);
+    setTimeout(() => {
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 80);
+  }
 
   const [editingTask, setEditingTask] = useState<TaskDto | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState('');
@@ -562,6 +585,16 @@ export default function CustomerDetailPage() {
     () => appointmentTasks.find(t => t.status === 'open') ?? null,
     [appointmentTasks]
   );
+
+  // Best phone number for tel: links (digits only). Mobile preferred, then
+  // landline, then the legacy `phone` field.
+  const telHref = useMemo(() => {
+    const raw = customer?.mobilePhone ?? customer?.landlinePhone ?? customer?.phone ?? '';
+    const digits = raw.replace(/[^+\d]/g, '');
+    return digits ? `tel:${digits}` : null;
+  }, [customer?.mobilePhone, customer?.landlinePhone, customer?.phone]);
+
+  const hasPhone = !!(customer?.mobilePhone || customer?.phone);
 
   // ---------------------------------------------------------------------------
   // Customer edit helpers
@@ -1244,7 +1277,7 @@ export default function CustomerDetailPage() {
 
   async function saveTaskFromModal() {
     if (!taskTitle.trim()) {
-      setTaskError('Συμπλήρωσε τίτλο task.');
+      setTaskError('Συμπλήρωσε τίτλο εργασίας.');
       return;
     }
     setTaskSaving(true);
@@ -1254,7 +1287,7 @@ export default function CustomerDetailPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setTaskSaving(false);
-        setTaskError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+        setTaskError('Δεν αποθηκεύτηκε η εργασία. Δοκίμασε ξανά.');
         return;
       }
       const dueDate = taskDate || getLocalDateInputValue();
@@ -1280,11 +1313,11 @@ export default function CustomerDetailPage() {
         setRefreshTick(t => t + 1);
       } else {
         setTaskSaving(false);
-        setTaskError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+        setTaskError('Δεν αποθηκεύτηκε η εργασία. Δοκίμασε ξανά.');
       }
     } catch {
       setTaskSaving(false);
-      setTaskError('Δεν αποθηκεύτηκε το task. Δοκίμασε ξανά.');
+      setTaskError('Δεν αποθηκεύτηκε η εργασία. Δοκίμασε ξανά.');
     }
   }
 
@@ -1586,7 +1619,7 @@ export default function CustomerDetailPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 py-5">
+    <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 pt-5 pb-[150px] md:pb-12">
 
       {/* Back nav */}
       <div className="flex items-center gap-2 text-sm">
@@ -1600,78 +1633,248 @@ export default function CustomerDetailPage() {
         <span className="text-zinc-500">{customer.crmNumber ?? customerTitle(customer)}</span>
       </div>
 
-      {/* Hero card */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
+      {/* Hero card — name large, identifiers small, ONE status pill, tappable phone */}
+      <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight text-zinc-900">
+            <h1 className="text-2xl font-bold leading-tight text-zinc-900">
               {customerTitle(customer)}
             </h1>
             {customer.companyName && (
               <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
             )}
           </div>
-          <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusBadgeClass(customer.status)}`}>
+          <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(customer.status)}`}>
             {STATUS_LABELS[customer.status] ?? customer.status}
           </span>
         </div>
         {(customer.crmNumber || customer.source) && (
-          <p className="mt-1.5 text-xs text-zinc-400">
+          <p className="mt-1.5 text-xs text-zinc-500">
             {customer.crmNumber && <span>{customer.crmNumber}</span>}
             {customer.crmNumber && customer.source && <span> · </span>}
             {customer.source && <span>{SOURCE_LABELS[customer.source] ?? customer.source}</span>}
           </p>
         )}
-        {customer.address && (
-          <p className="mt-1.5 text-xs text-zinc-500">{customer.address}</p>
+
+        {/* Tappable phone (clearly visible) */}
+        {hasPhone && telHref && (
+          <a
+            href={telHref}
+            className="mt-3 inline-flex items-center gap-2 text-base font-semibold text-indigo-700 transition hover:text-indigo-800"
+          >
+            <span aria-hidden>📞</span>
+            {customer.mobilePhone ?? customer.phone}
+          </a>
         )}
+
+        {customer.address && (
+          <p className="mt-2 text-sm text-zinc-500">{customer.address}</p>
+        )}
+
+        {/* Επεξεργασία + (optional) Χάρτης link */}
         {editMode === null && (
-          <div className="mt-3 flex justify-end">
-            <button
-              type="button"
-              onClick={startEditContact}
-              className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-            >
-              Επεξεργασία στοιχείων
-            </button>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Button variant="secondary" size="sm" onClick={startEditContact}>
+              Επεξεργασία
+            </Button>
+            {customer.address && (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+              >
+                <span aria-hidden>📍</span>
+                Χάρτης
+              </a>
+            )}
           </div>
         )}
       </section>
 
-      {/* Prominent status control */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <div className="mb-2.5 flex items-center justify-between gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Κατάσταση πελάτη</h2>
-          {statusSaving && (
-            <span className="text-xs font-medium text-indigo-500">Αποθήκευση...</span>
-          )}
+      {/* Next step — the main card of the page */}
+      {(() => {
+        // Reuse the existing next-best-action precedence to pick the single
+        // primary CTA. draftTask -> openTasks -> pendingOffer -> openAppointment
+        // -> missing info -> else "Νέα εργασία". A call-back is implied when the
+        // active task type is call_back (or there is no pending offer/appt) and a
+        // phone exists.
+        const callImplied =
+          hasPhone &&
+          (draftTask?.type === 'call_back' ||
+            (!draftTask &&
+              openTasks.length > 0 &&
+              (openTasks[0]?.type === 'call_back' || openTasks[0]?.type === 'follow_up_offer')));
+
+        const hasMissingInfo = !customer.mobilePhone && !customer.phone;
+
+        let ctaLabel = 'Νέα εργασία';
+        let onCta: () => void = () => setQuickModal('task');
+        let ctaHref: string | null = null;
+
+        if (callImplied && telHref) {
+          ctaLabel = 'Κλήση τώρα';
+          ctaHref = telHref;
+        } else if (pendingOffer) {
+          ctaLabel = 'Στείλε προσφορά';
+          onCta = () => setQuickModal('offer');
+        } else if (openAppointment) {
+          ctaLabel = 'Κλείσε ραντεβού';
+          onCta = () => setQuickModal('appointment');
+        } else if (hasMissingInfo) {
+          ctaLabel = 'Ζήτησε στοιχεία';
+          onCta = () => { void openIntakeSendModal(); };
+        }
+
+        const nothingPending =
+          !draftTask && openTasks.length === 0 && !pendingOffer && !openAppointment;
+
+        const tone = draftTask
+          ? 'bg-amber-50 ring-1 ring-amber-200'
+          : openTasks.length > 0
+          ? 'bg-indigo-50 ring-1 ring-indigo-200'
+          : 'bg-white shadow-sm ring-1 ring-zinc-200/60';
+
+        return (
+          <section className={`rounded-[28px] p-5 ${tone}`}>
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <h2 className={`text-sm font-semibold ${
+                draftTask ? 'text-amber-700' : openTasks.length > 0 ? 'text-indigo-700' : 'text-zinc-700'
+              }`}>
+                Επόμενο βήμα
+              </h2>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                draftTask
+                  ? 'bg-amber-100 text-amber-700'
+                  : openTasks.length > 0
+                  ? 'bg-indigo-100 text-indigo-700'
+                  : 'bg-zinc-100 text-zinc-600'
+              }`}>
+                {draftTask
+                  ? 'Χρειάζεται έλεγχος'
+                  : openTasks.length > 0
+                  ? `${openTasks.length} ${openTasks.length === 1 ? 'ανοιχτή' : 'ανοιχτές'}`
+                  : (pendingOffer || openAppointment)
+                  ? 'Εκκρεμεί'
+                  : 'Χωρίς εκκρεμότητες'}
+              </span>
+            </div>
+
+            {draftTask ? (
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
+                    Πρόχειρο από AI
+                  </span>
+                  <span className="text-xs text-amber-700">
+                    {TASK_TYPE_LABELS[draftTask.type] ?? draftTask.type}
+                  </span>
+                  <span className="text-xs text-amber-700">{draftTask.dueDate}</span>
+                </div>
+                <p className="font-semibold text-amber-900">{draftTask.title}</p>
+                {draftTask.note && (
+                  <p className="text-sm text-amber-700">{truncate(draftTask.note, 200)}</p>
+                )}
+              </div>
+            ) : openTasks.length > 0 ? (
+              <div className="space-y-2">
+                {openTasks.slice(0, 2).map(t => (
+                  <div key={t.id} className="flex items-start gap-2.5">
+                    <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-indigo-900">{t.title}</p>
+                      <p className="text-xs text-indigo-700">{TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}</p>
+                    </div>
+                  </div>
+                ))}
+                {openTasks.length > 2 && (
+                  <p className="text-xs text-indigo-700">+{openTasks.length - 2} ακόμα...</p>
+                )}
+              </div>
+            ) : pendingOffer ? (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-zinc-500">Προσφορά</p>
+                <p className="text-sm font-semibold text-zinc-800">{pendingOffer.offerNumber}</p>
+                <p className="text-xs text-zinc-600">
+                  {OFFER_STATUS_LABELS[pendingOffer.status] ?? pendingOffer.status}
+                  {' · '}
+                  {formatMoney(pendingOffer.total)}
+                </p>
+              </div>
+            ) : openAppointment ? (
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-zinc-500">Ραντεβού</p>
+                <p className="text-sm font-semibold text-zinc-800">{openAppointment.title}</p>
+                <p className="text-xs text-zinc-600">
+                  {openAppointment.dueDate}
+                  {openAppointment.dueTime ? ` ${openAppointment.dueTime}` : ''}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-zinc-600">Δεν υπάρχει επείγουσα ενέργεια.</p>
+            )}
+
+            {(customer.statusSummary || customer.nextBestAction) && (
+              <div className="mt-3 space-y-1 border-t border-zinc-200/70 pt-3">
+                {customer.statusSummary && (
+                  <p className="text-xs text-zinc-600">{truncate(customer.statusSummary, 160)}</p>
+                )}
+                {customer.nextBestAction && (
+                  <p className="text-xs font-medium text-zinc-700">{truncate(customer.nextBestAction, 120)}</p>
+                )}
+              </div>
+            )}
+
+            {/* ONE primary CTA */}
+            <div className="mt-4">
+              {ctaHref ? (
+                <a
+                  href={ctaHref}
+                  className="flex h-12 w-full items-center justify-center rounded-xl bg-indigo-600 px-5 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                >
+                  {ctaLabel}
+                </a>
+              ) : (
+                <Button size="lg" fullWidth onClick={onCta}>
+                  {ctaLabel}
+                </Button>
+              )}
+              {nothingPending && (
+                <p className="mt-2 text-center text-xs text-zinc-500">
+                  Όλα τακτοποιημένα για τώρα.
+                </p>
+              )}
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* Status line + change-status button (opens the status sheet) */}
+      <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-zinc-500">Κατάσταση</p>
+            <p className="mt-0.5 text-base font-semibold text-zinc-900">
+              {STATUS_LABELS[customer.status] ?? customer.status}
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => setStatusSheetOpen(true)}
+            disabled={statusSaving !== null || editMode !== null}
+          >
+            Αλλαγή κατάστασης
+          </Button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {Object.entries(STATUS_LABELS).map(([key, label]) => {
-            const active = customer.status === key;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => updateCustomerStatus(key)}
-                disabled={statusSaving !== null || editMode !== null}
-                aria-pressed={active}
-                className={`min-h-[44px] rounded-full px-4 py-2 text-sm font-semibold transition disabled:opacity-60 ${
-                  active
-                    ? 'bg-indigo-600 text-white shadow-sm ring-1 ring-indigo-600'
-                    : 'bg-zinc-50 text-zinc-600 ring-1 ring-zinc-200 hover:bg-zinc-100'
-                } ${statusSaving === key ? 'opacity-70' : ''}`}
-              >
-                {label}
-              </button>
-            );
-          })}
-        </div>
+        {statusSaving && (
+          <p className="mt-2 text-xs font-medium text-indigo-600">Αποθήκευση...</p>
+        )}
         {editMode !== null && (
-          <p className="mt-2.5 text-xs text-zinc-400">Ολοκλήρωσε πρώτα την επεξεργασία στοιχείων για να αλλάξεις κατάσταση.</p>
+          <p className="mt-2 text-xs text-zinc-500">Ολοκλήρωσε πρώτα την επεξεργασία στοιχείων για να αλλάξεις κατάσταση.</p>
         )}
         {statusError && (
-          <p className="mt-2.5 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 ring-1 ring-red-100">
+          <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 ring-1 ring-red-100">
             {statusError}
           </p>
         )}
@@ -1726,205 +1929,27 @@ export default function CustomerDetailPage() {
       )}
 
 
-      {/* Action row */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <div className="grid grid-cols-3 gap-3">
-          {(customer.mobilePhone || customer.phone || customer.landlinePhone) ? (
-            <a
-              href={`tel:${(customer.mobilePhone ?? customer.landlinePhone ?? customer.phone ?? '').replace(/[^+\d]/g, '')}`}
-              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-green-600 px-2 py-4 text-center transition hover:bg-green-700 active:bg-green-800"
-            >
-              <span className="text-lg leading-none opacity-70">📞</span>
-              <span className="text-xs font-semibold text-white">Κλήση</span>
-            </a>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-100 px-2 py-4 text-center cursor-not-allowed"
-            >
-              <span className="text-lg leading-none opacity-70">📞</span>
-              <span className="text-xs font-medium text-zinc-300">Κλήση</span>
-            </button>
-          )}
-          {customer.address ? (
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
-              target="_blank"
-              rel="noreferrer"
-              className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-            >
-              <span className="text-lg leading-none opacity-70">📍</span>
-              <span className="text-xs font-medium text-zinc-700">Χάρτης</span>
-            </a>
-          ) : null}
-          <button
-            type="button"
-            onClick={() => setQuickModal('appointment')}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            <span className="text-lg leading-none opacity-70">📅</span>
-            <span className="text-xs font-medium text-zinc-700">Ραντεβού</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickModal('task')}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            <span className="text-lg leading-none opacity-70">✅</span>
-            <span className="text-xs font-medium text-zinc-700">Task</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setQuickModal('offer')}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200"
-          >
-            <span className="text-lg leading-none opacity-70">💶</span>
-            <span className="text-xs font-medium text-zinc-700">Προσφορά</span>
-          </button>
-          <button
-            type="button"
-            onClick={startEditNotes}
-            disabled={editMode !== null}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <span className="text-lg leading-none opacity-70">📝</span>
-            <span className="text-xs font-medium text-zinc-700">Σημείωση</span>
-          </button>
-          <button
-            type="button"
-            onClick={openIntakeSendModal}
-            disabled={!customer.mobilePhone && !customer.phone}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-zinc-50"
-          >
-            <span className="text-lg leading-none opacity-70">📋</span>
-            <span className="text-xs font-medium text-zinc-700">Link στοιχείων</span>
-          </button>
-          <button
-            type="button"
-            onClick={openUploadLinkModal}
-            disabled={!customer.mobilePhone && !customer.phone}
-            className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-4 text-center ring-1 ring-zinc-200/60 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-zinc-50"
-          >
-            <span className="text-lg leading-none opacity-70">📷</span>
-            <span className="text-xs font-medium text-zinc-700">Link φωτογραφιών</span>
-          </button>
-        </div>
-        {actionError && (
-          <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 ring-1 ring-red-100">
-            {actionError}
-          </p>
-        )}
-      </section>
+      {/* Action error (raised by intake/upload/appointment-link draft flows) */}
+      {actionError && (
+        <p className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 ring-1 ring-red-100">
+          {actionError}
+        </p>
+      )}
 
-      {/* Next best action card */}
-      <section className={`rounded-2xl p-4 ${
-        draftTask
-          ? 'bg-amber-50 ring-1 ring-amber-200'
-          : openTasks.length > 0
-          ? 'bg-indigo-50 ring-1 ring-indigo-200'
-          : 'bg-white shadow-sm ring-1 ring-zinc-100'
-      }`}>
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h2 className={`text-xs font-semibold uppercase tracking-wide ${
-            draftTask ? 'text-amber-600' : openTasks.length > 0 ? 'text-indigo-600' : 'text-zinc-400'
-          }`}>
-            Επόμενο βήμα
-          </h2>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${
-            draftTask
-              ? 'bg-amber-100 text-amber-700'
-              : openTasks.length > 0
-              ? 'bg-indigo-100 text-indigo-700'
-              : 'bg-zinc-100 text-zinc-500'
-          }`}>
-            {draftTask ? 'Χρειάζεται έλεγχος' : openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : (pendingOffer || openAppointment) ? 'Εκκρεμεί' : 'Χωρίς εκκρεμότητες'}
-          </span>
-        </div>
-        {draftTask ? (
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-amber-200 px-2.5 py-0.5 text-xs font-semibold text-amber-800">
-                Draft task από AI
-              </span>
-              <span className="text-xs text-amber-700">
-                {TASK_TYPE_LABELS[draftTask.type] ?? draftTask.type}
-              </span>
-              <span className="text-xs text-amber-700">{draftTask.dueDate}</span>
-            </div>
-            <p className="font-semibold text-amber-900">{draftTask.title}</p>
-            {draftTask.note && (
-              <p className="text-sm text-amber-700">{truncate(draftTask.note, 200)}</p>
-            )}
-          </div>
-        ) : openTasks.length > 0 ? (
-          <div className="space-y-2">
-            {openTasks.slice(0, 2).map(t => (
-              <div key={t.id} className="flex items-start gap-2.5">
-                <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-semibold text-indigo-900">{t.title}</p>
-                  <p className="text-xs text-indigo-700">{TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}</p>
-                </div>
-              </div>
-            ))}
-            {openTasks.length > 2 && (
-              <p className="text-xs text-indigo-600">+{openTasks.length - 2} ακόμα...</p>
-            )}
-          </div>
-        ) : pendingOffer ? (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-zinc-400">Προσφορά</p>
-            <p className="text-sm font-semibold text-zinc-800">{pendingOffer.offerNumber}</p>
-            <p className="text-xs text-zinc-500">
-              {OFFER_STATUS_LABELS[pendingOffer.status] ?? pendingOffer.status}
-              {' · '}
-              {formatMoney(pendingOffer.total)}
-            </p>
-          </div>
-        ) : openAppointment ? (
-          <div className="space-y-1">
-            <p className="text-xs font-medium text-zinc-400">Ραντεβού</p>
-            <p className="text-sm font-semibold text-zinc-800">{openAppointment.title}</p>
-            <p className="text-xs text-zinc-500">
-              {openAppointment.dueDate}
-              {openAppointment.dueTime ? ` ${openAppointment.dueTime}` : ''}
-            </p>
-          </div>
-        ) : (
-          <p className="text-sm text-zinc-400">Δεν υπάρχει επείγουσα ενέργεια.</p>
-        )}
-        {(customer.statusSummary || customer.nextBestAction) && (
-          <div className="mt-3 space-y-1 border-t border-zinc-100 pt-3">
-            {customer.statusSummary && (
-              <p className="text-xs text-zinc-500">{truncate(customer.statusSummary, 160)}</p>
-            )}
-            {customer.nextBestAction && (
-              <p className="text-xs font-medium text-zinc-700">{truncate(customer.nextBestAction, 120)}</p>
-            )}
-          </div>
-        )}
-      </section>
-
-      {/* Top summary grid */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-
-        {/* Customer info card */}
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Στοιχεία επικοινωνίας
-            </h2>
-            {editMode === null && (
-              <button
-                type="button"
-                onClick={startEditContact}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-              >
+      {/* Στοιχεία επικοινωνίας — default expanded; forced open while editing */}
+      <CollapsibleSection
+        title="Στοιχεία επικοινωνίας"
+        open={editMode === 'contact' ? true : contactOpen}
+        onToggle={setContactOpen}
+      >
+        <div className="px-4 py-4">
+          {editMode === null && (
+            <div className="mb-3 flex justify-end">
+              <Button variant="secondary" size="sm" onClick={startEditContact}>
                 Επεξεργασία
-              </button>
-            )}
-          </div>
+              </Button>
+            </div>
+          )}
 
           {customerSaveState === 'saved' && editMode === null && (
             <p className="mb-2 rounded-lg bg-green-50 px-3 py-1.5 text-xs font-medium text-green-700 ring-1 ring-green-100">
@@ -2091,19 +2116,18 @@ export default function CustomerDetailPage() {
               </div>
             </dl>
           )}
-        </section>
+        </div>
+      </CollapsibleSection>
 
-      </div>
-
-
-
-      {/* Memory section */}
-      <section id="ws-memory" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3 flex items-start justify-between gap-2">
-          <div>
-            <h2 className="text-sm font-semibold text-zinc-900">Μνήμη πελάτη</h2>
-            <p className="mt-0.5 text-xs text-zinc-400">Χειροκίνητες σημειώσεις για καλύτερη κατανόηση του πελάτη.</p>
-          </div>
+      {/* Σύνοψη πελάτη (μνήμη + Πρόταση επόμενης κίνησης) — expanded if content */}
+      <CollapsibleSection
+        id="ws-memory"
+        title="Σύνοψη πελάτη"
+        description="Χειροκίνητες σημειώσεις για καλύτερη κατανόηση του πελάτη."
+        open={editMode === 'memory' ? true : summaryOpen}
+        onToggle={setSummaryOpen}
+      >
+        <div className="px-4 py-3 flex items-start justify-end gap-2">
           {editMode === null && (
             <div className="flex items-center gap-2 shrink-0">
               <button
@@ -2159,7 +2183,7 @@ export default function CustomerDetailPage() {
                 placeholder="Σύντομη υπενθύμιση για την επόμενη ενέργεια."
                 className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε task.</p>
+              <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε εργασία.</p>
             </div>
             {customerSaveError && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">
@@ -2225,23 +2249,21 @@ export default function CustomerDetailPage() {
             <CustomerSummaryFromCalls customerId={customer.id} onApplied={(c) => setCustomer(c as CustomerDto)} />
           </div>
         )}
-      </section>
+      </CollapsibleSection>
 
-      {/* A. Timeline */}
-      <section id="ws-timeline" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <h2 className="text-sm font-semibold text-zinc-900">Timeline</h2>
-            {timeline.length > 0 && (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
-                {timeline.length}
-              </span>
-            )}
-          </div>
-          <p className="mt-0.5 text-xs text-zinc-400">Σημαντικές ενέργειες, απαντήσεις πελατών και αλλαγές θα φαίνονται εδώ.</p>
-        </div>
+      {/* Ιστορικό (timeline) — default collapsed */}
+      <CollapsibleSection
+        id="ws-timeline"
+        title="Ιστορικό"
+        description="Σημαντικές ενέργειες, απαντήσεις πελατών και αλλαγές θα φαίνονται εδώ."
+        badge={timeline.length > 0 ? (
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+            {timeline.length}
+          </span>
+        ) : undefined}
+      >
         {timeline.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
+          <p className="px-4 py-5 text-sm text-zinc-500">
             Δεν υπάρχει ιστορικό ακόμα.
           </p>
         ) : (
@@ -2283,7 +2305,7 @@ export default function CustomerDetailPage() {
                   <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(entry.item.status, entry.item.priority)}`} />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold text-zinc-500">Task</span>
+                      <span className="text-xs font-semibold text-zinc-500">Εργασία</span>
                       <span className="shrink-0 text-xs text-zinc-400">
                         {formatDateShort(entry.item.createdAt)}
                       </span>
@@ -2302,37 +2324,25 @@ export default function CustomerDetailPage() {
             )}
           </ul>
         )}
-      </section>
+      </CollapsibleSection>
 
-      {/* C. Tasks */}
-      <section id="ws-tasks" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Tasks</h2>
-                {sortedTasks.length > 0 && (
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                    openTasks.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-zinc-100 text-zinc-500'
-                  }`}>
-                    {openTasks.length > 0 ? `${openTasks.length} ανοιχτά` : sortedTasks.length}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Ανοιχτές εργασίες και follow-up.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setQuickModal('task')}
-              className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-            >
-              Νέο task
-            </button>
-          </div>
-        </div>
+      {/* Επόμενες εργασίες — default expanded when there are open tasks */}
+      <CollapsibleSection
+        id="ws-tasks"
+        title="Επόμενες εργασίες"
+        description="Ανοιχτές εργασίες και να ξαναμιλήσω."
+        defaultOpen={openTasks.length > 0 || !!focusTaskId}
+        badge={sortedTasks.length > 0 ? (
+          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+            openTasks.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-zinc-100 text-zinc-500'
+          }`}>
+            {openTasks.length > 0 ? `${openTasks.length} ανοιχτές` : sortedTasks.length}
+          </span>
+        ) : undefined}
+      >
         {focusTaskId && (
           <div className="flex items-center justify-between gap-3 border-b border-indigo-100 bg-indigo-50 px-4 py-2.5">
-            <p className="text-xs font-medium text-indigo-700">Άνοιξες task από τα Tasks</p>
+            <p className="text-xs font-medium text-indigo-700">Άνοιξες εργασία από τις Εργασίες</p>
             <button
               type="button"
               onClick={() => setFocusTaskId(null)}
@@ -2343,82 +2353,82 @@ export default function CustomerDetailPage() {
           </div>
         )}
         {sortedTasks.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν tasks ακόμα.
-          </p>
+          <EmptyState
+            title="Δεν έχεις ανοιχτές εργασίες για αυτόν τον πελάτη."
+            action={
+              <Button onClick={() => setQuickModal('task')}>Νέα εργασία</Button>
+            }
+          />
         ) : (
-          <ul className="divide-y divide-zinc-100">
-            {sortedTasks.map(t => (
-              <li
-                key={t.id}
-                id={`task-${t.id}`}
-                className={`flex items-start gap-3 px-4 py-3 transition-colors${
-                  t.id === focusTaskId ? ' bg-indigo-50/60 ring-2 ring-inset ring-indigo-200' : ''
-                }`}
-              >
-                <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(t.status)}`}>
-                      {TASK_STATUS_LABELS[t.status] ?? t.status}
-                    </span>
-                    {t.createdFromAi && (
-                      <span className="text-xs text-zinc-400">από AI</span>
-                    )}
-                    <span className="text-xs text-zinc-400">
-                      {PRIORITY_LABELS[t.priority] ?? t.priority}
-                    </span>
-                  </div>
-                  <p className="font-semibold text-zinc-800">{t.title}</p>
-                  <p className="text-xs text-zinc-400">
-                    {TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}
-                    {t.dueTime ? ` ${t.dueTime}` : ''}
-                  </p>
-                  {t.note && (
-                    <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openEditTask(t)}
-                  className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+          <>
+            <ul className="divide-y divide-zinc-100">
+              {sortedTasks.map(t => (
+                <li
+                  key={t.id}
+                  id={`task-${t.id}`}
+                  className={`flex items-start gap-3 px-4 py-3 transition-colors${
+                    t.id === focusTaskId ? ' bg-indigo-50/60 ring-2 ring-inset ring-indigo-200' : ''
+                  }`}
                 >
-                  Επεξεργασία
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Appointments */}
-      <section id="ws-appointments" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Ραντεβού</h2>
-                {appointmentTasks.length > 0 && (
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
-                    {appointmentTasks.length}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Ραντεβού, απαντήσεις πελάτη και αλλαγές ώρας.</p>
+                  <span className={`mt-2 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(t.status, t.priority)}`} />
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(t.status)}`}>
+                        {TASK_STATUS_LABELS[t.status] ?? t.status}
+                      </span>
+                      {t.createdFromAi && (
+                        <span className="text-xs text-zinc-400">από AI</span>
+                      )}
+                      <span className="text-xs text-zinc-400">
+                        {PRIORITY_LABELS[t.priority] ?? t.priority}
+                      </span>
+                    </div>
+                    <p className="font-semibold text-zinc-800">{t.title}</p>
+                    <p className="text-xs text-zinc-500">
+                      {TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}
+                      {t.dueTime ? ` ${t.dueTime}` : ''}
+                    </p>
+                    {t.note && (
+                      <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openEditTask(t)}
+                    className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                  >
+                    Επεξεργασία
+                  </button>
+                </li>
+              ))}
+            </ul>
+            <div className="border-t border-zinc-100 px-4 py-3">
+              <Button variant="secondary" size="sm" onClick={() => setQuickModal('task')}>
+                Νέα εργασία
+              </Button>
             </div>
-            <button
-              type="button"
-              onClick={() => setQuickModal('appointment')}
-              className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-            >
-              Νέο ραντεβού
-            </button>
-          </div>
-        </div>
+          </>
+        )}
+      </CollapsibleSection>
+
+      {/* Ραντεβού — default collapsed */}
+      <CollapsibleSection
+        id="ws-appointments"
+        title="Ραντεβού"
+        description="Ραντεβού, απαντήσεις πελάτη και αλλαγές ώρας."
+        badge={appointmentTasks.length > 0 ? (
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+            {appointmentTasks.length}
+          </span>
+        ) : undefined}
+      >
         {appointmentTasks.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν ραντεβού ακόμα για αυτόν τον πελάτη.
-          </p>
+          <EmptyState
+            title="Δεν υπάρχουν ραντεβού ακόμα για αυτόν τον πελάτη."
+            action={
+              <Button onClick={() => setQuickModal('appointment')}>Νέο ραντεβού</Button>
+            }
+          />
         ) : (
           <ul className="divide-y divide-zinc-100">
             {appointmentTasks.map(task => (
@@ -2468,39 +2478,29 @@ export default function CustomerDetailPage() {
             ))}
           </ul>
         )}
-      </section>
+      </CollapsibleSection>
 
-      {/* Offers */}
-      <section id="ws-offers" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-semibold text-zinc-900">Προσφορές</h2>
-                {sortedOffers.length > 0 && (
-                  <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
-                    {sortedOffers.length}
-                  </span>
-                )}
-              </div>
-              <p className="mt-0.5 text-xs text-zinc-400">Προσφορές, κατάσταση και follow-up.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setQuickModal('offer')}
-              className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-            >
-              Νέα προσφορά
-            </button>
-          </div>
-        </div>
+      {/* Προσφορές — default collapsed */}
+      <CollapsibleSection
+        id="ws-offers"
+        title="Προσφορές"
+        description="Προσφορές, κατάσταση και να ξαναμιλήσω."
+        badge={sortedOffers.length > 0 ? (
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+            {sortedOffers.length}
+          </span>
+        ) : undefined}
+      >
         {editOfferError && !editingOffer && (
           <p className="px-4 pt-3 text-xs font-medium text-red-600">{editOfferError}</p>
         )}
         {sortedOffers.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-400">
-            Δεν υπάρχουν προσφορές ακόμα για αυτόν τον πελάτη.
-          </p>
+          <EmptyState
+            title="Δεν έχει σταλεί προσφορά ακόμα."
+            action={
+              <Button onClick={() => setQuickModal('offer')}>Νέα προσφορά</Button>
+            }
+          />
         ) : (
           <ul className="divide-y divide-zinc-100">
             {sortedOffers.map(offer => (
@@ -2574,27 +2574,23 @@ export default function CustomerDetailPage() {
             ))}
           </ul>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* D. Notes: backend-backed section, comes before placeholders */}
-      <section id="ws-notes" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <div className="flex items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-semibold text-zinc-900">Σημειώσεις</h2>
-              <p className="mt-0.5 text-xs text-zinc-400">Εσωτερικές σημειώσεις και ιστορικό.</p>
-            </div>
-            {editMode === null && (
-              <button
-                type="button"
-                onClick={startEditNotes}
-                className="shrink-0 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-              >
-                Επεξεργασία
-              </button>
-            )}
+      <CollapsibleSection
+        id="ws-notes"
+        title="Σημειώσεις"
+        description="Εσωτερικές σημειώσεις και ιστορικό."
+        open={editMode === 'notes' ? true : notesOpen}
+        onToggle={setNotesOpen}
+      >
+        {editMode === null && (
+          <div className="flex items-center justify-end px-4 py-3">
+            <Button variant="secondary" size="sm" onClick={startEditNotes}>
+              Επεξεργασία
+            </Button>
           </div>
-        </div>
+        )}
         {editMode === 'notes' && customerDraft ? (
           <div className="px-4 py-4 space-y-3">
             <textarea
@@ -2635,20 +2631,27 @@ export default function CustomerDetailPage() {
                 {customer.notes}
               </p>
             ) : (
-              <p className="px-4 py-5 text-sm text-zinc-400">
+              <p className="px-4 py-5 text-sm text-zinc-500">
                 Δεν υπάρχουν σημειώσεις ακόμα.
               </p>
             )}
           </>
         )}
-      </section>
+      </CollapsibleSection>
 
-      {/* Files section */}
-      <section id="ws-files" className="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100">
-        <div className="border-b border-zinc-100 px-4 py-3">
-          <h2 className="text-sm font-semibold text-zinc-900">Αρχεία</h2>
-          <p className="mt-0.5 text-xs text-zinc-400">Φωτογραφίες και βίντεο που ανέβασε ο πελάτης.</p>
-        </div>
+      {/* Αρχεία — default collapsed; revealable from the "Άλλα" sheet */}
+      <CollapsibleSection
+        id="ws-files"
+        title="Αρχεία"
+        description="Φωτογραφίες και βίντεο που ανέβασε ο πελάτης."
+        open={filesOpen}
+        onToggle={setFilesOpen}
+        badge={uploadSessions.length > 0 ? (
+          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+            {uploadSessions.length}
+          </span>
+        ) : undefined}
+      >
         {uploadSessions.length > 0 ? (
           <div className="divide-y divide-zinc-100">
             {uploadSessions.map(session => (
@@ -2702,7 +2705,7 @@ export default function CustomerDetailPage() {
           </div>
         ) : (
           <div className="px-4 py-6 text-center">
-            <p className="text-sm text-zinc-400">
+            <p className="text-sm text-zinc-500">
               Δεν υπάρχουν αρχεία ακόμα. Μπορείς να στείλεις link φωτογραφιών στον πελάτη.
             </p>
           </div>
@@ -2712,7 +2715,7 @@ export default function CustomerDetailPage() {
             <p className="text-xs text-red-500">{fileOpenError}</p>
           </div>
         ) : null}
-      </section>
+      </CollapsibleSection>
 
       <div className="flex justify-center">
         <button
@@ -3007,7 +3010,7 @@ export default function CustomerDetailPage() {
             {quickModal === 'task' && (
               <>
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-zinc-900">Νέο task</h2>
+                  <h2 className="text-base font-semibold text-zinc-900">Νέα εργασία</h2>
                   <button
                     type="button"
                     onClick={closeQuickModal}
@@ -3362,7 +3365,7 @@ export default function CustomerDetailPage() {
               <h2 className="text-base font-semibold text-zinc-900">
                 {editingTask.type === 'book_appointment' || editingTask.type === 'visit_customer'
                   ? 'Επεξεργασία ραντεβού'
-                  : 'Επεξεργασία task'}
+                  : 'Επεξεργασία εργασίας'}
               </h2>
               <button
                 type="button"
@@ -3437,6 +3440,151 @@ export default function CustomerDetailPage() {
           </div>
         </div>
       )}
+
+      {/* Sticky mobile action bar — sits above the global BottomNav (68px tall). */}
+      <div
+        className="fixed inset-x-0 z-30 border-t border-zinc-200 bg-white md:hidden"
+        style={{ bottom: 'calc(68px + env(safe-area-inset-bottom))' }}
+      >
+        <div className="mx-auto grid max-w-2xl grid-cols-4 gap-1 px-2 py-2">
+          {/* Κλήση */}
+          {telHref ? (
+            <a
+              href={telHref}
+              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
+            >
+              <span className="text-lg leading-none" aria-hidden>📞</span>
+              <span className="text-xs font-semibold">Κλήση</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-300"
+            >
+              <span className="text-lg leading-none opacity-60" aria-hidden>📞</span>
+              <span className="text-xs font-semibold">Κλήση</span>
+            </button>
+          )}
+          {/* Ραντεβού */}
+          <button
+            type="button"
+            onClick={() => setQuickModal('appointment')}
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
+          >
+            <span className="text-lg leading-none" aria-hidden>📅</span>
+            <span className="text-xs font-semibold">Ραντεβού</span>
+          </button>
+          {/* Προσφορά */}
+          <button
+            type="button"
+            onClick={() => setQuickModal('offer')}
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
+          >
+            <span className="text-lg leading-none" aria-hidden>💶</span>
+            <span className="text-xs font-semibold">Προσφορά</span>
+          </button>
+          {/* Άλλα */}
+          <button
+            type="button"
+            onClick={() => setMoreSheetOpen(true)}
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
+          >
+            <span className="text-lg leading-none" aria-hidden>⋯</span>
+            <span className="text-xs font-semibold">Άλλα</span>
+          </button>
+        </div>
+      </div>
+
+      {/* "Άλλα" bottom sheet (sticky-bar overflow) */}
+      <BottomSheet
+        open={moreSheetOpen}
+        onClose={() => setMoreSheetOpen(false)}
+        title="Άλλες ενέργειες"
+        description="Διάλεξε τι θέλεις να κάνεις."
+      >
+        <div className="space-y-0.5">
+          <SheetRow
+            icon={<span aria-hidden>📝</span>}
+            label="Σημείωση"
+            description="Πρόσθεσε εσωτερική σημείωση"
+            disabled={editMode !== null}
+            onClick={() => { setMoreSheetOpen(false); startEditNotes(); }}
+          />
+          <SheetRow
+            icon={<span aria-hidden>📋</span>}
+            label="Link στοιχείων"
+            description={hasPhone ? undefined : 'Χρειάζεται τηλέφωνο'}
+            disabled={!hasPhone}
+            onClick={() => { setMoreSheetOpen(false); void openIntakeSendModal(); }}
+          />
+          <SheetRow
+            icon={<span aria-hidden>📷</span>}
+            label="Link φωτογραφιών"
+            description={hasPhone ? undefined : 'Χρειάζεται τηλέφωνο'}
+            disabled={!hasPhone}
+            onClick={() => { setMoreSheetOpen(false); void openUploadLinkModal(); }}
+          />
+          <SheetRow
+            icon={<span aria-hidden>🔁</span>}
+            label="Αλλαγή κατάστασης"
+            onClick={() => { setMoreSheetOpen(false); setStatusSheetOpen(true); }}
+          />
+          <SheetRow
+            icon={<span aria-hidden>✨</span>}
+            label="Σύνοψη με AI"
+            description="Πρόταση επόμενης κίνησης"
+            onClick={() => revealSection('ws-memory', setSummaryOpen)}
+          />
+          <SheetRow
+            icon={<span aria-hidden>🗂️</span>}
+            label="Αρχεία"
+            description="Φωτογραφίες και βίντεο πελάτη"
+            onClick={() => revealSection('ws-files', setFilesOpen)}
+          />
+          {customer.address && (
+            <SheetRow
+              icon={<span aria-hidden>📍</span>}
+              label="Χάρτης"
+              description="Άνοιγμα διεύθυνσης στους χάρτες"
+              onClick={() => {
+                setMoreSheetOpen(false);
+                window.open(
+                  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address!)}`,
+                  '_blank',
+                  'noopener,noreferrer',
+                );
+              }}
+            />
+          )}
+        </div>
+      </BottomSheet>
+
+      {/* Status bottom sheet — lists the 7 statuses; highlights the current */}
+      <BottomSheet
+        open={statusSheetOpen}
+        onClose={() => setStatusSheetOpen(false)}
+        title="Αλλαγή κατάστασης"
+        description="Διάλεξε την τρέχουσα κατάσταση του πελάτη."
+      >
+        <div className="space-y-0.5">
+          {Object.entries(STATUS_LABELS).map(([key, label]) => {
+            const active = customer.status === key;
+            return (
+              <SheetRow
+                key={key}
+                label={label}
+                onClick={() => { setStatusSheetOpen(false); void updateCustomerStatus(key); }}
+                trailing={active ? (
+                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                    Τρέχουσα
+                  </span>
+                ) : undefined}
+              />
+            );
+          })}
+        </div>
+      </BottomSheet>
 
     </div>
   );

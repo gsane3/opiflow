@@ -1,18 +1,18 @@
 import type { CustomerStatus } from '@/lib/types';
 
 export const STATUS_LABELS: Record<CustomerStatus, string> = {
-  new_lead: 'Νέο lead',
-  contacted: 'Έγινε επικοινωνία',
-  follow_up_needed: 'Θέλει follow-up',
-  offer_drafted: 'Έχει draft προσφοράς',
+  new_lead: 'Νέος',
+  contacted: 'Μίλησα',
+  follow_up_needed: 'Να ξαναμιλήσω',
+  offer_drafted: 'Πρόχειρη προσφορά',
   offer_sent: 'Στάλθηκε προσφορά',
-  won: 'Κερδισμένος',
-  lost: 'Χαμένος',
+  won: 'Κερδήθηκε',
+  lost: 'Χάθηκε',
 };
 
 const STATUS_COLORS: Record<CustomerStatus, string> = {
   new_lead: 'bg-indigo-100 text-indigo-700',
-  contacted: 'bg-emerald-100 text-emerald-700',
+  contacted: 'bg-sky-100 text-sky-700',
   follow_up_needed: 'bg-amber-100 text-amber-700',
   offer_drafted: 'bg-purple-100 text-purple-700',
   offer_sent: 'bg-blue-100 text-blue-700',

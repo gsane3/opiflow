@@ -3,10 +3,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { Card, EmptyState } from '@/components/ui';
+import { Card, EmptyState, BottomSheet, SheetRow } from '@/components/ui';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
-import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
+import CustomerCard from '@/components/customers/CustomerCard';
 
 // API response type
 interface CustomerDto {
@@ -78,38 +78,37 @@ function mapCustomer(dto: CustomerDto): Customer {
   };
 }
 
-// Status chip colors -- calm, no loud backgrounds
-const STATUS_CHIP: Record<CustomerStatus, string> = {
-  new_lead: 'bg-blue-50 text-blue-600',
-  contacted: 'bg-zinc-100 text-zinc-500',
-  follow_up_needed: 'bg-amber-50 text-amber-600',
-  offer_drafted: 'bg-indigo-50 text-indigo-600',
-  offer_sent: 'bg-indigo-50 text-indigo-500',
-  won: 'bg-green-50 text-green-600',
-  lost: 'bg-zinc-100 text-zinc-400',
-};
+// Quick-filter values. 'offers' is a synthetic filter that matches any
+// offer status (offer_drafted | offer_sent).
+type QuickFilter =
+  | 'all'
+  | 'new_lead'
+  | 'follow_up_needed'
+  | 'offers'
+  | 'contacted'
+  | 'offer_drafted'
+  | 'offer_sent'
+  | 'won'
+  | 'lost';
 
-// Status-based filter chips
-type QuickFilter = 'all' | 'new_lead' | 'follow_up_needed' | 'offer_drafted' | 'offer_sent' | 'won' | 'lost';
-const QUICK_FILTERS: { value: QuickFilter; label: string }[] = [
+// The 4 chips always shown inline.
+const PRIMARY_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: 'all', label: 'Όλοι' },
-  { value: 'new_lead', label: 'Νέα leads' },
-  { value: 'follow_up_needed', label: 'Follow-up' },
-  { value: 'offer_drafted', label: 'Draft προσφορά' },
-  { value: 'offer_sent', label: 'Στάλθηκε προσφορά' },
-  { value: 'won', label: 'Κερδισμένοι' },
-  { value: 'lost', label: 'Χαμένοι' },
+  { value: 'new_lead', label: 'Νέοι' },
+  { value: 'follow_up_needed', label: 'Να ξαναμιλήσω' },
+  { value: 'offers', label: 'Προσφορές' },
 ];
 
-const LEAD_STATUSES = new Set<CustomerStatus>(['new_lead', 'contacted', 'offer_drafted', 'offer_sent']);
+// Extra filters tucked behind "Περισσότερα φίλτρα".
+const ADVANCED_FILTERS: { value: QuickFilter; label: string }[] = [
+  { value: 'contacted', label: 'Μίλησα' },
+  { value: 'offer_drafted', label: 'Πρόχειρη προσφορά' },
+  { value: 'offer_sent', label: 'Στάλθηκε προσφορά' },
+  { value: 'won', label: 'Κερδήθηκε' },
+  { value: 'lost', label: 'Χάθηκε' },
+];
 
-function ChevronRight() {
-  return (
-    <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-    </svg>
-  );
-}
+const OFFER_STATUSES = new Set<CustomerStatus>(['offer_drafted', 'offer_sent']);
 
 type PageMessage = 'no_session' | 'fetch_error' | null;
 
@@ -120,6 +119,7 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
@@ -206,10 +206,18 @@ export default function CustomersPage() {
           (qPhone.length >= 4 && normPhone(c.landlinePhone ?? '').includes(qPhone));
         if (!hit) return false;
       }
-      if (quickFilter !== 'all' && c.status !== quickFilter) return false;
+      if (quickFilter === 'offers') {
+        if (!OFFER_STATUSES.has(c.status)) return false;
+      } else if (quickFilter !== 'all' && c.status !== quickFilter) {
+        return false;
+      }
       return true;
     });
   }, [customers, search, quickFilter]);
+
+  // The label of an active "advanced" filter (one not shown as a primary chip),
+  // surfaced as a removable active chip so it stays visible.
+  const activeAdvancedLabel = ADVANCED_FILTERS.find((f) => f.value === quickFilter)?.label ?? null;
 
 
   // Loading skeleton
@@ -278,7 +286,7 @@ export default function CustomersPage() {
   }
 
   // Summary stats
-  const leadsCount = customers.filter((c) => LEAD_STATUSES.has(c.status)).length;
+  const newLeadCount = customers.filter((c) => c.status === 'new_lead').length;
   const followUpCount = customers.filter((c) => c.status === 'follow_up_needed').length;
 
   return (
@@ -292,7 +300,7 @@ export default function CustomersPage() {
             Ποιος χρειάζεται προσοχή;
           </h1>
           <p className="mt-0.5 text-sm text-zinc-500">
-            Όλοι οι πελάτες και τα leads σε ένα καθαρό workspace.
+            Πελάτες και αιτήματα σε ένα απλό σημείο.
           </p>
         </div>
         <div className="mt-1 flex items-center gap-2">
@@ -329,7 +337,7 @@ export default function CustomersPage() {
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Αναζήτηση με όνομα, εταιρεία, τηλέφωνο ή email"
+            placeholder="Ψάξε με όνομα ή τηλέφωνο"
             className="flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
           />
           {search.trim() !== '' && (
@@ -343,22 +351,44 @@ export default function CustomersPage() {
           )}
         </div>
 
-        {/* Filter chips */}
+        {/* Filter chips — 4 primary + "Περισσότερα φίλτρα" */}
         <div className="mt-3 flex flex-wrap gap-2">
-          {QUICK_FILTERS.map((f) => (
+          {PRIMARY_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => setQuickFilter(f.value)}
-              className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition ${
                 quickFilter === f.value
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
               }`}
             >
               {f.label}
             </button>
           ))}
+
+          {/* Active advanced filter shown as a removable chip */}
+          {activeAdvancedLabel && (
+            <button
+              type="button"
+              onClick={() => setQuickFilter('all')}
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+            >
+              {activeAdvancedLabel}
+              <svg className="h-3.5 w-3.5" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setMoreFiltersOpen(true)}
+            className="min-h-[40px] rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
+          >
+            Περισσότερα φίλτρα
+          </button>
         </div>
       </div>
 
@@ -367,17 +397,17 @@ export default function CustomersPage() {
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-2xl font-bold leading-none text-zinc-900">{customers.length}</p>
-            <p className="mt-1 text-[10px] text-zinc-400">Σύνολο</p>
+            <p className="mt-1 text-[11px] font-medium text-zinc-500">Σύνολο</p>
           </div>
           <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-2xl font-bold leading-none text-zinc-900">{leadsCount}</p>
-            <p className="mt-1 text-[10px] text-zinc-400">Leads</p>
+            <p className="text-2xl font-bold leading-none text-zinc-900">{newLeadCount}</p>
+            <p className="mt-1 text-[11px] font-medium text-zinc-500">Νέοι</p>
           </div>
           <div className="rounded-[28px] bg-white px-3 py-3.5 text-center shadow-sm ring-1 ring-zinc-200/60">
             <p className={`text-2xl font-bold leading-none ${followUpCount > 0 ? 'text-amber-600' : 'text-zinc-300'}`}>
               {followUpCount}
             </p>
-            <p className="mt-1 text-[10px] text-zinc-400">Follow-up</p>
+            <p className="mt-1 text-[11px] font-medium text-zinc-500">Να ξαναμιλήσω</p>
           </div>
         </div>
       )}
@@ -397,7 +427,20 @@ export default function CustomersPage() {
       {/* Customer list */}
       {customers.length === 0 ? (
         <Card padding="none">
-          <EmptyState title="Δεν υπάρχουν πελάτες ακόμα." />
+          <EmptyState
+            title="Δεν υπάρχουν πελάτες ακόμα."
+            action={
+              <Link
+                href="/customers/new"
+                className="inline-flex h-12 items-center gap-1 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+              >
+                <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                </svg>
+                Νέος πελάτης
+              </Link>
+            }
+          />
         </Card>
       ) : filtered.length === 0 ? (
         <Card padding="none">
@@ -405,48 +448,34 @@ export default function CustomersPage() {
         </Card>
       ) : (
         <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
-          {filtered.map((customer) => {
-            const initial = customer.name.trim().slice(0, 1).toUpperCase() || 'Π';
-            return (
-              <li key={customer.id}>
-                <Link
-                  href={`/customers/${customer.id}`}
-                  className="flex items-start gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-50"
-                >
-                  {/* Avatar */}
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-base font-bold text-indigo-600">
-                    {initial}
-                  </div>
-                  {/* Info */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-base font-bold leading-snug text-zinc-900 truncate">
-                        {customer.name}
-                      </p>
-                      <ChevronRight />
-                    </div>
-                    {(customer.companyName || customer.phone) && (
-                      <p className="mt-0.5 text-sm text-zinc-400 truncate">
-                        {customer.companyName || customer.phone}
-                      </p>
-                    )}
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                      <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CHIP[customer.status]}`}>
-                        {STATUS_LABELS[customer.status]}
-                      </span>
-                    </div>
-                    {customer.needsSummary && (
-                      <p className="mt-1.5 line-clamp-1 text-xs text-zinc-400">
-                        {customer.needsSummary}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              </li>
-            );
-          })}
+          {filtered.map((customer) => (
+            <li key={customer.id}>
+              <CustomerCard customer={customer} />
+            </li>
+          ))}
         </ul>
       )}
+
+      {/* "Περισσότερα φίλτρα" sheet */}
+      <BottomSheet
+        open={moreFiltersOpen}
+        onClose={() => setMoreFiltersOpen(false)}
+        title="Περισσότερα φίλτρα"
+        description="Διάλεξε κατάσταση πελάτη"
+      >
+        <div className="space-y-1">
+          {ADVANCED_FILTERS.map((f) => (
+            <SheetRow
+              key={f.value}
+              label={f.label}
+              onClick={() => {
+                setQuickFilter(f.value);
+                setMoreFiltersOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      </BottomSheet>
 
     </div>
   );

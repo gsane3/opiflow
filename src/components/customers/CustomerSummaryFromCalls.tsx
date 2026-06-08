@@ -19,7 +19,7 @@ interface Suggestion {
 }
 
 const CONF: Record<string, { text: string; cls: string }> = {
-  high: { text: 'Υψηλή βεβαιότητα', cls: 'bg-emerald-50 text-emerald-700 ring-emerald-200' },
+  high: { text: 'Υψηλή βεβαιότητα', cls: 'bg-green-50 text-green-700 ring-green-200' },
   medium: { text: 'Μέτρια βεβαιότητα', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
   low: { text: 'Χαμηλή βεβαιότητα', cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200' },
 };
@@ -126,15 +126,20 @@ export default function CustomerSummaryFromCalls({
   return (
     <div className="pt-1">
       {!suggestion && (
-        <button
-          type="button"
-          onClick={generate}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 disabled:opacity-60"
-        >
-          <span aria-hidden>✨</span>
-          {loading ? 'Δημιουργία σύνοψης…' : 'Σύνοψη από κλήσεις (AI)'}
-        </button>
+        <div>
+          <button
+            type="button"
+            onClick={generate}
+            disabled={loading}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-50 px-3 py-2 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200 transition hover:bg-indigo-100 disabled:opacity-60"
+          >
+            <span aria-hidden>✨</span>
+            {loading ? 'Δημιουργία πρότασης…' : 'Πρόταση επόμενης κίνησης'}
+          </button>
+          <p className="mt-1.5 text-xs text-zinc-500">
+            Με βάση τις κλήσεις (AI). Η πρόταση δεν αποθηκεύεται αν δεν την εγκρίνεις.
+          </p>
+        </div>
       )}
       {empty && (
         <p className="mt-2 text-xs text-zinc-400">Δεν υπάρχουν ακόμα αρκετά στοιχεία (κλήσεις/σημειώσεις) για σύνοψη.</p>
@@ -144,9 +149,10 @@ export default function CustomerSummaryFromCalls({
       {suggestion && conf && (
         <div className="mt-2 rounded-2xl bg-indigo-50/60 p-3 ring-1 ring-indigo-100">
           <div className="mb-2 flex items-center justify-between gap-2">
-            <p className="text-xs font-semibold text-indigo-900">Πρόταση AI — έλεγξε πριν αποθηκεύσεις</p>
+            <p className="text-xs font-semibold text-indigo-900">Πρόταση επόμενης κίνησης — έλεγξε πριν αποθηκεύσεις</p>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${conf.cls}`}>{conf.text}</span>
           </div>
+          <p className="mb-2 text-[11px] text-zinc-500">Πρόταση από AI. Η πρόταση δεν αποθηκεύεται αν δεν την εγκρίνεις.</p>
           <div className="space-y-2">
             {suggestion.proposedNextBestAction && (
               <Field label="Επόμενη ενέργεια" value={suggestion.proposedNextBestAction} highlight />

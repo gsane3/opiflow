@@ -219,8 +219,8 @@ export default function OfferResponseClient({ token }: Props) {
   // -- Loading ---------------------------------------------------------------
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
-        <p className="text-sm text-zinc-400">Φόρτωση προσφοράς...</p>
+      <div className="flex min-h-screen items-center justify-center bg-zinc-50">
+        <p className="text-sm text-zinc-500">Φόρτωση προσφοράς...</p>
       </div>
     );
   }
@@ -231,7 +231,7 @@ export default function OfferResponseClient({ token }: Props) {
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-4 text-center">
         <div className="flex h-14 w-14 items-center justify-center rounded-full bg-zinc-100">
           <svg
-            className="h-7 w-7 text-zinc-400"
+            className="h-7 w-7 text-zinc-500"
             fill="none"
             strokeWidth={1.5}
             stroke="currentColor"
@@ -245,11 +245,11 @@ export default function OfferResponseClient({ token }: Props) {
           </svg>
         </div>
         <div>
-          <p className="text-base font-semibold text-zinc-700">
-            Ο σύνδεσμος δεν είναι έγκυρος ή έχει λήξει.
+          <p className="text-base font-semibold text-zinc-800">
+            Το link δεν είναι πλέον ενεργό.
           </p>
-          <p className="mt-1 max-w-xs text-sm text-zinc-400">
-            Επικοινωνήστε με την επιχείρηση για νέο σύνδεσμο προσφοράς.
+          <p className="mt-1 max-w-xs text-sm text-zinc-600">
+            Επικοινωνήστε με την επιχείρηση.
           </p>
         </div>
       </div>
@@ -259,14 +259,14 @@ export default function OfferResponseClient({ token }: Props) {
   // -- Load error ------------------------------------------------------------
   if (loadError || !payload) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-white px-4 text-center">
-        <p className="text-base font-medium text-zinc-600">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-zinc-50 px-4 text-center">
+        <p className="text-base font-medium text-zinc-700">
           {loadError || 'Δεν ήταν δυνατή η φόρτωση της προσφοράς.'}
         </p>
         <button
           type="button"
           onClick={() => { window.location.reload(); }}
-          className="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700"
+          className="inline-flex h-12 items-center justify-center rounded-xl bg-indigo-600 px-6 text-sm font-semibold text-white transition hover:bg-indigo-700"
         >
           Δοκιμάστε ξανά
         </button>
@@ -282,57 +282,46 @@ export default function OfferResponseClient({ token }: Props) {
     <div className="min-h-screen bg-zinc-50 py-8">
       <div className="mx-auto max-w-2xl space-y-6 px-4">
 
-        {/* Business header */}
-        <div className="space-y-1 text-center">
-          {business?.logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={business.logoUrl}
-              alt="Logo"
-              className="mx-auto mb-2 h-12 w-auto object-contain"
-            />
-          )}
-          {(() => {
-            if (!business) {
-              // No business identity loaded — hide the header rather than show a
-              // placeholder the customer would not trust.
-              return null;
-            }
-            const primaryName = business.legalName || business.name;
-            const showTrade =
-              business.tradeName &&
-              business.tradeName.trim() !== primaryName.trim();
-            const addrLine1 = business.addressLine1 || business.address;
-            const postalCity = [business.postalCode, business.city]
-              .filter(Boolean).join(' ');
-            return (
-              <>
-                <p className="text-lg font-bold text-zinc-900">{primaryName}</p>
-                {showTrade && (
-                  <p className="text-sm text-zinc-500">{business.tradeName}</p>
-                )}
-                {business.phone   && <p className="text-sm text-zinc-500">{business.phone}</p>}
-                {business.email   && <p className="text-sm text-zinc-500">{business.email}</p>}
-                {business.website && <p className="text-sm text-zinc-500">{business.website}</p>}
-                {addrLine1        && <p className="text-sm text-zinc-500">{addrLine1}</p>}
-                {business.addressLine2 && (
-                  <p className="text-sm text-zinc-500">{business.addressLine2}</p>
-                )}
-                {postalCity       && <p className="text-sm text-zinc-500">{postalCity}</p>}
-                {business.region  && <p className="text-sm text-zinc-500">{business.region}</p>}
-                {business.vatNumber  && (
-                  <p className="text-sm text-zinc-500">ΑΦΜ: {business.vatNumber}</p>
-                )}
-                {business.taxOffice  && (
-                  <p className="text-sm text-zinc-500">ΔΟΥ: {business.taxOffice}</p>
-                )}
-              </>
-            );
-          })()}
-        </div>
+        {/* Business header — the customer's first impression */}
+        {business && (() => {
+          const primaryName = business.legalName || business.name;
+          const showTrade =
+            business.tradeName &&
+            business.tradeName.trim() !== primaryName.trim();
+          const addrLine1 = business.addressLine1 || business.address;
+          const postalCity = [business.postalCode, business.city]
+            .filter(Boolean).join(' ');
+          return (
+            <div className="flex flex-col items-center gap-2 text-center">
+              {business.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={business.logoUrl}
+                  alt={primaryName}
+                  className="h-14 w-auto max-w-[12rem] object-contain"
+                />
+              )}
+              <p className="text-xl font-bold text-zinc-900">{primaryName}</p>
+              {showTrade && (
+                <p className="-mt-1 text-sm font-medium text-zinc-600">{business.tradeName}</p>
+              )}
+              <div className="space-y-0.5 text-sm text-zinc-500">
+                {business.phone   && <p>{business.phone}</p>}
+                {business.email   && <p>{business.email}</p>}
+                {business.website && <p>{business.website}</p>}
+                {addrLine1        && <p>{addrLine1}</p>}
+                {business.addressLine2 && <p>{business.addressLine2}</p>}
+                {postalCity       && <p>{postalCity}</p>}
+                {business.region  && <p>{business.region}</p>}
+                {business.vatNumber  && <p>ΑΦΜ: {business.vatNumber}</p>}
+                {business.taxOffice  && <p>ΔΟΥ: {business.taxOffice}</p>}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Offer document */}
-        <div className="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 space-y-5">
+        <div className="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60 space-y-5">
 
           {/* Offer meta + status badge */}
           <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -355,7 +344,7 @@ export default function OfferResponseClient({ token }: Props) {
           {/* Customer info */}
           {customer && (
             <div className="rounded-xl bg-zinc-50 p-3">
-              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Προς</p>
+              <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-500">Προς</p>
               <p className="font-semibold text-zinc-800">{customer.name}</p>
               {customer.companyName && <p className="text-sm text-zinc-500">{customer.companyName}</p>}
               {customer.address     && <p className="text-sm text-zinc-500">{customer.address}</p>}
@@ -373,7 +362,7 @@ export default function OfferResponseClient({ token }: Props) {
                 <col className="w-[18%]" />
               </colgroup>
               <thead>
-                <tr className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-400">
+                <tr className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-500">
                   <th className="pb-2 text-left font-medium">Περιγραφή</th>
                   <th className="pb-2 text-right font-medium">Ποσ.</th>
                   <th className="pb-2 text-right font-medium">Τιμή</th>
@@ -414,7 +403,7 @@ export default function OfferResponseClient({ token }: Props) {
           {/* Notes (server CRM tracking lines filtered out) */}
           {notesVisible && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Σημειώσεις
               </p>
               <p className="mt-1 text-sm text-zinc-600 whitespace-pre-wrap">{notesVisible}</p>
@@ -424,7 +413,7 @@ export default function OfferResponseClient({ token }: Props) {
           {/* Terms */}
           {offer.terms && (
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Όροι</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Όροι</p>
               <p className="mt-1 text-sm text-zinc-600 whitespace-pre-wrap">{offer.terms}</p>
             </div>
           )}
@@ -432,7 +421,7 @@ export default function OfferResponseClient({ token }: Props) {
           {/* Acceptance text */}
           {offer.acceptanceText && (
             <div className="rounded-xl border border-dashed border-zinc-300 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
                 Κείμενο αποδοχής
               </p>
               <p className="mt-1 text-sm text-zinc-600">{offer.acceptanceText}</p>
@@ -441,11 +430,11 @@ export default function OfferResponseClient({ token }: Props) {
         </div>
 
         {/* Response section */}
-        <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100 space-y-4">
+        <div className="rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
           <div>
             <h2 className="text-base font-semibold text-zinc-900">Απάντηση στην προσφορά</h2>
             {action === 'idle' && canRespond && (
-              <p className="mt-0.5 text-sm text-zinc-500">
+              <p className="mt-0.5 text-sm text-zinc-600">
                 Διαβάστε την προσφορά και επιλέξτε αποδοχή ή απόρριψη.
               </p>
             )}
@@ -454,9 +443,11 @@ export default function OfferResponseClient({ token }: Props) {
           {/* Expired */}
           {action === 'expired' && (
             <div className="rounded-xl bg-zinc-100 px-4 py-4 text-center">
-              <p className="text-sm font-semibold text-zinc-600">Η προσφορά έχει λήξει.</p>
-              <p className="mt-1 text-xs text-zinc-400">
-                Επικοινωνήστε με την επιχείρηση για ενημερωμένη προσφορά.
+              <p className="text-sm font-semibold text-zinc-700">
+                Το link δεν είναι πλέον ενεργό.
+              </p>
+              <p className="mt-1 text-sm text-zinc-600">
+                Επικοινωνήστε με την επιχείρηση.
               </p>
             </div>
           )}
@@ -479,9 +470,9 @@ export default function OfferResponseClient({ token }: Props) {
               </div>
               <p className="text-base font-bold text-green-700">Η προσφορά αποδέχτηκε</p>
               <p className="text-sm text-green-600">
-                Η επιχείρηση θα επικοινωνήσει μαζί σας για το επόμενο βήμα.
+                Η επιχείρηση ενημερώθηκε και θα επικοινωνήσει μαζί σας για το επόμενο βήμα.
               </p>
-              <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
+              <p className="text-xs text-zinc-500">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
             </div>
           )}
 
@@ -489,8 +480,8 @@ export default function OfferResponseClient({ token }: Props) {
           {action === 'rejected' && (
             <div className="rounded-xl bg-red-50 px-4 py-5 ring-1 ring-red-200 space-y-2 text-center">
               <p className="text-base font-bold text-red-700">Η προσφορά απορρίφθηκε</p>
-              <p className="text-sm text-red-600">Η επιχείρηση θα δει την απάντησή σας.</p>
-              <p className="text-xs text-zinc-400">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
+              <p className="text-sm text-red-600">Η επιχείρηση ενημερώθηκε για την απάντησή σας.</p>
+              <p className="text-xs text-zinc-500">Μπορείτε να κλείσετε αυτό το παράθυρο.</p>
             </div>
           )}
 
@@ -501,7 +492,7 @@ export default function OfferResponseClient({ token }: Props) {
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => setAction('confirming_accept')}
-                className="flex-1 rounded-xl bg-green-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-12 flex-1 items-center justify-center rounded-xl bg-green-600 px-4 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Αποδοχή προσφοράς
               </button>
@@ -509,7 +500,7 @@ export default function OfferResponseClient({ token }: Props) {
                 type="button"
                 disabled={isSubmitting}
                 onClick={() => setAction('confirming_reject')}
-                className="flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                className="flex h-12 flex-1 items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 Απόρριψη προσφοράς
               </button>
@@ -519,7 +510,7 @@ export default function OfferResponseClient({ token }: Props) {
           {/* Idle: canRespond false but not in expired state (edge case) */}
           {action === 'idle' && !canRespond && (
             <div className="rounded-xl bg-zinc-100 px-4 py-4 text-center">
-              <p className="text-sm text-zinc-600">
+              <p className="text-sm text-zinc-700">
                 Η απάντηση στην προσφορά δεν είναι διαθέσιμη.
               </p>
             </div>
@@ -539,7 +530,7 @@ export default function OfferResponseClient({ token }: Props) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => { void handleSubmit('accepted'); }}
-                  className="flex-1 rounded-xl bg-green-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-12 flex-1 items-center justify-center rounded-xl bg-green-600 px-4 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSubmitting ? 'Καταχώρηση...' : 'Ναι, αποδέχομαι την προσφορά'}
                 </button>
@@ -547,7 +538,7 @@ export default function OfferResponseClient({ token }: Props) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setAction('idle')}
-                  className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Ακύρωση
                 </button>
@@ -562,7 +553,7 @@ export default function OfferResponseClient({ token }: Props) {
               <div>
                 <label className="mb-1 block text-xs font-medium text-zinc-600">
                   Σχόλιο προς την επιχείρηση{' '}
-                  <span className="font-normal text-zinc-400">(προαιρετικό)</span>
+                  <span className="font-normal text-zinc-500">(προαιρετικό)</span>
                 </label>
                 <textarea
                   rows={2}
@@ -579,7 +570,7 @@ export default function OfferResponseClient({ token }: Props) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => { void handleSubmit('rejected'); }}
-                  className="flex-1 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-12 flex-1 items-center justify-center rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {isSubmitting ? 'Καταχώρηση...' : 'Ναι, απόρριψη προσφοράς'}
                 </button>
@@ -587,7 +578,7 @@ export default function OfferResponseClient({ token }: Props) {
                   type="button"
                   disabled={isSubmitting}
                   onClick={() => setAction('idle')}
-                  className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-12 items-center justify-center rounded-xl border border-zinc-200 px-4 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   Ακύρωση
                 </button>
@@ -595,15 +586,16 @@ export default function OfferResponseClient({ token }: Props) {
             </div>
           )}
 
-          {/* Disclaimer */}
-          <p className="text-xs text-zinc-400">
-            Η απάντηση καταγράφεται από την επιχείρηση.
-            Δεν αποτελεί αυτοματοποιημένη αποστολή μηνύματος.
-          </p>
+          {/* Disclaimer (only while a decision is pending) */}
+          {(action === 'idle' || action === 'confirming_accept' || action === 'confirming_reject') && (
+            <p className="text-xs text-zinc-500">
+              Δεν στέλνεται τίποτα αυτόματα — η επιχείρηση βλέπει την απάντησή σας.
+            </p>
+          )}
         </div>
 
         {/* Footer */}
-        <p className="text-center text-xs text-zinc-400">opiflow.ai</p>
+        <p className="text-center text-xs text-zinc-500">opiflow.ai</p>
 
       </div>
     </div>
