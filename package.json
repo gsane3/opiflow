@@ -21,6 +21,7 @@
     "@capacitor/cli": "^7.6.6",
     "@capacitor/core": "^7.6.6",
     "@capacitor/ios": "^7.6.6",
+    "@capgo/capacitor-twilio-voice": "^7.1.0",
     "@sentry/nextjs": "^10.56.0",
     "@supabase/supabase-js": "^2.106.0",
     "firebase": "^11.10.0",

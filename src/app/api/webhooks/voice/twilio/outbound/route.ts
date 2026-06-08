@@ -1,23 +1,20 @@
 // Twilio Voice — OUTBOUND TwiML application endpoint.
 //
-// This is the Voice "Request URL" of the Twilio TwiML App referenced by the
-// access token's VoiceGrant. When the native app places an outbound call via
-// the Twilio Voice SDK, Twilio POSTs here (form-urlencoded) and we return TwiML
-// telling Twilio how to route the call:
-//   the SDK passes the dialed number as `To`; we Dial it out through the BYOC
-//   SIP trunk to Asterisk (which stamps the business's Greek DID as caller-ID
-//   and hands off to InterTelecom). Recording is enabled so the existing
-//   RecordingStatusCallback → AI-brief pipeline runs.
+// Voice "Request URL" of the Twilio TwiML App referenced by the access token's
+// VoiceGrant. When the native app places an outbound call via the Twilio Voice
+// SDK, Twilio POSTs here. The SDK passes the dialed number as `To` and the
+// caller identity as `From = client:biz_<hex>`. We look up that business's Greek
+// DID and return TwiML that Dials the number out via a <Sip> leg to our Asterisk
+// (caller-ID = the DID), where `from-twilio` hands off to InterTelecom. Recording
+// is enabled so the RecordingStatusCallback → AI-brief pipeline runs.
 //
-// ENV-GATED: until TWILIO_OUTBOUND_SIP_DOMAIN (the Asterisk-facing SIP host that
-// terminates app→PSTN legs, set up with the Elastic SIP Trunk) is configured we
-// return a safe spoken placeholder instead of dialing — so creating the TwiML
-// App + wiring the token works before the trunk/Asterisk side is finished.
-//
-// Signature: validated with TWILIO_AUTH_TOKEN when set (fail-closed in prod).
+// ENV-GATED: until TWILIO_OUTBOUND_SIP_DOMAIN (the Asterisk SIP host, e.g.
+// 46.224.138.115:5060) is set we return a safe spoken placeholder.
+// Signature validated with TWILIO_AUTH_TOKEN when set (fail-closed in prod).
 
 import { NextRequest } from 'next/server';
 import twilio from 'twilio';
+import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
 
 export const runtime = 'nodejs';
 
@@ -28,10 +25,17 @@ function xml(body: string): Response {
   });
 }
 
+/** `biz_<32hex>` identity → business UUID. */
+function identityToBusinessId(from: string): string | null {
+  const m = from.match(/biz_([a-f0-9]{32})/i);
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 export async function POST(request: NextRequest) {
   const VoiceResponse = twilio.twiml.VoiceResponse;
 
-  // Read params + (best-effort) validate Twilio's signature.
   let params: Record<string, string> = {};
   try {
     const raw = await request.text();
@@ -42,16 +46,13 @@ export async function POST(request: NextRequest) {
     return xml(tw.toString());
   }
 
+  // Validate Twilio's signature when configured.
   const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
   if (authToken) {
     const signature = request.headers.get('x-twilio-signature') ?? '';
     const signedUrl = process.env.TWILIO_OUTBOUND_WEBHOOK_URL?.trim() || request.url;
     let ok = false;
-    try {
-      ok = twilio.validateRequest(authToken, signature, signedUrl, params);
-    } catch {
-      ok = false;
-    }
+    try { ok = twilio.validateRequest(authToken, signature, signedUrl, params); } catch { ok = false; }
     if (!ok && process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {
       const tw = new VoiceResponse();
       tw.reject({ reason: 'rejected' });
@@ -59,36 +60,46 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // The dialed number. The SDK convention passes it as `To` (or a custom param).
-  const to = (params.To || params.to || params.number || '').trim();
   const sipDomain = process.env.TWILIO_OUTBOUND_SIP_DOMAIN?.trim();
-
+  const to = (params.To || params.to || params.number || '').trim();
   const tw = new VoiceResponse();
 
   if (!sipDomain) {
-    // Trunk/Asterisk side not wired yet — confirm the app↔Twilio leg works.
-    tw.say(
-      { language: 'el-GR' },
-      'Η σύνδεση με την Opiflow λειτουργεί. Η δρομολόγηση κλήσεων ρυθμίζεται.'
-    );
+    tw.say({ language: 'el-GR' }, 'Η σύνδεση με την Opiflow λειτουργεί. Η δρομολόγηση κλήσεων ρυθμίζεται.');
     return xml(tw.toString());
   }
-
   if (!to) {
     tw.say({ language: 'el-GR' }, 'Δεν δόθηκε αριθμός για κλήση.');
     return xml(tw.toString());
   }
 
-  // Dial out via the BYOC SIP trunk → Asterisk → InterTelecom. Asterisk applies
-  // the per-DID caller-ID; recording feeds the AI-brief webhook.
+  // Resolve the calling business's Greek DID → used as caller-ID. Best-effort.
+  let callerId: string | undefined;
+  const businessId = identityToBusinessId(params.From || params.Caller || '');
+  if (businessId) {
+    try {
+      const supabase = createServiceSupabaseClient();
+      const { data } = await supabase
+        .from('businesses')
+        .select('business_phone_number')
+        .eq('id', businessId)
+        .maybeSingle();
+      const did = (data as { business_phone_number?: string | null } | null)?.business_phone_number?.trim();
+      if (did) callerId = did.startsWith('+') ? did : `+${did.replace(/^00/, '')}`;
+    } catch {
+      // fall through — Asterisk can still route, just without the per-DID CLI
+    }
+  }
+
   const dial = tw.dial({
     answerOnBridge: true,
+    callerId,
     record: 'record-from-answer-dual',
     recordingStatusCallback: process.env.TWILIO_RECORDING_WEBHOOK_URL?.trim() || undefined,
     recordingStatusCallbackEvent: ['completed'],
   });
   const digits = to.replace(/[^\d+]/g, '');
-  dial.sip(`sip:${encodeURIComponent(digits)}@${sipDomain}`);
+  dial.sip(`sip:${encodeURIComponent(digits)}@${sipDomain};transport=udp`);
 
   return xml(tw.toString());
 }

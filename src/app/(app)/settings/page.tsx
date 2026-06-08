@@ -9,6 +9,7 @@ import ImportExportPanel from '@/components/settings/ImportExportPanel';
 import AccountPanel from '@/components/settings/AccountPanel';
 import TelephonyPanel from '@/components/settings/TelephonyPanel';
 import NotificationsPanel from '@/components/settings/NotificationsPanel';
+import NativeCallTestPanel from '@/components/settings/NativeCallTestPanel';
 import SystemStatusCard from '@/components/settings/SystemStatusCard';
 import TeamPanel from '@/components/settings/TeamPanel';
 
@@ -518,6 +519,8 @@ export default function SettingsPage() {
 
           {/* Native push: one-tap test notification */}
           <NotificationsPanel />
+          {/* Native (Twilio Voice) outbound call test — native-only, no-op on web */}
+          <NativeCallTestPanel />
 
           {/* Team: members + invites */}
           <TeamPanel />
