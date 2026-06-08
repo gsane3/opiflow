@@ -1,4 +1,5 @@
 import type { NextConfig } from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 const isDev = process.env.NODE_ENV !== 'production';
 
@@ -36,6 +37,21 @@ function sipConnectSrc(): string[] {
   return [];
 }
 
+// Sentry ingest endpoint (browser error/trace POSTs), derived from the public
+// DSN so connect-src allows it. Empty when monitoring is not configured.
+function sentryConnectSrc(): string[] {
+  try {
+    const raw = process.env.NEXT_PUBLIC_SENTRY_DSN;
+    if (raw) {
+      const origin = new URL(raw).origin; // https://<host> (DSN public key stripped)
+      if (origin) return [origin];
+    }
+  } catch {
+    // ignore malformed DSN
+  }
+  return [];
+}
+
 // Content-Security-Policy. The app has no middleware (auth is client-side), so we
 // cannot issue per-request nonces; Next's hydration bootstrap therefore relies on
 // 'unsafe-inline' for scripts. 'unsafe-eval' is dev-only (React Refresh / HMR need
@@ -49,7 +65,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://*.supabase.co",
   "font-src 'self' data:",
-  `connect-src 'self' ${[...supabaseConnectSrc(), ...sipConnectSrc()].join(' ')}`,
+  `connect-src 'self' ${[...supabaseConnectSrc(), ...sipConnectSrc(), ...sentryConnectSrc()].join(' ')}`,
   "frame-ancestors 'self'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -81,4 +97,22 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry is fully env-gated: the build is wrapped with withSentryConfig ONLY when
+// a DSN is present, so with no DSN (the default) the config is byte-for-byte the
+// plain nextConfig and the Sentry webpack plugin never runs. Source-map upload is
+// disabled unless SENTRY_AUTH_TOKEN is set (Vercel installs with --ignore-scripts,
+// which skips the @sentry/cli binary needed for upload — error capture still works
+// without uploaded source maps).
+const enableSentry = Boolean(process.env.SENTRY_DSN || process.env.NEXT_PUBLIC_SENTRY_DSN);
+
+export default enableSentry
+  ? withSentryConfig(nextConfig, {
+      org: process.env.SENTRY_ORG,
+      project: process.env.SENTRY_PROJECT,
+      authToken: process.env.SENTRY_AUTH_TOKEN,
+      silent: !process.env.CI,
+      widenClientFileUpload: true,
+      telemetry: false,
+      sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+    })
+  : nextConfig;

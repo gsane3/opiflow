@@ -27,6 +27,8 @@ import {
 } from '@/lib/server/intake-tokens';
 import { sendIntakeViberMessage, normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
 import { sendViaPreferredChannel, channelForCustomer } from '@/lib/server/send-channel';
+import { sendCustomerLinkEmail } from '@/lib/server/customer-email';
+import { recordOutboundMessage, extractProviderIds } from '@/lib/server/record-message';
 
 export const runtime = 'nodejs';
 
@@ -63,6 +65,7 @@ interface CustomerRow {
   id: string;
   mobile_phone: string | null;
   phone: string | null;
+  email: string | null;
   preferred_contact_method?: string | null;
 }
 
@@ -80,7 +83,7 @@ async function fetchCustomer(
 ): Promise<{ customer: CustomerRow | null; error: boolean }> {
   const withPref = await supabase
     .from('customers')
-    .select('id, mobile_phone, phone, preferred_contact_method')
+    .select('id, mobile_phone, phone, email, preferred_contact_method')
     .eq('id', customerId)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -92,7 +95,7 @@ async function fetchCustomer(
   // Likely the preferred_contact_method column is missing — retry without it.
   const base = await supabase
     .from('customers')
-    .select('id, mobile_phone, phone')
+    .select('id, mobile_phone, phone, email')
     .eq('id', customerId)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -318,6 +321,52 @@ export async function POST(
       intakeUrl = tokenResult.intakeUrl;
     }
 
+    // -------------------------------------------------------------------------
+    // Email channel (#56): when the operator explicitly picks email, send the
+    // link by email via Resend instead of Viber/SMS. Requires the customer to
+    // have an email on file.
+    // -------------------------------------------------------------------------
+    if (str(raw.channel) === 'email') {
+      const email = str(customer.email);
+      if (!email) {
+        return NextResponse.json({ ok: true, sent: false, fallbackReason: 'missing_email' });
+      }
+
+      const emailMessage = buildIntakeMessage(intakeUrl, businessName);
+      const emailResult = await sendCustomerLinkEmail({
+        to: email,
+        subject: 'Στοιχεία επικοινωνίας',
+        text: emailMessage,
+      });
+
+      if (!emailResult.ok) {
+        const fallbackReason =
+          emailResult.reason === 'missing_email_config' ? 'provider_unavailable' : 'provider_failed';
+        return NextResponse.json({ ok: true, sent: false, fallbackReason });
+      }
+
+      await recordOutboundMessage({
+        businessId,
+        customerId,
+        channel: 'email',
+        summary: 'Αίτημα στοιχείων',
+      });
+
+      if (verifiedTokenId) {
+        try {
+          await markIntakeTokenSent({
+            tokenId: verifiedTokenId,
+            sentChannel: 'email',
+            sentToPhone: null,
+          });
+        } catch {
+          // intentionally swallowed: the email was already sent
+        }
+      }
+
+      return NextResponse.json({ ok: true, sent: true, fallbackReason: null });
+    }
+
     // Look up customer phone for Viber send.
     const rawPhone = selectViberPhone(customer);
     if (!rawPhone) {
@@ -351,6 +400,8 @@ export async function POST(
     let sent = false;
     let fallbackReason: string | null = null;
     let sentChannel: 'viber' | 'sms' | null = null;
+    let providerRequestId: string | null = null;
+    let providerMessageId: string | null = null;
 
     if (channelForCustomer(preferred) === 'viber') {
       // Preferred channel resolves to Viber: use the nicer Viber action-button
@@ -367,6 +418,8 @@ export async function POST(
       if (viberResult.ok) {
         sent = true;
         sentChannel = 'viber';
+        providerRequestId = viberResult.requestId;
+        providerMessageId = viberResult.messageId;
       } else {
         // Viber skipped or failed → SMS fallback. The text already contains the
         // URL, so the link is delivered.
@@ -381,6 +434,9 @@ export async function POST(
         if (smsFallback.ok) {
           sent = true;
           sentChannel = smsFallback.channel === 'sms' ? 'sms' : 'viber';
+          const ids = extractProviderIds(smsFallback.sms);
+          providerRequestId = ids.providerRequestId;
+          providerMessageId = ids.providerMessageId;
         } else if (viberResult.skipped) {
           fallbackReason =
             viberResult.reason === 'missing_apifon_config'
@@ -403,6 +459,9 @@ export async function POST(
       sent = result.ok;
       if (result.ok) {
         sentChannel = result.channel === 'sms' ? 'sms' : 'viber';
+        const ids = extractProviderIds(result.channel === 'sms' ? result.sms : result.viber);
+        providerRequestId = ids.providerRequestId;
+        providerMessageId = ids.providerMessageId;
       } else {
         fallbackReason =
           result.reason === 'missing_apifon_config' ? 'provider_unavailable' : 'provider_failed';
@@ -416,6 +475,18 @@ export async function POST(
         fallbackReason,
       });
     }
+
+    // Log to the customer timeline (#57). Best-effort; non-fatal.
+    await recordOutboundMessage({
+      businessId,
+      customerId,
+      channel: sentChannel ?? 'viber',
+      summary: 'Αίτημα στοιχείων',
+      phone: rawPhone,
+      referenceId,
+      providerRequestId,
+      providerMessageId,
+    });
 
     // Mark the reviewed token as sent (non-fatal if it fails).
     if (verifiedTokenId) {

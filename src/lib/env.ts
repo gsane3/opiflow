@@ -21,6 +21,9 @@ export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   // Stripe billing — when unset, the billing UI hides its upgrade/manage buttons.
   // (Native `push` is reported separately by /api/health via isPushEnabled().)
   billing: ['STRIPE_SECRET_KEY'],
+  // Sentry error monitoring — when set, instrumentation.ts initialises the
+  // server SDK and next.config wraps the build with withSentryConfig.
+  monitoring: ['SENTRY_DSN'],
 };
 
 /** Throws if a required env var is missing. Use at the top of code paths that need it. */

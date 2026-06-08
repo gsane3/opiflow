@@ -27,6 +27,7 @@ import {
 } from '@/lib/server/offer-response-tokens';
 import { normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
 import { sendViaPreferredChannel } from '@/lib/server/send-channel';
+import { recordOutboundMessage } from '@/lib/server/record-message';
 
 export const runtime = 'nodejs';
 
@@ -457,6 +458,20 @@ export async function POST(
     const sentDetail = (sendResult.channel === 'sms' ? sendResult.sms : sendResult.viber) as
       | { requestId?: string | null; messageId?: string | null }
       | undefined;
+
+    // Log to the customer timeline (#57). Best-effort; non-fatal.
+    if (offer.customer_id) {
+      await recordOutboundMessage({
+        businessId,
+        customerId: offer.customer_id,
+        channel: sendResult.channel === 'sms' ? 'sms' : 'viber',
+        summary: offer.offer_number ? `Προσφορά ${offer.offer_number}` : 'Αποστολή προσφοράς',
+        phone: rawPhone,
+        referenceId,
+        providerRequestId: sentDetail?.requestId ?? null,
+        providerMessageId: sentDetail?.messageId ?? null,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

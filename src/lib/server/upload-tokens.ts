@@ -44,7 +44,7 @@ export interface UploadTokenRow {
   customer_id: string;
   token_hash: string;
   status: UploadTokenStatus;
-  sent_channel: 'viber' | 'sms' | 'manual' | null;
+  sent_channel: 'viber' | 'sms' | 'email' | 'manual' | null;
   sent_to_phone: string | null;
   expires_at: string;
   opened_at: string | null;
@@ -120,7 +120,7 @@ export function buildUploadUrl(rawToken: string): string {
 export async function createCustomerUploadToken(params: {
   businessId: string;
   customerId: string;
-  sentChannel?: 'viber' | 'sms' | 'manual' | null;
+  sentChannel?: 'viber' | 'sms' | 'email' | 'manual' | null;
   sentToPhone?: string | null;
   expiryHours?: number;
 }): Promise<CreateUploadTokenResult> {
@@ -200,7 +200,7 @@ export async function markUploadTokenOpened(tokenId: string): Promise<void> {
 
 export async function markUploadTokenSent(params: {
   tokenId: string;
-  sentChannel: 'viber' | 'sms' | 'manual';
+  sentChannel: 'viber' | 'sms' | 'email' | 'manual';
   sentToPhone?: string | null;
 }): Promise<void> {
   const supabase = createServiceSupabaseClient();

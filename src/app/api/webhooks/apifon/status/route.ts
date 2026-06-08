@@ -136,9 +136,13 @@ type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
 
 interface ViberMessageMatch {
   id: string;
+  business_id: string | null;
   delivered_at: string | null;
   failed_at: string | null;
+  communication_id: string | null;
 }
+
+const VIBER_MATCH_COLUMNS = 'id, business_id, delivered_at, failed_at, communication_id';
 
 async function findViberMessageRow(
   supabase: SupabaseClient,
@@ -149,7 +153,7 @@ async function findViberMessageRow(
   if (msgId) {
     const { data } = await supabase
       .from('viber_messages')
-      .select('id, delivered_at, failed_at')
+      .select(VIBER_MATCH_COLUMNS)
       .eq('provider', 'apifon')
       .eq('provider_message_id', msgId)
       .maybeSingle();
@@ -158,7 +162,7 @@ async function findViberMessageRow(
   if (reqId) {
     const { data } = await supabase
       .from('viber_messages')
-      .select('id, delivered_at, failed_at')
+      .select(VIBER_MATCH_COLUMNS)
       .eq('provider', 'apifon')
       .eq('provider_request_id', reqId)
       .maybeSingle();
@@ -167,7 +171,7 @@ async function findViberMessageRow(
   if (refId) {
     const { data } = await supabase
       .from('viber_messages')
-      .select('id, delivered_at, failed_at')
+      .select(VIBER_MATCH_COLUMNS)
       .eq('reference_id', refId)
       .maybeSingle();
     if (data) return data as unknown as ViberMessageMatch;
@@ -333,6 +337,43 @@ export async function POST(request: NextRequest) {
         .from('viber_messages')
         .update(viberUpdate)
         .eq('id', viberRow.id);
+
+      // Propagate status onto the linked timeline row (communications) so the
+      // customer timeline reflects delivered / seen / failed (#57). Best-effort,
+      // and guarded with .in('status', allowedPrior) so a late/out-of-order event
+      // never regresses a higher status (e.g. seen -> delivered).
+      if (viberRow.communication_id) {
+        let commStatus: 'delivered' | 'seen' | 'failed' | null = null;
+        let allowedPrior: string[] = [];
+        if (statusLower === 'seen' || statusLower === 'read') {
+          commStatus = 'seen';
+          allowedPrior = ['started', 'sent', 'delivered'];
+        } else if (isDelivered) {
+          commStatus = 'delivered';
+          allowedPrior = ['started', 'sent'];
+        } else if (isFailed) {
+          commStatus = 'failed';
+          allowedPrior = ['started', 'sent', 'delivered'];
+        }
+        if (commStatus) {
+          try {
+            // Tenant-scope the update by the matched viber_messages row's
+            // business_id (defense-in-depth: the status propagation must never
+            // be able to touch a communications row outside that tenant).
+            let commUpdate = supabase
+              .from('communications')
+              .update({ status: commStatus })
+              .eq('id', viberRow.communication_id)
+              .in('status', allowedPrior);
+            if (viberRow.business_id) {
+              commUpdate = commUpdate.eq('business_id', viberRow.business_id);
+            }
+            await commUpdate;
+          } catch {
+            // best-effort: status propagation must not affect the 200 to Apifon
+          }
+        }
+      }
 
       // Mark provider event processed once viber_messages is updated.
       if (providerEventId) {

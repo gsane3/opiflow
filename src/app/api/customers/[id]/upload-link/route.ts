@@ -27,6 +27,8 @@ import {
 } from '@/lib/server/upload-tokens';
 import { normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
 import { sendViaPreferredChannel } from '@/lib/server/send-channel';
+import { sendCustomerLinkEmail } from '@/lib/server/customer-email';
+import { recordOutboundMessage, extractProviderIds } from '@/lib/server/record-message';
 
 export const runtime = 'nodejs';
 
@@ -63,6 +65,7 @@ interface CustomerRow {
   id: string;
   mobile_phone: string | null;
   phone: string | null;
+  email: string | null;
   preferred_contact_method?: string | null;
 }
 
@@ -80,7 +83,7 @@ async function fetchCustomer(
 ): Promise<{ customer: CustomerRow | null; error: boolean }> {
   const withPref = await supabase
     .from('customers')
-    .select('id, mobile_phone, phone, preferred_contact_method')
+    .select('id, mobile_phone, phone, email, preferred_contact_method')
     .eq('id', customerId)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -91,7 +94,7 @@ async function fetchCustomer(
 
   const base = await supabase
     .from('customers')
-    .select('id, mobile_phone, phone')
+    .select('id, mobile_phone, phone, email')
     .eq('id', customerId)
     .eq('business_id', businessId)
     .maybeSingle();
@@ -308,6 +311,49 @@ export async function POST(
 
     const messageText = buildUploadMessage(uploadUrl, businessName);
 
+    // -------------------------------------------------------------------------
+    // Email channel (#56): send the upload link by email via Resend.
+    // -------------------------------------------------------------------------
+    if (str(raw.channel) === 'email') {
+      const email = str(customer.email);
+      if (!email) {
+        return NextResponse.json({ ok: true, sent: false, fallbackReason: 'missing_email' });
+      }
+
+      const emailResult = await sendCustomerLinkEmail({
+        to: email,
+        subject: 'Αποστολή φωτογραφιών',
+        text: messageText,
+      });
+
+      if (!emailResult.ok) {
+        const fallbackReason =
+          emailResult.reason === 'missing_email_config' ? 'provider_unavailable' : 'provider_failed';
+        return NextResponse.json({ ok: true, sent: false, fallbackReason });
+      }
+
+      await recordOutboundMessage({
+        businessId,
+        customerId,
+        channel: 'email',
+        summary: 'Αίτημα φωτογραφιών',
+      });
+
+      if (verifiedTokenId) {
+        try {
+          await markUploadTokenSent({
+            tokenId: verifiedTokenId,
+            sentChannel: 'email',
+            sentToPhone: null,
+          });
+        } catch {
+          // intentionally swallowed: the email was already sent
+        }
+      }
+
+      return NextResponse.json({ ok: true, sent: true, fallbackReason: null });
+    }
+
     const rawPhone = selectViberPhone(customer);
     if (!rawPhone) {
       return NextResponse.json({
@@ -348,6 +394,21 @@ export async function POST(
         ok: true,
         sent: false,
         fallbackReason,
+      });
+    }
+
+    // Log to the customer timeline (#57). Best-effort; non-fatal.
+    {
+      const ids = extractProviderIds(result.channel === 'sms' ? result.sms : result.viber);
+      await recordOutboundMessage({
+        businessId,
+        customerId,
+        channel: result.channel === 'sms' ? 'sms' : 'viber',
+        summary: 'Αίτημα φωτογραφιών',
+        phone: rawPhone,
+        referenceId,
+        providerRequestId: ids.providerRequestId,
+        providerMessageId: ids.providerMessageId,
       });
     }
 
