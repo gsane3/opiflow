@@ -1,11 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import OfferForm from '@/components/offers/OfferForm';
 import { SendViaViberModal, executeViberSend } from '@/components/customers/SendViaViberModal';
+import { SendChannelSheet } from '@/components/customers/SendChannelSheet';
+import FileGallery, { type GalleryFile } from '@/components/customers/FileGallery';
 import CustomerSummaryFromCalls from '@/components/customers/CustomerSummaryFromCalls';
 import CollapsibleSection from '@/components/customers/CollapsibleSection';
 import { BottomSheet, SheetRow, Button, EmptyState } from '@/components/ui';
@@ -268,14 +270,6 @@ function formatMoney(value: number): string {
   }
 }
 
-function formatFileSize(sizeBytes?: number | null): string | null {
-  if (sizeBytes == null || !Number.isFinite(sizeBytes) || sizeBytes <= 0) return null;
-  if (sizeBytes < 1024) return `${sizeBytes} B`;
-  const kb = sizeBytes / 1024;
-  if (kb < 1024) return `${kb.toFixed(1)} KB`;
-  return `${(kb / 1024).toFixed(1)} MB`;
-}
-
 function appointmentStatusLabel(task: TaskDto): string {
   if (task.status === 'completed') return 'Ολοκληρωμένο';
   if (task.status === 'cancelled') return 'Ακυρωμένο';
@@ -305,8 +299,6 @@ export default function CustomerDetailPage() {
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [offers, setOffers] = useState<OfferDto[]>([]);
   const [uploadSessions, setUploadSessions] = useState<UploadSessionDto[]>([]);
-  const [openingFileKey, setOpeningFileKey] = useState<string | null>(null);
-  const [fileOpenError, setFileOpenError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [refreshTick, setRefreshTick] = useState(0);
 
@@ -315,11 +307,19 @@ export default function CustomerDetailPage() {
   const [customerSaveState, setCustomerSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [customerSaveError, setCustomerSaveError] = useState<string | null>(null);
 
-  const [isRejectPanelOpen, setIsRejectPanelOpen] = useState(false);
-  const [rejectDraftText, setRejectDraftText] = useState('');
-  const [rejectSaveState, setRejectSaveState] = useState<'idle' | 'copying' | 'saving' | 'saved' | 'error'>('idle');
-  const [rejectSaveError, setRejectSaveError] = useState<string | null>(null);
-  const [rejectCopyMessage, setRejectCopyMessage] = useState<string | null>(null);
+  // Reject via multi-channel sheet (#5). The ref guards markRejectedLost so the
+  // "lost" status + note are applied exactly once per open, no matter how many
+  // channels the operator taps.
+  const [rejectSheetOpen, setRejectSheetOpen] = useState(false);
+  const rejectAppliedRef = useRef(false);
+
+  // Manual file upload (#1b) + gallery viewer (#1c) state.
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
 
   type QuickModal = 'task' | 'appointment' | 'offer' | null;
   const [quickModal, setQuickModal] = useState<QuickModal>(null);
@@ -727,50 +727,25 @@ export default function CustomerDetailPage() {
   // Reject client helpers
   // ---------------------------------------------------------------------------
 
+  // The polite default rejection message. Reused by the new multi-channel
+  // reject sheet (#5) — kept exactly as before.
   function buildDefaultRejectMessage(): string {
     return 'Καλησπέρα σας. Ευχαριστούμε πολύ για την επικοινωνία. Δυστυχώς δεν θα μπορέσουμε να αναλάβουμε τη συγκεκριμένη εργασία αυτή την περίοδο. Σας ευχόμαστε καλή συνέχεια και ελπίζουμε να βρείτε άμεσα την κατάλληλη λύση.';
   }
 
-  function startRejectClient() {
-    setRejectDraftText(buildDefaultRejectMessage());
-    setIsRejectPanelOpen(true);
-    setRejectSaveError(null);
-    setRejectCopyMessage(null);
-    setRejectSaveState('idle');
-  }
-
-  function cancelRejectClient() {
-    setIsRejectPanelOpen(false);
-    setRejectSaveError(null);
-    setRejectCopyMessage(null);
-    setRejectSaveState('idle');
-  }
-
-  async function copyRejectDraft() {
-    setRejectSaveState('copying');
-    try {
-      await navigator.clipboard.writeText(rejectDraftText);
-      setRejectCopyMessage('Το κείμενο αντιγράφηκε. Αποστολή χειροκίνητα.');
-    } catch {
-      setRejectCopyMessage('Δεν έγινε αντιγραφή. Μπορείς να το επιλέξεις χειροκίνητα.');
-    } finally {
-      setRejectSaveState('idle');
-    }
-  }
-
-  async function saveRejectWithoutSending() {
-    setRejectSaveState('saving');
-    setRejectSaveError(null);
+  // #5 — Mark the customer as lost and append the reject note ONCE. Reuses the
+  // same PATCH contract as saveRejectWithoutSending (status:'lost' + notes
+  // append). Guarded by rejectAppliedRef so reopening the sheet or tapping
+  // several channels never duplicates the note.
+  async function markRejectedLost() {
+    if (rejectAppliedRef.current) return;
+    rejectAppliedRef.current = true;
     try {
       const supabase = createBrowserSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setRejectSaveState('error');
-        setRejectSaveError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
-        return;
-      }
+      if (!session) return;
       const existingNotes = customer?.notes ?? '';
-      const appendNote = `Απόρριψη πελάτη, draft χωρίς αποστολή:\n${rejectDraftText}`;
+      const appendNote = `Απόρριψη πελάτη, draft χωρίς αποστολή:\n${buildDefaultRejectMessage()}`;
       const updatedNotes = existingNotes ? `${existingNotes}\n\n${appendNote}` : appendNote;
       const res = await fetch(`/api/customers/${customerId}`, {
         method: 'PATCH',
@@ -783,15 +758,199 @@ export default function CustomerDetailPage() {
       const json = await res.json() as { ok?: boolean; customer?: CustomerDto; error?: string };
       if (res.ok && json.ok && json.customer) {
         setCustomer(json.customer);
-        setRejectSaveState('saved');
-        setRejectCopyMessage('Αποθηκεύτηκε ως χαμένος πελάτης. Δεν έχει σταλεί μήνυμα.');
-      } else {
-        setRejectSaveState('error');
-        setRejectSaveError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
       }
     } catch {
-      setRejectSaveState('error');
-      setRejectSaveError('Δεν αποθηκεύτηκε η απόρριψη. Δοκίμασε ξανά.');
+      // Non-fatal: the operator can retry from the status sheet. Allow a retry
+      // by clearing the guard so a later channel tap can attempt again.
+      rejectAppliedRef.current = false;
+    }
+  }
+
+  // Open the reject sheet. Marking-as-lost happens here (idempotent) so the
+  // status reflects the intent the moment the operator commits to rejecting.
+  function openRejectSheet() {
+    rejectAppliedRef.current = false;
+    setRejectSheetOpen(true);
+    void markRejectedLost();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Files: manual upload (#1b) + gallery (#1c)
+  // ---------------------------------------------------------------------------
+
+  const ALLOWED_UPLOAD_MIME = useMemo(
+    () => ['image/jpeg', 'image/png', 'image/heic', 'image/heif', 'image/webp', 'video/mp4', 'video/quicktime'],
+    []
+  );
+  const MAX_UPLOAD_BYTES = 52_428_800; // 50 MB — mirrors the public uploader.
+
+  // Flattened gallery list across all upload sessions, in display order.
+  const galleryFiles = useMemo<GalleryFile[]>(() => {
+    const out: GalleryFile[] = [];
+    for (const session of uploadSessions) {
+      session.files.forEach((f, idx) => {
+        out.push({
+          sessionId: session.id,
+          fileIndex: idx,
+          name: f.name,
+          kind: f.kind === 'photo' ? 'image' : f.kind === 'video' ? 'video' : 'file',
+          mimeType: f.mimeType,
+        });
+      });
+    }
+    return out;
+  }, [uploadSessions]);
+
+  // Resolve a gallery file to a short-lived signed URL via the read endpoint.
+  async function resolveGalleryUrl(file: GalleryFile): Promise<string | null> {
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return null;
+      const res = await fetch(`/api/customers/${customerId}/files/signed-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ sessionId: file.sessionId, fileIndex: file.fileIndex }),
+      });
+      const json = await res.json() as { ok?: boolean; signedUrl?: string };
+      return json.ok && json.signedUrl ? json.signedUrl : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // Open the gallery at a given session/file (mapped to its flattened index).
+  function openGalleryAt(sessionId: string, fileIndex: number) {
+    const flatIndex = galleryFiles.findIndex(
+      g => g.sessionId === sessionId && g.fileIndex === fileIndex
+    );
+    setGalleryIndex(flatIndex >= 0 ? flatIndex : 0);
+    setGalleryOpen(true);
+  }
+
+  // Manual upload (+): for each picked file, get a signed upload URL (reusing
+  // one uploadTokenId across the batch), PUT bytes to storage, then record one
+  // session via /complete. Enforces the same client guards as the public
+  // uploader before uploading.
+  async function handleManualFilesSelected(picked: FileList | null) {
+    if (!picked || picked.length === 0) return;
+    const all = Array.from(picked);
+
+    // Client guards: image/video only, <=50MB each (mirrors public uploader).
+    const tooBig = all.some(f => f.size > MAX_UPLOAD_BYTES);
+    const wrongType = all.some(
+      f => !(f.type.startsWith('image/') || f.type.startsWith('video/'))
+    );
+    if (wrongType) {
+      setUploadError('Επιτρέπονται μόνο φωτογραφίες και βίντεο.');
+      return;
+    }
+    if (tooBig) {
+      setUploadError('Κάποια αρχεία ξεπερνούν το μέγιστο μέγεθος (50MB).');
+      return;
+    }
+
+    setUploadingFiles(true);
+    setUploadError(null);
+    setUploadProgress('Ανεβαίνει...');
+
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setUploadError('Δεν βρέθηκε σύνδεση. Δοκίμασε ξανά.');
+        setUploadingFiles(false);
+        setUploadProgress(null);
+        return;
+      }
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      };
+
+      let uploadTokenId: string | null = null;
+      const recorded: Array<{ path: string; name: string; sizeBytes: number; mimeType: string }> = [];
+
+      for (let i = 0; i < all.length; i++) {
+        const file = all[i];
+        setUploadProgress(`Ανεβαίνει ${i + 1} από ${all.length}...`);
+
+        const urlRes = await fetch(`/api/customers/${customerId}/files/upload-url`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            filename: file.name,
+            mimeType: file.type,
+            sizeBytes: file.size,
+            ...(uploadTokenId ? { uploadTokenId } : {}),
+          }),
+        });
+        const urlJson = await urlRes.json() as {
+          ok?: boolean; uploadUrl?: string; uploadPath?: string; token?: string; uploadTokenId?: string;
+        };
+        if (!urlRes.ok || !urlJson.ok || !urlJson.uploadPath || !urlJson.token || !urlJson.uploadTokenId) {
+          setUploadError('Δεν ήταν δυνατή η προετοιμασία ανεβάσματος. Δοκίμασε ξανά.');
+          setUploadingFiles(false);
+          setUploadProgress(null);
+          return;
+        }
+        uploadTokenId = urlJson.uploadTokenId;
+
+        const { error: putError } = await supabase.storage
+          .from('customer-uploads')
+          .uploadToSignedUrl(urlJson.uploadPath, urlJson.token, file, {
+            contentType: file.type,
+            upsert: false,
+          });
+        if (putError) {
+          setUploadError('Δεν ήταν δυνατό το ανέβασμα του αρχείου. Δοκίμασε ξανά.');
+          setUploadingFiles(false);
+          setUploadProgress(null);
+          return;
+        }
+
+        recorded.push({
+          path: urlJson.uploadPath,
+          name: file.name,
+          sizeBytes: file.size,
+          mimeType: file.type,
+        });
+      }
+
+      if (!uploadTokenId || recorded.length === 0) {
+        setUploadError('Δεν ολοκληρώθηκε το ανέβασμα. Δοκίμασε ξανά.');
+        setUploadingFiles(false);
+        setUploadProgress(null);
+        return;
+      }
+
+      setUploadProgress('Ολοκλήρωση...');
+      const completeRes = await fetch(`/api/customers/${customerId}/files/complete`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ uploadTokenId, files: recorded }),
+      });
+      const completeJson = await completeRes.json() as { ok?: boolean };
+      if (!completeRes.ok || !completeJson.ok) {
+        setUploadError('Δεν ήταν δυνατή η ολοκλήρωση. Δοκίμασε ξανά.');
+        setUploadingFiles(false);
+        setUploadProgress(null);
+        return;
+      }
+
+      setUploadingFiles(false);
+      setUploadProgress(null);
+      setFilesOpen(true);
+      setRefreshTick(t => t + 1);
+    } catch {
+      setUploadError('Δεν ήταν δυνατό το ανέβασμα. Δοκίμασε ξανά.');
+      setUploadingFiles(false);
+      setUploadProgress(null);
+    } finally {
+      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   }
 
@@ -1235,46 +1394,6 @@ export default function CustomerDetailPage() {
     }
   }
 
-  async function openFile(sessionId: string, fileIndex: number) {
-    const key = `${sessionId}:${fileIndex}`;
-    setOpeningFileKey(key);
-    setFileOpenError(null);
-    try {
-      let supabaseForFile: ReturnType<typeof createBrowserSupabaseClient>;
-      try {
-        supabaseForFile = createBrowserSupabaseClient();
-      } catch {
-        setFileOpenError('Δεν βρέθηκε session. Δοκίμασε ξανά.');
-        return;
-      }
-      const { data: { session: fileSession } } = await supabaseForFile.auth.getSession();
-      if (!fileSession) {
-        setFileOpenError('Δεν βρέθηκε session. Δοκίμασε ξανά.');
-        return;
-      }
-      const res = await fetch(`/api/customers/${customerId}/files/signed-url`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${fileSession.access_token}`,
-        },
-        body: JSON.stringify({ sessionId, fileIndex }),
-      });
-      const json = await res.json() as { ok: boolean; signedUrl?: string; error?: string };
-      if (!json.ok || !json.signedUrl) {
-        setFileOpenError('Δεν ήταν δυνατό το άνοιγμα του αρχείου.');
-        setTimeout(() => setFileOpenError(null), 4000);
-        return;
-      }
-      window.open(json.signedUrl, '_blank', 'noopener,noreferrer');
-    } catch {
-      setFileOpenError('Δεν ήταν δυνατό το άνοιγμα του αρχείου.');
-      setTimeout(() => setFileOpenError(null), 4000);
-    } finally {
-      setOpeningFileKey(null);
-    }
-  }
-
   async function saveTaskFromModal() {
     if (!taskTitle.trim()) {
       setTaskError('Συμπλήρωσε τίτλο εργασίας.');
@@ -1619,7 +1738,7 @@ export default function CustomerDetailPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 pt-5 pb-[150px] md:pb-12">
+    <div className="mx-auto w-full max-w-2xl md:max-w-4xl space-y-5 px-4 pt-5 pb-12">
 
       {/* Back nav */}
       <div className="flex items-center gap-2 text-sm">
@@ -1685,6 +1804,57 @@ export default function CustomerDetailPage() {
             </a>
           </div>
         )}
+
+        {/* #4 — Primary quick actions, immediately visible under the name.
+            Replaces the old sticky bottom bar. 4-up grid, >=48px targets. */}
+        <div className="mt-4 grid grid-cols-4 gap-2">
+          {/* Κλήση */}
+          {telHref ? (
+            <a
+              href={telHref}
+              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-indigo-600 px-2 py-2 text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+            >
+              <span className="text-lg leading-none" aria-hidden>📞</span>
+              <span className="text-xs font-semibold">Κλήση</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-zinc-100 px-2 py-2 text-zinc-400"
+            >
+              <span className="text-lg leading-none opacity-60" aria-hidden>📞</span>
+              <span className="text-xs font-semibold">Κλήση</span>
+            </button>
+          )}
+          {/* Ραντεβού */}
+          <button
+            type="button"
+            onClick={() => setQuickModal('appointment')}
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-indigo-50 px-2 py-2 text-indigo-700 transition hover:bg-indigo-100 active:bg-indigo-200"
+          >
+            <span className="text-lg leading-none" aria-hidden>📅</span>
+            <span className="text-xs font-semibold">Ραντεβού</span>
+          </button>
+          {/* Προσφορά */}
+          <button
+            type="button"
+            onClick={() => setQuickModal('offer')}
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-indigo-50 px-2 py-2 text-indigo-700 transition hover:bg-indigo-100 active:bg-indigo-200"
+          >
+            <span className="text-lg leading-none" aria-hidden>💶</span>
+            <span className="text-xs font-semibold">Προσφορά</span>
+          </button>
+          {/* Άλλα */}
+          <button
+            type="button"
+            onClick={() => setMoreSheetOpen(true)}
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-zinc-100 px-2 py-2 text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+          >
+            <span className="text-lg leading-none" aria-hidden>⋯</span>
+            <span className="text-xs font-semibold">Άλλα</span>
+          </button>
+        </div>
       </section>
 
       {/* Next step — the main card of the page */}
@@ -1874,55 +2044,6 @@ export default function CustomerDetailPage() {
           </p>
         )}
       </section>
-
-      {/* Reject panel */}
-      {isRejectPanelOpen && (
-        <div className="rounded-2xl bg-red-50 p-4 ring-1 ring-red-200 space-y-3">
-          <div>
-            <p className="text-sm font-semibold text-red-800">Απόρριψη πελάτη</p>
-            <p className="mt-0.5 text-xs text-red-600">Review-first draft. Δεν αποστέλλεται μήνυμα χωρίς χειροκίνητη ενέργεια.</p>
-          </div>
-          <textarea
-            rows={5}
-            value={rejectDraftText}
-            onChange={e => setRejectDraftText(e.target.value)}
-            className="w-full resize-none rounded-xl border border-red-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-red-400 focus:ring-2 focus:ring-red-100"
-          />
-          {rejectCopyMessage && (
-            <p className="text-xs text-zinc-600">{rejectCopyMessage}</p>
-          )}
-          {rejectSaveError && (
-            <p className="text-xs font-medium text-red-700">{rejectSaveError}</p>
-          )}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={copyRejectDraft}
-              disabled={rejectSaveState === 'saving' || rejectSaveState === 'copying'}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
-            >
-              Αντιγραφή
-            </button>
-            <button
-              type="button"
-              onClick={saveRejectWithoutSending}
-              disabled={rejectSaveState === 'saving' || rejectSaveState === 'copying' || rejectSaveState === 'saved'}
-              className="rounded-xl bg-red-700 px-3 py-2 text-xs font-semibold text-white transition hover:bg-red-800 disabled:opacity-60"
-            >
-              {rejectSaveState === 'saving' ? 'Αποθήκευση...' : 'Αποθήκευση χωρίς αποστολή'}
-            </button>
-            <button
-              type="button"
-              onClick={cancelRejectClient}
-              disabled={rejectSaveState === 'saving'}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
-            >
-              Ακύρωση
-            </button>
-          </div>
-        </div>
-      )}
-
 
       {/* Action error (raised by intake/upload/appointment-link draft flows) */}
       {actionError && (
@@ -2121,21 +2242,12 @@ export default function CustomerDetailPage() {
         description="Χειροκίνητες σημειώσεις για καλύτερη κατανόηση του πελάτη."
         open={editMode === 'memory' ? true : summaryOpen}
         onToggle={setSummaryOpen}
+        headerAction={editMode === null ? (
+          <Button variant="secondary" size="sm" onClick={startEditMemory}>
+            Επεξεργασία
+          </Button>
+        ) : undefined}
       >
-        <div className="px-4 py-3 flex items-start justify-end gap-2">
-          {editMode === null && (
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={startEditMemory}
-                className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
-              >
-                Επεξεργασία
-              </button>
-            </div>
-          )}
-        </div>
-
         {editMode === 'memory' && customerDraft ? (
           <div className="space-y-4 px-4 py-4">
             <div>
@@ -2416,6 +2528,18 @@ export default function CustomerDetailPage() {
             {appointmentTasks.length}
           </span>
         ) : undefined}
+        headerAction={
+          <button
+            type="button"
+            aria-label="Νέο ραντεβού"
+            onClick={() => setQuickModal('appointment')}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 transition hover:bg-indigo-100 active:bg-indigo-200"
+          >
+            <svg className="h-5 w-5" fill="none" strokeWidth={2.2} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+        }
       >
         {appointmentTasks.length === 0 ? (
           <EmptyState
@@ -2485,6 +2609,18 @@ export default function CustomerDetailPage() {
             {sortedOffers.length}
           </span>
         ) : undefined}
+        headerAction={
+          <button
+            type="button"
+            aria-label="Νέα προσφορά"
+            onClick={() => setQuickModal('offer')}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 transition hover:bg-indigo-100 active:bg-indigo-200"
+          >
+            <svg className="h-5 w-5" fill="none" strokeWidth={2.2} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+        }
       >
         {editOfferError && !editingOffer && (
           <p className="px-4 pt-3 text-xs font-medium text-red-600">{editOfferError}</p>
@@ -2578,14 +2714,12 @@ export default function CustomerDetailPage() {
         description="Εσωτερικές σημειώσεις και ιστορικό."
         open={editMode === 'notes' ? true : notesOpen}
         onToggle={setNotesOpen}
+        headerAction={editMode === null ? (
+          <Button variant="secondary" size="sm" onClick={startEditNotes}>
+            Επεξεργασία
+          </Button>
+        ) : undefined}
       >
-        {editMode === null && (
-          <div className="flex items-center justify-end px-4 py-3">
-            <Button variant="secondary" size="sm" onClick={startEditNotes}>
-              Επεξεργασία
-            </Button>
-          </div>
-        )}
         {editMode === 'notes' && customerDraft ? (
           <div className="px-4 py-4 space-y-3">
             <textarea
@@ -2634,7 +2768,7 @@ export default function CustomerDetailPage() {
         )}
       </CollapsibleSection>
 
-      {/* Αρχεία — default collapsed; revealable from the "Άλλα" sheet */}
+      {/* Αρχεία — default collapsed; manual upload (+) and gallery viewer */}
       <CollapsibleSection
         id="ws-files"
         title="Αρχεία"
@@ -2646,7 +2780,51 @@ export default function CustomerDetailPage() {
             {uploadSessions.length}
           </span>
         ) : undefined}
+        headerAction={
+          <button
+            type="button"
+            aria-label="Προσθήκη αρχείων"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadingFiles}
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-indigo-50 text-indigo-700 transition hover:bg-indigo-100 active:bg-indigo-200 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <svg className="h-5 w-5" fill="none" strokeWidth={2.2} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+            </svg>
+          </button>
+        }
       >
+        {/* Hidden input shared by the (+) header action and the inner button. */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept={ALLOWED_UPLOAD_MIME.join(',')}
+          className="hidden"
+          onChange={(e) => { void handleManualFilesSelected(e.target.files); }}
+        />
+
+        {/* Upload affordance + progress/error */}
+        <div className="border-b border-zinc-100 px-4 py-3 space-y-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            loading={uploadingFiles}
+            disabled={uploadingFiles}
+          >
+            {uploadingFiles ? 'Ανεβαίνει...' : 'Προσθήκη φωτογραφιών / αρχείων'}
+          </Button>
+          {uploadProgress ? (
+            <p className="text-xs font-medium text-indigo-600">{uploadProgress}</p>
+          ) : null}
+          {uploadError ? (
+            <p className="rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 ring-1 ring-red-100">
+              {uploadError}
+            </p>
+          ) : null}
+        </div>
+
         {uploadSessions.length > 0 ? (
           <div className="divide-y divide-zinc-100">
             {uploadSessions.map(session => (
@@ -2659,37 +2837,21 @@ export default function CustomerDetailPage() {
                     {session.file_count} {session.file_count === 1 ? 'αρχείο' : 'αρχεία'}
                   </span>
                 </div>
-                <ul className="space-y-1">
-                  {session.files.map((f, idx) => {
-                    const kindLabel = f.kind === 'photo' ? 'Φωτογραφία' : f.kind === 'video' ? 'Βίντεο' : null;
-                    const sizeLabel = formatFileSize(f.sizeBytes);
-                    const meta = [kindLabel, sizeLabel].filter(Boolean).join(' · ');
-                    return (
-                      <li
-                        key={idx}
-                        className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2"
-                      >
-                        <span className="shrink-0 text-base leading-none">
-                          {f.kind === 'photo' ? '📷' : f.kind === 'video' ? '🎥' : '📄'}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-medium text-zinc-700">{f.name}</p>
-                          {meta ? (
-                            <p className="mt-0.5 text-xs text-zinc-400">{meta}</p>
-                          ) : null}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => openFile(session.id, idx)}
-                          disabled={openingFileKey === `${session.id}:${idx}`}
-                          className="shrink-0 rounded-lg border border-zinc-200 bg-white px-2 py-0.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {openingFileKey === `${session.id}:${idx}` ? '...' : 'Άνοιγμα'}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                {/* Thumbnail grid — tap opens the FileGallery at that file. */}
+                <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
+                  {session.files.map((f, idx) => (
+                    <FileThumb
+                      key={idx}
+                      file={f}
+                      onOpen={() => openGalleryAt(session.id, idx)}
+                      resolveUrl={
+                        f.kind === 'photo'
+                          ? () => resolveGalleryUrl({ sessionId: session.id, fileIndex: idx, name: f.name, kind: 'image', mimeType: f.mimeType })
+                          : null
+                      }
+                    />
+                  ))}
+                </div>
                 {session.customer_comment ? (
                   <p className="mt-2 text-xs italic text-zinc-500">
                     &ldquo;{session.customer_comment}&rdquo;
@@ -2701,15 +2863,10 @@ export default function CustomerDetailPage() {
         ) : (
           <div className="px-4 py-6 text-center">
             <p className="text-sm text-zinc-500">
-              Δεν υπάρχουν αρχεία ακόμα. Μπορείς να στείλεις link φωτογραφιών στον πελάτη.
+              Δεν υπάρχουν αρχεία ακόμα. Πρόσθεσε φωτογραφίες/αρχεία ή στείλε link φωτογραφιών στον πελάτη.
             </p>
           </div>
         )}
-        {fileOpenError ? (
-          <div className="border-t border-zinc-100 px-4 py-3">
-            <p className="text-xs text-red-500">{fileOpenError}</p>
-          </div>
-        ) : null}
       </CollapsibleSection>
 
       <div className="flex justify-center">
@@ -2722,24 +2879,24 @@ export default function CustomerDetailPage() {
         </button>
       </div>
 
-      {/* Απόρριψη πελάτη: review-first, neutral styling until user initiates */}
+      {/* Απόρριψη πελάτη (#5): one danger button → multi-channel send sheet.
+          The customer is marked «Χάθηκε» on open; the polite message is shown
+          ready to send via Viber / WhatsApp / Email (nothing is auto-sent). */}
       <section className="rounded-2xl border border-zinc-200 bg-white p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
           <h2 className="text-sm font-semibold text-zinc-700">Απόρριψη πελάτη</h2>
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-500">
-            Review-first
-          </span>
         </div>
         <p className="text-xs text-zinc-400">
-          Δημιουργεί ευγενικό draft για review πριν σταλεί. Χρειάζεται έγκριση.
+          Ο πελάτης θα μαρκαριστεί ως «Χάθηκε» και θα ετοιμαστεί ευγενικό μήνυμα για αποστολή.
         </p>
-        <button
-          type="button"
-          onClick={startRejectClient}
-          className="mt-3 rounded-xl border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-red-50"
+        <Button
+          variant="danger"
+          size="md"
+          onClick={openRejectSheet}
+          className="mt-3"
         >
-          Προετοιμασία draft
-        </button>
+          Απόρριψη πελάτη
+        </Button>
       </section>
 
       {/* Call details modal */}
@@ -2869,42 +3026,6 @@ export default function CustomerDetailPage() {
             try {
               await navigator.clipboard.writeText(offerSendReview.message ?? '');
               setOfferSendReview((prev) => (prev ? { ...prev, copied: true } : null));
-            } catch {
-              // clipboard unavailable
-            }
-          }}
-        />
-      )}
-
-      {/* Intake send review modal */}
-      {intakeSendReview !== null && (
-        <SendViaViberModal
-          title="Αποστολή link στοιχείων"
-          subtitle="Το μήνυμα δεν θα σταλεί μέχρι να το επιβεβαιώσεις."
-          loadingText="Ετοιμάζεται το link στοιχείων..."
-          successText="Το link στοιχείων στάλθηκε με Viber."
-          loading={intakeSendReview.loading}
-          message={intakeSendReview.message}
-          recipient={intakeSendReview.recipient}
-          responseUrl={intakeSendReview.responseUrl}
-          sending={intakeSendReview.sending}
-          sent={intakeSendReview.sent}
-          error={intakeSendReview.error}
-          copied={intakeSendReview.copied}
-          onClose={() => { setIntakeSendReview(null); setRefreshTick(t => t + 1); }}
-          onSend={() =>
-            executeViberSend({
-              endpoint: `/api/customers/${customerId}/intake-link`,
-              body: { responseUrl: intakeSendReview.responseUrl },
-              update: (patch) => setIntakeSendReview((prev) => (prev ? { ...prev, ...patch } : null)),
-              providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
-              defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
-            })
-          }
-          onCopy={async () => {
-            try {
-              await navigator.clipboard.writeText(intakeSendReview.message ?? '');
-              setIntakeSendReview((prev) => (prev ? { ...prev, copied: true } : null));
             } catch {
               // clipboard unavailable
             }
@@ -3436,62 +3557,58 @@ export default function CustomerDetailPage() {
         </div>
       )}
 
-      {/* Sticky mobile action bar — sits above the global BottomNav (68px tall). */}
-      <div
-        className="fixed inset-x-0 z-30 border-t border-zinc-200 bg-white md:hidden"
-        style={{ bottom: 'calc(68px + env(safe-area-inset-bottom))' }}
-      >
-        <div className="mx-auto grid max-w-2xl grid-cols-4 gap-1 px-2 py-2">
-          {/* Κλήση */}
-          {telHref ? (
-            <a
-              href={telHref}
-              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
-            >
-              <span className="text-lg leading-none" aria-hidden>📞</span>
-              <span className="text-xs font-semibold">Κλήση</span>
-            </a>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-300"
-            >
-              <span className="text-lg leading-none opacity-60" aria-hidden>📞</span>
-              <span className="text-xs font-semibold">Κλήση</span>
-            </button>
-          )}
-          {/* Ραντεβού */}
-          <button
-            type="button"
-            onClick={() => setQuickModal('appointment')}
-            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
-          >
-            <span className="text-lg leading-none" aria-hidden>📅</span>
-            <span className="text-xs font-semibold">Ραντεβού</span>
-          </button>
-          {/* Προσφορά */}
-          <button
-            type="button"
-            onClick={() => setQuickModal('offer')}
-            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
-          >
-            <span className="text-lg leading-none" aria-hidden>💶</span>
-            <span className="text-xs font-semibold">Προσφορά</span>
-          </button>
-          {/* Άλλα */}
-          <button
-            type="button"
-            onClick={() => setMoreSheetOpen(true)}
-            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-xl text-zinc-700 transition hover:bg-zinc-50"
-          >
-            <span className="text-lg leading-none" aria-hidden>⋯</span>
-            <span className="text-xs font-semibold">Άλλα</span>
-          </button>
-        </div>
-      </div>
+      {/* File gallery (#1c) — full-screen photo/video lightbox */}
+      <FileGallery
+        open={galleryOpen}
+        onClose={() => setGalleryOpen(false)}
+        files={galleryFiles}
+        initialIndex={galleryIndex}
+        resolveUrl={resolveGalleryUrl}
+      />
 
-      {/* "Άλλα" bottom sheet (sticky-bar overflow) */}
+      {/* Απόρριψη πελάτη — multi-channel send sheet (#5) */}
+      <SendChannelSheet
+        open={rejectSheetOpen}
+        onClose={() => setRejectSheetOpen(false)}
+        title="Απόρριψη πελάτη"
+        subtitle="Ο πελάτης θα μαρκαριστεί ως «Χάθηκε». Δεν στέλνεται τίποτα μέχρι να επιλέξεις τρόπο."
+        message={buildDefaultRejectMessage()}
+        recipientPhone={customer.mobilePhone ?? customer.phone}
+        recipientEmail={customer.email}
+        viber={{ kind: 'forward' }}
+        onChannelUse={markRejectedLost}
+      />
+
+      {/* Αποστολή link στοιχείων — multi-channel send sheet (#6) */}
+      <SendChannelSheet
+        open={intakeSendReview != null}
+        onClose={() => { setIntakeSendReview(null); setRefreshTick(t => t + 1); }}
+        title="Αποστολή link στοιχείων"
+        subtitle="Διάλεξε τρόπο: Viber, WhatsApp ή Email."
+        loading={intakeSendReview?.loading}
+        loadingText="Ετοιμάζεται το μήνυμα..."
+        message={intakeSendReview?.message ?? null}
+        link={intakeSendReview?.responseUrl ?? null}
+        recipientPhone={customer.mobilePhone ?? customer.phone}
+        recipientEmail={customer.email}
+        emailSubject="Στοιχεία επικοινωνίας"
+        viber={{
+          kind: 'backend',
+          onSend: () =>
+            executeViberSend({
+              endpoint: `/api/customers/${customerId}/intake-link`,
+              body: { responseUrl: intakeSendReview?.responseUrl },
+              update: (patch) => setIntakeSendReview((prev) => (prev ? { ...prev, ...patch } : null)),
+              providerUnavailableMsg: 'Το Viber δεν είναι διαθέσιμο αυτή τη στιγμή. Μπορείς να αντιγράψεις το μήνυμα.',
+              defaultFallbackMsg: 'Δεν έγινε αποστολή. Μπορείς να αντιγράψεις το μήνυμα και να το στείλεις χειροκίνητα.',
+            }),
+          sending: intakeSendReview?.sending,
+          sent: intakeSendReview?.sent,
+          error: intakeSendReview?.error,
+        }}
+      />
+
+      {/* "Άλλα" bottom sheet (overflow for the hero quick-action row) */}
       <BottomSheet
         open={moreSheetOpen}
         onClose={() => setMoreSheetOpen(false)}
@@ -3582,5 +3699,75 @@ export default function CustomerDetailPage() {
       </BottomSheet>
 
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// FileThumb — a single tappable thumbnail in the Files grid (#1c).
+// Images lazily resolve a signed URL (once visible) and render a small <img>;
+// videos/other files show a glyph and never fetch. Tapping opens the gallery.
+// ---------------------------------------------------------------------------
+function FileThumb({
+  file,
+  onOpen,
+  resolveUrl,
+}: {
+  file: UploadSessionFileDto;
+  onOpen: () => void;
+  resolveUrl: (() => Promise<string | null>) | null;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const ref = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    if (!resolveUrl || url) return;
+    const el = ref.current;
+    let cancelled = false;
+    const run = () => {
+      void resolveUrl().then((u) => { if (!cancelled && u) setUrl(u); });
+    };
+    if (!el || typeof IntersectionObserver === 'undefined') {
+      run();
+      return () => { cancelled = true; };
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          run();
+          io.disconnect();
+        }
+      },
+      { rootMargin: '200px' },
+    );
+    io.observe(el);
+    return () => { cancelled = true; io.disconnect(); };
+  }, [resolveUrl, url]);
+
+  return (
+    <button
+      ref={ref}
+      type="button"
+      onClick={onOpen}
+      aria-label={file.name}
+      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200/60 transition hover:ring-indigo-300 active:ring-indigo-400"
+    >
+      {file.kind === 'photo' && url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={file.name} className="h-full w-full object-cover" draggable={false} />
+      ) : (
+        <span className="text-2xl leading-none" aria-hidden>
+          {file.kind === 'photo' ? '📷' : file.kind === 'video' ? '🎥' : '📄'}
+        </span>
+      )}
+      {file.kind === 'video' && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white">
+            <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M8 5v14l11-7z" />
+            </svg>
+          </span>
+        </span>
+      )}
+    </button>
   );
 }
