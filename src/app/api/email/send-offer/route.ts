@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { recordOutboundMessage } from '@/lib/server/record-message';
+import { buildBusinessFromHeader, resolveReplyTo } from '@/lib/server/email-identity';
 
 export const runtime = 'nodejs';
 
@@ -112,15 +113,34 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'missing_body' }, { status: 400 });
   }
 
+  // Per-business sender identity (#xx): present the business's own name over the
+  // verified Opiflow domain, and route replies to the business's own inbox.
+  // Best-effort — on any lookup failure we fall back to the global identity.
+  let businessName: string | null = null;
+  let businessEmail: string | null = null;
+  try {
+    const { data: biz } = await supabase
+      .from('businesses')
+      .select('name, email')
+      .eq('id', businessId)
+      .maybeSingle();
+    if (biz) {
+      businessName = (biz as { name?: string | null }).name ?? null;
+      businessEmail = (biz as { email?: string | null }).email ?? null;
+    }
+  } catch {
+    // non-fatal: fall back to the global EMAIL_FROM / EMAIL_REPLY_TO identity
+  }
+
   const payload: Record<string, unknown> = {
-    from,
+    from: buildBusinessFromHeader(businessName, from),
     to: [to.trim()],
     subject: subject.trim(),
   };
   if (typeof text === 'string' && text.trim()) payload.text = text.trim();
   if (typeof html === 'string' && html.trim()) payload.html = html.trim();
 
-  const replyTo = process.env.EMAIL_REPLY_TO;
+  const replyTo = resolveReplyTo(businessEmail, process.env.EMAIL_REPLY_TO);
   if (replyTo) payload.reply_to = replyTo;
 
   const controller = new AbortController();

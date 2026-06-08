@@ -14,6 +14,8 @@
 // verified address. It does NOT accept arbitrary recipients.
 // ---------------------------------------------------------------------------
 
+import { buildBusinessFromHeader, resolveReplyTo } from './email-identity';
+
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
 const EMAIL_PROVIDER_TIMEOUT_MS = 15_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -22,6 +24,17 @@ export interface SendCustomerEmailParams {
   to: string | null | undefined;
   subject: string;
   text: string;
+  /**
+   * Business display name — presented to the customer as the sender, e.g.
+   * "<Business> via Opiflow <noreply@opiflow.gr>". Falls back to the global
+   * EMAIL_FROM identity when absent.
+   */
+  businessName?: string | null;
+  /**
+   * Business reply-to email — customer replies route here when set; otherwise
+   * the global EMAIL_REPLY_TO is used.
+   */
+  businessEmail?: string | null;
 }
 
 export type SendCustomerEmailResult =
@@ -56,13 +69,13 @@ export async function sendCustomerLinkEmail(
   }
 
   const payload: Record<string, unknown> = {
-    from,
+    from: buildBusinessFromHeader(params.businessName, from),
     to: [to],
     subject,
     text,
   };
 
-  const replyTo = process.env.EMAIL_REPLY_TO;
+  const replyTo = resolveReplyTo(params.businessEmail, process.env.EMAIL_REPLY_TO);
   if (replyTo) payload.reply_to = replyTo;
 
   const controller = new AbortController();
