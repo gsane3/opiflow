@@ -1671,23 +1671,18 @@ export default function CustomerDetailPage() {
           <p className="mt-2 text-sm text-zinc-500">{customer.address}</p>
         )}
 
-        {/* Επεξεργασία + (optional) Χάρτης link */}
-        {editMode === null && (
+        {/* Optional Χάρτης link — επεξεργασία γίνεται από την ενότητα «Στοιχεία επικοινωνίας» παρακάτω */}
+        {editMode === null && customer.address && (
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={startEditContact}>
-              Επεξεργασία
-            </Button>
-            {customer.address && (
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
-              >
-                <span aria-hidden>📍</span>
-                Χάρτης
-              </a>
-            )}
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+            >
+              <span aria-hidden>📍</span>
+              Χάρτης
+            </a>
           </div>
         )}
       </section>
