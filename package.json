@@ -18,7 +18,7 @@
     "@capacitor-firebase/app": "^7.5.0",
     "@capacitor-firebase/messaging": "^7.5.0",
     "@capacitor/android": "^7.6.6",
-    "@capacitor/cli": "^7.6.6",
+    "@capacitor/cli": "^8.4.0",
     "@capacitor/core": "^7.6.6",
     "@capacitor/ios": "^7.6.6",
     "@capgo/capacitor-twilio-voice": "^7.1.0",
