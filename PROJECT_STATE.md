@@ -7,7 +7,7 @@
 > A private cross-session copy of the gist also lives at
 > `~/.claude/projects/<proj>/memory/project_yorgos_ai.md`.
 >
-> **Last updated:** 2026-06-08 — session 9 (**TELEPHONY MULTI-DID LIVE**: inbound DID routing + per-user SIP + outbound caller-ID per DID, all tested; webhook URL/secret/DID-match fixed; Vercel `sharp` build fixed; big **UX/CAM redesign** batch + customer-detail v2). **Blocker F.3 RESOLVED.** Still to apply: migrations 033 + 034.
+> **Last updated:** 2026-06-08 — session 9 (**TELEPHONY MULTI-DID LIVE** + **CALL-FLOW v2**: missed-call labels, hybrid intake-link prompt, preferred-channel sends + Viber→SMS, Deepgram diarization, 1h reminder cron; earlier: UX/CAM redesign + customer-detail v2 + Vercel `sharp` fix). **Blocker F.3 RESOLVED.** Migrations **033/034/035 APPLIED**; `SIP_CRED_ENC_KEY`+`CRON_SECRET`+`DEEPGRAM_API_KEY` set on Vercel; **hourly PBX cron live**. **Pending (external): Apifon SMS sender «opiflow» approval → `APIFON_SMS_SENDER`.**
 
 ---
 
@@ -54,6 +54,30 @@ pages (`/intake/[token]`, `/offer-response/[id]`, `/appointment-response/[id]`, 
   editor** (NOT Supabase-CLI timestamp format — do not `supabase db push`).
 
 ## D. Changelog (newest first)
+- **2026-06-08 — session 9 (cont.) — CALL-FLOW v2 + external setup DONE + provider/legal decisions:**
+  - **PR #48 — Call-flow v2** (all env-gated / migration-graceful, `next build` green):
+    - **Missed-call labels:** no fabricated AI brief without a recording → unanswered = «Αναπάντητη κλήση»,
+      answered-no-recording = «Κλήση χωρίς ηχογράφηση». `call-brief.ts` LLM only runs when a real recording exists.
+    - **HYBRID intake link** (owner decision): PBX webhook NO LONGER auto-sends the Viber intake link — it still
+      auto-creates/links the customer + logs the call; the link is sent only on operator confirm via a **post-call prompt**
+      «Αποστολή λινκ στοιχείων;» in `calls/page.tsx` (inbound+outbound, unsaved numbers) → create-customer-if-needed + POST intake-link.
+    - **Preferred-channel sends + Viber→SMS fallback:** new `src/lib/server/apifon-sms.ts` (`sendSmsMessage`) +
+      `src/lib/server/send-channel.ts` (`sendViaPreferredChannel`, honours `customer.preferred_contact_method`). All 4
+      send routes (intake/upload/appointment link, offer notify) use it (were hard-coded Viber).
+    - **Intake form channel picker:** customer picks Viber/WhatsApp/SMS/Email → persisted to the customer →
+      future sends default to it. `PreferredContactMethod` extended (+sms/whatsapp).
+    - **Deepgram diarization** (2-speaker) in `openai-call-audio.ts` (`DEEPGRAM_API_KEY`; OpenAI fallback).
+    - **1h reminder cron:** new `/api/cron/intake-reminder` (`CRON_SECRET`-gated) re-sends intake if not submitted in ~1h.
+    - **Migration 035** (preferred_contact_method enum + `customer_intake_tokens.reminder_sent_at/reminder_count`).
+  - **✅ EXTERNAL SETUP COMPLETED (user, step-by-step):** migrations **035 + 033 + 034 APPLIED** (live `oluhmzt`);
+    **`CRON_SECRET`** set on Vercel + **hourly PBX cron LIVE** (`/usr/local/bin/opiflow-intake-reminder.sh` reads
+    `/etc/opiflow/cron.env`; crontab `0 * * * *`) — verified `{"ok":true,"resent":0}`; **`DEEPGRAM_API_KEY`** set on Vercel.
+  - **⏳ PENDING (external):** Apifon **SMS sender «opiflow»** approval → then set `APIFON_SMS_SENDER` on Vercel (until
+    then SMS fallback is a safe no-op, Viber works). Also confirm a **production Viber sender** (was "Apifon Demo", 20-msg cap).
+  - **Provider/legal decisions (telephony scaling):** model = **on-demand DIDs per region** (request as customers sign up,
+    NOT bulk upfront — matches the app's `phone_number_requests`/city assignment). Outbound CLI = **Option A** (show the
+    Opiflow-owned DID; no per-number verification). Email to InterTelecom drafted (on-demand + mobile-69x availability +
+    sub-allocation KYB/EETT + provisioning API). KYB/EETT → confirm with InterTelecom wholesale + a Greek telecom lawyer.
 - **2026-06-08 — session 9 — 🟢 TELEPHONY MULTI-DID ACTIVATED (inbound + outbound) + webhook/build fixes:**
   - **HARD BLOCKER F.3 RESOLVED:** InterTelecom now **delivers the dialed DID** in the inbound INVITE
     (R-URI + To user-part, form `30XXXXXXXXXX`) — confirmed via tcpdump of a real call.
