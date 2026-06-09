@@ -51,7 +51,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200 bg-white pb-[env(safe-area-inset-bottom)] md:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-zinc-200/70 bg-white/85 backdrop-blur-md pb-[env(safe-area-inset-bottom)] md:hidden">
       <ul className="flex h-[68px] items-center">
         {NAV_ITEMS.map((item) => {
           const active = pathname === item.href || pathname.startsWith(item.href + '/');
@@ -59,11 +59,16 @@ export default function BottomNav() {
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
-                className={`flex flex-col items-center gap-0.5 py-1.5 text-[11px] font-medium transition ${
-                  active ? 'text-indigo-600' : 'text-zinc-500 hover:text-zinc-700'
+                className={`flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition ${
+                  active ? 'text-indigo-600' : 'text-zinc-400 hover:text-zinc-600'
                 }`}
               >
-                {item.icon(active)}
+                <span className="relative flex items-center justify-center transition active:scale-95">
+                  {active && (
+                    <span className="absolute inset-0 -z-10 -m-1 rounded-full bg-indigo-50" aria-hidden="true" />
+                  )}
+                  {item.icon(active)}
+                </span>
                 <span>{item.label}</span>
               </Link>
             </li>

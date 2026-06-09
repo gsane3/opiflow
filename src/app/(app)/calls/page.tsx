@@ -10,7 +10,7 @@ import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPho
 import CallsCustomerSearch from '@/components/phone/CallsCustomerSearch';
 import { recordingFileName } from '@/lib/call-recorder';
 import { findCustomerByPhone, phonesMatch } from '@/lib/phone';
-import { BottomSheet } from '@/components/ui';
+import { BottomSheet, Badge, Spinner } from '@/components/ui';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -857,7 +857,7 @@ function RecentTab({
           <PhoneIcon className="h-6 w-6 text-indigo-400" />
         </div>
         <p className="text-sm font-medium text-zinc-700">Δεν υπάρχουν κλήσεις ακόμα.</p>
-        <p className="mt-1.5 text-sm text-zinc-700">
+        <p className="mt-1.5 text-sm text-zinc-500">
           Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ.
         </p>
       </div>
@@ -941,15 +941,7 @@ function RecentTab({
 
                 {/* Type: incoming / outgoing / missed */}
                 <div className="mt-1.5 flex flex-wrap items-center gap-2">
-                  {isMissed ? (
-                    <span className="rounded-full bg-amber-50 px-2.5 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200">
-                      {typeLabel}
-                    </span>
-                  ) : (
-                    <span className="rounded-full bg-zinc-100 px-2.5 py-0.5 text-[11px] font-medium text-zinc-600">
-                      {typeLabel}
-                    </span>
-                  )}
+                  <Badge tone={isMissed ? 'amber' : 'zinc'}>{typeLabel}</Badge>
                 </div>
 
                 {/* AI call summary */}
@@ -1059,7 +1051,7 @@ function CustomersTab({
           type="search"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          placeholder="Αναζήτηση ονόματος, τηλεφώνου, email..."
+          placeholder="Αναζήτηση ονόματος, τηλεφώνου, email…"
           className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
         />
       </div>
@@ -1190,13 +1182,13 @@ function NumpadPanel({
           )}
         </div>
         {/* Key grid */}
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-3 justify-items-center gap-3">
           {DIAL_KEYS.flat().map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => press(key)}
-              className="flex h-14 items-center justify-center rounded-2xl bg-zinc-50 text-xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200"
+              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 text-2xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 motion-safe:active:scale-95 active:bg-zinc-200"
             >
               {key}
             </button>
@@ -1277,13 +1269,13 @@ function NumpadPanel({
         </div>
 
         {/* Key grid */}
-        <div className="mb-4 grid grid-cols-3 gap-2">
+        <div className="mb-4 grid grid-cols-3 justify-items-center gap-3">
           {DIAL_KEYS.flat().map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => press(key)}
-              className="flex h-14 items-center justify-center rounded-2xl bg-zinc-50 text-xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200"
+              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 text-2xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 motion-safe:active:scale-95 active:bg-zinc-200"
             >
               {key}
             </button>
@@ -1384,7 +1376,7 @@ function CallReviewModal({
         </div>
 
         {saved && transcribing && (
-          <p className="px-5 pb-2 text-center text-xs text-zinc-500">Μεταγραφή ηχογράφησης...</p>
+          <p className="px-5 pb-2 text-center text-xs text-zinc-500">Μεταγραφή ηχογράφησης…</p>
         )}
         {/* AI brief draft (review-first), shown after the call is saved */}
         {saved && brief && (
@@ -1419,7 +1411,7 @@ function CallReviewModal({
                 disabled={busy}
                 className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
               >
-                {busy ? 'Αποθήκευση...' : 'Ναι, εισαγωγή'}
+                {busy ? 'Αποθήκευση…' : 'Ναι, εισαγωγή'}
               </button>
               <button
                 type="button"
@@ -1491,7 +1483,7 @@ function IntakeLinkPrompt({
             disabled={busy}
             className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
           >
-            {busy ? 'Αποστολή...' : 'Ναι, στείλε'}
+            {busy ? 'Αποστολή…' : 'Ναι, στείλε'}
           </button>
           <button
             type="button"
@@ -1908,8 +1900,9 @@ export default function CallsPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-400">Φόρτωση...</p>
+        <div className="flex flex-col items-center justify-center gap-2 rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+          <Spinner className="text-indigo-500" />
+          <p className="text-sm text-zinc-500">Φόρτωση…</p>
         </div>
       </div>
     );
@@ -1950,8 +1943,9 @@ export default function CallsPage() {
 
       {/* Phone line card - hidden when browser phone is ready */}
       {!phoneToken.ready && (phoneLoading ? (
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-400">Έλεγχος γραμμής...</p>
+        <div className="flex items-center gap-2 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <Spinner size="sm" className="text-indigo-500" />
+          <p className="text-sm text-zinc-500">Έλεγχος γραμμής…</p>
         </div>
       ) : phoneError ? (
         <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
@@ -1966,13 +1960,9 @@ export default function CallsPage() {
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
                 <p className="text-xs font-medium text-zinc-500">Ο αριθμός σου</p>
-                <span className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${
-                  phoneInfo.phoneAssigned
-                    ? 'bg-green-50 text-green-700 ring-green-200'
-                    : 'bg-amber-50 text-amber-700 ring-amber-200'
-                }`}>
+                <Badge tone={phoneInfo.phoneAssigned ? 'green' : 'amber'}>
                   {phoneInfo.phoneAssigned ? 'Ενεργός' : 'Σε αναμονή'}
-                </span>
+                </Badge>
               </div>
               {phoneInfo.business?.business_phone_number ? (
                 <>
@@ -1996,8 +1986,9 @@ export default function CallsPage() {
       {/* Browser phone */}
       <div>
         {phoneToken.loading ? (
-          <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-sm text-zinc-400">Φόρτωση...</p>
+          <div className="flex items-center gap-2 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+            <Spinner size="sm" className="text-indigo-500" />
+            <p className="text-sm text-zinc-500">Φόρτωση…</p>
           </div>
         ) : (
           <BrowserPhone
@@ -2031,9 +2022,20 @@ export default function CallsPage() {
       <button
         type="button"
         onClick={() => setDetailsOpen((o) => !o)}
-        className="w-full rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+        aria-expanded={detailsOpen}
+        className="flex w-full items-center justify-center gap-2 rounded-[28px] bg-white py-2.5 text-sm font-medium text-zinc-600 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-safe:active:scale-[0.98]"
       >
-        {detailsOpen ? 'Απόκρυψη ιστορικού' : 'Ιστορικό και πελάτες'}
+        <span>{detailsOpen ? 'Απόκρυψη ιστορικού' : 'Ιστορικό και πελάτες'}</span>
+        <svg
+          className={`h-4 w-4 text-zinc-400 transition-transform duration-200 ${detailsOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          strokeWidth={2}
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
       </button>
 
       {/* CRM tabs - shown when detailsOpen */}

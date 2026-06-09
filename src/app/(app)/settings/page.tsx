@@ -486,7 +486,7 @@ export default function SettingsPage() {
                   danger ? 'ring-red-100 hover:ring-red-200' : 'ring-zinc-200/60 hover:ring-indigo-200'
                 }`}
               >
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${bg}`}>
+                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${bg}`}>
                   {icon}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
@@ -501,12 +501,14 @@ export default function SettingsPage() {
           </div>
 
           {/* Στατιστικά — opens the analytics page */}
+          <div className="mt-6 border-t border-zinc-200/60 pt-6">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">Επισκόπηση</p>
           <button
             type="button"
             onClick={() => router.push('/stats')}
-            className="mt-2 flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:ring-indigo-200 active:bg-zinc-50"
+            className="flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:ring-indigo-200 active:bg-zinc-50"
           >
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-indigo-50">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50">
               <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
               </svg>
@@ -519,9 +521,10 @@ export default function SettingsPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
             </svg>
           </button>
+          </div>
         </>
       ) : (
-        <>
+        <div key={activeSection ?? 'hub'} className="motion-safe:animate-[fadeIn_0.2s]">
           <div className="mb-6">
             <button
               type="button"
@@ -541,7 +544,7 @@ export default function SettingsPage() {
           {activeSection === 'data' && renderData()}
           {activeSection === 'account' && renderAccount()}
           {activeSection === 'notifications' && renderNotifications()}
-        </>
+        </div>
       )}
     </div>
   );

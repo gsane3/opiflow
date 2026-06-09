@@ -7,6 +7,8 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { Button } from '@/components/ui/Button';
+import { Spinner } from '@/components/ui/Spinner';
 
 type Mode = 'native' | 'forward';
 type Presence = 'available' | 'busy' | 'away' | 'dnd' | 'offline';
@@ -158,7 +160,7 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-zinc-900">Ηχογράφηση κλήσεων</p>
-            <p className="mt-0.5 text-xs text-zinc-400">
+            <p className="mt-0.5 text-xs text-zinc-500">
               Αυτόματη μεταγραφή &amp; AI brief. Ενεργή από προεπιλογή. Ενημέρωνε τον πελάτη ότι ηχογραφείται.
             </p>
           </div>
@@ -170,17 +172,22 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             onClick={() => setRecording(!recordCalls)}
             className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200'}`}
           >
-            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${recordCalls ? 'left-[22px]' : 'left-0.5'}`} />
+            <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${recordCalls ? 'translate-x-[20px]' : 'translate-x-0'}`} />
           </button>
         </div>
 
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-sm font-medium text-zinc-900">Μικρόφωνο</p>
-            <p className="mt-0.5 text-xs text-zinc-400">
-              {micState === 'granted'
-                ? 'Άδεια δόθηκε ✓'
-                : micState === 'denied'
+            <p className="mt-0.5 text-xs text-zinc-500">
+              {micState === 'granted' ? (
+                <span className="inline-flex items-center gap-1 text-emerald-600">
+                  Άδεια δόθηκε
+                  <svg className="h-3.5 w-3.5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                </span>
+              ) : micState === 'denied'
                 ? (micError ?? 'Δεν δόθηκε άδεια. Ενεργοποίησέ την από τον browser.')
                 : micState === 'unsupported'
                 ? 'Ο browser δεν υποστηρίζει έλεγχο εδώ.'
@@ -188,14 +195,16 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             </p>
           </div>
           {micState !== 'granted' && micState !== 'unsupported' && (
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={checkMic}
               disabled={micState === 'checking'}
-              className="shrink-0 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+              loading={micState === 'checking'}
+              className="shrink-0"
             >
-              {micState === 'checking' ? 'Έλεγχος...' : 'Έλεγχος'}
-            </button>
+              {micState === 'checking' ? 'Έλεγχος…' : 'Έλεγχος'}
+            </Button>
           )}
         </div>
       </div>
@@ -204,7 +213,7 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
       <div className="mt-3">
         <div className="flex items-center gap-2">
           <p className="text-xs font-medium text-zinc-500">Διαθεσιμότητα</p>
-          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700 ring-1 ring-amber-200">
+          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">
             Σύντομα
           </span>
         </div>
@@ -226,7 +235,7 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             );
           })}
         </div>
-        <p className="mt-1.5 text-[11px] text-zinc-400">
+        <p className="mt-1.5 text-[11px] text-zinc-500">
           Η διαθεσιμότητά σου αποθηκεύεται. Η αυτόματη δρομολόγηση εισερχομένων (AI/φωνητικό &amp; επιστροφή κλήσης όταν δεν είσαι διαθέσιμος) έρχεται σύντομα.
         </p>
       </div>
@@ -235,7 +244,10 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
       <div className="mt-5 border-t border-zinc-100 pt-4">
         <p className="text-xs font-medium text-zinc-500">Πώς θες να δέχεσαι κλήσεις;</p>
         {loading ? (
-          <p className="mt-2 text-xs text-zinc-400">Φόρτωση...</p>
+          <div className="mt-2 flex items-center gap-2">
+            <Spinner size="sm" className="text-indigo-500" />
+            <span className="text-xs text-zinc-500">Φόρτωση…</span>
+          </div>
         ) : (
           <div className="mt-2 space-y-2">
             <ModeCard
@@ -262,16 +274,18 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
                     onChange={(e) => setSrcNumber(e.target.value)}
                     inputMode="tel"
                     placeholder="π.χ. 69XXXXXXXX"
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400"
+                    className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-base tabular-nums text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500"
                   />
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
                     disabled={savingMode}
+                    loading={savingMode}
                     onClick={() => saveMode('forward')}
-                    className="shrink-0 rounded-xl bg-indigo-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                    className="shrink-0"
                   >
                     Αποθήκευση
-                  </button>
+                  </Button>
                 </div>
                 {businessPhoneNumber ? (
                   <div className="mt-3 text-[11px] leading-relaxed text-zinc-500">
@@ -295,7 +309,14 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             )}
 
             {modeMsg && (
-              <p className={`text-xs ${modeMsg.tone === 'ok' ? 'text-emerald-600' : 'text-amber-600'}`}>{modeMsg.text}</p>
+              <p className={`flex items-center gap-1 text-xs motion-safe:animate-[fadeIn_0.2s] ${modeMsg.tone === 'ok' ? 'text-emerald-600' : 'text-amber-600'}`}>
+                {modeMsg.tone === 'ok' && (
+                  <svg className="h-3.5 w-3.5 shrink-0" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                  </svg>
+                )}
+                {modeMsg.text}
+              </p>
             )}
           </div>
         )}
@@ -323,7 +344,7 @@ function ModeCard({
       disabled={disabled}
       onClick={onClick}
       className={`block w-full rounded-2xl px-4 py-3 text-left ring-1 transition disabled:opacity-60 ${
-        active ? 'bg-indigo-50 ring-indigo-300' : 'bg-white ring-zinc-200 hover:bg-zinc-50'
+        active ? 'bg-indigo-50 ring-indigo-200' : 'bg-white ring-zinc-200 hover:bg-zinc-50'
       }`}
     >
       <div className="flex items-center gap-2">

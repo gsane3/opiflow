@@ -14,6 +14,12 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { buildMapsUrl } from '@/lib/maps';
 import { formatDateGr } from '@/lib/date';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+import { Badge, type BadgeTone } from '@/components/ui/Badge';
+import { Spinner } from '@/components/ui/Spinner';
+import { EmptyState } from '@/components/ui/EmptyState';
 import FileGallery, { type GalleryFile } from './FileGallery';
 
 export type InfoSection = 'contact' | 'offers' | 'appointments' | 'files' | 'calls';
@@ -41,19 +47,55 @@ async function authHeaders(): Promise<Record<string, string> | null> {
 }
 const fmtDate = formatDateGr;
 const STATUS_GR: Record<string, string> = { new: 'Νέος', in_progress: 'Σε εξέλιξη', won: 'Κερδισμένος', lost: 'Χαμένος' };
+const STATUS_TONE: Record<string, BadgeTone> = { new: 'indigo', in_progress: 'amber', follow_up: 'amber', won: 'green', lost: 'red' };
 const OFFER_STATUS_GR: Record<string, string> = { draft: 'Πρόχειρη', ready_to_send: 'Έτοιμη', sent_manually: 'Στάλθηκε', accepted: 'Αποδεκτή', rejected: 'Απορρίφθηκε', expired: 'Έληξε' };
 const APPT_TYPES = new Set(['book_appointment', 'visit_customer']);
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">{title}</p>
+      <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">{title}</p>
       <div className="mt-2">{children}</div>
     </div>
   );
 }
 function Empty({ text }: { text: string }) {
-  return <p className="py-2 text-sm text-zinc-400">{text}</p>;
+  return (
+    <EmptyState
+      className="px-2 py-6"
+      icon={
+        <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
+        </svg>
+      }
+      title={text}
+    />
+  );
+}
+
+// Small inline "saved" confirmation: stroke check + label, fades in.
+function SavedCheck({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 motion-safe:animate-[fadeIn_0.2s_ease-out]">
+      <svg className="h-4 w-4" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+      </svg>
+      {label}
+    </span>
+  );
+}
+
+// Pulsing placeholder mirroring a SectionCard while data loads.
+function SectionCardSkeleton() {
+  return (
+    <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
+      <div className="h-3 w-28 rounded bg-zinc-200/80" />
+      <div className="mt-3 space-y-2">
+        <div className="h-10 rounded-xl bg-zinc-100" />
+        <div className="h-10 w-3/4 rounded-xl bg-zinc-100" />
+      </div>
+    </div>
+  );
 }
 
 export default function CustomerInfoPanel({
@@ -182,48 +224,50 @@ export default function CustomerInfoPanel({
   if (!open) return null;
 
   const name = customer?.name ?? customer?.companyName ?? 'Πελάτης';
-  const fld = 'w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400';
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
-      <button type="button" aria-label="Κλείσιμο" className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] shadow-2xl">
-        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 py-3">
-          <button type="button" onClick={onClose} aria-label="Πίσω στη συνομιλία" className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100">
+      <button type="button" aria-label="Κλείσιμο" className="absolute inset-0 bg-black/30 motion-safe:animate-[fadeIn_0.2s_ease-out]" onClick={onClose} />
+      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] shadow-2xl motion-safe:animate-[slideInRight_0.28s_cubic-bezier(0.32,0.72,0,1)]">
+        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <button type="button" onClick={onClose} aria-label="Πίσω στη συνομιλία" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition active:scale-95 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
             <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
           </button>
           <p className="flex-1 truncate text-base font-semibold text-zinc-900">{name}</p>
-          {customer?.status && <span className="shrink-0 rounded-full bg-zinc-100 px-2.5 py-0.5 text-xs font-medium text-zinc-600">{STATUS_GR[customer.status] ?? customer.status}</span>}
+          {customer?.status && <Badge tone={STATUS_TONE[customer.status] ?? 'zinc'} className="shrink-0">{STATUS_GR[customer.status] ?? customer.status}</Badge>}
         </header>
 
-        <div className="flex-1 space-y-3 overflow-y-auto p-4">
+        <div className="flex-1 space-y-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {loading ? (
-            <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση…</p>
+            <div className="space-y-3" aria-busy="true">
+              <span className="sr-only">Φόρτωση…</span>
+              <div className="motion-safe:animate-pulse"><SectionCardSkeleton /></div>
+              <div className="motion-safe:animate-pulse"><SectionCardSkeleton /></div>
+              <div className="motion-safe:animate-pulse"><SectionCardSkeleton /></div>
+            </div>
           ) : (
             <>
               {/* Contact (editable) */}
               <div ref={refs.contact}>
                 <SectionCard title="Στοιχεία επικοινωνίας">
-                  <div className="space-y-2">
-                    <input value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="Ονοματεπώνυμο" className={fld} />
-                    <input value={form.companyName} onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} placeholder="Εταιρεία (προαιρετικό)" className={fld} />
+                  <div className="space-y-3">
+                    <Input label="Ονοματεπώνυμο" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+                    <Input label="Εταιρεία" value={form.companyName} onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} placeholder="Προαιρετικό" />
                     <div className="flex gap-2">
-                      <input value={form.mobilePhone} onChange={(e) => setForm((f) => ({ ...f, mobilePhone: e.target.value }))} inputMode="tel" placeholder="Κινητό" className={fld} />
-                      <input value={form.landlinePhone} onChange={(e) => setForm((f) => ({ ...f, landlinePhone: e.target.value }))} inputMode="tel" placeholder="Σταθερό" className={fld} />
+                      <Input label="Κινητό" value={form.mobilePhone} onChange={(e) => setForm((f) => ({ ...f, mobilePhone: e.target.value }))} inputMode="tel" className="tabular-nums" />
+                      <Input label="Σταθερό" value={form.landlinePhone} onChange={(e) => setForm((f) => ({ ...f, landlinePhone: e.target.value }))} inputMode="tel" className="tabular-nums" />
                     </div>
-                    <input value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} inputMode="email" placeholder="Email" className={fld} />
-                    <input value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Διεύθυνση" className={fld} />
+                    <Input label="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} inputMode="email" />
+                    <Input label="Διεύθυνση" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
                     {form.address && (
-                      <a href={buildMapsUrl(form.address)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl bg-indigo-50 px-3 py-2 text-sm font-medium text-indigo-700">
-                        <svg className="h-4 w-4 shrink-0" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>
+                      <a href={buildMapsUrl(form.address)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-xl bg-indigo-50 px-4 py-2.5 text-sm font-medium text-indigo-700 transition active:scale-[0.98] hover:bg-indigo-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                        <svg className="h-5 w-5 shrink-0" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>
                         Άνοιγμα στο Google Maps
                       </a>
                     )}
-                    <div className="flex items-center justify-end gap-2 pt-1">
-                      {contactSaved && <span className="text-xs font-medium text-green-600">Αποθηκεύτηκε ✓</span>}
-                      <button type="button" onClick={saveContact} disabled={savingContact} className="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50">
-                        {savingContact ? 'Αποθήκευση…' : 'Αποθήκευση στοιχείων'}
-                      </button>
+                    <div className="flex items-center justify-end gap-3 pt-1">
+                      {contactSaved && <SavedCheck label="Αποθηκεύτηκε" />}
+                      <Button size="md" loading={savingContact} onClick={saveContact}>Αποθήκευση στοιχείων</Button>
                     </div>
                   </div>
                 </SectionCard>
@@ -240,7 +284,7 @@ export default function CustomerInfoPanel({
                             <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber ?? 'Προσφορά'}</p>
                             <p className="text-xs text-zinc-500">{fmtDate(o.offerDate)} · {OFFER_STATUS_GR[o.status] ?? o.status}</p>
                           </div>
-                          {typeof o.total === 'number' && <span className="shrink-0 text-sm font-semibold text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>}
+                          {typeof o.total === 'number' && <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>}
                         </div>
                       ))}
                     </div>
@@ -257,7 +301,7 @@ export default function CustomerInfoPanel({
                         <div key={a.id} className="rounded-xl bg-zinc-50 px-3 py-2">
                           <p className="text-sm font-medium text-zinc-900">{fmtDate(a.dueDate)}{a.dueTime ? ` · ${a.dueTime}` : ''}</p>
                           {(a.note || a.title) && <p className="truncate text-xs text-zinc-500">{a.note || a.title}</p>}
-                          {a.status !== 'open' && <p className="text-[11px] text-zinc-400">{a.status === 'completed' ? 'Ολοκληρώθηκε' : a.status === 'cancelled' ? 'Ακυρώθηκε' : a.status}</p>}
+                          {a.status !== 'open' && <p className="text-[11px] text-zinc-500">{a.status === 'completed' ? 'Ολοκληρώθηκε' : a.status === 'cancelled' ? 'Ακυρώθηκε' : a.status}</p>}
                         </div>
                       ))}
                     </div>
@@ -271,8 +315,8 @@ export default function CustomerInfoPanel({
                   {galleryFiles.length === 0 ? <Empty text="Δεν υπάρχουν αρχεία." /> : (
                     <div className="grid grid-cols-4 gap-2">
                       {galleryFiles.map((f, i) => (
-                        <button key={`${f.sessionId}:${f.fileIndex}`} type="button" onClick={() => { setGalleryIndex(i); setGalleryOpen(true); }} className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-zinc-100 text-zinc-400 ring-1 ring-zinc-200 transition hover:ring-indigo-300" aria-label={f.name}>
-                          {f.kind === 'video' ? <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg> : <svg className="h-6 w-6" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M6 6h.008v.008H6V6Z" /></svg>}
+                        <button key={`${f.sessionId}:${f.fileIndex}`} type="button" onClick={() => { setGalleryIndex(i); setGalleryOpen(true); }} className="flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-zinc-100 text-zinc-500 ring-1 ring-zinc-200/60 transition active:scale-95 hover:ring-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={f.name}>
+                          {f.kind === 'video' ? <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z" /></svg> : <svg className="h-6 w-6" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M6 6h.008v.008H6V6Z" /></svg>}
                         </button>
                       ))}
                     </div>
@@ -287,7 +331,7 @@ export default function CustomerInfoPanel({
                     <div className="space-y-3">
                       {callBriefs.map((b) => (
                         <div key={b.id} className="border-l-2 border-indigo-200 pl-3">
-                          <p className="text-[11px] font-medium text-zinc-400">{fmtDate(b.occurredAt)}</p>
+                          <p className="text-[11px] font-medium text-zinc-500">{fmtDate(b.occurredAt)}</p>
                           <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{b.body}</p>
                         </div>
                       ))}
@@ -298,18 +342,18 @@ export default function CustomerInfoPanel({
 
               {/* Internal note */}
               <SectionCard title="Εσωτερική σημείωση">
-                <textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} rows={3} placeholder="Σημείωση ορατή μόνο σε εσένα…" className="w-full resize-y rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400" />
-                <div className="mt-2 flex items-center justify-end gap-2">
-                  {noteSaved && <span className="text-xs font-medium text-green-600">Αποθηκεύτηκε ✓</span>}
-                  <button type="button" onClick={saveNote} disabled={noteSaving} className="rounded-full bg-indigo-600 px-4 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50">{noteSaving ? 'Αποθήκευση…' : 'Αποθήκευση'}</button>
+                <Textarea value={noteDraft} onChange={(e) => setNoteDraft(e.target.value)} rows={3} placeholder="Σημείωση ορατή μόνο σε εσένα…" />
+                <div className="mt-3 flex items-center justify-end gap-3">
+                  {noteSaved && <SavedCheck label="Αποθηκεύτηκε" />}
+                  <Button size="md" loading={noteSaving} onClick={saveNote}>Αποθήκευση</Button>
                 </div>
               </SectionCard>
 
               {/* Reject */}
-              <button type="button" onClick={rejectCustomer} disabled={rejecting || customer?.status === 'lost'} className="flex w-full items-center justify-center gap-2 rounded-[24px] bg-white px-4 py-3 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-red-100 transition hover:bg-red-50 disabled:opacity-40">
-                <svg className="h-5 w-5" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+              <Button variant="danger" fullWidth size="md" loading={rejecting} disabled={customer?.status === 'lost'} onClick={rejectCustomer}>
+                <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" /></svg>
                 {customer?.status === 'lost' ? 'Πελάτης χαμένος' : 'Απόρριψη πελάτη'}
-              </button>
+              </Button>
             </>
           )}
         </div>

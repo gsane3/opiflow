@@ -18,9 +18,9 @@ export const SOURCE_LABELS: Record<string, string> = {
 function ChevronRight() {
   return (
     <svg
-      className="h-5 w-5 shrink-0 text-zinc-300"
+      className="h-5 w-5 shrink-0 text-zinc-400 transition-colors group-hover:text-zinc-500"
       fill="none"
-      strokeWidth={2.5}
+      strokeWidth={2}
       stroke="currentColor"
       viewBox="0 0 24 24"
       aria-hidden="true"
@@ -49,7 +49,7 @@ export default function CustomerCard({ customer }: Props) {
     <div className="relative">
       <Link
         href={`/customers/${customer.id}/chat`}
-        className="flex min-h-[88px] items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-50"
+        className="group flex min-h-[88px] items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-50 active:scale-[0.99]"
       >
         <div className="min-w-0 flex-1">
           {/* Name — large & bold for readability */}
@@ -59,8 +59,9 @@ export default function CustomerCard({ customer }: Props) {
 
           {/* Phone line — mobile preferred */}
           {displayPhone && (
-            <p className="mt-0.5 truncate text-sm text-zinc-700">
-              {mobilePhone ? 'Κιν.' : 'Σταθ.'} {displayPhone}
+            <p className="mt-0.5 truncate text-sm">
+              <span className="text-zinc-400">{mobilePhone ? 'Κιν.' : 'Σταθ.'}</span>{' '}
+              <span className="text-zinc-700 tabular-nums">{displayPhone}</span>
             </p>
           )}
 
@@ -90,7 +91,7 @@ export default function CustomerCard({ customer }: Props) {
           target="_blank"
           rel="noopener noreferrer"
           aria-label="Πλοήγηση στη διεύθυνση"
-          className="absolute right-12 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 ring-1 ring-zinc-200/70 transition hover:bg-indigo-50 hover:text-indigo-600 active:bg-indigo-100"
+          className="absolute right-12 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 ring-1 ring-zinc-200/70 transition hover:bg-indigo-50 hover:text-indigo-600 active:bg-indigo-100 active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
         >
           <svg
             className="h-[18px] w-[18px]"

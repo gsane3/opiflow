@@ -9,6 +9,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { EmptyState, Spinner } from '@/components/ui';
 
 interface CustomerLite { id: string; name: string | null; mobilePhone: string | null; phone: string | null; landlinePhone: string | null }
 
@@ -18,6 +19,7 @@ function fold(s: string): string {
 
 export default function CallsCustomerSearch() {
   const [customers, setCustomers] = useState<CustomerLite[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [q, setQ] = useState('');
 
   useEffect(() => {
@@ -30,7 +32,9 @@ export default function CallsCustomerSearch() {
         const res = await fetch('/api/customers?limit=500', { headers: { Authorization: `Bearer ${session.access_token}` } });
         const json = await res.json().catch(() => ({}));
         if (!cancelled && json?.ok && Array.isArray(json.customers)) setCustomers(json.customers as CustomerLite[]);
-      } catch { /* non-fatal */ }
+      } catch { /* non-fatal */ } finally {
+        if (!cancelled) setLoaded(true);
+      }
     })();
     return () => { cancelled = true; };
   }, []);
@@ -48,7 +52,7 @@ export default function CallsCustomerSearch() {
 
   return (
     <div>
-      <div className="relative">
+      <div className="relative rounded-[24px] bg-white shadow-sm ring-1 ring-zinc-200/60 transition focus-within:ring-indigo-300">
         <svg className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
         </svg>
@@ -58,14 +62,23 @@ export default function CallsCustomerSearch() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Αναζήτηση πελάτη…"
-          className="w-full rounded-full border border-zinc-200 bg-white py-3 pl-11 pr-4 text-sm text-zinc-900 shadow-sm outline-none focus:border-indigo-400"
+          className="w-full rounded-[24px] bg-transparent py-3 pl-11 pr-4 text-base text-zinc-900 placeholder-zinc-400 outline-none"
         />
       </div>
 
       {q.trim() && (
-        <div className="mt-2 overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-zinc-200/60">
-          {results.length === 0 ? (
-            <p className="px-4 py-4 text-center text-sm text-zinc-400">Κανένας πελάτης.</p>
+        <div className="mt-2 overflow-hidden rounded-[24px] bg-white shadow-sm ring-1 ring-zinc-200/60 motion-safe:animate-[fadeIn_120ms_ease-out]">
+          {!loaded ? (
+            <div className="flex items-center justify-center gap-2 px-4 py-4 text-sm text-zinc-500">
+              <Spinner size="sm" className="text-indigo-500" />
+              <span>Αναζήτηση…</span>
+            </div>
+          ) : results.length === 0 ? (
+            <EmptyState
+              className="px-6 py-8"
+              title="Κανένας πελάτης"
+              description="Δοκίμασε διαφορετικό όνομα ή αριθμό."
+            />
           ) : (
             results.map((c) => {
               const phone = c.mobilePhone || c.phone || c.landlinePhone;

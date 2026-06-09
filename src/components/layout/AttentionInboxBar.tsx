@@ -401,24 +401,27 @@ export default function AttentionInboxBar() {
         type="button"
         title="Ειδοποιήσεις"
         aria-label="Ειδοποιήσεις"
+        aria-expanded={open}
         onClick={toggleOpen}
-        className="relative flex h-9 w-9 items-center justify-center rounded-full bg-white text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50 active:bg-zinc-100"
+        className={`relative flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50 active:bg-zinc-100 ${
+          open ? 'bg-zinc-100' : 'bg-white'
+        }`}
       >
         <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[9px] font-bold text-white">
-            {unreadCount}
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white ring-2 ring-white tabular-nums">
+            {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
       </button>
 
       {/* Dropdown panel */}
       {open && (
-        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
+        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-zinc-200/60 motion-safe:animate-[fadeIn_0.16s]">
           {/* Panel header */}
-          <div className="flex items-center justify-between border-b border-zinc-100 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-zinc-200/60 px-4 py-3">
             <div className="flex items-center gap-2">
               <p className="text-sm font-semibold text-zinc-900">Ειδοποιήσεις</p>
               {unreadCount > 0 && (
