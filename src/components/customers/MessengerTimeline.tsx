@@ -10,8 +10,10 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import CustomerInfoPanel, { type BriefEntry } from './CustomerInfoPanel';
+import CustomerInfoPanel, { type BriefEntry, type InfoSection } from './CustomerInfoPanel';
 import ChatComposerSheet from './ChatComposerSheet';
+
+const TAPPABLE = new Set(['call', 'upload', 'intake_submitted', 'intake_request', 'appointment', 'appointment_response', 'offer', 'offer_response']);
 
 type Side = 'us' | 'customer';
 interface TimelineItem {
@@ -68,8 +70,10 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [items, setItems] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [infoOpen, setInfoOpen] = useState(false);
+  const [infoSection, setInfoSection] = useState<InfoSection | null>(null);
+  const [infoGallery, setInfoGallery] = useState(false);
+  const [callPopup, setCallPopup] = useState<{ title: string; body: string | null; at: string } | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerView, setComposerView] = useState<'menu' | 'appointment' | 'offer'>('menu');
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -126,12 +130,25 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
     setComposerOpen(true);
   }
 
-  function toggle(id: string) {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
+  function openInfo(section: InfoSection | null, gallery = false) {
+    setInfoSection(section);
+    setInfoGallery(gallery);
+    setInfoOpen(true);
+  }
+
+  // Clickable bubbles: customer actions + calls jump to the relevant view.
+  function onBubbleTap(it: TimelineItem) {
+    switch (it.type) {
+      case 'call': setCallPopup({ title: it.title, body: it.body, at: it.occurredAt }); break;
+      case 'upload': openInfo('files', true); break;
+      case 'intake_submitted':
+      case 'intake_request': openInfo('contact'); break;
+      case 'appointment':
+      case 'appointment_response': openInfo('appointments'); break;
+      case 'offer':
+      case 'offer_response': openInfo('offers'); break;
+      default: break;
+    }
   }
 
   return (
@@ -150,7 +167,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
             <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
           </a>
         )}
-        <button type="button" onClick={() => setInfoOpen(true)} aria-label="Στοιχεία" className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100">
+        <button type="button" onClick={() => openInfo(null)} aria-label="Στοιχεία" className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100">
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
         </button>
       </header>
@@ -168,31 +185,26 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
             const mine = it.side === 'us';
             const icon = TYPE_ICON[it.type] ?? '•';
             const isCall = it.type === 'call';
-            const hasBrief = isCall && Boolean(it.payload?.hasBrief) && Boolean(it.body);
-            const isOpen = expanded.has(it.id);
+            const tappable = TAPPABLE.has(it.type);
+            const hint = isCall ? 'Πατήστε για περίληψη' : it.type === 'upload' ? 'Πατήστε για άνοιγμα' : 'Πατήστε για λεπτομέρειες';
             return (
               <div key={it.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 <div
                   className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ring-1 ${
                     mine ? 'bg-indigo-600 text-white ring-indigo-600/10' : 'bg-white text-zinc-900 ring-zinc-200/70'
-                  } ${isCall || hasBrief ? 'cursor-pointer' : ''}`}
-                  onClick={() => hasBrief && toggle(it.id)}
+                  } ${tappable ? 'cursor-pointer' : ''}`}
+                  onClick={() => tappable && onBubbleTap(it)}
                 >
                   <p className={`flex items-center gap-1.5 font-medium ${mine ? 'text-white' : 'text-zinc-900'}`}>
                     <span aria-hidden>{icon}</span>
                     <span>{it.title}</span>
                   </p>
-                  {isCall ? (
-                    hasBrief ? (
-                      isOpen ? (
-                        <p className={`mt-1 whitespace-pre-wrap text-[13px] leading-relaxed ${mine ? 'text-indigo-50' : 'text-zinc-600'}`}>{it.body}</p>
-                      ) : (
-                        <p className={`mt-0.5 text-[12px] ${mine ? 'text-indigo-100' : 'text-indigo-600'}`}>Πατήστε για περίληψη</p>
-                      )
-                    ) : null
-                  ) : it.body ? (
+                  {!isCall && it.body ? (
                     <p className={`mt-1 whitespace-pre-wrap text-[13px] leading-relaxed ${mine ? 'text-indigo-50' : 'text-zinc-600'}`}>{it.body}</p>
                   ) : null}
+                  {tappable && (
+                    <p className={`mt-0.5 text-[12px] ${mine ? 'text-indigo-100' : 'text-indigo-600'}`}>{hint}</p>
+                  )}
                   <p className={`mt-1 text-[10px] ${mine ? 'text-indigo-200' : 'text-zinc-400'}`}>{fmtTime(it.occurredAt)}</p>
                 </div>
               </div>
@@ -230,10 +242,13 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       </div>
 
       <CustomerInfoPanel
+        key={`${infoSection ?? 'all'}-${infoGallery}`}
         customerId={customerId}
         open={infoOpen}
-        onClose={() => setInfoOpen(false)}
+        onClose={() => { setInfoOpen(false); setInfoSection(null); setInfoGallery(false); }}
         callBriefs={callBriefs}
+        initialSection={infoSection}
+        autoOpenGallery={infoGallery}
       />
       <ChatComposerSheet
         key={composerView}
@@ -243,6 +258,23 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         onDone={() => { void load(); }}
         initialView={composerView}
       />
+
+      {/* Call brief popup */}
+      {callPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+          <button type="button" aria-label="Κλείσιμο" className="absolute inset-0 bg-black/30" onClick={() => setCallPopup(null)} />
+          <div className="relative w-full max-w-md rounded-[24px] bg-white p-5 shadow-2xl">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-zinc-900">📞 {callPopup.title}</p>
+              <button type="button" onClick={() => setCallPopup(null)} aria-label="Κλείσιμο" className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-100 text-zinc-500">
+                <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-zinc-400">{fmtTime(callPopup.at)}</p>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{callPopup.body || 'Δεν βρέθηκε περίληψη κλήσης.'}</p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
