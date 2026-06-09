@@ -16,6 +16,7 @@
 //   TEXT always carries the response URL so SMS delivers a usable link.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { selectViberPhone } from '@/lib/server/viber-phone';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import {
@@ -41,19 +42,7 @@ function str(val: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-function looksLikeGreekMobile(phone: string | null | undefined): boolean {
-  if (!phone) return false;
-  const digits = phone.replace(/[^\d]/g, '');
-  return /^6\d{9}$/.test(digits) || /^306\d{9}$/.test(digits);
-}
-
-function selectViberPhone(customer: CustomerRow): string | null {
-  const mobile = str(customer.mobile_phone);
-  if (mobile) return mobile;
-  const fallback = str(customer.phone);
-  if (fallback && looksLikeGreekMobile(fallback)) return fallback;
-  return null;
-}
+// selectViberPhone + looksLikeGreekMobile → @/lib/server/viber-phone
 
 // Extracts the raw base64url token from a response URL of the form
 // {origin}/offer-response/{rawToken}. Returns null for any invalid input.

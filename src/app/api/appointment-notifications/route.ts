@@ -10,6 +10,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { selectViberPhone } from '@/lib/server/viber-phone';
 import { createAppointmentResponseToken } from '@/lib/server/appointment-response-tokens';
 import { sendViberMessage, normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
 
@@ -36,20 +37,7 @@ function formatGreekDate(dateStr: string): string {
   });
 }
 
-function looksLikeGreekMobile(phone: string | null | undefined): boolean {
-  if (!phone) return false;
-  const digits = phone.replace(/[^\d]/g, '');
-  return /^6\d{9}$/.test(digits) || /^306\d{9}$/.test(digits);
-}
-
-function selectViberPhone(customer: CustomerRow): string | null {
-  // Prefer mobile_phone; fall back to phone only if it looks like a Greek mobile.
-  const mobile = str(customer.mobile_phone);
-  if (mobile) return mobile;
-  const fallback = str(customer.phone);
-  if (fallback && looksLikeGreekMobile(fallback)) return fallback;
-  return null;
-}
+// selectViberPhone + looksLikeGreekMobile → @/lib/server/viber-phone
 
 // ---------------------------------------------------------------------------
 // Types
