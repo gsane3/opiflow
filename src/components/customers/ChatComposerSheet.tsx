@@ -60,6 +60,7 @@ export default function ChatComposerSheet({
   const [offerNotes, setOfferNotes] = useState('');
   const [catalogQuery, setCatalogQuery] = useState('');
   const [catalogResults, setCatalogResults] = useState<CatalogResult[]>([]);
+  const [lineSuggest, setLineSuggest] = useState<{ idx: number; results: CatalogResult[] } | null>(null);
 
   if (!open) return null;
 
@@ -119,6 +120,20 @@ export default function ChatComposerSheet({
   }
 
   function addLine(line: OfferLine) { setLines((prev) => [...prev, line]); }
+
+  // Per-line catalog autosuggest: typing in a line's description matches the
+  // catalog (e.g. "S50" → Alumil Smartia S50 + its code/price).
+  async function searchLineCatalog(idx: number, q: string) {
+    if (q.trim().length < 2) { setLineSuggest(null); return; }
+    const headers = await authHeaders();
+    if (!headers) return;
+    try {
+      const res = await fetch(`/api/catalog?q=${encodeURIComponent(q.trim())}`, { headers });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok && Array.isArray(json.items) && json.items.length) setLineSuggest({ idx, results: (json.items as CatalogResult[]).slice(0, 5) });
+      else setLineSuggest(null);
+    } catch { setLineSuggest(null); }
+  }
   function updateLine(i: number, patch: Partial<OfferLine>) { setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, ...patch } : l)); }
   function removeLine(i: number) { setLines((prev) => prev.filter((_, idx) => idx !== i)); }
 
@@ -151,10 +166,10 @@ export default function ChatComposerSheet({
   }
 
   const ACTIONS = [
-    { key: 'offer', icon: '📄', label: 'Δημιουργία προσφοράς', onClick: () => { setResult(null); setView('offer'); } },
-    { key: 'appointment', icon: '📅', label: 'Κλείσε ραντεβού', onClick: () => { setResult(null); setView('appointment'); } },
-    { key: 'intake', icon: '📋', label: 'Ζήτα στοιχεία', onClick: () => sendLink('intake') },
-    { key: 'photos', icon: '📷', label: 'Ζήτα φωτογραφίες', onClick: () => sendLink('upload') },
+    { key: 'offer', icon: '📄', label: 'Προσφορά', onClick: () => { setResult(null); setView('offer'); } },
+    { key: 'appointment', icon: '📅', label: 'Ραντεβού', onClick: () => { setResult(null); setView('appointment'); } },
+    { key: 'intake', icon: '📋', label: 'Στοιχεία', onClick: () => sendLink('intake') },
+    { key: 'photos', icon: '📷', label: 'Φωτο', onClick: () => sendLink('upload') },
   ];
 
   function Back({ title }: { title: string }) {
@@ -176,12 +191,11 @@ export default function ChatComposerSheet({
 
         {view === 'menu' && (
           <>
-            <p className="mb-2 px-1 text-sm font-semibold text-zinc-900">Ενέργειες</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-4 gap-2">
               {ACTIONS.map((a) => (
-                <button key={a.key} type="button" disabled={busy} onClick={a.onClick} className="flex items-center gap-3 rounded-2xl bg-zinc-50 px-4 py-3.5 text-left ring-1 ring-zinc-200/70 transition hover:bg-zinc-100 disabled:opacity-50">
-                  <span className="text-xl" aria-hidden>{a.icon}</span>
-                  <span className="text-sm font-medium text-zinc-900">{a.label}</span>
+                <button key={a.key} type="button" disabled={busy} onClick={a.onClick} className="flex flex-col items-center gap-1.5 rounded-2xl bg-zinc-50 px-2 py-3 ring-1 ring-zinc-200/70 transition hover:bg-zinc-100 active:scale-95 disabled:opacity-50">
+                  <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-xl ring-1 ring-zinc-200" aria-hidden>{a.icon}</span>
+                  <span className="text-center text-[11px] font-medium text-zinc-700">{a.label}</span>
                 </button>
               ))}
             </div>
@@ -230,13 +244,25 @@ export default function ChatComposerSheet({
             {/* Lines */}
             <div className="mt-2 space-y-2">
               {lines.map((l, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <input value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} placeholder="Περιγραφή" className="min-w-0 flex-1 rounded-lg border border-zinc-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400" />
-                  <input value={l.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) || 0 })} inputMode="decimal" className="w-12 rounded-lg border border-zinc-200 px-2 py-1.5 text-center text-sm outline-none focus:border-indigo-400" />
-                  <input value={l.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) || 0 })} inputMode="decimal" className="w-16 rounded-lg border border-zinc-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400" />
-                  <button type="button" onClick={() => removeLine(i)} aria-label="Αφαίρεση" className="shrink-0 text-zinc-300 hover:text-red-500">
-                    <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                  </button>
+                <div key={i} className="relative">
+                  <div className="flex items-center gap-1.5">
+                    <input value={l.description} onChange={(e) => { updateLine(i, { description: e.target.value }); void searchLineCatalog(i, e.target.value); }} placeholder="Περιγραφή (π.χ. S50)" className="min-w-0 flex-1 rounded-lg border border-zinc-200 px-2 py-1.5 text-sm outline-none focus:border-indigo-400" />
+                    <input value={l.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) || 0 })} inputMode="decimal" className="w-12 rounded-lg border border-zinc-200 px-2 py-1.5 text-center text-sm outline-none focus:border-indigo-400" />
+                    <input value={l.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) || 0 })} inputMode="decimal" className="w-16 rounded-lg border border-zinc-200 px-2 py-1.5 text-right text-sm outline-none focus:border-indigo-400" />
+                    <button type="button" onClick={() => removeLine(i)} aria-label="Αφαίρεση" className="shrink-0 text-zinc-300 hover:text-red-500">
+                      <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                    </button>
+                  </div>
+                  {lineSuggest?.idx === i && lineSuggest.results.length > 0 && (
+                    <div className="absolute left-0 right-0 z-10 mt-1 space-y-1 rounded-xl bg-white p-1 shadow-lg ring-1 ring-zinc-200">
+                      {lineSuggest.results.map((r) => (
+                        <button key={r.id} type="button" onClick={() => { updateLine(i, { description: r.name, unitPrice: r.unitPrice }); setLineSuggest(null); }} className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm hover:bg-zinc-50">
+                          <span className="truncate text-zinc-800">{r.code ? <span className="text-zinc-400">{r.code} · </span> : null}{r.name}</span>
+                          <span className="shrink-0 font-medium text-zinc-600">€{r.unitPrice.toLocaleString('el-GR')}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
               <button type="button" onClick={() => addLine({ description: '', quantity: 1, unitPrice: 0 })} className="text-xs font-medium text-indigo-600">+ Κενή γραμμή</button>
