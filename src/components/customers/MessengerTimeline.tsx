@@ -95,23 +95,31 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [callPopup, setCallPopup] = useState<{ title: string; body: string | null; at: string } | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [composerView, setComposerView] = useState<'menu' | 'appointment' | 'offer'>('menu');
+  // Server-driven AI suggested actions (table suggested_actions). Falls back to
+  // the heuristic below when empty.
+  const [serverActions, setServerActions] = useState<{ id: string; actionType: string; label: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     const headers = await authHeaders();
     if (!headers) { setError('Συνδέσου ξανά.'); setLoading(false); return; }
     try {
-      const [cRes, tRes] = await Promise.all([
+      const [cRes, tRes, aRes] = await Promise.all([
         fetch(`/api/customers/${customerId}`, { headers }),
         fetch(`/api/customers/${customerId}/timeline`, { headers }),
+        fetch(`/api/customers/${customerId}/suggested-actions`, { headers }),
       ]);
       const cJson = await cRes.json().catch(() => ({}));
       const tJson = await tRes.json().catch(() => ({}));
+      const aJson = await aRes.json().catch(() => ({}));
       if (cJson?.ok && cJson.customer) setCustomer(cJson.customer as CustomerLite);
       if (tJson?.ok && Array.isArray(tJson.items)) {
         setItems(tJson.items as TimelineItem[]);
       } else if (!tJson?.ok) {
         setError('Δεν φορτώθηκε η συνομιλία.');
+      }
+      if (aJson?.ok && Array.isArray(aJson.actions)) {
+        setServerActions((aJson.actions as Array<{ id: string; actionType: string; label: string }>).map((a) => ({ id: a.id, actionType: a.actionType, label: a.label })));
       }
     } catch {
       setError('Δεν φορτώθηκε η συνομιλία.');
@@ -133,20 +141,49 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
     .filter((i) => i.type === 'call' && Boolean(i.body))
     .map((i) => ({ id: i.id, title: i.title, body: i.body as string, occurredAt: i.occurredAt }));
 
-  // Heuristic AI suggested-action chips (P5): proactively surface the likely next
-  // step based on what's missing from the conversation. (LLM-driven suggestions via
-  // the suggested_actions table come later.)
+  // AI suggested-action chips. Server-driven (the suggested_actions table, written
+  // by the AI review apply) when present, otherwise a heuristic from what's missing
+  // in the conversation. Tapping a server chip marks it done so it doesn't return.
+  type Chip = { key: string; label: string; Icon: ComponentType<IconProps>; onTap: () => void };
+  const ICON_BY_VIEW: Record<'offer' | 'appointment', ComponentType<IconProps>> = { offer: IconDoc, appointment: IconCalendar };
+  const VIEW_BY_ACTION: Record<string, 'offer' | 'appointment' | undefined> = { send_offer: 'offer', book_appointment: 'appointment' };
+
+  const serverChips: Chip[] = serverActions
+    .map((a) => ({ a, view: VIEW_BY_ACTION[a.actionType] }))
+    .filter((x): x is { a: { id: string; actionType: string; label: string }; view: 'offer' | 'appointment' } => Boolean(x.view))
+    .map(({ a, view }) => ({ key: a.id, label: a.label, Icon: ICON_BY_VIEW[view], onTap: () => actServerChip(a.id, view) }));
+
   const hasOffer = items.some((i) => i.type === 'offer');
   const hasAppointment = items.some((i) => i.type === 'appointment');
-  const suggestions: { label: string; Icon: ComponentType<IconProps>; view: 'offer' | 'appointment' }[] = [];
-  if (!loading && items.length > 0) {
-    if (!hasOffer) suggestions.push({ label: 'Δημιουργία προσφοράς', Icon: IconDoc, view: 'offer' });
-    if (!hasAppointment) suggestions.push({ label: 'Κλείσε ραντεβού', Icon: IconCalendar, view: 'appointment' });
-  }
+  const heuristicChips: Chip[] = [];
+  if (!hasOffer) heuristicChips.push({ key: 'h-offer', label: 'Δημιουργία προσφοράς', Icon: IconDoc, onTap: () => openComposer('offer') });
+  if (!hasAppointment) heuristicChips.push({ key: 'h-appt', label: 'Κλείσε ραντεβού', Icon: IconCalendar, onTap: () => openComposer('appointment') });
+
+  const chips: Chip[] = (!loading && items.length > 0)
+    ? (serverChips.length > 0 ? serverChips : heuristicChips)
+    : [];
 
   function openComposer(view: 'menu' | 'appointment' | 'offer') {
     setComposerView(view);
     setComposerOpen(true);
+  }
+
+  async function patchAction(id: string, status: 'done' | 'dismissed') {
+    const headers = await authHeaders();
+    if (!headers) return;
+    try {
+      await fetch(`/api/customers/${customerId}/suggested-actions`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      });
+    } catch { /* non-fatal */ }
+  }
+
+  function actServerChip(id: string, view: 'offer' | 'appointment') {
+    setServerActions((prev) => prev.filter((a) => a.id !== id));
+    openComposer(view);
+    void patchAction(id, 'done');
   }
 
   function openInfo(section: InfoSection | null, gallery = false) {
@@ -240,18 +277,18 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         <div ref={bottomRef} />
       </div>
 
-      {/* AI suggested-action chips (heuristic) */}
-      {suggestions.length > 0 && (
+      {/* AI suggested-action chips (server-driven, heuristic fallback) */}
+      {chips.length > 0 && (
         <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-zinc-200/60 bg-white px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {suggestions.map((s) => (
+          {chips.map((c) => (
             <button
-              key={s.view}
+              key={c.key}
               type="button"
-              onClick={() => openComposer(s.view)}
+              onClick={c.onTap}
               className="flex shrink-0 items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 transition active:scale-95 hover:bg-indigo-100"
             >
-              <s.Icon aria-hidden className="h-5 w-5 text-indigo-600" strokeWidth={1.7} />
-              {s.label}
+              <c.Icon aria-hidden className="h-5 w-5 text-indigo-600" strokeWidth={1.7} />
+              {c.label}
             </button>
           ))}
         </div>

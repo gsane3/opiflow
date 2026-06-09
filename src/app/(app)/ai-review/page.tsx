@@ -557,6 +557,21 @@ export default function AiReviewPage() {
         }
       }
 
+      // Persist AI "next action" chips for this customer (best-effort, non-fatal).
+      try {
+        await fetch(`/api/customers/${customerId}/suggested-actions`, {
+          method: 'POST',
+          headers: authHeaders,
+          body: JSON.stringify({
+            result: {
+              tasks: tasks.map((t) => ({ type: t.type })),
+              offer: { shouldCreate: createOffer },
+              nextBestAction,
+            },
+          }),
+        });
+      } catch { /* non-fatal: chips are a nice-to-have */ }
+
       setSavedCustomerId(customerId);
       setPhase('saved');
     } catch {
