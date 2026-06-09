@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import CustomerInfoPanel, { type BriefEntry } from './CustomerInfoPanel';
+import ChatComposerSheet from './ChatComposerSheet';
 
 type Side = 'us' | 'customer';
 interface TimelineItem {
@@ -69,6 +70,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [infoOpen, setInfoOpen] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -185,7 +187,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
 
       {/* Composer (visual placeholder — actions land in P3c/P3d) */}
       <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200 bg-white px-3 py-2.5">
-        <button type="button" disabled aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-300">
+        <button type="button" onClick={() => setComposerOpen(true)} aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition hover:bg-indigo-100">
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         </button>
         <div className="flex-1 rounded-full bg-zinc-100 px-4 py-2.5 text-sm text-zinc-400">Σύντομα: γράψε ή μίλα στον βοηθό…</div>
@@ -199,6 +201,12 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         open={infoOpen}
         onClose={() => setInfoOpen(false)}
         callBriefs={callBriefs}
+      />
+      <ChatComposerSheet
+        customerId={customerId}
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        onDone={() => { void load(); }}
       />
     </div>
   );
