@@ -38,13 +38,16 @@ export default function ChatComposerSheet({
   open,
   onClose,
   onDone,
+  initialView = 'menu',
 }: {
   customerId: string;
   open: boolean;
   onClose: () => void;
   onDone: () => void;
+  /** Open straight into an action (used by the AI suggested-action chips). */
+  initialView?: View;
 }) {
-  const [view, setView] = useState<View>('menu');
+  const [view, setView] = useState<View>(initialView);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
   // appointment

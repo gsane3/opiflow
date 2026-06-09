@@ -71,6 +71,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [infoOpen, setInfoOpen] = useState(false);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [composerView, setComposerView] = useState<'menu' | 'appointment' | 'offer'>('menu');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -108,6 +109,22 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const callBriefs: BriefEntry[] = items
     .filter((i) => i.type === 'call' && Boolean(i.body))
     .map((i) => ({ id: i.id, title: i.title, body: i.body as string, occurredAt: i.occurredAt }));
+
+  // Heuristic AI suggested-action chips (P5): proactively surface the likely next
+  // step based on what's missing from the conversation. (LLM-driven suggestions via
+  // the suggested_actions table come later.)
+  const hasOffer = items.some((i) => i.type === 'offer');
+  const hasAppointment = items.some((i) => i.type === 'appointment');
+  const suggestions: { label: string; icon: string; view: 'offer' | 'appointment' }[] = [];
+  if (!loading && items.length > 0) {
+    if (!hasOffer) suggestions.push({ label: 'Δημιουργία προσφοράς', icon: '📄', view: 'offer' });
+    if (!hasAppointment) suggestions.push({ label: 'Κλείσε ραντεβού', icon: '📅', view: 'appointment' });
+  }
+
+  function openComposer(view: 'menu' | 'appointment' | 'offer') {
+    setComposerView(view);
+    setComposerOpen(true);
+  }
 
   function toggle(id: string) {
     setExpanded((prev) => {
@@ -185,9 +202,25 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         <div ref={bottomRef} />
       </div>
 
-      {/* Composer (visual placeholder — actions land in P3c/P3d) */}
+      {/* AI suggested-action chips (heuristic) */}
+      {suggestions.length > 0 && (
+        <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-zinc-100 bg-white px-3 py-2">
+          {suggestions.map((s) => (
+            <button
+              key={s.view}
+              type="button"
+              onClick={() => openComposer(s.view)}
+              className="flex shrink-0 items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-100 transition hover:bg-indigo-100"
+            >
+              <span aria-hidden>✨ {s.icon}</span>{s.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Composer */}
       <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200 bg-white px-3 py-2.5">
-        <button type="button" onClick={() => setComposerOpen(true)} aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition hover:bg-indigo-100">
+        <button type="button" onClick={() => openComposer('menu')} aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition hover:bg-indigo-100">
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         </button>
         <div className="flex-1 rounded-full bg-zinc-100 px-4 py-2.5 text-sm text-zinc-400">Σύντομα: γράψε ή μίλα στον βοηθό…</div>
@@ -203,10 +236,12 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         callBriefs={callBriefs}
       />
       <ChatComposerSheet
+        key={composerView}
         customerId={customerId}
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         onDone={() => { void load(); }}
+        initialView={composerView}
       />
     </div>
   );
