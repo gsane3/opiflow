@@ -13,6 +13,7 @@ import NotificationsPanel from '@/components/settings/NotificationsPanel';
 import NativeCallTestPanel from '@/components/settings/NativeCallTestPanel';
 import SystemStatusCard from '@/components/settings/SystemStatusCard';
 import TeamPanel from '@/components/settings/TeamPanel';
+import ServiceCatalogPanel from '@/components/settings/ServiceCatalogPanel';
 
 type SettingsSection = 'business' | 'providers' | 'data' | 'account';
 
@@ -533,6 +534,9 @@ export default function SettingsPage() {
           <NotificationsPanel />
           {/* Native (Twilio Voice) outbound call test — native-only, no-op on web */}
           <NativeCallTestPanel />
+
+          {/* Service catalog: team-shared price list for offers */}
+          <ServiceCatalogPanel />
 
           {/* Team: members + invites */}
           <TeamPanel />
