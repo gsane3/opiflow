@@ -117,14 +117,15 @@ function ChevronRight() {
   );
 }
 
-// Icon inside the focus card action bubble.
+// Icon inside the focus card action bubble. Colour is inherited from the bubble
+// (currentColor) so it follows the focusCard tone.
 function FocusIcon({ tone }: { tone: FocusTone }) {
   if (tone === 'indigo') {
     return (
       <svg
-        className="h-5 w-5 text-indigo-500"
+        className="h-5 w-5"
         fill="none"
-        strokeWidth={1.5}
+        strokeWidth={1.7}
         stroke="currentColor"
         viewBox="0 0 24 24"
       >
@@ -139,9 +140,9 @@ function FocusIcon({ tone }: { tone: FocusTone }) {
   // Task (red / amber)
   return (
     <svg
-      className="h-5 w-5 text-indigo-500"
+      className="h-5 w-5"
       fill="none"
-      strokeWidth={1.5}
+      strokeWidth={1.7}
       stroke="currentColor"
       viewBox="0 0 24 24"
     >
@@ -466,11 +467,14 @@ export default function DashboardPage() {
   );
 
   // Date label (post-hydration, client-side only)
-  const todayLabel = new Date().toLocaleDateString('el-GR', {
+  const now = new Date();
+  const todayLabel = now.toLocaleDateString('el-GR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
+  // Time-of-day greeting for the eyebrow (Καλημέρα before 18:00, else Καλησπέρα).
+  const greeting = now.getHours() < 18 ? 'Καλημέρα' : 'Καλησπέρα';
 
   // ---------------------------------------------------------------------------
   // Focus card selection
@@ -540,6 +544,13 @@ export default function DashboardPage() {
     indigo: 'border-l-indigo-500',
   };
 
+  // Icon-bubble color per focusCard tone (the FocusIcon inherits via currentColor).
+  const HERO_BUBBLE: Record<FocusTone, string> = {
+    red: 'bg-red-50 text-red-500',
+    amber: 'bg-amber-50 text-amber-600',
+    indigo: 'bg-indigo-50 text-indigo-500',
+  };
+
   // Stat card computations
   const monthStart = new Date();
   monthStart.setDate(1);
@@ -578,7 +589,7 @@ export default function DashboardPage() {
           </p>
           <Link
             href="/login"
-            className="mt-2 inline-block rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700"
+            className="mt-2 inline-block rounded-2xl bg-indigo-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-indigo-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
           >
             Σύνδεση
           </Link>
@@ -588,7 +599,9 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs capitalize text-zinc-500">{todayLabel}</p>
+          <p className="text-xs capitalize text-zinc-500">
+            <span className="font-semibold text-zinc-600">{greeting}</span> · {todayLabel}
+          </p>
           <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">
             Τι πρέπει να γίνει τώρα;
           </h1>
@@ -606,8 +619,8 @@ export default function DashboardPage() {
           className={`rounded-[28px] border-l-4 bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 ${HERO_ACCENT[focusCard.tone]}`}
         >
           <div className="flex items-start gap-3">
-            {/* Icon bubble */}
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
+            {/* Icon bubble (color driven by focusCard tone) */}
+            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${HERO_BUBBLE[focusCard.tone]}`}>
               <FocusIcon tone={focusCard.tone} />
             </div>
             <div className="min-w-0 flex-1">
@@ -623,7 +636,7 @@ export default function DashboardPage() {
           </div>
           <Link
             href={focusCard.primaryHref}
-            className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+            className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
           >
             {focusCtaLabel}
           </Link>
@@ -636,7 +649,7 @@ export default function DashboardPage() {
           </p>
           <Link
             href="/customers/new"
-            className="mt-5 flex h-12 w-full items-center justify-center rounded-xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+            className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
           >
             Προσθήκη πελάτη
           </Link>

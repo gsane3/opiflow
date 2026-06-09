@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { Card, EmptyState, BottomSheet, SheetRow } from '@/components/ui';
+import { Button, Card, EmptyState, BottomSheet, SheetRow } from '@/components/ui';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
 import CustomerCard from '@/components/customers/CustomerCard';
@@ -245,7 +245,7 @@ export default function CustomersPage() {
           <p className="text-sm font-medium text-zinc-600">Συνδέσου για να δεις τους πελάτες.</p>
           <Link
             href="/login"
-            className="mt-4 inline-block rounded-2xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+            className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors select-none hover:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
           >
             Σύνδεση
           </Link>
@@ -327,7 +327,7 @@ export default function CustomersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Ψάξε με όνομα ή τηλέφωνο"
-            className="flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+            className="flex-1 rounded-lg bg-transparent py-3.5 text-base text-zinc-900 placeholder-zinc-400 outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           {search.trim() !== '' && (
             <button
@@ -341,13 +341,13 @@ export default function CustomersPage() {
         </div>
 
         {/* Filter chips — 4 primary + "Περισσότερα φίλτρα" */}
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2.5 border-t border-zinc-100 pt-3">
           {PRIMARY_FILTERS.map((f) => (
             <button
               key={f.value}
               type="button"
               onClick={() => setQuickFilter(f.value)}
-              className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition ${
+              className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
                 quickFilter === f.value
                   ? 'bg-indigo-600 text-white'
                   : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
@@ -362,7 +362,7 @@ export default function CustomersPage() {
             <button
               type="button"
               onClick={() => setQuickFilter('all')}
-              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition hover:bg-indigo-700"
+              className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-indigo-600 px-4 py-1.5 text-sm font-medium text-white transition active:scale-[0.97] hover:bg-indigo-700"
             >
               {activeAdvancedLabel}
               <svg className="h-3.5 w-3.5" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -374,7 +374,7 @@ export default function CustomersPage() {
           <button
             type="button"
             onClick={() => setMoreFiltersOpen(true)}
-            className="min-h-[40px] rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
+            className="min-h-[40px] rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-medium text-zinc-700 transition active:scale-[0.97] hover:bg-zinc-200"
           >
             Περισσότερα φίλτρα
           </button>
@@ -401,9 +401,9 @@ export default function CustomersPage() {
             action={
               <Link
                 href="/customers/new"
-                className="inline-flex h-12 items-center gap-1 rounded-xl bg-indigo-600 px-5 text-sm font-semibold text-white transition hover:bg-indigo-700"
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors select-none hover:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
               >
-                <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
                 </svg>
                 Νέος πελάτης
@@ -412,11 +412,30 @@ export default function CustomersPage() {
           />
         </Card>
       ) : filtered.length === 0 ? (
-        <Card padding="none">
-          <EmptyState title="Δεν βρέθηκαν πελάτες με αυτά τα κριτήρια." />
+        <Card padding="none" className="motion-safe:animate-[fadeIn_0.18s]">
+          <EmptyState
+            icon={
+              <svg className="h-6 w-6" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+              </svg>
+            }
+            title="Δεν βρέθηκαν πελάτες με αυτά τα κριτήρια."
+            action={
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={() => {
+                  setSearch('');
+                  setQuickFilter('all');
+                }}
+              >
+                Καθαρισμός φίλτρων
+              </Button>
+            }
+          />
         </Card>
       ) : (
-        <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
+        <ul className="grid grid-cols-1 gap-3 motion-safe:animate-[fadeIn_0.18s] md:grid-cols-2">
           {filtered.map((customer) => (
             <li key={customer.id}>
               <CustomerCard customer={customer} />
