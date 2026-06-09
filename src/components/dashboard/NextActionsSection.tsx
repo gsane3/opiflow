@@ -178,7 +178,7 @@ function buildActions(
 
   // 5. Customers with follow_up_needed but no open task - newest first.
   const followUpCustomers = customers
-    .filter((c) => c.status === 'follow_up_needed' && !customerIdsWithOpenTask.has(c.id))
+    .filter((c) => c.status === 'in_progress' && !customerIdsWithOpenTask.has(c.id))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   for (const c of followUpCustomers) {
     items.push({

@@ -118,7 +118,7 @@ async function findOrCreateCallCustomer(
       email: null,
       address: null,
       source: 'inbound_call',
-      status: 'new_lead',
+      status: 'new',
       opportunity_value: null,
       needs_summary: null,
       notes: 'Auto-created from inbound PBX call.',

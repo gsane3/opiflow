@@ -59,7 +59,7 @@ ${vatLine}
     "notes": "string",
     "terms": "string"
   },
-  "statusUpdate": "new_lead|contacted|follow_up_needed|offer_drafted|offer_sent|won|lost",
+  "statusUpdate": "new|in_progress|won|lost",
   "nextBestAction": "string στα Ελληνικά",
   "warnings": ["string"]
 }

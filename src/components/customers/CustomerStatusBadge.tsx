@@ -1,6 +1,8 @@
 import type { CustomerStatus } from '@/lib/types';
 
 export const STATUS_LABELS: Record<CustomerStatus, string> = {
+  new: 'Νέος',
+  in_progress: 'Σε εξέλιξη',
   new_lead: 'Νέος',
   contacted: 'Μίλησα',
   follow_up_needed: 'Να ξαναμιλήσω',
@@ -11,6 +13,8 @@ export const STATUS_LABELS: Record<CustomerStatus, string> = {
 };
 
 const STATUS_COLORS: Record<CustomerStatus, string> = {
+  new: 'bg-indigo-100 text-indigo-700',
+  in_progress: 'bg-amber-100 text-amber-700',
   new_lead: 'bg-indigo-100 text-indigo-700',
   contacted: 'bg-sky-100 text-sky-700',
   follow_up_needed: 'bg-amber-100 text-amber-700',

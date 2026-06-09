@@ -10,10 +10,8 @@ import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicat
 import AttentionInboxBar from '@/components/layout/AttentionInboxBar';
 
 const LEAD_STATUSES = new Set<string>([
-  'new_lead',
-  'follow_up_needed',
-  'offer_drafted',
-  'offer_sent',
+  'new',
+  'in_progress',
 ]);
 const OPEN_OFFER_STATUSES = new Set<string>(['draft', 'ready_to_send', 'sent_manually']);
 const PRIORITY_ORDER: Record<string, number> = { high: 0, normal: 1, low: 2 };
@@ -92,7 +90,7 @@ function mapCustomer(d: Record<string, unknown>): Customer {
     email: (d.email as string | null) ?? '',
     address: (d.address as string | null) ?? '',
     source: (d.source as Customer['source']) ?? 'manual_entry',
-    status: (d.status as Customer['status']) ?? 'new_lead',
+    status: (d.status as Customer['status']) ?? 'new',
     preferredContactMethod:
       (d.preferredContactMethod as Customer['preferredContactMethod']) ?? 'phone',
     needsSummary: (d.needsSummary as string | null) ?? '',

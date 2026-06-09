@@ -22,7 +22,7 @@ describe('parseAiResponse — empty / invalid input', () => {
     expect(r.customerNeeds).toBe('');
     expect(r.tasks).toEqual([]);
     expect(r.offer).toEqual({ shouldCreate: false, items: [], notes: '', terms: '' });
-    expect(r.statusUpdate).toBe('contacted');
+    expect(r.statusUpdate).toBe('in_progress');
     expect(r.nextBestAction).toBe('');
     expect(r.warnings).toEqual([]);
   });
@@ -32,7 +32,7 @@ describe('parseAiResponse — empty / invalid input', () => {
       const r = parseAiResponse(input);
       expect(r.tasks).toEqual([]);
       expect(r.offer.items).toEqual([]);
-      expect(r.statusUpdate).toBe('contacted');
+      expect(r.statusUpdate).toBe('in_progress');
     }
   });
 });
@@ -45,7 +45,7 @@ describe('parseAiResponse — enum fallback', () => {
     });
     expect(r.customer.source).toBe('inbound_call');
     expect(r.customer.preferredContactMethod).toBe('phone');
-    expect(r.statusUpdate).toBe('contacted');
+    expect(r.statusUpdate).toBe('in_progress');
   });
 
   it('preserves valid enum values', () => {

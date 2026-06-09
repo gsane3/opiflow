@@ -118,6 +118,8 @@ function industryInstruction(type: string): string {
 }
 
 const STATUS_LABELS: Record<string, string> = {
+  new: 'Νέος πελάτης',
+  in_progress: 'Σε εξέλιξη',
   new_lead: 'Νέος πελάτης',
   contacted: 'Επικοινωνία έγινε',
   follow_up_needed: 'Απαιτείται follow-up',

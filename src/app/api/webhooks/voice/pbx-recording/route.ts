@@ -14,6 +14,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { transcribeAndBriefCallAudio } from '@/lib/server/openai-call-audio';
+import { appendCallBrief } from '@/lib/server/call-briefs';
 import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 
 export const runtime = 'nodejs';
@@ -239,6 +240,16 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+
+  // Append the transcript brief to the per-call brief timeline (non-fatal) so the
+  // metadata brief from call-logging is preserved as history rather than overwritten.
+  await appendCallBrief(supabase, {
+    businessId,
+    customerId: communicationCustomerId,
+    communicationId,
+    briefKind: 'transcript',
+    briefText: result.brief,
+  });
 
   // ---------------------------------------------------------------------------
   // Insert ai_draft task if customer is known and task data is available.

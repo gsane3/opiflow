@@ -18,10 +18,7 @@ const CUSTOMER_COLUMNS = [
   'status_summary', 'business_notes', 'personal_notes', 'next_best_action', 'memory_updated_at',
 ].join(', ');
 
-const VALID_STATUSES = [
-  'new_lead', 'contacted', 'follow_up_needed', 'offer_drafted',
-  'offer_sent', 'won', 'lost',
-] as const;
+const VALID_STATUSES = ['new', 'in_progress', 'won', 'lost'] as const;
 
 const VALID_SOURCES = [
   'facebook_ads', 'google_ads', 'website_form', 'referral',

@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { generateCallBrief } from '@/lib/server/call-brief';
+import { appendCallBrief } from '@/lib/server/call-briefs';
 
 export const runtime = 'nodejs';
 
@@ -65,6 +66,10 @@ export async function POST(request: NextRequest) {
   }
 
   const phone = normalizePhone(str(raw.phone));
+  // Optional provider call id (e.g. Twilio CallSid for native calls). Lets the
+  // recording webhook match this row exactly (provider_call_id, migration 038)
+  // instead of scanning the summary text. Omitted for plain jsSIP browser calls.
+  const providerCallId = str(raw.providerCallId);
 
   // Validate the (optional) customer belongs to this business; drop it otherwise
   // so a call can never be attributed across tenants.
@@ -126,6 +131,9 @@ export async function POST(request: NextRequest) {
       status,
       phone,
       summary,
+      // Only include provider_call_id when present, so the insert stays valid
+      // on databases where migration 038 has not been applied yet.
+      ...(providerCallId ? { provider_call_id: providerCallId } : {}),
     })
     .select('id')
     .single();
@@ -134,9 +142,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'call_log_failed' }, { status: 500 });
   }
 
+  const communicationId = (commRow as { id: string }).id;
+
+  // Append the metadata brief to the per-call brief timeline (non-fatal).
+  await appendCallBrief(supabase, {
+    businessId,
+    customerId,
+    communicationId,
+    briefKind: 'metadata',
+    briefText: summary,
+  });
+
   return NextResponse.json({
     ok: true,
-    communicationId: (commRow as { id: string }).id,
+    communicationId,
     brief: brief ?? null,
   });
 }
