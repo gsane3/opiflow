@@ -7,6 +7,7 @@ import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
 import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicationsSection';
+import HomeActionChips from '@/components/dashboard/HomeActionChips';
 import AttentionInboxBar from '@/components/layout/AttentionInboxBar';
 
 const LEAD_STATUSES = new Set<string>([
@@ -595,6 +596,9 @@ export default function DashboardPage() {
         </div>
         <AttentionInboxBar />
       </div>
+
+      {/* Today's chips: appointments + call-backs (tap → agenda/callback popup) */}
+      <HomeActionChips />
 
       {/* Hero card - the single most important pending action */}
       {focusCard ? (
