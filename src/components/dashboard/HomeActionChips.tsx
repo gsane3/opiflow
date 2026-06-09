@@ -9,6 +9,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { formatDateGr } from '@/lib/date';
 
 interface TaskDto {
   id: string; customerId: string | null; title: string | null; type: string;
@@ -32,12 +33,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
   }
 }
 
-function fmtDay(d: string | null): string {
-  if (!d) return '';
-  try {
-    return new Date(d + 'T00:00:00').toLocaleDateString('el-GR', { weekday: 'short', day: '2-digit', month: 'short' });
-  } catch { return d; }
-}
+const fmtDay = formatDateGr;
 
 export default function HomeActionChips() {
   const router = useRouter();

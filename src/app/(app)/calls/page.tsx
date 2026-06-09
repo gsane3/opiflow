@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { formatDateTimeGr } from '@/lib/date';
 import { norm } from '@/lib/search';
 import type { Customer } from '@/lib/types';
 import BrowserPhone, { type CallEndedEvent } from '@/components/phone/BrowserPhone';
@@ -74,18 +75,7 @@ type PhoneTokenState = {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function fmtDate(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString('el-GR', {
-      day: 'numeric',
-      month: 'short',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-  } catch {
-    return iso.slice(0, 10);
-  }
-}
+const fmtDate = formatDateTimeGr;
 
 function mapCustomer(d: Record<string, unknown>): Customer {
   const now = new Date().toISOString();

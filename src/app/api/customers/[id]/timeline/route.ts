@@ -48,7 +48,7 @@ function fmtDateGr(dateStr: string | null): string {
   try {
     const ymd = dateStr.split('T')[0].split('-');
     if (ymd.length !== 3) return dateStr;
-    return `${ymd[2]}/${ymd[1]}/${ymd[0]}`;
+    return `${ymd[2]}-${ymd[1]}-${ymd[0]}`;
   } catch {
     return dateStr;
   }

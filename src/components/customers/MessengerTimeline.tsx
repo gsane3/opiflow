@@ -10,6 +10,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { formatDateTimeGr } from '@/lib/date';
 import CustomerInfoPanel, { type BriefEntry, type InfoSection } from './CustomerInfoPanel';
 import ChatComposerSheet from './ChatComposerSheet';
 
@@ -50,13 +51,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
   }
 }
 
-function fmtTime(iso: string): string {
-  try {
-    return new Date(iso).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
-  }
-}
+const fmtTime = formatDateTimeGr;
 
 const TYPE_ICON: Record<string, string> = {
   call: '📞', sms: '💬', viber: '💜', email: '✉️',
