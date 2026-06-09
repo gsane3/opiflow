@@ -31,3 +31,6 @@ __pycache__/
 cert_key
 cert_key.pub
 cert_key*.pem
+# Other credential material that must never be committed
+*recovery*code*.txt
+twilio_2FA_recovery_code.txt
