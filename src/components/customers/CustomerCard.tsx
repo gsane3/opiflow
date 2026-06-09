@@ -48,7 +48,7 @@ export default function CustomerCard({ customer }: Props) {
   return (
     <div className="relative">
       <Link
-        href={`/customers/${customer.id}`}
+        href={`/customers/${customer.id}/chat`}
         className="flex min-h-[88px] items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50/60 active:bg-zinc-50"
       >
         <div className="min-w-0 flex-1">
