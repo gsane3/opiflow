@@ -13,6 +13,7 @@
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { buildMapsUrl } from '@/lib/maps';
+import { formatDateGr } from '@/lib/date';
 import FileGallery, { type GalleryFile } from './FileGallery';
 
 export type InfoSection = 'contact' | 'offers' | 'appointments' | 'files' | 'calls';
@@ -38,11 +39,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
   } catch { return null; }
 }
-function fmtDate(iso: string | null): string {
-  if (!iso) return '';
-  try { return new Date(iso.length <= 10 ? iso + 'T00:00:00' : iso).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' }); }
-  catch { return iso; }
-}
+const fmtDate = formatDateGr;
 const STATUS_GR: Record<string, string> = { new: 'Νέος', in_progress: 'Σε εξέλιξη', won: 'Κερδισμένος', lost: 'Χαμένος' };
 const OFFER_STATUS_GR: Record<string, string> = { draft: 'Πρόχειρη', ready_to_send: 'Έτοιμη', sent_manually: 'Στάλθηκε', accepted: 'Αποδεκτή', rejected: 'Απορρίφθηκε', expired: 'Έληξε' };
 const APPT_TYPES = new Set(['book_appointment', 'visit_customer']);

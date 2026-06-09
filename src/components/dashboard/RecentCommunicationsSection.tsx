@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { CommunicationRecord } from '@/lib/types';
+import { formatDateGr } from '@/lib/date';
 
 function formatTime(isoStr: string): string {
   const date = new Date(isoStr);
@@ -12,7 +13,7 @@ function formatTime(isoStr: string): string {
   const timeStr = date.toLocaleTimeString('el-GR', { hour: '2-digit', minute: '2-digit' });
   if (dateStr === todayStr) return `σήμερα ${timeStr}`;
   if (dateStr === yesterdayStr) return `χθες ${timeStr}`;
-  return date.toLocaleDateString('el-GR', { day: 'numeric', month: 'short' }) + ` ${timeStr}`;
+  return `${formatDateGr(dateStr)} ${timeStr}`;
 }
 
 function CallCommIcon() {
