@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { parseOfferItems, calculateOfferTotals, type ValidOfferItem } from '@/lib/offer-totals';
 
 export const runtime = 'nodejs';
 
@@ -125,47 +126,6 @@ async function validateTaskBelongsToBusiness(
     .eq('business_id', businessId)
     .maybeSingle();
   return data !== null;
-}
-
-interface ValidItem {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  sortOrder: number;
-}
-
-// Returns null if array is missing, empty, or any item is invalid.
-function parseItems(raw: unknown): ValidItem[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null;
-  const items: ValidItem[] = [];
-  for (const item of raw) {
-    if (typeof item !== 'object' || item === null || Array.isArray(item)) return null;
-    const r = item as Record<string, unknown>;
-    const description = str(r.description);
-    if (!description) return null;
-    const quantity = optionalNumber(r.quantity);
-    if (quantity === null || quantity <= 0) return null;
-    const unitPrice = optionalNumber(r.unitPrice);
-    if (unitPrice === null || unitPrice < 0) return null;
-    const sortOrder = typeof r.sortOrder === 'number' ? Math.floor(r.sortOrder) : 0;
-    items.push({ description, quantity, unitPrice, sortOrder });
-  }
-  return items;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function calculateTotals(
-  items: ValidItem[],
-  vatRate: number
-): { subtotal: number; vatAmount: number; total: number; lineTotals: number[] } {
-  const lineTotals = items.map((item) => round2(item.quantity * item.unitPrice));
-  const subtotal = round2(lineTotals.reduce((s, t) => s + t, 0));
-  const vatAmount = round2((subtotal * vatRate) / 100);
-  const total = round2(subtotal + vatAmount);
-  return { subtotal, vatAmount, total, lineTotals };
 }
 
 function dbToOfferItem(row: OfferItemRow) {
@@ -422,7 +382,7 @@ export async function PATCH(
     let finalItems: OfferItemRow[] | null = null;
 
     if (hasNewItems) {
-      const newItems = parseItems(raw.items);
+      const newItems = parseOfferItems(raw.items);
       if (!newItems) {
         return NextResponse.json({ ok: false, error: 'invalid_items' }, { status: 400 });
       }
@@ -432,7 +392,7 @@ export async function PATCH(
           ? (optionalNumber(raw.vatRate) ?? existing.vat_rate)
           : existing.vat_rate;
 
-      const { subtotal, vatAmount, total, lineTotals } = calculateTotals(newItems, vatRate);
+      const { subtotal, vatAmount, total, lineTotals } = calculateOfferTotals(newItems, vatRate);
 
       // Delete all existing items for this offer (business_id is included for safety).
       const { error: deleteError } = await supabase
@@ -476,13 +436,13 @@ export async function PATCH(
       const newVatRate = optionalNumber(raw.vatRate);
       if (newVatRate !== null && newVatRate >= 0) {
         const currentItemRows = await fetchItemsForOffer(supabase, businessId, id);
-        const currentItems: ValidItem[] = currentItemRows.map((r) => ({
+        const currentItems: ValidOfferItem[] = currentItemRows.map((r) => ({
           description: r.description,
           quantity: r.quantity,
           unitPrice: r.unit_price,
           sortOrder: r.sort_order,
         }));
-        const { subtotal, vatAmount, total } = calculateTotals(currentItems, newVatRate);
+        const { subtotal, vatAmount, total } = calculateOfferTotals(currentItems, newVatRate);
         updateFields.vat_rate = newVatRate;
         updateFields.subtotal = subtotal;
         updateFields.vat_amount = vatAmount;

@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { parseOfferItems, calculateOfferTotals } from '@/lib/offer-totals';
 
 export const runtime = 'nodejs';
 
@@ -131,47 +132,6 @@ async function validateTaskBelongsToBusiness(
     .eq('business_id', businessId)
     .maybeSingle();
   return data !== null;
-}
-
-interface ValidItem {
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  sortOrder: number;
-}
-
-// Returns null if items array is missing, empty, or any item is invalid.
-function parseItems(raw: unknown): ValidItem[] | null {
-  if (!Array.isArray(raw) || raw.length === 0) return null;
-  const items: ValidItem[] = [];
-  for (const item of raw) {
-    if (typeof item !== 'object' || item === null || Array.isArray(item)) return null;
-    const r = item as Record<string, unknown>;
-    const description = str(r.description);
-    if (!description) return null;
-    const quantity = optionalNumber(r.quantity);
-    if (quantity === null || quantity <= 0) return null;
-    const unitPrice = optionalNumber(r.unitPrice);
-    if (unitPrice === null || unitPrice < 0) return null;
-    const sortOrder = typeof r.sortOrder === 'number' ? Math.floor(r.sortOrder) : 0;
-    items.push({ description, quantity, unitPrice, sortOrder });
-  }
-  return items;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
-}
-
-function calculateTotals(
-  items: ValidItem[],
-  vatRate: number
-): { subtotal: number; vatAmount: number; total: number; lineTotals: number[] } {
-  const lineTotals = items.map((item) => round2(item.quantity * item.unitPrice));
-  const subtotal = round2(lineTotals.reduce((s, t) => s + t, 0));
-  const vatAmount = round2((subtotal * vatRate) / 100);
-  const total = round2(subtotal + vatAmount);
-  return { subtotal, vatAmount, total, lineTotals };
 }
 
 // Generate the next OFFER-YYYY-N number for the business.
@@ -349,7 +309,7 @@ export async function POST(request: NextRequest) {
     const raw = body as Record<string, unknown>;
 
     // items is required for POST
-    const items = parseItems(raw.items);
+    const items = parseOfferItems(raw.items);
     if (!items) {
       return NextResponse.json({ ok: false, error: 'invalid_items' }, { status: 400 });
     }
@@ -395,7 +355,7 @@ export async function POST(request: NextRequest) {
       str(raw.offerNumber) ?? (await generateOfferNumber(supabase, businessId));
 
     // Compute totals server-side; client-supplied subtotal/vatAmount/total are ignored
-    const { subtotal, vatAmount, total, lineTotals } = calculateTotals(items, vatRate);
+    const { subtotal, vatAmount, total, lineTotals } = calculateOfferTotals(items, vatRate);
 
     // Insert offer row
     const { data: offerData, error: offerError } = await supabase
