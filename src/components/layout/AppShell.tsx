@@ -109,13 +109,20 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     );
   }
 
+  // Full-screen chat manages its own height (header + scrolling messages +
+  // pinned composer), so it must NOT get the normal bottom padding / page scroll.
+  const isChatPage = /^\/customers\/[^/]+\/chat\/?$/.test(pathname);
+
   return (
     <div className="flex min-h-[100dvh] overflow-x-hidden">
       <PushToast />
       <DesktopSidebar />
       <div className="flex min-w-0 flex-1 flex-col md:pl-60">
-        {/* Bottom padding clears the mobile nav + iOS home indicator. */}
-        <main className="min-w-0 flex-1 overflow-x-hidden pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6 scroll-smooth bg-[#F5F5F7]">{children}</main>
+        {/* Bottom padding clears the mobile nav + iOS home indicator (except the
+            full-screen chat, which sizes itself above the nav). */}
+        <main className={`min-w-0 flex-1 overflow-x-hidden scroll-smooth bg-[#F5F5F7] ${
+          isChatPage ? 'overflow-y-hidden' : 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6'
+        }`}>{children}</main>
 
         {/* Global AI assistant: dictate or type any action from anywhere. */}
         {!pathname.startsWith('/cmd') && !pathname.startsWith('/customers/') && (

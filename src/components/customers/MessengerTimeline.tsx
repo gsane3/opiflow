@@ -7,7 +7,7 @@
 // composer + AI mic + interactive actions land in P3c/P3d. Self-contained and
 // additive — it does not touch the existing customer card.
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
@@ -67,6 +67,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     const headers = await authHeaders();
@@ -93,6 +94,11 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
 
   useEffect(() => { void load(); }, [load]);
 
+  // Keep the newest message in view (chat scrolls to the bottom).
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: 'end' });
+  }, [items]);
+
   const name = customer?.name ?? 'Πελάτης';
   const dialNumber = customer?.mobilePhone || customer?.phone || customer?.landlinePhone || null;
 
@@ -105,9 +111,9 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   }
 
   return (
-    <div className="mx-auto flex min-h-[100dvh] w-full max-w-2xl flex-col">
+    <div className="mx-auto flex h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom))] w-full max-w-2xl flex-col md:h-[100dvh]">
       {/* Header */}
-      <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur">
+      <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur">
         <Link href={`/customers/${customerId}`} aria-label="Πίσω" className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition hover:bg-zinc-100">
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
         </Link>
@@ -125,8 +131,8 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         </Link>
       </header>
 
-      {/* Chat body */}
-      <div className="flex-1 space-y-2 bg-[#F5F5F7] px-3 py-4">
+      {/* Chat body (the only scroll area) */}
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F5F5F7] px-3 py-4">
         {loading ? (
           <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση συνομιλίας…</p>
         ) : error ? (
@@ -169,10 +175,11 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
             );
           })
         )}
+        <div ref={bottomRef} />
       </div>
 
       {/* Composer (visual placeholder — actions land in P3c/P3d) */}
-      <div className="sticky bottom-0 z-10 flex items-center gap-2 border-t border-zinc-200 bg-white px-3 py-2.5 pb-[calc(0.625rem+env(safe-area-inset-bottom))]">
+      <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200 bg-white px-3 py-2.5">
         <button type="button" disabled aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-300">
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         </button>
