@@ -35,8 +35,8 @@ const VALID_SOURCES: readonly CustomerSource[] = [
 ];
 
 const VALID_STATUSES: readonly CustomerStatus[] = [
-  'new_lead', 'contacted', 'follow_up_needed', 'offer_drafted',
-  'offer_sent', 'won', 'lost',
+  'new', 'in_progress', 'won', 'lost',
+  'new_lead', 'contacted', 'follow_up_needed', 'offer_drafted', 'offer_sent',
 ];
 
 const VALID_CONTACT_METHODS = ['viber', 'email', 'phone'] as const;
@@ -62,7 +62,7 @@ function mapCustomer(dto: CustomerDto): Customer {
       : 'manual_entry',
     status: VALID_STATUSES.includes(dto.status as CustomerStatus)
       ? (dto.status as CustomerStatus)
-      : 'new_lead',
+      : 'new',
     preferredContactMethod: VALID_CONTACT_METHODS.includes(
       dto.preferredContactMethod as (typeof VALID_CONTACT_METHODS)[number]
     )
@@ -79,33 +79,26 @@ function mapCustomer(dto: CustomerDto): Customer {
 }
 
 // Quick-filter values. 'offers' is a synthetic filter that matches any
-// offer status (offer_drafted | offer_sent).
+// legacy offer status (offer_drafted | offer_sent) for back-compat.
 type QuickFilter =
   | 'all'
-  | 'new_lead'
-  | 'follow_up_needed'
-  | 'offers'
-  | 'contacted'
-  | 'offer_drafted'
-  | 'offer_sent'
+  | 'new'
+  | 'in_progress'
   | 'won'
-  | 'lost';
+  | 'lost'
+  | 'offers';
 
-// The 4 chips always shown inline.
+// The 4 status chips always shown inline.
 const PRIMARY_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: 'all', label: 'Όλοι' },
-  { value: 'new_lead', label: 'Νέοι' },
-  { value: 'follow_up_needed', label: 'Να ξαναμιλήσω' },
-  { value: 'offers', label: 'Προσφορές' },
+  { value: 'new', label: 'Νέοι' },
+  { value: 'in_progress', label: 'Σε εξέλιξη' },
+  { value: 'won', label: 'Κερδισμένοι' },
 ];
 
 // Extra filters tucked behind "Περισσότερα φίλτρα".
 const ADVANCED_FILTERS: { value: QuickFilter; label: string }[] = [
-  { value: 'contacted', label: 'Μίλησα' },
-  { value: 'offer_drafted', label: 'Πρόχειρη προσφορά' },
-  { value: 'offer_sent', label: 'Στάλθηκε προσφορά' },
-  { value: 'won', label: 'Κερδήθηκε' },
-  { value: 'lost', label: 'Χάθηκε' },
+  { value: 'lost', label: 'Χαμένοι' },
 ];
 
 const OFFER_STATUSES = new Set<CustomerStatus>(['offer_drafted', 'offer_sent']);
@@ -286,8 +279,8 @@ export default function CustomersPage() {
   }
 
   // Summary stats
-  const newLeadCount = customers.filter((c) => c.status === 'new_lead').length;
-  const followUpCount = customers.filter((c) => c.status === 'follow_up_needed').length;
+  const newLeadCount = customers.filter((c) => c.status === 'new').length;
+  const followUpCount = customers.filter((c) => c.status === 'in_progress').length;
 
   return (
     <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
@@ -407,7 +400,7 @@ export default function CustomersPage() {
             <p className={`text-2xl font-bold leading-none ${followUpCount > 0 ? 'text-amber-600' : 'text-zinc-300'}`}>
               {followUpCount}
             </p>
-            <p className="mt-1 text-[11px] font-medium text-zinc-500">Να ξαναμιλήσω</p>
+            <p className="mt-1 text-[11px] font-medium text-zinc-500">Σε εξέλιξη</p>
           </div>
         </div>
       )}

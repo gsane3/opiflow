@@ -417,13 +417,13 @@ export async function POST(
     }
 
     // Sent successfully → advance the customer through the pipeline.
-    //  - status = 'offer_sent' so the funnel reflects that an offer is out.
+    //  - status = 'in_progress' so the funnel reflects that an offer is out.
     //  - opportunity_value = offer total (when known) so we can build sales stats later.
     // Both are best-effort and non-fatal: the offer (Viber message) was already sent.
     if (offer.customer_id) {
       try {
         const customerUpdate: Record<string, unknown> = {
-          status: 'offer_sent',
+          status: 'in_progress',
           updated_at: new Date().toISOString(),
         };
         if (typeof offer.total === 'number' && offer.total > 0) {

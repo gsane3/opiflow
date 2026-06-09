@@ -2,6 +2,8 @@ import type { CustomerStatus, OfferStatus, TaskType, TaskPriority, CustomerSourc
 
 export function getCustomerStatusLabel(status: CustomerStatus): string {
   const labels: Record<CustomerStatus, string> = {
+    new: 'Νέος',
+    in_progress: 'Σε εξέλιξη',
     new_lead: 'Νέος',
     contacted: 'Μίλησα',
     follow_up_needed: 'Να ξαναμιλήσω',

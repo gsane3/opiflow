@@ -11,6 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { transcribeAndBriefCallAudio } from '@/lib/server/openai-call-audio';
+import { appendCallBrief } from '@/lib/server/call-briefs';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -92,6 +93,16 @@ export async function POST(request: NextRequest) {
     .update({ summary: newSummary })
     .eq('id', row.id)
     .eq('business_id', businessId);
+
+  // Append the transcript brief to the per-call brief timeline (non-fatal) so the
+  // earlier metadata brief is preserved as history rather than overwritten.
+  await appendCallBrief(supabase, {
+    businessId,
+    customerId: row.customer_id,
+    communicationId: row.id,
+    briefKind: 'transcript',
+    briefText: result.brief,
+  });
 
   // Create the derived next-action task (review-first, AI-generated). Non-fatal.
   let taskId: string | null = null;

@@ -11,10 +11,7 @@ const VALID_SOURCES: CustomerSource[] = [
   'inbound_call', 'missed_call', 'manual_entry', 'other',
 ];
 const VALID_CONTACTS: PreferredContactMethod[] = ['viber', 'email', 'phone'];
-const VALID_STATUSES: CustomerStatus[] = [
-  'new_lead', 'contacted', 'follow_up_needed', 'offer_drafted',
-  'offer_sent', 'won', 'lost',
-];
+const VALID_STATUSES: CustomerStatus[] = ['new', 'in_progress', 'won', 'lost'];
 const VALID_TASK_TYPES: TaskType[] = [
   'call_back', 'send_offer', 'follow_up_offer', 'ask_for_photos_documents',
   'book_appointment', 'visit_customer', 'wait_for_reply', 'other',
@@ -125,7 +122,7 @@ export function parseAiResponse(raw: unknown): AiReviewResult {
       notes: str(o.notes),
       terms: str(o.terms),
     },
-    statusUpdate: pick(r.statusUpdate, VALID_STATUSES, 'contacted' as CustomerStatus),
+    statusUpdate: pick(r.statusUpdate, VALID_STATUSES, 'in_progress' as CustomerStatus),
     nextBestAction: str(r.nextBestAction),
     warnings: rawWarnings.filter((w): w is string => typeof w === 'string').slice(0, 5),
   };

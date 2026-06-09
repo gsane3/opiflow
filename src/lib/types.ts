@@ -47,7 +47,10 @@ export interface Workspace {
   mode: 'mock_local';
 }
 
+// 'new' | 'in_progress' = canonical (migration 039); the rest are deprecated legacy, pending screen retirement
 export type CustomerStatus =
+  | 'new'
+  | 'in_progress'
   | 'new_lead'
   | 'contacted'
   | 'follow_up_needed'

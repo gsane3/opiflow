@@ -226,7 +226,7 @@ export default function ImportExportPanel() {
               needsSummary: row.needsSummary,
               opportunityValue: row.opportunityValue,
               source: 'manual_entry',
-              status: 'new_lead',
+              status: 'new',
             }),
           });
           if (res.ok) { imported++; if (key) seen.add(key); }

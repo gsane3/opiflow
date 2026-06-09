@@ -18,6 +18,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { transcribeAndBriefCallAudio } from '@/lib/server/openai-call-audio';
+import { appendCallBrief } from '@/lib/server/call-briefs';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -87,23 +88,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
   }
 
-  // Find the communications row by the Twilio CallSid marker (Phase 3/4 stamps it).
-  const { data: row } = await supabase
-    .from('communications')
-    .select('id, business_id, summary, customer_id')
-    .eq('channel', 'call')
-    .like('summary', `%twilio_sid=${callSid}%`)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // Find the communications row by the Twilio CallSid. Prefer the exact
+  // provider_call_id column (migration 038); fall back to the legacy summary
+  // marker (`twilio_sid=<CallSid>`) so this keeps working pre-038.
+  type CommRow = { id: string; business_id: string; summary: string | null; customer_id: string | null };
+  let comm: CommRow | null = null;
+  {
+    const byId = await supabase
+      .from('communications')
+      .select('id, business_id, summary, customer_id')
+      .eq('channel', 'call')
+      .eq('provider_call_id', callSid)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (byId.data) comm = byId.data as unknown as CommRow;
+  }
+  if (!comm) {
+    const bySummary = await supabase
+      .from('communications')
+      .select('id, business_id, summary, customer_id')
+      .eq('channel', 'call')
+      .like('summary', `%twilio_sid=${callSid}%`)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (bySummary.data) comm = bySummary.data as unknown as CommRow;
+  }
 
-  if (!row) {
+  if (!comm) {
     // ACK so Twilio does not retry forever; the call may not be logged yet.
     return NextResponse.json({ ok: true, received: true, error: 'communication_not_found' });
   }
-  const comm = row as unknown as {
-    id: string; business_id: string; summary: string | null; customer_id: string | null;
-  };
 
   // Download the recording WAV (Twilio Basic auth).
   let audioFile: File;
@@ -157,6 +173,15 @@ export async function POST(request: NextRequest) {
     })
     .eq('id', comm.id)
     .eq('business_id', comm.business_id);
+
+  // Append to the per-call brief timeline (non-fatal) — preserves history.
+  await appendCallBrief(supabase, {
+    businessId: comm.business_id,
+    customerId: comm.customer_id,
+    communicationId: comm.id,
+    briefKind: 'transcript',
+    briefText: result.brief,
+  });
 
   // ai_draft task when the customer is known (mirrors the PBX path).
   let taskCreated = false;

@@ -136,6 +136,8 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const STATUS_LABELS: Record<string, string> = {
+  new: 'Νέος',
+  in_progress: 'Σε εξέλιξη',
   new_lead: 'Νέος',
   contacted: 'Μίλησα',
   follow_up_needed: 'Να ξαναμιλήσω',
@@ -228,6 +230,8 @@ function truncate(text: string, max: number): string {
 }
 
 function statusBadgeClass(status: string): string {
+  if (status === 'new') return 'bg-indigo-50 text-indigo-700';
+  if (status === 'in_progress') return 'bg-amber-100 text-amber-700';
   if (status === 'won') return 'bg-green-100 text-green-700';
   if (status === 'lost') return 'bg-red-100 text-red-600';
   if (status === 'new_lead') return 'bg-blue-50 text-blue-700';

@@ -90,6 +90,8 @@ const WON_OFFER_STATUSES = new Set<string>(['accepted']);
 
 // Greek labels for every customer status, shown in the breakdown list.
 const STATUS_LABELS: Record<CustomerStatus, string> = {
+  new: 'Νέοι',
+  in_progress: 'Σε εξέλιξη',
   new_lead: 'Νέοι',
   contacted: 'Μίλησα',
   follow_up_needed: 'Να ξαναμιλήσω',
@@ -101,6 +103,8 @@ const STATUS_LABELS: Record<CustomerStatus, string> = {
 
 // Order in which statuses appear in the breakdown list.
 const STATUS_ORDER: CustomerStatus[] = [
+  'new',
+  'in_progress',
   'new_lead',
   'contacted',
   'follow_up_needed',
