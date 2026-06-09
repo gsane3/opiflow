@@ -1,16 +1,22 @@
 'use client';
 
-// Chat ➕ composer (redesign P3c-2 / P4b). Bottom sheet opened from the ➕ in the
-// Messenger composer, for manual customer actions:
-//   • Ζήτα στοιχεία   → POST intake-link { mode:'send' } (preferred channel, Viber→SMS)
-//   • Ζήτα φωτογραφίες → POST upload-link { mode:'send' }
-//   • Κλείσε ραντεβού  → inline date/time → POST /api/tasks (book_appointment)
-//   • Δημιουργία προσφοράς → line items (catalog quick-add) → POST /api/offers
-// On success it calls onDone() so the chat timeline refreshes.
+// Chat ➕ composer (redesign P3c-2 / P4b + feedback v3). Bottom sheet opened from
+// the ➕ in the Messenger composer. Four manual customer actions:
+//   • Προσφορά   → build line items (catalog quick-add) → POST /api/offers →
+//                  REVIEW the exact message → send (Viber with SMS fallback).
+//   • Ραντεβού   → step-by-step wizard (αιτία → ημερομηνία → ώρα) → POST /api/tasks
+//                  → REVIEW the exact message → send (Viber with SMS fallback).
+//   • Αίτημα στοιχείων    → POST intake-link { mode:'send' } (Viber→SMS).
+//   • Αίτημα φωτογραφιών  → POST upload-link { mode:'send' }.
+// The offer/appointment review+send reuses the shared SendViaViberModal +
+// executeViberSend (the same flow the old workspace used), so what the operator
+// reviews is exactly what is sent.
 
 import { useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui';
+import { SendViaViberModal, executeViberSend, type ViberSendPatch } from './SendViaViberModal';
+import { useOverlayDismiss } from './useOverlayDismiss';
 
 async function authHeaders(): Promise<Record<string, string> | null> {
   try {
@@ -29,10 +35,34 @@ function tomorrowISO(): string {
   return d.toISOString().slice(0, 10);
 }
 
-interface OfferLine { description: string; quantity: number; unitPrice: number }
+// Quantity/unitPrice are kept as raw strings while editing (so the field can be
+// empty and accept in-progress / decimal / comma input on mobile); parsed to
+// numbers only at submit via `num()`.
+interface OfferLine { description: string; quantity: string; unitPrice: string }
 interface CatalogResult { id: string; code: string | null; name: string; unitPrice: number; unit: string | null; vatRate: number }
 
+function num(s: string): number {
+  const n = parseFloat(String(s).replace(',', '.'));
+  return isFinite(n) ? n : NaN;
+}
+
 type View = 'menu' | 'appointment' | 'offer';
+
+// Review/send state shared by the offer + appointment flows.
+interface Review {
+  kind: 'offer' | 'appointment';
+  endpoint: string;
+  taskId?: string;
+  loading: boolean;
+  message: string | null;
+  recipient: string | null;
+  responseUrl: string | null;
+  warning: string | null;
+  sending: boolean;
+  sent: boolean;
+  error: string | null;
+  copied: boolean;
+}
 
 export default function ChatComposerSheet({
   customerId,
@@ -51,7 +81,10 @@ export default function ChatComposerSheet({
   const [view, setView] = useState<View>(initialView);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<{ ok: boolean; text: string } | null>(null);
-  // appointment
+  const [wizErr, setWizErr] = useState<string | null>(null);
+  // appointment wizard
+  const [apptStep, setApptStep] = useState(1);
+  const [apptTitle, setApptTitle] = useState('');
   const [apptDate, setApptDate] = useState(tomorrowISO());
   const [apptTime, setApptTime] = useState('10:00');
   const [apptNote, setApptNote] = useState('');
@@ -62,12 +95,18 @@ export default function ChatComposerSheet({
   const [catalogQuery, setCatalogQuery] = useState('');
   const [catalogResults, setCatalogResults] = useState<CatalogResult[]>([]);
   const [lineSuggest, setLineSuggest] = useState<{ idx: number; results: CatalogResult[] } | null>(null);
+  // review + send (offer/appointment)
+  const [review, setReview] = useState<Review | null>(null);
+
+  useOverlayDismiss(open, close);
 
   if (!open) return null;
 
   function close() {
-    setView('menu'); setResult(null); setBusy(false);
-    setLines([]); setOfferNotes(''); setCatalogQuery(''); setCatalogResults([]);
+    setView('menu'); setResult(null); setBusy(false); setWizErr(null);
+    setApptStep(1); setApptTitle(''); setApptDate(tomorrowISO()); setApptTime('10:00'); setApptNote('');
+    setLines([]); setOfferVat('24'); setOfferNotes(''); setCatalogQuery(''); setCatalogResults([]); setLineSuggest(null);
+    setReview(null);
     onClose();
   }
 
@@ -91,22 +130,108 @@ export default function ChatComposerSheet({
     } finally { setBusy(false); }
   }
 
-  async function createAppointment() {
-    setBusy(true); setResult(null);
+  // -------------------------------------------------------------------------
+  // Review/send orchestration (offer + appointment)
+  // -------------------------------------------------------------------------
+
+  function patchReview(patch: ViberSendPatch) { setReview((p) => p ? { ...p, ...patch } : p); }
+
+  async function openOfferReview(offerId: string) {
+    const endpoint = `/api/offers/${offerId}/notify`;
+    setReview({ kind: 'offer', endpoint, loading: true, message: null, recipient: null, responseUrl: null, warning: null, sending: false, sent: false, error: null, copied: false });
     const headers = await authHeaders();
-    if (!headers) { setBusy(false); setResult({ ok: false, text: 'Συνδέσου ξανά.' }); return; }
+    if (!headers) { setReview((p) => p ? { ...p, loading: false, error: 'Συνδέσου ξανά.' } : p); return; }
+    try {
+      const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ mode: 'draft' }) });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; message?: string; recipient?: string | null; responseUrl?: string };
+      if (json?.ok && json.message && json.responseUrl) {
+        setReview((p) => p ? { ...p, loading: false, message: json.message!, recipient: json.recipient ?? null, responseUrl: json.responseUrl! } : p);
+      } else {
+        setReview((p) => p ? { ...p, loading: false, error: 'Δεν δημιουργήθηκε μήνυμα. Δοκίμασε ξανά.' } : p);
+      }
+    } catch {
+      setReview((p) => p ? { ...p, loading: false, error: 'Δεν δημιουργήθηκε μήνυμα. Δοκίμασε ξανά.' } : p);
+    }
+  }
+
+  async function openApptReview(taskId: string) {
+    const endpoint = `/api/customers/${customerId}/appointment-link`;
+    setReview({ kind: 'appointment', endpoint, taskId, loading: true, message: null, recipient: null, responseUrl: null, warning: null, sending: false, sent: false, error: null, copied: false });
+    const headers = await authHeaders();
+    if (!headers) { setReview((p) => p ? { ...p, loading: false, error: 'Συνδέσου ξανά.' } : p); return; }
+    try {
+      const res = await fetch(endpoint, { method: 'POST', headers, body: JSON.stringify({ mode: 'draft', taskId }) });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; message?: string; recipient?: string | null; responseUrl?: string; warning?: string | null };
+      if (json?.ok && json.message && json.responseUrl) {
+        setReview((p) => p ? { ...p, loading: false, message: json.message!, recipient: json.recipient ?? null, responseUrl: json.responseUrl!, warning: json.warning ?? null } : p);
+      } else {
+        setReview((p) => p ? { ...p, loading: false, error: 'Δεν δημιουργήθηκε link ραντεβού. Δοκίμασε ξανά.' } : p);
+      }
+    } catch {
+      setReview((p) => p ? { ...p, loading: false, error: 'Δεν δημιουργήθηκε link ραντεβού. Δοκίμασε ξανά.' } : p);
+    }
+  }
+
+  async function sendReview() {
+    if (!review?.responseUrl) return;
+    const body = review.kind === 'offer'
+      ? { responseUrl: review.responseUrl }
+      : { taskId: review.taskId, responseUrl: review.responseUrl };
+    let sentOk = false;
+    await executeViberSend({
+      endpoint: review.endpoint,
+      body,
+      update: (p) => { if (p.sent) sentOk = true; patchReview(p); },
+      providerUnavailableMsg: 'Ο πάροχος αποστολής δεν είναι ρυθμισμένος ακόμα.',
+      defaultFallbackMsg: 'Δεν στάλθηκε. Δοκίμασε ξανά.',
+    });
+    if (sentOk) onDone();
+  }
+
+  function copyReview() {
+    if (!review?.message) return;
+    void navigator.clipboard?.writeText(review.message).then(() => {
+      setReview((p) => p ? { ...p, copied: true } : p);
+      setTimeout(() => setReview((p) => p ? { ...p, copied: false } : p), 2000);
+    });
+  }
+
+  function closeReview() {
+    const wasSent = review?.sent;
+    setReview(null);
+    if (wasSent) close();
+  }
+
+  // -------------------------------------------------------------------------
+  // Appointment wizard
+  // -------------------------------------------------------------------------
+
+  function appointmentNext() {
+    if (apptStep === 1) { if (!apptTitle.trim()) { setWizErr('Συμπλήρωσε την αιτία.'); return; } setWizErr(null); setApptStep(2); return; }
+    if (apptStep === 2) { if (!apptDate) { setWizErr('Συμπλήρωσε ημερομηνία.'); return; } setWizErr(null); setApptStep(3); return; }
+  }
+
+  async function createAppointmentAndReview() {
+    if (!apptTitle.trim() || !apptDate || !apptTime) { setWizErr('Συμπλήρωσε όλα τα πεδία.'); return; }
+    setBusy(true); setWizErr(null);
+    const headers = await authHeaders();
+    if (!headers) { setBusy(false); setWizErr('Συνδέσου ξανά.'); return; }
     try {
       const res = await fetch('/api/tasks', {
         method: 'POST', headers,
-        body: JSON.stringify({ title: 'Ραντεβού', type: 'book_appointment', customerId, dueDate: apptDate, dueTime: apptTime || undefined, note: apptNote || undefined }),
+        body: JSON.stringify({ title: apptTitle.trim(), type: 'book_appointment', status: 'open', priority: 'normal', customerId, dueDate: apptDate, dueTime: apptTime, note: apptNote.trim() || undefined }),
       });
-      const json = await res.json().catch(() => ({})) as { ok?: boolean };
-      if (json?.ok) { setResult({ ok: true, text: 'Το ραντεβού δημιουργήθηκε' }); onDone(); setTimeout(close, 1100); }
-      else setResult({ ok: false, text: 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.' });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; task?: { id: string } };
+      if (json?.ok && json.task?.id) { onDone(); await openApptReview(json.task.id); }
+      else setWizErr('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } catch {
-      setResult({ ok: false, text: 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.' });
+      setWizErr('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } finally { setBusy(false); }
   }
+
+  // -------------------------------------------------------------------------
+  // Offer
+  // -------------------------------------------------------------------------
 
   async function searchCatalog(q: string) {
     setCatalogQuery(q);
@@ -122,8 +247,6 @@ export default function ChatComposerSheet({
 
   function addLine(line: OfferLine) { setLines((prev) => [...prev, line]); }
 
-  // Per-line catalog autosuggest: typing in a line's description matches the
-  // catalog (e.g. "S50" → Alumil Smartia S50 + its code/price).
   async function searchLineCatalog(idx: number, q: string) {
     if (q.trim().length < 2) { setLineSuggest(null); return; }
     const headers = await authHeaders();
@@ -138,31 +261,31 @@ export default function ChatComposerSheet({
   function updateLine(i: number, patch: Partial<OfferLine>) { setLines((prev) => prev.map((l, idx) => idx === i ? { ...l, ...patch } : l)); }
   function removeLine(i: number) { setLines((prev) => prev.filter((_, idx) => idx !== i)); }
 
-  const validLines = lines.filter((l) => l.description.trim() && l.quantity > 0 && l.unitPrice >= 0);
-  const subtotal = validLines.reduce((s, l) => s + l.quantity * l.unitPrice, 0);
+  const validLines = lines.filter((l) => l.description.trim() && num(l.quantity) > 0 && num(l.unitPrice) >= 0);
+  const subtotal = validLines.reduce((s, l) => s + num(l.quantity) * num(l.unitPrice), 0);
   const vatNum = Number(offerVat) || 0;
   const total = subtotal + (subtotal * vatNum) / 100;
 
-  async function createOffer() {
+  async function createOfferAndReview() {
     if (validLines.length === 0) return;
-    setBusy(true); setResult(null);
+    setBusy(true); setWizErr(null);
     const headers = await authHeaders();
-    if (!headers) { setBusy(false); setResult({ ok: false, text: 'Συνδέσου ξανά.' }); return; }
+    if (!headers) { setBusy(false); setWizErr('Συνδέσου ξανά.'); return; }
     try {
       const res = await fetch('/api/offers', {
         method: 'POST', headers,
         body: JSON.stringify({
           customerId,
-          items: validLines.map((l) => ({ description: l.description.trim(), quantity: l.quantity, unitPrice: l.unitPrice })),
+          items: validLines.map((l) => ({ description: l.description.trim(), quantity: num(l.quantity), unitPrice: num(l.unitPrice) })),
           vatRate: vatNum,
           notes: offerNotes.trim() || undefined,
         }),
       });
-      const json = await res.json().catch(() => ({})) as { ok?: boolean };
-      if (json?.ok) { setResult({ ok: true, text: 'Η προσφορά δημιουργήθηκε' }); onDone(); setTimeout(close, 1100); }
-      else setResult({ ok: false, text: 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.' });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; offer?: { id: string } };
+      if (json?.ok && json.offer?.id) { onDone(); await openOfferReview(json.offer.id); }
+      else setWizErr('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } catch {
-      setResult({ ok: false, text: 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.' });
+      setWizErr('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } finally { setBusy(false); }
   }
 
@@ -175,7 +298,7 @@ export default function ChatComposerSheet({
         </svg>
       ),
       label: 'Προσφορά',
-      onClick: () => { setResult(null); setView('offer'); },
+      onClick: () => { setResult(null); setWizErr(null); setView('offer'); },
     },
     {
       key: 'appointment',
@@ -185,7 +308,7 @@ export default function ChatComposerSheet({
         </svg>
       ),
       label: 'Ραντεβού',
-      onClick: () => { setResult(null); setView('appointment'); },
+      onClick: () => { setResult(null); setWizErr(null); setApptStep(1); setView('appointment'); },
     },
     {
       key: 'intake',
@@ -194,7 +317,7 @@ export default function ChatComposerSheet({
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
         </svg>
       ),
-      label: 'Στοιχεία',
+      label: 'Αίτημα στοιχείων',
       onClick: () => sendLink('intake'),
     },
     {
@@ -205,7 +328,7 @@ export default function ChatComposerSheet({
           <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 12.75a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0ZM18.75 10.5h.008v.008h-.008V10.5Z" />
         </svg>
       ),
-      label: 'Φωτο',
+      label: 'Αίτημα φωτογραφιών',
       onClick: () => sendLink('upload'),
     },
   ];
@@ -213,7 +336,7 @@ export default function ChatComposerSheet({
   function Back({ title }: { title: string }) {
     return (
       <div className="mb-3 flex items-center gap-2">
-        <button type="button" onClick={() => { setView('menu'); setResult(null); }} aria-label="Πίσω" className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100">
+        <button type="button" onClick={() => { setView('menu'); setResult(null); setWizErr(null); }} aria-label="Πίσω" className="flex h-8 w-8 items-center justify-center rounded-full text-zinc-500 hover:bg-zinc-100">
           <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
         </button>
         <p className="text-sm font-semibold text-zinc-900">{title}</p>
@@ -233,7 +356,7 @@ export default function ChatComposerSheet({
               {ACTIONS.map((a) => (
                 <button key={a.key} type="button" disabled={busy} onClick={a.onClick} className="flex flex-col items-center gap-2.5 rounded-2xl bg-zinc-50 px-2 py-3.5 ring-1 ring-zinc-200/70 transition hover:bg-zinc-100 active:scale-95 disabled:opacity-50">
                   <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white ring-1 ring-zinc-200">{a.icon}</span>
-                  <span className="text-center text-xs font-medium text-zinc-700">{a.label}</span>
+                  <span className="text-center text-[11px] font-medium leading-tight text-zinc-700">{a.label}</span>
                 </button>
               ))}
             </div>
@@ -254,28 +377,51 @@ export default function ChatComposerSheet({
         {view === 'appointment' && (
           <>
             <Back title="Κλείσε ραντεβού" />
-            <div className="space-y-2.5">
-              <div className="flex gap-2">
-                <label className="flex-1 text-xs font-medium text-zinc-500">Ημερομηνία
-                  <input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} className="mt-1 w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </label>
-                <label className="w-28 text-xs font-medium text-zinc-500">Ώρα
-                  <input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} className="mt-1 w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                </label>
+            {/* Step indicator */}
+            <div className="mb-4 flex items-center gap-2">
+              <p className="text-xs font-medium text-indigo-600">Βήμα {apptStep}/3</p>
+              <div className="flex flex-1 gap-1">
+                {[1, 2, 3].map((n) => <span key={n} className={`h-1.5 flex-1 rounded-full ${n <= apptStep ? 'bg-indigo-500' : 'bg-zinc-200'}`} />)}
               </div>
-              <input type="text" value={apptNote} onChange={(e) => setApptNote(e.target.value)} placeholder="Σημείωση (προαιρετικό)" className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-              <Button variant="primary" size="md" fullWidth loading={busy} disabled={busy || !apptDate} onClick={createAppointment}>
-                Δημιουργία ραντεβού
-              </Button>
-              {result && (
-                <p className={`flex items-center justify-center gap-1.5 text-center text-sm font-medium motion-safe:animate-[fadeIn_0.2s_ease-out] ${result.ok ? 'text-green-700' : 'text-red-700'}`}>
-                  {result.ok && (
-                    <svg className="h-4 w-4 shrink-0" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                    </svg>
-                  )}
-                  {result.text}
-                </p>
+            </div>
+
+            {apptStep === 1 && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-600">Αιτία ραντεβού</label>
+                <input autoFocus type="text" value={apptTitle} onChange={(e) => setApptTitle(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && apptTitle.trim()) { e.preventDefault(); appointmentNext(); } }} placeholder="π.χ. Μέτρηση / Τοποθέτηση" className="w-full rounded-2xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                <p className="mt-1 text-xs text-zinc-400">Ο λόγος του ραντεβού.</p>
+              </div>
+            )}
+            {apptStep === 2 && (
+              <div>
+                <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
+                <input autoFocus type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} className="w-full rounded-2xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+              </div>
+            )}
+            {apptStep === 3 && (
+              <div className="space-y-3">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-zinc-600">Ώρα</label>
+                  <input autoFocus type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} className="w-full rounded-2xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                </div>
+                <input type="text" value={apptNote} onChange={(e) => setApptNote(e.target.value)} placeholder="Σημείωση (προαιρετικό)" className="w-full rounded-2xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100" />
+                <div className="rounded-2xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100">
+                  <p className="text-sm font-semibold text-zinc-800">{apptTitle.trim() || 'Ραντεβού'}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500">{apptDate}{apptTime ? ` · ${apptTime}` : ''}</p>
+                </div>
+              </div>
+            )}
+
+            {wizErr && <p className="mt-2 text-xs font-medium text-red-600">{wizErr}</p>}
+
+            <div className="mt-5 flex gap-2">
+              {apptStep > 1 && (
+                <button type="button" onClick={() => { setWizErr(null); setApptStep((s) => Math.max(1, s - 1)); }} disabled={busy} className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60">Πίσω</button>
+              )}
+              {apptStep < 3 ? (
+                <Button variant="primary" size="md" fullWidth disabled={(apptStep === 1 && !apptTitle.trim()) || (apptStep === 2 && !apptDate)} onClick={appointmentNext}>Επόμενο</Button>
+              ) : (
+                <Button variant="primary" size="md" fullWidth loading={busy} disabled={busy || !apptTime} onClick={createAppointmentAndReview}>Δημιουργία & αποστολή</Button>
               )}
             </div>
           </>
@@ -289,7 +435,7 @@ export default function ChatComposerSheet({
             {catalogResults.length > 0 && (
               <div className="mt-1 space-y-1 rounded-xl bg-zinc-50 p-1 ring-1 ring-zinc-200/60">
                 {catalogResults.map((r) => (
-                  <button key={r.id} type="button" onClick={() => { addLine({ description: r.name, quantity: 1, unitPrice: r.unitPrice }); setCatalogQuery(''); setCatalogResults([]); }} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm transition hover:bg-white active:bg-zinc-100">
+                  <button key={r.id} type="button" onClick={() => { addLine({ description: r.name, quantity: '1', unitPrice: String(r.unitPrice) }); setCatalogQuery(''); setCatalogResults([]); }} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm transition hover:bg-white active:bg-zinc-100">
                     <span className="truncate text-zinc-800">{r.code ? <span className="text-zinc-500">{r.code} · </span> : null}{r.name}</span>
                     <span className="shrink-0 font-medium tabular-nums text-zinc-600">€{r.unitPrice.toLocaleString('el-GR')}</span>
                   </button>
@@ -303,9 +449,9 @@ export default function ChatComposerSheet({
                 <div key={i} className="relative">
                   <div className="flex items-center gap-1.5">
                     <input value={l.description} onChange={(e) => { updateLine(i, { description: e.target.value }); void searchLineCatalog(i, e.target.value); }} placeholder="Περιγραφή (π.χ. S50)" aria-label="Περιγραφή γραμμής" className="min-h-[40px] min-w-0 flex-1 rounded-lg border border-zinc-200 px-3 py-1.5 text-sm outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                    <input value={l.quantity} onChange={(e) => updateLine(i, { quantity: Number(e.target.value) || 0 })} inputMode="decimal" aria-label="Ποσότητα" className="min-h-[40px] w-14 rounded-lg border border-zinc-200 px-2 py-1.5 text-center text-sm tabular-nums outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                    <input value={l.quantity} onChange={(e) => updateLine(i, { quantity: e.target.value })} type="text" inputMode="decimal" placeholder="1" aria-label="Ποσότητα" className="min-h-[40px] w-14 rounded-lg border border-zinc-200 px-2 py-1.5 text-center text-sm tabular-nums outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                     <div className="relative w-[72px]">
-                      <input value={l.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) || 0 })} inputMode="decimal" aria-label="Τιμή μονάδας" className="min-h-[40px] w-full rounded-lg border border-zinc-200 pl-5 pr-2 py-1.5 text-right text-sm tabular-nums outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                      <input value={l.unitPrice} onChange={(e) => updateLine(i, { unitPrice: e.target.value })} type="text" inputMode="decimal" placeholder="0" aria-label="Τιμή μονάδας" className="min-h-[40px] w-full rounded-lg border border-zinc-200 pl-5 pr-2 py-1.5 text-right text-sm tabular-nums outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
                       <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-sm text-zinc-400" aria-hidden>€</span>
                     </div>
                     <button type="button" onClick={() => removeLine(i)} aria-label="Αφαίρεση" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:text-red-500 active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
@@ -315,7 +461,7 @@ export default function ChatComposerSheet({
                   {lineSuggest?.idx === i && lineSuggest.results.length > 0 && (
                     <div className="absolute left-0 right-0 z-20 mt-1 max-h-56 space-y-1 overflow-y-auto rounded-xl bg-white p-1 shadow-lg ring-1 ring-zinc-200">
                       {lineSuggest.results.map((r) => (
-                        <button key={r.id} type="button" onClick={() => { updateLine(i, { description: r.name, unitPrice: r.unitPrice }); setLineSuggest(null); }} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm transition hover:bg-zinc-50 active:bg-zinc-100">
+                        <button key={r.id} type="button" onClick={() => { updateLine(i, { description: r.name, unitPrice: String(r.unitPrice) }); setLineSuggest(null); }} className="flex w-full items-center justify-between rounded-lg px-2 py-2.5 text-left text-sm transition hover:bg-zinc-50 active:bg-zinc-100">
                           <span className="truncate text-zinc-800">{r.code ? <span className="text-zinc-500">{r.code} · </span> : null}{r.name}</span>
                           <span className="shrink-0 font-medium tabular-nums text-zinc-600">€{r.unitPrice.toLocaleString('el-GR')}</span>
                         </button>
@@ -325,12 +471,12 @@ export default function ChatComposerSheet({
                 </div>
               ))}
               {lines.length === 0 ? (
-                <button type="button" onClick={() => addLine({ description: '', quantity: 1, unitPrice: 0 })} className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 px-4 py-2.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                <button type="button" onClick={() => addLine({ description: '', quantity: '1', unitPrice: '' })} className="flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-zinc-300 px-4 py-2.5 text-sm font-medium text-indigo-600 transition hover:bg-indigo-50 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                   <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                   Προσθήκη γραμμής
                 </button>
               ) : (
-                <button type="button" onClick={() => addLine({ description: '', quantity: 1, unitPrice: 0 })} className="inline-flex items-center gap-1 rounded-lg px-1 py-1 text-xs font-medium text-indigo-600 transition active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                <button type="button" onClick={() => addLine({ description: '', quantity: '1', unitPrice: '' })} className="inline-flex items-center gap-1 rounded-lg px-1 py-1 text-xs font-medium text-indigo-600 transition active:scale-95 focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                   <svg className="h-4 w-4" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
                   Κενή γραμμή
                 </button>
@@ -344,36 +490,39 @@ export default function ChatComposerSheet({
               </label>
             </div>
             <div className="mt-3 space-y-1 border-t border-zinc-100 pt-2 text-sm">
-              <div className="flex items-center justify-between text-zinc-500">
-                <span>Υποσύνολο</span>
-                <span className="tabular-nums text-zinc-700">€{subtotal.toLocaleString('el-GR', { maximumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex items-center justify-between text-zinc-500">
-                <span>ΦΠΑ {vatNum}%</span>
-                <span className="tabular-nums text-zinc-700">€{((subtotal * vatNum) / 100).toLocaleString('el-GR', { maximumFractionDigits: 2 })}</span>
-              </div>
-              <div className="flex items-center justify-between pt-0.5">
-                <span className="text-base font-bold text-zinc-900">Σύνολο</span>
-                <span className="text-base font-bold tabular-nums text-zinc-900">€{total.toLocaleString('el-GR', { maximumFractionDigits: 2 })}</span>
-              </div>
+              <div className="flex items-center justify-between text-zinc-500"><span>Υποσύνολο</span><span className="tabular-nums text-zinc-700">€{subtotal.toLocaleString('el-GR', { maximumFractionDigits: 2 })}</span></div>
+              <div className="flex items-center justify-between text-zinc-500"><span>ΦΠΑ {vatNum}%</span><span className="tabular-nums text-zinc-700">€{((subtotal * vatNum) / 100).toLocaleString('el-GR', { maximumFractionDigits: 2 })}</span></div>
+              <div className="flex items-center justify-between pt-0.5"><span className="text-base font-bold text-zinc-900">Σύνολο</span><span className="text-base font-bold tabular-nums text-zinc-900">€{total.toLocaleString('el-GR', { maximumFractionDigits: 2 })}</span></div>
             </div>
             <input value={offerNotes} onChange={(e) => setOfferNotes(e.target.value)} placeholder="Σημειώσεις (προαιρετικό)" className="mt-3 w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-base outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-            <Button variant="primary" size="md" fullWidth loading={busy} disabled={busy || validLines.length === 0} onClick={createOffer} className="mt-3">
-              Δημιουργία προσφοράς
+            <Button variant="primary" size="md" fullWidth loading={busy} disabled={busy || validLines.length === 0} onClick={createOfferAndReview} className="mt-3">
+              Συνέχεια στην αποστολή
             </Button>
-            {result && (
-              <p className={`mt-2 flex items-center justify-center gap-1.5 text-center text-sm font-medium motion-safe:animate-[fadeIn_0.2s_ease-out] ${result.ok ? 'text-green-700' : 'text-red-700'}`}>
-                {result.ok && (
-                  <svg className="h-4 w-4 shrink-0" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24" aria-hidden>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-                  </svg>
-                )}
-                {result.text}
-              </p>
-            )}
+            {wizErr && <p className="mt-2 text-center text-sm font-medium text-red-700">{wizErr}</p>}
           </>
         )}
       </div>
+
+      {review && (
+        <SendViaViberModal
+          title={review.kind === 'offer' ? 'Αποστολή προσφοράς' : 'Αποστολή ραντεβού'}
+          subtitle="Έλεγξε το μήνυμα. Δεν στέλνεται τίποτα πριν πατήσεις αποστολή."
+          loadingText="Ετοιμάζεται το μήνυμα…"
+          successText={review.kind === 'offer' ? 'Η προσφορά στάλθηκε.' : 'Το ραντεβού στάλθηκε.'}
+          loading={review.loading}
+          message={review.message}
+          recipient={review.recipient}
+          responseUrl={review.responseUrl}
+          sending={review.sending}
+          sent={review.sent}
+          error={review.error}
+          copied={review.copied}
+          warning={review.warning ? <p className="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">Λείπει ημερομηνία ή ώρα από το ραντεβού.</p> : undefined}
+          onClose={closeReview}
+          onSend={sendReview}
+          onCopy={copyReview}
+        />
+      )}
     </div>
   );
 }
