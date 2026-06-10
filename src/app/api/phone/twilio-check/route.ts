@@ -86,5 +86,22 @@ export async function GET() {
     sipDomains = { error: (e as { message?: string })?.message?.slice(0, 160) };
   }
 
-  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains });
+  // Recent Twilio errors (Monitor alerts) — the authoritative reason a <Client>
+  // dial fails (e.g. push delivery / no registration). + recent calls.
+  let alerts: unknown = '(not checked)';
+  try {
+    const a = await client.monitor.v1.alerts.list({ limit: 12 });
+    alerts = a.map((x) => ({ code: x.errorCode, level: x.logLevel, text: (x.alertText || '').slice(0, 180), at: x.dateGenerated }));
+  } catch (e) {
+    alerts = { error: (e as { message?: string })?.message?.slice(0, 160) };
+  }
+  let calls: unknown = '(not checked)';
+  try {
+    const cs = await client.calls.list({ limit: 6 });
+    calls = cs.map((c) => ({ to: c.to, from: c.from, status: c.status, direction: c.direction, at: c.startTime }));
+  } catch (e) {
+    calls = { error: (e as { message?: string })?.message?.slice(0, 160) };
+  }
+
+  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls });
 }
