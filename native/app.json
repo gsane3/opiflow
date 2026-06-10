@@ -11,6 +11,9 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "ai.opiflow.app",
       "supportsTablet": false,
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "UIBackgroundModes": ["audio", "voip"],
         "NSMicrophoneUsageDescription": "Η Opiflow χρειάζεται το μικρόφωνο για τις τηλεφωνικές σας κλήσεις.",
@@ -53,6 +56,19 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "ea515301-584a-4c4e-a458-291a60f388b4"
+      }
+    },
+    "owner": "gsane127",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/ea515301-584a-4c4e-a458-291a60f388b4"
     }
   }
 }
