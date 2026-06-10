@@ -27,6 +27,12 @@ export default function AppTabs() {
           <TabTrigger name="customers" href="/customers" asChild>
             <TabButton>Πελάτες</TabButton>
           </TabTrigger>
+          <TabTrigger name="calls" href="/calls" asChild>
+            <TabButton>Κλήσεις</TabButton>
+          </TabTrigger>
+          <TabTrigger name="settings" href="/settings" asChild>
+            <TabButton>Ρυθμίσεις</TabButton>
+          </TabTrigger>
         </CustomTabList>
       </TabList>
     </Tabs>
