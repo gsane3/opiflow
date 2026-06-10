@@ -51,6 +51,12 @@ export async function placeCall(
 
 // ---- Incoming calls (VoIP push → CallKit) -------------------------------------
 
+export type IncomingState = 'idle' | 'registering' | 'registered' | 'error';
+let incomingState: { state: IncomingState; detail?: string } = { state: 'idle' };
+export function getIncomingState() {
+  return incomingState;
+}
+
 let listenersWired = false;
 function wireIncomingListeners() {
   if (listenersWired) return;
@@ -63,7 +69,10 @@ function wireIncomingListeners() {
     // @ts-expect-error preview enum may vary
     voice.on(Voice.Event.CancelledCallInvite, () => console.log('[twilio] CallInvite cancelled'));
     // @ts-expect-error preview enum may vary
-    voice.on(Voice.Event.Registered, () => console.log('[twilio] >>> Registered for incoming <<<'));
+    voice.on(Voice.Event.Registered, () => {
+      console.log('[twilio] >>> Registered for incoming <<<');
+      incomingState = { state: 'registered' };
+    });
     // @ts-expect-error preview enum may vary
     voice.on(Voice.Event.Unregistered, () => console.log('[twilio] Unregistered'));
     voice.on(Voice.Event.Error, (e: unknown) => console.log('[twilio] Voice error', e));
@@ -74,6 +83,7 @@ function wireIncomingListeners() {
 
 /** Register this device to RECEIVE incoming calls (binds the VoIP push token to Twilio). */
 export async function registerForIncoming(onLog?: (s: string) => void): Promise<void> {
+  incomingState = { state: 'registering' };
   try {
     wireIncomingListeners();
     // iOS: let the SDK own the PushKit registry so it can wake the app + report to CallKit.
@@ -89,9 +99,12 @@ export async function registerForIncoming(onLog?: (s: string) => void): Promise<
     const token = await fetchVoiceToken(onLog);
     await voice.register(token);
     console.log('[twilio] voice.register() called ok');
+    incomingState = { state: 'registered' };
     onLog?.('register() ok');
   } catch (e) {
+    const detail = e instanceof Error ? e.message : String(e);
     console.log('[twilio] registerForIncoming failed', e);
-    onLog?.('register failed: ' + (e instanceof Error ? e.message : String(e)));
+    incomingState = { state: 'error', detail };
+    onLog?.('register failed: ' + detail);
   }
 }

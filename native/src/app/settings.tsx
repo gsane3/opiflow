@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -6,11 +7,26 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
+import { getIncomingState } from '@/lib/twilio';
+
+const PHONE_LABEL: Record<string, string> = {
+  idle: 'Μη συνδεδεμένο',
+  registering: 'Σύνδεση…',
+  registered: 'Συνδεδεμένο ✓',
+  error: 'Σφάλμα',
+};
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const email = session?.user?.email ?? '';
   const version = Constants.expoConfig?.version ?? '1.0.0';
+
+  const [phone, setPhone] = useState(getIncomingState());
+  useEffect(() => {
+    const t = setInterval(() => setPhone(getIncomingState()), 1500);
+    return () => clearInterval(t);
+  }, []);
+  const phoneValue = phone.state === 'error' ? `Σφάλμα: ${phone.detail ?? ''}` : PHONE_LABEL[phone.state];
 
   return (
     <ThemedView style={styles.container}>
@@ -39,7 +55,7 @@ export default function SettingsScreen() {
           </ThemedView>
 
           <ThemedView type="backgroundElement" style={styles.card}>
-            <Row label="Τηλέφωνο in-app" value="Έρχεται (Twilio)" />
+            <Row label="Τηλέφωνο (εισερχόμενες)" value={phoneValue} />
             <View style={styles.divider} />
             <Row label="Έκδοση" value={version} />
           </ThemedView>

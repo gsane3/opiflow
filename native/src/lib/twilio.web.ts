@@ -15,3 +15,8 @@ export async function placeCall(): Promise<ActiveCall> {
 export async function registerForIncoming(): Promise<void> {
   // no-op on web
 }
+
+export type IncomingState = 'idle' | 'registering' | 'registered' | 'error';
+export function getIncomingState(): { state: IncomingState; detail?: string } {
+  return { state: 'idle' };
+}
