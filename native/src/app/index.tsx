@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CallActionSheet } from '@/components/call-action-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
@@ -29,6 +30,7 @@ export default function HomeScreen() {
   const [recent, setRecent] = useState<Communication[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [sheetCall, setSheetCall] = useState<Communication | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -140,12 +142,12 @@ export default function HomeScreen() {
             <>
               {/* Stats */}
               <View style={styles.statsRow}>
-                <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} />
+                <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} onPress={() => router.push('/customers/index' as never)} />
                 <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} />
               </View>
               <View style={styles.statsRow}>
                 <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} />
-                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} />
+                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} onPress={() => router.push('/customers/index' as never)} />
               </View>
 
               {/* Today's appointments */}
@@ -224,10 +226,13 @@ export default function HomeScreen() {
                 recent.map((m) => (
                   <Pressable
                     key={m.id}
-                    onPress={() =>
-                      m.customerId &&
-                      router.push({ pathname: '/customers/[id]', params: { id: m.customerId } })
-                    }
+                    onPress={() => {
+                      // Calls open the action sheet (full brief + ενέργειες);
+                      // anything else jumps to the customer when linked.
+                      if (m.channel === 'call') setSheetCall(m);
+                      else if (m.customerId)
+                        router.push({ pathname: '/customers/[id]', params: { id: m.customerId } });
+                    }}
                     style={({ pressed }) => [styles.itemCard, pressed && styles.pressed]}>
                     <Ionicons
                       name={
@@ -258,6 +263,14 @@ export default function HomeScreen() {
           )}
         </ScrollView>
       </SafeAreaView>
+
+      <CallActionSheet
+        call={sheetCall}
+        onClose={() => setSheetCall(null)}
+        onChanged={() => void load()}
+        onOpenCustomer={(cid) => router.push({ pathname: '/customers/[id]', params: { id: cid } })}
+        onDial={(phone) => router.push({ pathname: '/calls', params: { num: phone } })}
+      />
     </ThemedView>
   );
 }
@@ -266,19 +279,23 @@ function StatCard({
   icon,
   label,
   value,
+  onPress,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: number;
+  onPress?: () => void;
 }) {
   return (
-    <ThemedView type="backgroundElement" style={styles.statCard}>
-      <Ionicons name={icon} size={18} color={Brand.primary} />
-      <ThemedText style={styles.statValue}>{value}</ThemedText>
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-    </ThemedView>
+    <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.statCardWrap, pressed && styles.pressed]}>
+      <ThemedView type="backgroundElement" style={styles.statCard}>
+        <Ionicons name={icon} size={18} color={Brand.primary} />
+        <ThemedText style={styles.statValue}>{value}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">
+          {label}
+        </ThemedText>
+      </ThemedView>
+    </Pressable>
   );
 }
 
@@ -312,7 +329,8 @@ const styles = StyleSheet.create({
   loadingBox: { paddingVertical: Spacing.six, alignItems: 'center' },
 
   statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
-  statCard: { flex: 1, padding: Spacing.three, borderRadius: 16, gap: 4 },
+  statCardWrap: { flex: 1 },
+  statCard: { padding: Spacing.three, borderRadius: 16, gap: 4 },
   statValue: { fontSize: 24, fontWeight: '800' },
 
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.four, marginBottom: Spacing.two },

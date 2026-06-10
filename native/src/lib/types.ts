@@ -72,6 +72,8 @@ export interface Communication {
 /** Unified per-customer chat feed item (GET /api/customers/[id]/timeline). */
 export interface TimelineItem {
   id: string;
+  refTable?: string | null;
+  refId?: string | null;
   type:
     | 'call'
     | 'sms'
@@ -98,6 +100,49 @@ export interface TimelineItem {
     dueDate?: string | null;
     dueTime?: string | null;
   } | null;
+}
+
+/** Business profile (GET/PATCH /api/businesses/me — snake_case fields). */
+export interface Business {
+  id: string;
+  name: string | null;
+  type?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  city?: string | null;
+  vat_number?: string | null;
+  tax_office?: string | null;
+  default_vat_rate?: number | null;
+  default_offer_terms?: string | null;
+  default_acceptance_text?: string | null;
+  preferred_contact_method?: string | null;
+  business_phone_number?: string | null;
+}
+
+/** Service-catalog item (GET/POST /api/catalog — camelCase in/out). */
+export interface CatalogItem {
+  id: string;
+  code?: string | null;
+  name: string;
+  unit?: string | null;
+  unitPrice: number;
+  vatRate: number;
+}
+
+/** Customer upload session (read directly from Supabase, like the web panel). */
+export interface UploadSession {
+  id: string;
+  uploaded_at: string;
+  files: Array<{ name: string; kind?: string | null; mimeType?: string | null }> | null;
+}
+
+/** Flattened gallery entry. */
+export interface GalleryFile {
+  sessionId: string;
+  fileIndex: number;
+  name: string;
+  kind: 'image' | 'video' | 'file';
 }
 
 /** Draft/send response of the link endpoints (intake / appointment / offer notify). */
