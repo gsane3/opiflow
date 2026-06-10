@@ -27,26 +27,34 @@ export default function CallsScreen() {
   const [call, setCall] = useState<ActiveCall | null>(null);
   const [status, setStatus] = useState<CallStatus | null>(null);
   const [muted, setMuted] = useState(false);
+  const [debug, setDebug] = useState('');
 
   const press = (k: string) => setNum((n) => (n + k).slice(0, 24));
   const back = () => setNum((n) => n.slice(0, -1));
 
   async function dial() {
     if (!num) return;
+    setDebug('');
     setStatus('connecting');
     try {
-      const handle = await placeCall(num, (s) => {
-        setStatus(s);
-        if (s === 'disconnected' || s === 'failed') {
-          setCall(null);
-          setMuted(false);
-          setTimeout(() => setStatus(null), 1200);
-        }
-      });
+      const handle = await placeCall(
+        num,
+        (s) => {
+          setStatus(s);
+          if (s === 'disconnected' || s === 'failed') {
+            setCall(null);
+            setMuted(false);
+            setTimeout(() => setStatus(null), 1200);
+          }
+        },
+        (line) => setDebug(line),
+      );
       setCall(handle);
     } catch (e) {
       setStatus(null);
-      Alert.alert('Αποτυχία κλήσης', e instanceof Error ? e.message : 'Άγνωστο σφάλμα.');
+      const msg = e instanceof Error ? e.message : 'Άγνωστο σφάλμα.';
+      setDebug('ERROR: ' + msg);
+      Alert.alert('Αποτυχία κλήσης', msg);
     }
   }
 
@@ -78,6 +86,12 @@ export default function CallsScreen() {
             {num || ' '}
           </ThemedText>
         </View>
+
+        {debug ? (
+          <ThemedText type="small" themeColor="textSecondary" style={styles.debug}>
+            {debug}
+          </ThemedText>
+        ) : null}
 
         <View style={styles.pad}>
           {KEYS.map((row, i) => (
@@ -150,6 +164,7 @@ const styles = StyleSheet.create({
   title: { alignSelf: 'flex-start', paddingHorizontal: Spacing.four, paddingTop: Spacing.four },
   display: { minHeight: 64, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.three },
   number: { fontSize: 34, fontWeight: '600', letterSpacing: 1 },
+  debug: { textAlign: 'center', paddingHorizontal: Spacing.four },
   pad: { gap: Spacing.three, marginTop: Spacing.two },
   row: { flexDirection: 'row', gap: Spacing.four, justifyContent: 'center' },
   key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#F2F4F7', alignItems: 'center', justifyContent: 'center' },
