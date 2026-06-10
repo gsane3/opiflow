@@ -129,13 +129,34 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   if (url.searchParams.get('ring') === '1') {
     const identity = url.searchParams.get('id')?.trim() || 'biz_44892a77cce34a268e3d13c99071b413';
+    // For client targets `from` may be `client:<name>` — no Twilio number needed.
+    const from = twilioNumber || 'client:diag';
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
     try {
       const call = await client.calls.create({
         to: `client:${identity}`,
-        from: twilioNumber || identity,
+        from,
+        timeout: 25,
         twiml: '<Response><Say voice="alice" language="el-GR">Δοκιμή Opiflow.</Say><Pause length="20"/></Response>',
       });
-      ringTest = { sid: call.sid, status: call.status, to: `client:${identity}`, from: twilioNumber || `(no number) ${identity}` };
+      // Poll the call's fate: ringing/in-progress = the push BINDING EXISTS and
+      // the device was reachable; failed/no-answer in <8s = no usable binding.
+      const timeline: Array<{ t: string; status: string }> = [{ t: '0s', status: call.status }];
+      for (const [t, ms] of [['3s', 3000], ['8s', 5000]] as const) {
+        await sleep(ms);
+        const c2 = await client.calls(call.sid).fetch();
+        timeline.push({ t, status: c2.status });
+        if (c2.status === 'failed' || c2.status === 'completed' || c2.status === 'busy' || c2.status === 'no-answer') break;
+      }
+      // Any Debugger error generated for this call (e.g. 52134 push failure)?
+      let callAlerts: unknown = [];
+      try {
+        const a = await client.monitor.v1.alerts.list({ limit: 8 });
+        callAlerts = a
+          .filter((x) => !x.resourceSid || x.resourceSid === call.sid)
+          .map((x) => ({ code: x.errorCode, text: (x.alertText || '').slice(0, 200), resource: x.resourceSid }));
+      } catch { /* non-fatal */ }
+      ringTest = { sid: call.sid, to: `client:${identity}`, from, timeline, callAlerts };
     } catch (e) {
       ringTest = { error: (e as { message?: string })?.message?.slice(0, 200), code: (e as { code?: number })?.code ?? null };
     }
