@@ -132,14 +132,18 @@ workflows:
           else
             echo "WARNING: GOOGLE_SERVICE_INFO_PLIST not set — iOS push will NOT work"
           fi
-      - name: iOS Firebase native wiring
-        # cap add ios regenerates a bare AppDelegate + does not reference the plist,
-        # so wire both up here (idempotent). @capacitor-firebase/messaging needs the
-        # 3 APNs-forwarding methods; the plist must be in the bundle for Firebase.
+      - name: iOS Firebase + push native wiring
+        # cap add ios regenerates a bare project on every clean build, so wire up
+        # (idempotent): (1) the 3 APNs-forwarding methods @capacitor-firebase/messaging
+        # needs; (2) the GoogleService-Info.plist reference for Firebase; (3) the
+        # aps-environment entitlement WITHOUT which iOS registers for NO push at all —
+        # the reason Twilio VoIP push (incoming calls) + Firebase push never worked on
+        # iOS. Needs "Push Notifications" enabled on the App ID (set up via the APNs key).
         script: |
           python3 scripts/ci/ios-appdelegate-patch.py ios/App/App/AppDelegate.swift
           gem install xcodeproj --no-document
           ruby scripts/ci/ios-register-plist.rb
+          ruby scripts/ci/ios-add-entitlements.rb
       - name: Capacitor sync (iOS)
         script: npx cap sync ios
       - name: Export compliance + build number
