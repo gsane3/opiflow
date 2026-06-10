@@ -54,8 +54,12 @@ function wireIncomingListeners() {
     voice.on(Voice.Event.CallInvite, (invite: unknown) => {
       console.log('[twilio] >>> CallInvite (incoming) <<<', invite);
     });
-    voice.on(Voice.Event.Registered, () => setIncomingState({ state: 'registered' }));
-    voice.on(Voice.Event.Error, (e: unknown) => console.log('[twilio] Voice error', e));
+    voice.on(Voice.Event.Registered, () => console.log('[twilio] Registered event'));
+    voice.on(Voice.Event.Error, (e: unknown) => {
+      const msg = e instanceof Error ? e.message : e && typeof e === 'object' ? JSON.stringify(e) : String(e);
+      console.log('[twilio] Voice error', msg);
+      setIncomingState({ state: 'error', detail: 'VoiceError: ' + msg });
+    });
   } catch (e) {
     console.log('[twilio] wireIncomingListeners err', e);
   }
@@ -75,8 +79,17 @@ export async function registerForIncoming(onLog?: (s: string) => void): Promise<
     }
     const token = await fetchVoiceToken(onLog);
     await voice.register(token);
-    setIncomingState({ state: 'registered' });
-    onLog?.('register() ok');
+    // Diagnostic: surface the iOS VoIP device token length. A real APNs VoIP
+    // token is 64 hex chars; "ΚΕΝΟ" (empty) would explain a Twilio <Client> 404.
+    let dt = '';
+    try {
+      dt = await voice.getDeviceToken();
+    } catch {
+      dt = 'ERR';
+    }
+    const detail = dt === 'ERR' ? 'deviceToken=ERROR' : dt ? `deviceToken=${dt.length}χαρ` : 'deviceToken=ΚΕΝΟ';
+    setIncomingState({ state: 'registered', detail });
+    onLog?.('register() ok — ' + detail);
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     setIncomingState({ state: 'error', detail });
