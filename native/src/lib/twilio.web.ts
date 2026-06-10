@@ -11,3 +11,7 @@ export interface ActiveCall {
 export async function placeCall(): Promise<ActiveCall> {
   throw new Error('Οι κλήσεις είναι διαθέσιμες μόνο στην εφαρμογή (όχι στο web preview).');
 }
+
+export async function registerForIncoming(): Promise<void> {
+  // no-op on web
+}

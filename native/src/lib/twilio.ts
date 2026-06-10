@@ -48,3 +48,50 @@ export async function placeCall(
     mute: (on: boolean) => { void call.mute(on); },
   };
 }
+
+// ---- Incoming calls (VoIP push → CallKit) -------------------------------------
+
+let listenersWired = false;
+function wireIncomingListeners() {
+  if (listenersWired) return;
+  listenersWired = true;
+  try {
+    voice.on(Voice.Event.CallInvite, (invite: unknown) => {
+      console.log('[twilio] >>> CallInvite (incoming) <<<', invite);
+      // On iOS the SDK reports this to CallKit automatically (native incoming UI).
+    });
+    // @ts-expect-error preview enum may vary
+    voice.on(Voice.Event.CancelledCallInvite, () => console.log('[twilio] CallInvite cancelled'));
+    // @ts-expect-error preview enum may vary
+    voice.on(Voice.Event.Registered, () => console.log('[twilio] >>> Registered for incoming <<<'));
+    // @ts-expect-error preview enum may vary
+    voice.on(Voice.Event.Unregistered, () => console.log('[twilio] Unregistered'));
+    voice.on(Voice.Event.Error, (e: unknown) => console.log('[twilio] Voice error', e));
+  } catch (e) {
+    console.log('[twilio] wireIncomingListeners err', e);
+  }
+}
+
+/** Register this device to RECEIVE incoming calls (binds the VoIP push token to Twilio). */
+export async function registerForIncoming(onLog?: (s: string) => void): Promise<void> {
+  try {
+    wireIncomingListeners();
+    // iOS: let the SDK own the PushKit registry so it can wake the app + report to CallKit.
+    try {
+      const v = voice as unknown as { initializePushRegistry?: () => Promise<void> };
+      if (typeof v.initializePushRegistry === 'function') {
+        await v.initializePushRegistry();
+        console.log('[twilio] initializePushRegistry ok');
+      }
+    } catch (e) {
+      console.log('[twilio] initializePushRegistry err', e);
+    }
+    const token = await fetchVoiceToken(onLog);
+    await voice.register(token);
+    console.log('[twilio] voice.register() called ok');
+    onLog?.('register() ok');
+  } catch (e) {
+    console.log('[twilio] registerForIncoming failed', e);
+    onLog?.('register failed: ' + (e instanceof Error ? e.message : String(e)));
+  }
+}
