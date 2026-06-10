@@ -165,7 +165,10 @@ export async function GET(request: Request) {
   const probeRegion = regionUrl.searchParams.get('region')?.trim();
   if (probeRegion) {
     try {
-      const rc = twilio(apiKey, apiSecret, { accountSid, region: probeRegion });
+      // Proper regional routing needs region + edge (e.g. ie1 + dublin →
+      // api.dublin.ie1.twilio.com); region alone hits the global host.
+      const probeEdge = regionUrl.searchParams.get('edge')?.trim() || undefined;
+      const rc = twilio(apiKey, apiSecret, { accountSid, region: probeRegion, edge: probeEdge });
       let rDomains: unknown = [];
       try {
         rDomains = (await rc.sip.domains.list({ limit: 20 })).map((d) => ({
