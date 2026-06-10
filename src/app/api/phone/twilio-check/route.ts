@@ -155,6 +155,51 @@ export async function GET(request: Request) {
     numbers = { error: (e as { message?: string })?.message?.slice(0, 160) };
   }
 
+  // Region probe (?region=ie1): Twilio resources are REGION-scoped and the
+  // default API only sees US1. Session 13 "moved IE1→US1" — if the old IE1 SIP
+  // domain still exists, it intercepts the INVITE, its <Client> lookup searches
+  // IE1 registrations (the app registers in US1) → 404, and all evidence lives
+  // in IE1 (invisible to every US1 query we ran). Probe that region directly.
+  let regionProbe: unknown = '(skip — add ?region=ie1)';
+  const regionUrl = new URL(request.url);
+  const probeRegion = regionUrl.searchParams.get('region')?.trim();
+  if (probeRegion) {
+    try {
+      const rc = twilio(apiKey, apiSecret, { accountSid, region: probeRegion });
+      let rDomains: unknown = [];
+      try {
+        rDomains = (await rc.sip.domains.list({ limit: 20 })).map((d) => ({
+          sid: d.sid, domainName: d.domainName, voiceUrl: d.voiceUrl || '(EMPTY)', voiceMethod: d.voiceMethod, sipRegistration: d.sipRegistration, authType: d.authType || '(none)',
+        }));
+      } catch (e) { rDomains = { error: (e as { message?: string })?.message?.slice(0, 160) }; }
+      let rCalls: unknown = [];
+      try {
+        rCalls = (await rc.calls.list({ limit: 8 })).map((c) => ({ to: c.to, from: c.from, status: c.status, direction: c.direction, at: c.startTime }));
+      } catch (e) { rCalls = { error: (e as { message?: string })?.message?.slice(0, 160) }; }
+      let rCall: unknown = '(no ?call given)';
+      const rSid = regionUrl.searchParams.get('call')?.trim();
+      if (rSid) {
+        try {
+          const c = await rc.calls(rSid).fetch();
+          let rNotifications: unknown = [];
+          try {
+            rNotifications = (await rc.calls(rSid).notifications.list({ limit: 10 })).map((n) => ({ code: n.errorCode, at: n.messageDate, text: (n.messageText || '').slice(0, 300) }));
+          } catch (e) { rNotifications = { error: (e as { message?: string })?.message?.slice(0, 120) }; }
+          rCall = { sid: c.sid, status: c.status, direction: c.direction, from: c.from, to: c.to, startTime: c.startTime, notifications: rNotifications };
+        } catch (e) {
+          rCall = { error: (e as { message?: string })?.message?.slice(0, 160), code: (e as { code?: number })?.code ?? null };
+        }
+      }
+      let rAlerts: unknown = [];
+      try {
+        rAlerts = (await rc.monitor.v1.alerts.list({ limit: 10 })).map((x) => ({ code: x.errorCode, text: (x.alertText || '').slice(0, 220), at: x.dateGenerated }));
+      } catch (e) { rAlerts = { error: (e as { message?: string })?.message?.slice(0, 120) }; }
+      regionProbe = { region: probeRegion, sipDomains: rDomains, call: rCall, recentCalls: rCalls, alerts: rAlerts };
+    } catch (e) {
+      regionProbe = { region: probeRegion, error: (e as { message?: string })?.message?.slice(0, 200) };
+    }
+  }
+
   // Call probe (?call=CAxxx): fetch a specific call + its error notifications +
   // webhook events. The inbound SIP 404 carries an X-Twilio-CallSid that does
   // NOT appear in our calls.list — if this fetch 20404s, the call lives in a
@@ -233,5 +278,5 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls, account, numbers, ringTest, callProbe });
+  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls, account, numbers, ringTest, callProbe, regionProbe });
 }
