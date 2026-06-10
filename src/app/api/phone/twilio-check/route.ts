@@ -11,7 +11,7 @@ import twilio from 'twilio';
 
 export const dynamic = 'force-dynamic';
 
-export async function GET() {
+export async function GET(request: Request) {
   const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
   const apiKey = process.env.TWILIO_API_KEY?.trim();
   const apiSecret = process.env.TWILIO_API_SECRET?.trim();
@@ -103,5 +103,35 @@ export async function GET() {
     calls = { error: (e as { message?: string })?.message?.slice(0, 160) };
   }
 
-  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls });
+  let numbers: unknown = '(not checked)';
+  let twilioNumber: string | undefined;
+  try {
+    const ns = await client.incomingPhoneNumbers.list({ limit: 5 });
+    numbers = ns.map((n) => n.phoneNumber);
+    twilioNumber = ns[0]?.phoneNumber;
+  } catch (e) {
+    numbers = { error: (e as { message?: string })?.message?.slice(0, 160) };
+  }
+
+  // Direct registration test (?ring=1): Twilio calls the registered client
+  // directly, bypassing Asterisk + the SIP domain. If the phone rings, the push
+  // registration works and the SIP-domain path is the issue; if not, the
+  // registration itself is unreachable.
+  let ringTest: unknown = '(skip — add ?ring=1)';
+  const url = new URL(request.url);
+  if (url.searchParams.get('ring') === '1') {
+    const identity = url.searchParams.get('id')?.trim() || 'biz_44892a77cce34a268e3d13c99071b413';
+    try {
+      const call = await client.calls.create({
+        to: `client:${identity}`,
+        from: twilioNumber || identity,
+        twiml: '<Response><Say voice="alice" language="el-GR">Δοκιμή Opiflow.</Say><Pause length="20"/></Response>',
+      });
+      ringTest = { sid: call.sid, status: call.status, to: `client:${identity}`, from: twilioNumber || `(no number) ${identity}` };
+    } catch (e) {
+      ringTest = { error: (e as { message?: string })?.message?.slice(0, 200), code: (e as { code?: number })?.code ?? null };
+    }
+  }
+
+  return NextResponse.json({ ok: true, valid, keyError, prefixes, twimlAppSidEnv: twimlAppSid ?? '(EMPTY)', keyFriendlyName, twimlApp, inbound, pushCred, sipDomains, alerts, calls, numbers, ringTest });
 }
