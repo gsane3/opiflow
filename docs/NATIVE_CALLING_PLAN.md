@@ -58,6 +58,55 @@ After a 2nd spike (CPaaS comparison), the chosen path is **NOT** a self-hosted S
 
 ---
 
+## ✅ INBOUND calling — code wired (web app) + owner runbook
+
+**What the app code already does (no further app build logic needed for the happy path):**
+- `GET /api/phone/twilio-token` mints a Voice token with `incomingAllow:true` **and** the
+  platform-correct `pushCredentialSid` (the client sends `?platform=ios|android`; the server
+  picks `TWILIO_PUSH_CREDENTIAL_SID_IOS` / `_ANDROID`, falling back to `TWILIO_PUSH_CREDENTIAL_SID`).
+- **NEW** `POST /api/webhooks/voice/twilio/inbound` returns `<Dial><Client>biz_<id></Client></Dial>`
+  — records the leg (→ existing AI-brief pipeline) and passes the caller's number as the in-app
+  caller-ID. Signature-validated with `TWILIO_AUTH_TOKEN` + `TWILIO_INBOUND_WEBHOOK_URL`.
+- The app **registers for incoming + VoIP push at launch** (`AppShell → registerNativeVoiceForPush()`),
+  not just inside the Settings test panel. The `@capgo/capacitor-twilio-voice` plugin self-configures
+  **PushKit (iOS)** and **FCM full-screen-intent (Android)**, so the **system incoming-call UI shows
+  even when the app is backgrounded/killed**. No AppDelegate change needed (the plugin's iOS code
+  already implements `PKPushRegistry` + CallKit `reportNewIncomingCall`).
+
+**Owner steps to make it actually ring (one-time, ~an afternoon):**
+1. **Twilio Push Credential** — the piece that wakes a killed app:
+   - **iOS:** Apple Developer → Keys → create an **APNs *VoIP* key** (`.p8`); note Key ID + Team
+     `7Q7A3NFK8T`, bundle `ai.opiflow.app`. Twilio Console → Voice → **Push Credentials → Create →
+     APNs (VoIP)**, upload the `.p8`. → set `TWILIO_PUSH_CREDENTIAL_SID_IOS` on Vercel.
+   - **Android:** Twilio → Push Credentials → Create → **FCM**, paste the **FCM v1 service-account
+     JSON** (same Firebase project as `google-services.json`). → set `TWILIO_PUSH_CREDENTIAL_SID_ANDROID`.
+   - (Validate ONE platform end-to-end first; add the second after.)
+2. **Twilio SIP Domain** — carrier → app entry point:
+   - Twilio → Voice → **SIP Domains → Create** (e.g. `opiflow.sip.twilio.com`).
+   - Voice Configuration → **Request URL (POST) = `https://www.opiflow.ai/api/webhooks/voice/twilio/inbound`**.
+   - Add the Asterisk IP to the domain's IP-ACL (+ a credential list if you require auth).
+   - Set `TWILIO_INBOUND_WEBHOOK_URL` on Vercel to that exact URL (for signature validation).
+3. **Asterisk inbound dialplan** — DID → Twilio → app (in `provision-asterisk.py` / inbound context).
+   Add a PJSIP trunk endpoint to `opiflow.sip.twilio.com`, then fork the DID to the app identity:
+   ```
+   exten => <DID>,1,NoOp(Inbound ${EXTEN} → app biz_<id>)
+    same => n,Dial(PJSIP/biz_<id>@twilio-inbound,30)
+    same => n,Hangup()
+   ```
+   Keep the existing browser-WebRTC + Viber paths untouched (additive). To ring BOTH the app and a
+   browser session, `Dial()` both in one command separated by `&`.
+4. **Device test** (physical iPhone **and** Android — VoIP push does **not** work in simulators):
+   install the latest Codemagic build, log in (auto-registers), **lock the phone**, call the DID →
+   it should ring on the lock screen showing the customer's number → answer → 2-way audio → hang up
+   → the recording webhook fires the AI brief into the customer's timeline.
+
+**Still TODO after the above rings (polish, separate):** map the inbound caller number → CRM customer
+and deep-link the operator to that chat on answer; surface in-call UI in the web layer (today the
+native CallKit/Telecom UI handles answer/mute/hangup); add an inbound `communications` row at
+call-time (the recording webhook already adds the brief).
+
+---
+
 > ## Rejected alternative (kept for context): self-hosted SIP engine (Linphone/PJSIP)
 > Output of the FIRST architecture spike. **Two hard blockers** made this the wrong path.
 

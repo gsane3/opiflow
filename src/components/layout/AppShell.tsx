@@ -5,6 +5,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { registerNativePush } from '@/lib/native/push';
+import { registerNativeVoiceForPush } from '@/lib/native/twilio-voice';
 import BottomNav from './BottomNav';
 import DesktopSidebar from './DesktopSidebar';
 import PushToast from './PushToast';
@@ -64,6 +65,12 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         // Native push: register this device once the session is confirmed.
         // No-op on web; failures are swallowed inside the helper.
         void registerNativePush((url) => router.push(url));
+
+        // Native Twilio Voice: register for INCOMING calls + VoIP push so the
+        // phone rings on inbound Greek-DID calls even when backgrounded/killed.
+        // No-op on web / when Twilio isn't configured; never prompts for the mic
+        // here (that happens when a call is answered).
+        void registerNativeVoiceForPush();
       } catch {
         // Auth client not configured or network error: redirect to login.
         if (!cancelled) {

@@ -18,9 +18,12 @@ export const runtime = 'nodejs';
 //
 // Required env (server-only; never logged or returned):
 //   TWILIO_ACCOUNT_SID, TWILIO_API_KEY, TWILIO_API_SECRET, TWILIO_TWIML_APP_SID
-// Optional:
-//   TWILIO_PUSH_CREDENTIAL_SID  (the Push Credential = APNs VoIP + FCM key; needed
-//                                for ring-when-killed, harmless to omit for outbound)
+// Optional (Push Credential = the key that lets an inbound call ring a killed app;
+// harmless to omit for outbound-only). A Voice token carries ONE pushCredentialSid,
+// and iOS (APNs VoIP) vs Android (FCM) need DIFFERENT credentials, so the client
+// passes ?platform=ios|android and we pick the matching SID:
+//   TWILIO_PUSH_CREDENTIAL_SID_IOS, TWILIO_PUSH_CREDENTIAL_SID_ANDROID
+//   TWILIO_PUSH_CREDENTIAL_SID      (fallback when only one platform is wired)
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 const TOKEN_TTL_SECONDS = 3600;
@@ -39,7 +42,15 @@ export async function GET(request: NextRequest) {
   const apiKey = process.env.TWILIO_API_KEY?.trim();
   const apiSecret = process.env.TWILIO_API_SECRET?.trim();
   const twimlAppSid = process.env.TWILIO_TWIML_APP_SID?.trim();
-  const pushCredentialSid = process.env.TWILIO_PUSH_CREDENTIAL_SID?.trim() || undefined;
+
+  // Pick the Push Credential matching the caller's platform (iOS=APNs VoIP,
+  // Android=FCM); fall back to the single TWILIO_PUSH_CREDENTIAL_SID.
+  const platform = request.nextUrl.searchParams.get('platform');
+  const pushCredentialSid =
+    (platform === 'ios' ? process.env.TWILIO_PUSH_CREDENTIAL_SID_IOS?.trim() : undefined) ||
+    (platform === 'android' ? process.env.TWILIO_PUSH_CREDENTIAL_SID_ANDROID?.trim() : undefined) ||
+    process.env.TWILIO_PUSH_CREDENTIAL_SID?.trim() ||
+    undefined;
 
   if (!accountSid || !apiKey || !apiSecret || !twimlAppSid) {
     return NextResponse.json(

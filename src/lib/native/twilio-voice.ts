@@ -40,10 +40,13 @@ export async function isNativeVoiceAvailable(): Promise<boolean> {
 
 async function fetchTwilioToken(): Promise<string | null> {
   try {
+    let platform = '';
+    try { const { Capacitor } = await import('@capacitor/core'); platform = Capacitor?.getPlatform?.() ?? ''; } catch { /* web */ }
     const supabase = createBrowserSupabaseClient();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
-    const res = await fetch('/api/phone/twilio-token', {
+    const qs = platform ? `?platform=${encodeURIComponent(platform)}` : '';
+    const res = await fetch(`/api/phone/twilio-token${qs}`, {
       headers: { Authorization: `Bearer ${session.access_token}` },
     });
     const json = (await res.json()) as { ready?: boolean; token?: string };
@@ -66,7 +69,10 @@ export interface NativeVoiceCallbacks {
  * Register the device with Twilio Voice (native only). Returns false on web,
  * when the token isn't ready (Twilio not configured), or on any failure.
  */
-export async function initNativeVoice(cb: NativeVoiceCallbacks = {}): Promise<boolean> {
+export async function initNativeVoice(
+  cb: NativeVoiceCallbacks = {},
+  opts: { requestMic?: boolean } = {},
+): Promise<boolean> {
   const p = await getPlugin();
   if (!p) return false;
   const token = await fetchTwilioToken();
@@ -85,13 +91,30 @@ export async function initNativeVoice(cb: NativeVoiceCallbacks = {}): Promise<bo
     if (cb.onDisconnected) await p.addListener('callDisconnected', cb.onDisconnected);
     if (cb.onRinging) await p.addListener('callRinging', cb.onRinging);
 
-    try { await p.requestMicrophonePermission(); } catch { /* prompt may already be handled */ }
+    // Prompt for the mic up-front only when explicitly asked (e.g. the outbound
+    // test panel). On launch registration we skip it — the system asks when a
+    // call is actually answered, so opening the app stays non-intrusive.
+    if (opts.requestMic !== false) {
+      try { await p.requestMicrophonePermission(); } catch { /* prompt may already be handled */ }
+    }
 
     const res = await p.login({ accessToken: token });
     return Boolean(res?.success);
   } catch {
     return false;
   }
+}
+
+/**
+ * Register the device for INCOMING calls + VoIP push at app launch (native only).
+ * Triggers the plugin's `login()` so its VoIP push token is bound to the Twilio
+ * Client identity — this is what lets an inbound call ring the phone even when the
+ * app is backgrounded/killed (the plugin shows the system incoming UI: CallKit on
+ * iOS, full-screen intent on Android). No-op on web / when Twilio isn't configured.
+ * Does NOT prompt for the mic (deferred to call-answer time).
+ */
+export async function registerNativeVoiceForPush(cb: NativeVoiceCallbacks = {}): Promise<boolean> {
+  return initNativeVoice(cb, { requestMic: false });
 }
 
 /** Place an outbound call to an E.164 number. */
