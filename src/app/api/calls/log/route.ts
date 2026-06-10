@@ -89,6 +89,25 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // No explicit customer (e.g. the native dialer) → match by phone, the same
+  // way the PBX inbound path does (match-only; never auto-create on outbound).
+  // Lets the recording webhook's Deepgram brief + ai_draft task land on the
+  // right customer's timeline.
+  if (!customerId && phone) {
+    const { data } = await supabase
+      .from('customers')
+      .select('id')
+      .eq('business_id', businessId)
+      .or(`phone.eq.${phone},mobile_phone.eq.${phone},landline_phone.eq.${phone}`)
+      .order('created_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (data) {
+      customerId = (data as { id: string }).id;
+      customerMatched = true;
+    }
+  }
+
   const basicSummary =
     status === 'completed'
       ? direction === 'inbound'
