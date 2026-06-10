@@ -4,7 +4,7 @@
 // if it happens before the native module is ready (i.e. at launch).
 import { Call, Voice } from '@twilio/voice-react-native-sdk';
 
-import { apiGet } from './api';
+import { apiGet, apiPost } from './api';
 import { type ActiveCall, type CallStatus, setIncomingState } from './twilio-state';
 
 let _voice: Voice | null = null;
@@ -34,10 +34,26 @@ export async function placeCall(
   const voice = getVoice();
   const call = await voice.connect(token, { params: { To: to } });
 
+  // Log the call to the CRM exactly once when it ends. The Twilio CallSid lets
+  // the recording webhook attach the Deepgram transcript + AI brief to this row.
+  let connected = false;
+  let logged = false;
+  const logCall = (status: 'completed' | 'failed') => {
+    if (logged) return;
+    logged = true;
+    const sid = (() => { try { return call.getSid(); } catch { return undefined; } })();
+    apiPost('/api/calls/log', {
+      direction: 'outbound',
+      status,
+      phone: to,
+      ...(sid ? { providerCallId: sid } : {}),
+    }).catch((e) => console.log('[twilio] call log failed', e));
+  };
+
   call.on(Call.Event.Ringing, () => { onLog?.('ringing'); onStatus('ringing'); });
-  call.on(Call.Event.Connected, () => { onLog?.('connected'); onStatus('connected'); });
-  call.on(Call.Event.Disconnected, () => { onLog?.('disconnected'); onStatus('disconnected'); });
-  call.on(Call.Event.ConnectFailure, (e?: unknown) => { onLog?.(`connectFailure ${e ? JSON.stringify(e) : ''}`); onStatus('failed'); });
+  call.on(Call.Event.Connected, () => { connected = true; onLog?.('connected'); onStatus('connected'); });
+  call.on(Call.Event.Disconnected, () => { onLog?.('disconnected'); onStatus('disconnected'); logCall(connected ? 'completed' : 'failed'); });
+  call.on(Call.Event.ConnectFailure, (e?: unknown) => { onLog?.(`connectFailure ${e ? JSON.stringify(e) : ''}`); onStatus('failed'); logCall('failed'); });
 
   return {
     disconnect: () => { void call.disconnect(); },
@@ -79,17 +95,8 @@ export async function registerForIncoming(onLog?: (s: string) => void): Promise<
     }
     const token = await fetchVoiceToken(onLog);
     await voice.register(token);
-    // Diagnostic: surface the iOS VoIP device token length. A real APNs VoIP
-    // token is 64 hex chars; "ΚΕΝΟ" (empty) would explain a Twilio <Client> 404.
-    let dt = '';
-    try {
-      dt = await voice.getDeviceToken();
-    } catch {
-      dt = 'ERR';
-    }
-    const detail = dt === 'ERR' ? 'deviceToken=ERROR' : dt ? `deviceToken=${dt.length}χαρ` : 'deviceToken=ΚΕΝΟ';
-    setIncomingState({ state: 'registered', detail });
-    onLog?.('register() ok — ' + detail);
+    setIncomingState({ state: 'registered' });
+    onLog?.('register() ok');
   } catch (e) {
     const detail = e instanceof Error ? e.message : String(e);
     setIncomingState({ state: 'error', detail });

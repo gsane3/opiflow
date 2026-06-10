@@ -39,18 +39,14 @@ export default function CallsScreen() {
     try {
       // Load the voice SDK on-demand (never at startup — see _layout.tsx).
       const { placeCall } = await import('@/lib/twilio');
-      const handle = await placeCall(
-        num,
-        (s) => {
-          setStatus(s);
-          if (s === 'disconnected' || s === 'failed') {
-            setCall(null);
-            setMuted(false);
-            setTimeout(() => setStatus(null), 1200);
-          }
-        },
-        (line) => setDebug(line),
-      );
+      const handle = await placeCall(num, (s) => {
+        setStatus(s);
+        if (s === 'disconnected' || s === 'failed') {
+          setCall(null);
+          setMuted(false);
+          setTimeout(() => setStatus(null), 1200);
+        }
+      });
       setCall(handle);
     } catch (e) {
       setStatus(null);
