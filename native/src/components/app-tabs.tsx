@@ -1,36 +1,39 @@
-import { NativeTabs } from 'expo-router/unstable-native-tabs';
+import { Ionicons } from '@expo/vector-icons';
+import { Tabs } from 'expo-router';
 import { useColorScheme } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 
+// Stable expo-router Tabs (works in release on Expo SDK 54; replaces the SDK-56
+// unstable NativeTabs). Cross-platform — no separate .web variant needed.
 export default function AppTabs() {
   const scheme = useColorScheme();
-  const colors = Colors[scheme === 'unspecified' ? 'light' : scheme];
+  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
 
   return (
-    <NativeTabs
-      backgroundColor={colors.background}
-      indicatorColor={colors.backgroundElement}
-      labelStyle={{ selected: { color: colors.tint } }}>
-      <NativeTabs.Trigger name="index">
-        <NativeTabs.Trigger.Label>Αρχική</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="house.fill" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="customers">
-        <NativeTabs.Trigger.Label>Πελάτες</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="person.2.fill" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="calls">
-        <NativeTabs.Trigger.Label>Κλήσεις</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="phone.fill" />
-      </NativeTabs.Trigger>
-
-      <NativeTabs.Trigger name="settings">
-        <NativeTabs.Trigger.Label>Ρυθμίσεις</NativeTabs.Trigger.Label>
-        <NativeTabs.Trigger.Icon sf="gearshape.fill" />
-      </NativeTabs.Trigger>
-    </NativeTabs>
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.tint,
+        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
+      }}>
+      <Tabs.Screen
+        name="index"
+        options={{ title: 'Αρχική', tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="customers"
+        options={{ title: 'Πελάτες', tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="calls"
+        options={{ title: 'Κλήσεις', tabBarIcon: ({ color, size }) => <Ionicons name="call" color={color} size={size} /> }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{ title: 'Ρυθμίσεις', tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} /> }}
+      />
+    </Tabs>
   );
 }

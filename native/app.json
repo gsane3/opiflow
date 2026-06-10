@@ -7,6 +7,7 @@
     "icon": "./assets/images/icon.png",
     "scheme": "opiflow",
     "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "ai.opiflow.app",
@@ -62,13 +63,6 @@
         "projectId": "ea515301-584a-4c4e-a458-291a60f388b4"
       }
     },
-    "owner": "gsane127",
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
-    "updates": {
-      "enabled": false,
-      "url": "https://u.expo.dev/ea515301-584a-4c4e-a458-291a60f388b4"
-    }
+    "owner": "gsane127"
   }
 }
