@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -12,9 +13,11 @@ interface Customer {
   name: string | null;
   mobilePhone?: string | null;
   phone?: string | null;
+  landlinePhone?: string | null;
 }
 
-export default function CustomersScreen() {
+export default function CustomersListScreen() {
+  const router = useRouter();
   const [items, setItems] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -76,9 +79,11 @@ export default function CustomersScreen() {
             }
             ItemSeparatorComponent={() => <View style={styles.sep} />}
             renderItem={({ item }) => {
-              const phone = item.mobilePhone || item.phone || '';
+              const phone = item.mobilePhone || item.landlinePhone || item.phone || '';
               return (
-                <View style={styles.row}>
+                <Pressable
+                  onPress={() => router.push({ pathname: '/customers/[id]', params: { id: item.id } })}
+                  style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}>
                   <View style={styles.avatar}>
                     <ThemedText style={styles.avatarText}>
                       {(item.name ?? 'Π').trim().slice(0, 1).toUpperCase()}
@@ -92,7 +97,10 @@ export default function CustomersScreen() {
                       </ThemedText>
                     ) : null}
                   </View>
-                </View>
+                  <ThemedText type="default" themeColor="textSecondary" style={styles.chevron}>
+                    ›
+                  </ThemedText>
+                </Pressable>
               );
             }}
           />
@@ -111,9 +119,11 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
   sep: { height: 1, backgroundColor: '#EEF1F5', marginLeft: 52 },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.three },
+  rowPressed: { opacity: 0.6 },
   rowText: { flex: 1, gap: 2 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: Brand.primary, fontSize: 16, fontWeight: '700' },
+  chevron: { fontSize: 22 },
   retry: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.two, borderRadius: 12, backgroundColor: Brand.primary },
   retryText: { color: Brand.onPrimary, fontWeight: '700' },
 });
