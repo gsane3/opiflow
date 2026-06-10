@@ -6,7 +6,10 @@ export default function CustomersLayout() {
   return (
     <Stack screenOptions={{ headerTintColor: Brand.primary, headerBackButtonDisplayMode: 'minimal' }}>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="[id]" options={{ title: 'Πελάτης' }} />
+      {/* Messenger-style chat + profile pages draw their own headers; the native
+          push transition (slide from the right + swipe-back) stays. */}
+      <Stack.Screen name="[id]/index" options={{ headerShown: false }} />
+      <Stack.Screen name="[id]/info" options={{ headerShown: false }} />
     </Stack>
   );
 }

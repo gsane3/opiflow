@@ -38,6 +38,9 @@ export function LoginScreen() {
             <ThemedText type="title" style={styles.title}>
               Opiflow
             </ThemedText>
+            <ThemedText type="small" style={styles.tagline}>
+              {Brand.tagline}
+            </ThemedText>
             <ThemedText type="default" themeColor="textSecondary" style={styles.sub}>
               Σύνδεση στον λογαριασμό σου
             </ThemedText>
@@ -90,6 +93,7 @@ const styles = StyleSheet.create({
   logo: { width: 72, height: 72, borderRadius: 20, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
   logoMark: { color: Brand.onPrimary, fontSize: 36, fontWeight: '800' },
   title: { color: Brand.primary },
+  tagline: { color: Brand.slate, letterSpacing: 1.2, textTransform: 'uppercase', fontSize: 11 },
   sub: { textAlign: 'center' },
   form: { gap: Spacing.three },
   input: {

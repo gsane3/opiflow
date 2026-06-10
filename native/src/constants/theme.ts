@@ -7,12 +7,16 @@ import '@/global.css';
 
 import { Platform } from 'react-native';
 
-// Opiflow brand — primary blue. Used for the accent/tint, buttons, active states.
+// Opiflow brand — palette from the CAM brand memo (Opiflow_CAM_Brand_Memo.pdf):
+// heading blue #2563EB, ink #111827, soft panels #EAF2FF, slate #94A3B8.
 export const Brand = {
-  primary: '#146EB4',
-  primaryPressed: '#0F5A95',
-  primarySoft: '#E6F0F9',
+  primary: '#2563EB',
+  primaryPressed: '#1D4ED8',
+  primarySoft: '#EAF2FF',
   onPrimary: '#FFFFFF',
+  ink: '#111827',
+  slate: '#94A3B8',
+  tagline: 'Customer Action Management',
 } as const;
 
 export const Colors = {

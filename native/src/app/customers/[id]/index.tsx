@@ -18,7 +18,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CustomerInfoSheet } from '@/components/customer-info-sheet';
 import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -38,7 +37,6 @@ export default function CustomerWorkspaceScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [infoOpen, setInfoOpen] = useState(false);
   const [apptOpen, setApptOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
   const [briefItem, setBriefItem] = useState<TimelineItem | null>(null);
@@ -126,17 +124,23 @@ export default function CustomerWorkspaceScreen() {
     void dismissSuggestion(a.id);
   }
 
+  function openInfo() {
+    // Typed-routes regenerate on the next dev/prebuild — cast keeps tsc green.
+    router.push({ pathname: '/customers/[id]/info', params: { id: String(id) } } as never);
+  }
+
   function onBubbleTap(item: TimelineItem) {
     if (item.type === 'call' && item.body) setBriefItem(item);
     else if ((item.type === 'offer' || item.type === 'offer_response') && item.refTable === 'offers' && item.refId)
       setPreviewOfferId(item.refId);
-    else if (item.type === 'upload' || item.type === 'intake_submitted') setInfoOpen(true);
+    else if (item.type === 'upload' || item.type === 'intake_submitted') openInfo();
   }
 
   if (loading) {
     return (
       <ThemedView style={styles.fill}>
-        <Stack.Screen options={{ title: 'Πελάτης' }} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView edges={['top']} />
         <View style={styles.center}>
           <ActivityIndicator color={Brand.primary} />
         </View>
@@ -146,7 +150,8 @@ export default function CustomerWorkspaceScreen() {
   if (error || !customer) {
     return (
       <ThemedView style={styles.fill}>
-        <Stack.Screen options={{ title: 'Πελάτης' }} />
+        <Stack.Screen options={{ headerShown: false }} />
+        <SafeAreaView edges={['top']} />
         <View style={styles.center}>
           <ThemedText themeColor="textSecondary">{error ?? 'Σφάλμα.'}</ThemedText>
         </View>
@@ -156,18 +161,38 @@ export default function CustomerWorkspaceScreen() {
 
   return (
     <ThemedView style={styles.fill}>
-      <Stack.Screen options={{ title: customer.name ?? 'Πελάτης' }} />
+      <Stack.Screen options={{ headerShown: false }} />
 
-      {/* Quick-action header row */}
-      <View style={styles.actionsRow}>
-        <HeaderAction
-          icon="call"
-          label="Κλήση"
-          disabled={!callPhone}
-          onPress={() => router.push({ pathname: '/calls', params: { num: callPhone } })}
-        />
-        <HeaderAction icon="information-circle" label="Πληροφορίες" onPress={() => setInfoOpen(true)} />
-      </View>
+      {/* Messenger-style header: back · avatar+name (tap → profile) · call */}
+      <SafeAreaView edges={['top']} style={styles.headerSafe}>
+        <View style={styles.header}>
+          <Pressable onPress={() => router.back()} hitSlop={10} style={styles.headerBack}>
+            <Ionicons name="chevron-back" size={28} color={Brand.primary} />
+          </Pressable>
+          <Pressable onPress={openInfo} style={({ pressed }) => [styles.headerIdentity, pressed && styles.pressed]}>
+            <View style={styles.headerAvatar}>
+              <ThemedText style={styles.headerAvatarText}>
+                {(customer.name ?? 'Π').trim().slice(0, 1).toUpperCase()}
+              </ThemedText>
+            </View>
+            <View style={styles.headerNameWrap}>
+              <ThemedText type="smallBold" numberOfLines={1} style={styles.headerName}>
+                {customer.name ?? 'Πελάτης'}
+              </ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={styles.headerSub}>
+                {callPhone || 'Χωρίς τηλέφωνο'} ›
+              </ThemedText>
+            </View>
+          </Pressable>
+          <Pressable
+            onPress={() => callPhone && router.push({ pathname: '/calls', params: { num: callPhone } })}
+            disabled={!callPhone}
+            hitSlop={8}
+            style={({ pressed }) => [styles.headerCall, !callPhone && styles.disabled, pressed && styles.pressed]}>
+            <Ionicons name="call" size={22} color={Brand.primary} />
+          </Pressable>
+        </View>
+      </SafeAreaView>
 
       {/* Timeline (chat) */}
       {items.length === 0 ? (
@@ -208,13 +233,6 @@ export default function CustomerWorkspaceScreen() {
       </SafeAreaView>
 
       {/* Sheets / modals */}
-      <CustomerInfoSheet
-        customerId={customer.id}
-        visible={infoOpen}
-        onClose={() => setInfoOpen(false)}
-        onChanged={() => void load()}
-        timelineItems={items}
-      />
       <OfferPreviewSheet offerId={previewOfferId} onClose={() => setPreviewOfferId(null)} onChanged={() => void load()} />
       <AppointmentModal
         visible={apptOpen}
@@ -285,6 +303,7 @@ function responseTone(item: TimelineItem): { text: string; color: string } | nul
 const TAPPABLE = new Set(['call', 'offer', 'offer_response', 'upload', 'intake_submitted']);
 
 function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) {
+  // Messenger look: our side = brand blue with white text, customer = light gray.
   const us = item.side === 'us';
   const meta = TYPE_META[item.type] ?? { icon: 'ellipse' as const };
   const tone = responseTone(item);
@@ -292,6 +311,8 @@ function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) 
 
   const body = item.body ?? '';
   const shown = body.length > 220 ? body.slice(0, 220) + '…' : body;
+  const fg = us ? styles.onBlue : styles.dark;
+  const fgMuted = us ? styles.onBlueMuted : undefined;
 
   return (
     <View style={[styles.bubbleRow, us ? styles.rowUs : styles.rowCust]}>
@@ -300,28 +321,28 @@ function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) 
         disabled={!tappable}
         style={({ pressed }) => [styles.bubble, us ? styles.bubbleUs : styles.bubbleCust, pressed && styles.pressed]}>
         <View style={styles.bubbleHead}>
-          <Ionicons name={meta.icon} size={14} color={us ? Brand.primary : '#5B6472'} />
-          <ThemedText type="smallBold" style={[styles.dark, tone ? { color: tone.color } : null]}>
+          <Ionicons name={meta.icon} size={14} color={us ? '#FFFFFF' : '#5B6472'} />
+          <ThemedText type="smallBold" style={[fg, tone && !us ? { color: tone.color } : null]}>
             {tone ? tone.text : item.title}
           </ThemedText>
         </View>
         {item.type === 'appointment' && item.payload?.dueDate ? (
-          <ThemedText type="small" themeColor="textSecondary">
+          <ThemedText type="small" style={fgMuted} themeColor={us ? undefined : 'textSecondary'}>
             {item.payload.dueDate.split('-').reverse().join('-')}
             {item.payload.dueTime ? ` · ${item.payload.dueTime}` : ''}
           </ThemedText>
         ) : null}
         {shown ? (
-          <ThemedText type="small" style={styles.dark}>
+          <ThemedText type="small" style={fg}>
             {shown}
           </ThemedText>
         ) : null}
         {tappable ? (
-          <ThemedText type="small" style={styles.tapHint}>
+          <ThemedText type="small" style={us ? styles.tapHintOnBlue : styles.tapHint}>
             {item.type === 'call' ? 'Προβολή περίληψης ›' : item.type.startsWith('offer') ? 'Προβολή προσφοράς ›' : 'Προβολή ›'}
           </ThemedText>
         ) : null}
-        <ThemedText type="small" themeColor="textSecondary" style={styles.when}>
+        <ThemedText type="small" style={[styles.when, fgMuted]} themeColor={us ? undefined : 'textSecondary'}>
           {formatWhen(item.occurredAt)}
         </ThemedText>
       </Pressable>
@@ -329,31 +350,7 @@ function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) 
   );
 }
 
-// ---------- header / composer buttons ----------
-
-function HeaderAction({
-  icon,
-  label,
-  onPress,
-  disabled,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  label: string;
-  onPress: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={({ pressed }) => [styles.headerAction, disabled && styles.disabled, pressed && styles.pressed]}>
-      <Ionicons name={icon} size={18} color={Brand.primary} />
-      <ThemedText type="small" style={styles.headerActionText}>
-        {label}
-      </ThemedText>
-    </Pressable>
-  );
-}
+// ---------- composer buttons ----------
 
 function ComposerButton({
   icon,
@@ -684,32 +681,32 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
   dark: { color: '#0A1120' },
 
-  actionsRow: {
-    flexDirection: 'row',
-    gap: Spacing.two,
-    paddingHorizontal: Spacing.four,
-    paddingVertical: Spacing.two,
-    borderBottomWidth: 1,
-    borderBottomColor: '#EEF1F5',
-  },
-  headerAction: {
-    flex: 1,
+  headerSafe: { borderBottomWidth: 1, borderBottomColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: Brand.primarySoft,
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.two,
+    paddingVertical: 6,
   },
-  headerActionText: { color: Brand.primary, fontWeight: '700' },
+  headerBack: { padding: 4 },
+  headerIdentity: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
+  headerAvatar: { width: 38, height: 38, borderRadius: 19, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  headerAvatarText: { color: Brand.primary, fontSize: 16, fontWeight: '700' },
+  headerNameWrap: { flex: 1 },
+  headerName: { fontSize: 16, color: '#0A1120' },
+  headerSub: { fontSize: 12 },
+  headerCall: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  onBlue: { color: '#FFFFFF' },
+  onBlueMuted: { color: 'rgba(255,255,255,0.75)' },
+  tapHintOnBlue: { color: '#FFFFFF', fontWeight: '700', textDecorationLine: 'underline' },
 
   feed: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.three, gap: Spacing.two },
   bubbleRow: { flexDirection: 'row', marginVertical: 3 },
   rowUs: { justifyContent: 'flex-end' },
   rowCust: { justifyContent: 'flex-start' },
   bubble: { maxWidth: '85%', borderRadius: 16, padding: Spacing.three, gap: 4 },
-  bubbleUs: { backgroundColor: Brand.primarySoft, borderBottomRightRadius: 4 },
+  bubbleUs: { backgroundColor: Brand.primary, borderBottomRightRadius: 4 },
   bubbleCust: { backgroundColor: '#F2F4F7', borderBottomLeftRadius: 4 },
   bubbleHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   when: { fontSize: 11, alignSelf: 'flex-end' },
