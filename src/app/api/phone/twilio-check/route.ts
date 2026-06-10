@@ -78,10 +78,44 @@ export async function GET(request: Request) {
       pushCred = { error: (e as { message?: string })?.message?.slice(0, 160), code: (e as { code?: number })?.code ?? null };
     }
   }
+  // FULL SIP-domain dump: the inbound INVITE is rejected pre-TwiML (no webhook
+  // hit, no call record), so the answer lives in the domain's own attributes —
+  // sipRegistration routing, auth mappings, byocTrunkSid, fallback, etc.
   let sipDomains: unknown = '(not checked)';
   try {
     const doms = await client.sip.domains.list({ limit: 20 });
-    sipDomains = doms.map((d) => ({ domainName: d.domainName, voiceUrl: d.voiceUrl, voiceMethod: d.voiceMethod }));
+    sipDomains = await Promise.all(
+      doms.map(async (d) => {
+        let ipAclMappings: unknown = [];
+        let credListMappings: unknown = [];
+        let regCredListMappings: unknown = [];
+        try {
+          ipAclMappings = (await client.sip.domains(d.sid).auth.calls.ipAccessControlListMappings.list({ limit: 10 })).map((m) => m.friendlyName);
+        } catch (e) { ipAclMappings = { error: (e as { message?: string })?.message?.slice(0, 100) }; }
+        try {
+          credListMappings = (await client.sip.domains(d.sid).auth.calls.credentialListMappings.list({ limit: 10 })).map((m) => m.friendlyName);
+        } catch (e) { credListMappings = { error: (e as { message?: string })?.message?.slice(0, 100) }; }
+        try {
+          regCredListMappings = (await client.sip.domains(d.sid).auth.registrations.credentialListMappings.list({ limit: 10 })).map((m) => m.friendlyName);
+        } catch (e) { regCredListMappings = { error: (e as { message?: string })?.message?.slice(0, 100) }; }
+        return {
+          sid: d.sid,
+          domainName: d.domainName,
+          voiceUrl: d.voiceUrl,
+          voiceMethod: d.voiceMethod,
+          voiceFallbackUrl: d.voiceFallbackUrl || '(none)',
+          voiceStatusCallbackUrl: d.voiceStatusCallbackUrl || '(none)',
+          sipRegistration: d.sipRegistration,
+          emergencyCallingEnabled: d.emergencyCallingEnabled,
+          secure: d.secure,
+          byocTrunkSid: d.byocTrunkSid || '(none)',
+          authType: d.authType || '(none)',
+          ipAclMappings,
+          credListMappings,
+          regCredListMappings,
+        };
+      }),
+    );
   } catch (e) {
     sipDomains = { error: (e as { message?: string })?.message?.slice(0, 160) };
   }
