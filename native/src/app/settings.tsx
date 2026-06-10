@@ -56,6 +56,12 @@ export default function SettingsScreen() {
 
           <ThemedView type="backgroundElement" style={styles.card}>
             <Row label="Τηλέφωνο (εισερχόμενες)" value={phoneValue} />
+            {phone.detail ? (
+              <>
+                <View style={styles.divider} />
+                <Row label="Διαγνωστικό" value={phone.detail} />
+              </>
+            ) : null}
             <View style={styles.divider} />
             <Row label="Έκδοση" value={version} />
           </ThemedView>
