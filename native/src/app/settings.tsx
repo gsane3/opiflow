@@ -7,7 +7,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
 import { useAuth } from '@/lib/auth';
-import { getIncomingState, registerForIncoming } from '@/lib/twilio';
+import { getIncomingState } from '@/lib/twilio-state';
 
 const PHONE_LABEL: Record<string, string> = {
   idle: 'Μη συνδεδεμένο',
@@ -61,7 +61,10 @@ export default function SettingsScreen() {
           </ThemedView>
 
           <Pressable
-            onPress={() => void registerForIncoming()}
+            onPress={async () => {
+              const { registerForIncoming } = await import('@/lib/twilio'); // lazy — loads SDK on tap
+              void registerForIncoming();
+            }}
             style={({ pressed }) => [styles.connect, pressed && styles.pressed]}>
             <ThemedText style={styles.connectText}>Σύνδεση τηλεφώνου (εισερχόμενες)</ThemedText>
           </Pressable>

@@ -1,22 +1,15 @@
 // Web stub — the Twilio native module isn't available in the browser preview.
 // Metro picks this over twilio.ts when bundling for web.
+import { type ActiveCall, type CallStatus, setIncomingState } from './twilio-state';
 
-export type CallStatus = 'connecting' | 'ringing' | 'connected' | 'disconnected' | 'failed';
-
-export interface ActiveCall {
-  disconnect: () => void;
-  mute: (on: boolean) => void;
-}
-
-export async function placeCall(): Promise<ActiveCall> {
+export async function placeCall(
+  _to: string,
+  _onStatus: (s: CallStatus) => void,
+  _onLog?: (s: string) => void,
+): Promise<ActiveCall> {
   throw new Error('Οι κλήσεις είναι διαθέσιμες μόνο στην εφαρμογή (όχι στο web preview).');
 }
 
 export async function registerForIncoming(): Promise<void> {
-  // no-op on web
-}
-
-export type IncomingState = 'idle' | 'registering' | 'registered' | 'error';
-export function getIncomingState(): { state: IncomingState; detail?: string } {
-  return { state: 'idle' };
+  setIncomingState({ state: 'idle' });
 }
