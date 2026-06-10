@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CallActionSheet } from '@/components/call-action-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
@@ -52,6 +53,7 @@ export default function CallsScreen() {
   const [recent, setRecent] = useState<Communication[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [sheetCall, setSheetCall] = useState<Communication | null>(null);
 
   // Prefill from the customer workspace («Κλήση» button).
   useEffect(() => {
@@ -223,14 +225,7 @@ export default function CallsScreen() {
               const name = item.customer?.name ?? item.phone ?? 'Άγνωστος';
               return (
                 <Pressable
-                  onPress={() => {
-                    if (item.customerId) {
-                      router.push({ pathname: '/customers/[id]', params: { id: item.customerId } });
-                    } else if (item.phone) {
-                      setNum(item.phone.replace(/[^\d+*#]/g, '').slice(0, 24));
-                      setTab('keypad');
-                    }
-                  }}
+                  onPress={() => setSheetCall(item)}
                   style={({ pressed }) => [styles.recentRow, pressed && styles.pressed]}>
                   <Ionicons
                     name={item.direction === 'inbound' ? 'arrow-down-circle' : 'arrow-up-circle'}
@@ -263,6 +258,17 @@ export default function CallsScreen() {
           />
         )}
       </SafeAreaView>
+
+      <CallActionSheet
+        call={sheetCall}
+        onClose={() => setSheetCall(null)}
+        onChanged={() => void loadRecent()}
+        onOpenCustomer={(cid) => router.push({ pathname: '/customers/[id]', params: { id: cid } })}
+        onDial={(phone) => {
+          setNum(phone.replace(/[^\d+*#]/g, '').slice(0, 24));
+          setTab('keypad');
+        }}
+      />
 
       {/* In-call overlay */}
       {inCall ? (

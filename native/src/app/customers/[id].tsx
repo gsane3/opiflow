@@ -1,39 +1,32 @@
-// Customer workspace — messenger-style timeline + quick actions + composer.
-// Mirrors the web chat page: GET /api/customers/[id]/timeline renders the feed;
-// the composer creates appointments/offers/intake-links via the same APIs.
+// Customer workspace — messenger timeline + composer + info panel (web parity).
+// Timeline: GET /api/customers/[id]/timeline. Tappable bubbles: call → full-brief
+// modal, offer → OfferPreviewSheet, upload → info panel (gallery). Composer:
+// Ραντεβού, Προσφορά (with catalog autosuggest), Αίτημα στοιχείων / φωτογραφιών
+// (two separate direct-send actions, like the web ChatComposerSheet).
 
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  KeyboardAvoidingView,
-  Linking,
-  Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
-  TextInput,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CustomerInfoSheet } from '@/components/customer-info-sheet';
+import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing } from '@/constants/theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
-import type { Customer, LinkDraft, TimelineItem } from '@/lib/types';
-
-const STATUS_LABELS: Record<string, string> = {
-  new: 'Νέος',
-  in_progress: 'Σε εξέλιξη',
-  won: 'Κερδισμένος',
-  lost: 'Χαμένος',
-};
+import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
 
 export default function CustomerWorkspaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -41,27 +34,32 @@ export default function CustomerWorkspaceScreen() {
 
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [items, setItems] = useState<TimelineItem[]>([]);
+  const [suggested, setSuggested] = useState<Array<{ id: string; actionType: string; label: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const [infoOpen, setInfoOpen] = useState(false);
   const [apptOpen, setApptOpen] = useState(false);
   const [offerOpen, setOfferOpen] = useState(false);
-  const [intakeOpen, setIntakeOpen] = useState(false);
+  const [briefItem, setBriefItem] = useState<TimelineItem | null>(null);
+  const [previewOfferId, setPreviewOfferId] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
     setError(null);
     try {
-      // The timeline's customer payload is minimal ({id,name}) — fetch the full
-      // customer record in parallel for the action buttons + info editor.
-      const [detail, feed] = await Promise.all([
+      const [detail, feed, sugg] = await Promise.all([
         apiGet<{ ok?: boolean; customer?: Customer }>(`/api/customers/${id}`),
         apiGet<{ ok?: boolean; items?: TimelineItem[] }>(`/api/customers/${id}/timeline`),
+        apiGet<{ ok?: boolean; actions?: Array<{ id: string; actionType: string; label: string }> }>(
+          `/api/customers/${id}/suggested-actions`,
+        ),
       ]);
       if (detail?.customer) {
         setCustomer(detail.customer);
         setItems(Array.isArray(feed?.items) ? [...feed.items].reverse() : []); // newest first (inverted list)
+        setSuggested(Array.isArray(sugg?.actions) ? sugg.actions : []);
       } else {
         setError('Δεν βρέθηκε ο πελάτης.');
       }
@@ -77,6 +75,63 @@ export default function CustomerWorkspaceScreen() {
   }, [load]);
 
   const callPhone = customer?.mobilePhone || customer?.phone || customer?.landlinePhone || '';
+
+  /** Direct-send (web parity): intake-link or upload-link with mode:'send'. */
+  function sendRequest(kind: 'intake' | 'upload') {
+    const label = kind === 'intake' ? 'στοιχείων' : 'φωτογραφιών';
+    Alert.alert(`Αίτημα ${label}`, `Θα σταλεί σύνδεσμος στον πελάτη (Viber → SMS). Συνέχεια;`, [
+      { text: 'Ακύρωση', style: 'cancel' },
+      {
+        text: 'Αποστολή',
+        onPress: async () => {
+          setSending(true);
+          try {
+            const r = await apiPost<LinkDraft>(
+              `/api/customers/${id}/${kind === 'intake' ? 'intake-link' : 'upload-link'}`,
+              { mode: 'send' },
+            );
+            if (r?.sent) Alert.alert('✓', `Στάλθηκε αίτημα ${label}.`);
+            else Alert.alert('Αποστολή', r?.fallbackReason ?? r?.error ?? 'Δεν στάλθηκε (λείπει κινητό;).');
+            void load();
+          } catch {
+            Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε.');
+          } finally {
+            setSending(false);
+          }
+        },
+      },
+    ]);
+  }
+
+  function chooseRequest() {
+    Alert.alert('Αίτημα προς πελάτη', 'Τι θες να ζητήσεις;', [
+      { text: 'Αίτημα στοιχείων', onPress: () => sendRequest('intake') },
+      { text: 'Αίτημα φωτογραφιών', onPress: () => sendRequest('upload') },
+      { text: 'Ακύρωση', style: 'cancel' },
+    ]);
+  }
+
+  async function dismissSuggestion(sid: string) {
+    setSuggested((s) => s.filter((a) => a.id !== sid));
+    try {
+      await apiPatch(`/api/customers/${id}/suggested-actions`, { id: sid, status: 'done' });
+    } catch {
+      // non-fatal
+    }
+  }
+
+  function onSuggestionTap(a: { id: string; actionType: string }) {
+    if (a.actionType === 'send_offer') setOfferOpen(true);
+    else if (a.actionType === 'book_appointment') setApptOpen(true);
+    void dismissSuggestion(a.id);
+  }
+
+  function onBubbleTap(item: TimelineItem) {
+    if (item.type === 'call' && item.body) setBriefItem(item);
+    else if ((item.type === 'offer' || item.type === 'offer_response') && item.refTable === 'offers' && item.refId)
+      setPreviewOfferId(item.refId);
+    else if (item.type === 'upload' || item.type === 'intake_submitted') setInfoOpen(true);
+  }
 
   if (loading) {
     return (
@@ -111,12 +166,6 @@ export default function CustomerWorkspaceScreen() {
           disabled={!callPhone}
           onPress={() => router.push({ pathname: '/calls', params: { num: callPhone } })}
         />
-        <HeaderAction
-          icon="chatbubble-ellipses"
-          label="SMS"
-          disabled={!callPhone}
-          onPress={() => callPhone && Linking.openURL(`sms:${callPhone}`)}
-        />
         <HeaderAction icon="information-circle" label="Πληροφορίες" onPress={() => setInfoOpen(true)} />
       </View>
 
@@ -124,9 +173,6 @@ export default function CustomerWorkspaceScreen() {
       {items.length === 0 ? (
         <View style={styles.center}>
           <ThemedText themeColor="textSecondary">Καμία δραστηριότητα ακόμα.</ThemedText>
-          <ThemedText type="small" themeColor="textSecondary">
-            Ξεκίνα με μια κλήση, ραντεβού ή προσφορά από κάτω.
-          </ThemedText>
         </View>
       ) : (
         <FlatList
@@ -134,28 +180,42 @@ export default function CustomerWorkspaceScreen() {
           data={items}
           keyExtractor={(it) => `${it.type}-${it.id}`}
           contentContainerStyle={styles.feed}
-          renderItem={({ item }) => <Bubble item={item} />}
+          renderItem={({ item }) => <Bubble item={item} onPress={() => onBubbleTap(item)} />}
         />
       )}
+
+      {/* Suggested actions */}
+      {suggested.length > 0 ? (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.suggestRow} contentContainerStyle={styles.suggestContent}>
+          {suggested.map((a) => (
+            <Pressable key={a.id} onPress={() => onSuggestionTap(a)} style={({ pressed }) => [styles.suggestChip, pressed && styles.pressed]}>
+              <Ionicons name="sparkles" size={13} color={Brand.primary} />
+              <ThemedText type="small" style={styles.suggestText}>
+                {a.label}
+              </ThemedText>
+            </Pressable>
+          ))}
+        </ScrollView>
+      ) : null}
 
       {/* Composer */}
       <SafeAreaView edges={['bottom']} style={styles.composerSafe}>
         <View style={styles.composer}>
           <ComposerButton icon="calendar" label="Ραντεβού" onPress={() => setApptOpen(true)} />
           <ComposerButton icon="document-text" label="Προσφορά" onPress={() => setOfferOpen(true)} />
-          <ComposerButton icon="images" label="Αίτημα" onPress={() => setIntakeOpen(true)} />
+          <ComposerButton icon="link" label="Αίτημα" onPress={chooseRequest} busy={sending} />
         </View>
       </SafeAreaView>
 
-      <InfoModal
+      {/* Sheets / modals */}
+      <CustomerInfoSheet
+        customerId={customer.id}
         visible={infoOpen}
-        customer={customer}
         onClose={() => setInfoOpen(false)}
-        onSaved={() => {
-          setInfoOpen(false);
-          void load();
-        }}
+        onChanged={() => void load()}
+        timelineItems={items}
       />
+      <OfferPreviewSheet offerId={previewOfferId} onClose={() => setPreviewOfferId(null)} onChanged={() => void load()} />
       <AppointmentModal
         visible={apptOpen}
         customerId={customer.id}
@@ -174,22 +234,27 @@ export default function CustomerWorkspaceScreen() {
           void load();
         }}
       />
-      <IntakeModal
-        visible={intakeOpen}
-        customerId={customer.id}
-        onClose={() => setIntakeOpen(false)}
-        onDone={() => {
-          setIntakeOpen(false);
-          void load();
-        }}
-      />
+
+      {/* Full-brief modal */}
+      <SheetModal visible={!!briefItem} title="Περίληψη κλήσης" onClose={() => setBriefItem(null)}>
+        {briefItem ? (
+          <>
+            <ThemedText type="small" themeColor="textSecondary">
+              {briefItem.title} · {formatWhen(briefItem.occurredAt)}
+            </ThemedText>
+            <ThemedText type="small" style={styles.dark}>
+              {briefItem.body}
+            </ThemedText>
+          </>
+        ) : null}
+      </SheetModal>
     </ThemedView>
   );
 }
 
 // ---------- timeline bubbles ----------
 
-const TYPE_META: Record<string, { icon: keyof typeof Ionicons.glyphMap; label?: string }> = {
+const TYPE_META: Record<string, { icon: keyof typeof Ionicons.glyphMap }> = {
   call: { icon: 'call' },
   sms: { icon: 'chatbubble' },
   viber: { icon: 'chatbubbles' },
@@ -217,22 +282,26 @@ function responseTone(item: TimelineItem): { text: string; color: string } | nul
   return null;
 }
 
-function Bubble({ item }: { item: TimelineItem }) {
-  const [expanded, setExpanded] = useState(false);
+const TAPPABLE = new Set(['call', 'offer', 'offer_response', 'upload', 'intake_submitted']);
+
+function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) {
   const us = item.side === 'us';
   const meta = TYPE_META[item.type] ?? { icon: 'ellipse' as const };
   const tone = responseTone(item);
+  const tappable = TAPPABLE.has(item.type) && (item.type !== 'call' || !!item.body);
 
   const body = item.body ?? '';
-  const isLong = body.length > 280;
-  const shown = expanded || !isLong ? body : body.slice(0, 280) + '…';
+  const shown = body.length > 220 ? body.slice(0, 220) + '…' : body;
 
   return (
     <View style={[styles.bubbleRow, us ? styles.rowUs : styles.rowCust]}>
-      <View style={[styles.bubble, us ? styles.bubbleUs : styles.bubbleCust]}>
+      <Pressable
+        onPress={tappable ? onPress : undefined}
+        disabled={!tappable}
+        style={({ pressed }) => [styles.bubble, us ? styles.bubbleUs : styles.bubbleCust, pressed && styles.pressed]}>
         <View style={styles.bubbleHead}>
           <Ionicons name={meta.icon} size={14} color={us ? Brand.primary : '#5B6472'} />
-          <ThemedText type="smallBold" style={tone ? { color: tone.color } : undefined}>
+          <ThemedText type="smallBold" style={[styles.dark, tone ? { color: tone.color } : null]}>
             {tone ? tone.text : item.title}
           </ThemedText>
         </View>
@@ -242,18 +311,20 @@ function Bubble({ item }: { item: TimelineItem }) {
             {item.payload.dueTime ? ` · ${item.payload.dueTime}` : ''}
           </ThemedText>
         ) : null}
-        {shown ? <ThemedText type="small">{shown}</ThemedText> : null}
-        {isLong ? (
-          <Pressable onPress={() => setExpanded((v) => !v)} hitSlop={8}>
-            <ThemedText type="small" style={styles.moreLink}>
-              {expanded ? 'Λιγότερα' : 'Περισσότερα'}
-            </ThemedText>
-          </Pressable>
+        {shown ? (
+          <ThemedText type="small" style={styles.dark}>
+            {shown}
+          </ThemedText>
+        ) : null}
+        {tappable ? (
+          <ThemedText type="small" style={styles.tapHint}>
+            {item.type === 'call' ? 'Προβολή περίληψης ›' : item.type.startsWith('offer') ? 'Προβολή προσφοράς ›' : 'Προβολή ›'}
+          </ThemedText>
         ) : null}
         <ThemedText type="small" themeColor="textSecondary" style={styles.when}>
           {formatWhen(item.occurredAt)}
         </ThemedText>
-      </View>
+      </Pressable>
     </View>
   );
 }
@@ -288,239 +359,18 @@ function ComposerButton({
   icon,
   label,
   onPress,
+  busy,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   onPress: () => void;
+  busy?: boolean;
 }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.composerBtn, pressed && styles.pressed]}>
-      <Ionicons name={icon} size={20} color={Brand.onPrimary} />
+    <Pressable onPress={onPress} disabled={busy} style={({ pressed }) => [styles.composerBtn, pressed && styles.pressed]}>
+      {busy ? <ActivityIndicator color={Brand.onPrimary} size="small" /> : <Ionicons name={icon} size={20} color={Brand.onPrimary} />}
       <ThemedText style={styles.composerBtnText}>{label}</ThemedText>
     </Pressable>
-  );
-}
-
-// ---------- shared modal scaffolding ----------
-
-function SheetModal({
-  visible,
-  title,
-  onClose,
-  children,
-}: {
-  visible: boolean;
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalKav}>
-          <ThemedView style={styles.modalSheet}>
-            <View style={styles.modalHead}>
-              <ThemedText type="smallBold" style={styles.modalTitle}>
-                {title}
-              </ThemedText>
-              <Pressable onPress={onClose} hitSlop={10}>
-                <Ionicons name="close" size={24} color="#5B6472" />
-              </Pressable>
-            </View>
-            <ScrollView contentContainerStyle={styles.modalBody} keyboardShouldPersistTaps="handled">
-              {children}
-            </ScrollView>
-          </ThemedView>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
-  );
-}
-
-function Input({
-  label,
-  value,
-  onChangeText,
-  placeholder,
-  keyboardType,
-  multiline,
-}: {
-  label: string;
-  value: string;
-  onChangeText: (v: string) => void;
-  placeholder?: string;
-  keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' | 'decimal-pad';
-  multiline?: boolean;
-}) {
-  return (
-    <View style={styles.inputBlock}>
-      <ThemedText type="small" themeColor="textSecondary">
-        {label}
-      </ThemedText>
-      <TextInput
-        value={value}
-        onChangeText={onChangeText}
-        placeholder={placeholder}
-        placeholderTextColor="#9AA4B2"
-        keyboardType={keyboardType}
-        multiline={multiline}
-        style={[styles.input, multiline && styles.inputMultiline]}
-      />
-    </View>
-  );
-}
-
-function PrimaryButton({
-  label,
-  onPress,
-  busy,
-  disabled,
-}: {
-  label: string;
-  onPress: () => void;
-  busy?: boolean;
-  disabled?: boolean;
-}) {
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={busy || disabled}
-      style={({ pressed }) => [styles.primaryBtn, (busy || disabled) && styles.disabled, pressed && styles.pressed]}>
-      {busy ? (
-        <ActivityIndicator color={Brand.onPrimary} />
-      ) : (
-        <ThemedText style={styles.primaryBtnText}>{label}</ThemedText>
-      )}
-    </Pressable>
-  );
-}
-
-/** Draft → review → send flow shared by intake/appointment/offer links. */
-function SendPreview({
-  draft,
-  busy,
-  onSend,
-}: {
-  draft: LinkDraft;
-  busy: boolean;
-  onSend: () => void;
-}) {
-  return (
-    <View style={styles.previewBlock}>
-      <ThemedText type="smallBold">Μήνυμα προς {draft.recipient ?? 'πελάτη'}:</ThemedText>
-      <ThemedView type="backgroundElement" style={styles.previewCard}>
-        <ThemedText type="small">{draft.message ?? ''}</ThemedText>
-      </ThemedView>
-      {draft.warning ? (
-        <ThemedText type="small" style={styles.warnText}>
-          {draft.warning}
-        </ThemedText>
-      ) : null}
-      <PrimaryButton label="Αποστολή (Viber → SMS)" onPress={onSend} busy={busy} />
-    </View>
-  );
-}
-
-// ---------- info modal ----------
-
-function InfoModal({
-  visible,
-  customer,
-  onClose,
-  onSaved,
-}: {
-  visible: boolean;
-  customer: Customer;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const [form, setForm] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<string>(customer.status ?? 'new');
-  const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    if (!visible) return;
-    setForm({
-      name: customer.name ?? '',
-      companyName: customer.companyName ?? '',
-      mobilePhone: customer.mobilePhone ?? '',
-      landlinePhone: customer.landlinePhone ?? '',
-      email: customer.email ?? '',
-      address: customer.address ?? '',
-      needsSummary: customer.needsSummary ?? '',
-      notes: customer.notes ?? '',
-    });
-    setStatus(customer.status ?? 'new');
-  }, [visible, customer]);
-
-  const set = (k: string) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
-
-  async function save() {
-    setBusy(true);
-    try {
-      const res = await apiPatch<{ ok?: boolean; error?: string }>(`/api/customers/${customer.id}`, {
-        name: form.name || null,
-        companyName: form.companyName || null,
-        mobilePhone: form.mobilePhone || null,
-        landlinePhone: form.landlinePhone || null,
-        email: form.email || null,
-        address: form.address || null,
-        needsSummary: form.needsSummary || null,
-        notes: form.notes || null,
-        status,
-      });
-      if (res?.ok) onSaved();
-      else Alert.alert('Σφάλμα', res?.error ?? 'Η αποθήκευση απέτυχε.');
-    } catch {
-      Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <SheetModal visible={visible} title="Στοιχεία πελάτη" onClose={onClose}>
-      <Input label="Όνομα" value={form.name ?? ''} onChangeText={set('name')} />
-      <Input label="Εταιρεία" value={form.companyName ?? ''} onChangeText={set('companyName')} />
-      <Input label="Κινητό" value={form.mobilePhone ?? ''} onChangeText={set('mobilePhone')} keyboardType="phone-pad" />
-      <Input label="Σταθερό" value={form.landlinePhone ?? ''} onChangeText={set('landlinePhone')} keyboardType="phone-pad" />
-      <Input label="Email" value={form.email ?? ''} onChangeText={set('email')} keyboardType="email-address" />
-      <Input label="Διεύθυνση" value={form.address ?? ''} onChangeText={set('address')} />
-
-      <ThemedText type="small" themeColor="textSecondary">
-        Κατάσταση
-      </ThemedText>
-      <View style={styles.statusRow}>
-        {(['new', 'in_progress', 'won', 'lost'] as const).map((s) => (
-          <Pressable
-            key={s}
-            onPress={() => setStatus(s)}
-            style={[styles.statusChip, status === s && styles.statusChipActive]}>
-            <ThemedText type="small" style={status === s ? styles.statusChipActiveText : undefined}>
-              {STATUS_LABELS[s]}
-            </ThemedText>
-          </Pressable>
-        ))}
-      </View>
-
-      <Input label="Ανάγκες" value={form.needsSummary ?? ''} onChangeText={set('needsSummary')} multiline />
-      <Input label="Σημειώσεις" value={form.notes ?? ''} onChangeText={set('notes')} multiline />
-
-      {form.address ? (
-        <Pressable
-          onPress={() =>
-            Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(form.address)}`)
-          }
-          style={({ pressed }) => [styles.mapsLink, pressed && styles.pressed]}>
-          <Ionicons name="map" size={16} color={Brand.primary} />
-          <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
-            Άνοιγμα στο Google Maps
-          </ThemedText>
-        </Pressable>
-      ) : null}
-
-      <PrimaryButton label="Αποθήκευση" onPress={() => void save()} busy={busy} />
-    </SheetModal>
   );
 }
 
@@ -582,13 +432,12 @@ function AppointmentModal({
         return;
       }
       setTaskId(res.task.id);
-      // Build the confirmation-link draft for the customer.
       const d = await apiPost<LinkDraft>(`/api/customers/${customerId}/appointment-link`, {
         taskId: res.task.id,
         mode: 'draft',
       });
       if (d?.message) setDraft(d);
-      else onDone(); // appointment saved; no sendable link (e.g. no phone) — finish.
+      else onDone();
     } catch {
       Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε το ραντεβού.');
     } finally {
@@ -605,7 +454,7 @@ function AppointmentModal({
         mode: 'send',
         channel: 'viber',
       });
-      if (r?.sent === false && r.fallbackReason) Alert.alert('Αποστολή', `Στάλθηκε με εναλλακτικό κανάλι: ${r.fallbackReason}`);
+      if (r?.sent === false && r.fallbackReason) Alert.alert('Αποστολή', `Εναλλακτικό κανάλι: ${r.fallbackReason}`);
       onDone();
     } catch {
       Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε — το ραντεβού όμως αποθηκεύτηκε.');
@@ -626,13 +475,23 @@ function AppointmentModal({
           <PrimaryButton label="Δημιουργία" onPress={() => void create()} busy={busy} disabled={!date.trim()} />
         </>
       ) : (
-        <SendPreview draft={draft} busy={busy} onSend={() => void send()} />
+        <>
+          <ThemedText type="smallBold" style={styles.dark}>
+            Μήνυμα προς {draft.recipient ?? 'πελάτη'}:
+          </ThemedText>
+          <View style={styles.msgBox}>
+            <ThemedText type="small" style={styles.dark}>
+              {draft.message}
+            </ThemedText>
+          </View>
+          <PrimaryButton label="Αποστολή (Viber → SMS)" onPress={() => void send()} busy={busy} />
+        </>
       )}
     </SheetModal>
   );
 }
 
-// ---------- offer modal ----------
+// ---------- offer modal (with catalog autosuggest) ----------
 
 interface DraftItem {
   description: string;
@@ -656,6 +515,9 @@ function OfferModal({
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState<LinkDraft | null>(null);
   const [offerId, setOfferId] = useState<string | null>(null);
+  // catalog autosuggest for the active row
+  const [activeRow, setActiveRow] = useState<number | null>(null);
+  const [suggestions, setSuggestions] = useState<CatalogItem[]>([]);
 
   useEffect(() => {
     if (visible) {
@@ -663,11 +525,32 @@ function OfferModal({
       setNotes('');
       setDraft(null);
       setOfferId(null);
+      setSuggestions([]);
+      setActiveRow(null);
     }
   }, [visible]);
 
-  const setRow = (i: number, k: keyof DraftItem) => (v: string) =>
+  const setRow = (i: number, k: keyof DraftItem) => (v: string) => {
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
+    if (k === 'description') {
+      setActiveRow(i);
+      const q = v.trim();
+      if (q.length >= 2) {
+        void apiGet<{ ok?: boolean; items?: CatalogItem[] }>(`/api/catalog?q=${encodeURIComponent(q)}`).then((res) =>
+          setSuggestions((res?.items ?? []).slice(0, 5)),
+        );
+      } else {
+        setSuggestions([]);
+      }
+    }
+  };
+
+  function pickSuggestion(i: number, item: CatalogItem) {
+    setRows((rs) =>
+      rs.map((r, idx) => (idx === i ? { ...r, description: item.name, unitPrice: String(item.unitPrice) } : r)),
+    );
+    setSuggestions([]);
+  }
 
   const total = useMemo(
     () =>
@@ -735,16 +618,32 @@ function OfferModal({
       {!draft ? (
         <>
           {rows.map((r, i) => (
-            <View key={i} style={styles.offerRow}>
-              <View style={styles.offerDesc}>
-                <Input label={`Περιγραφή ${i + 1}`} value={r.description} onChangeText={setRow(i, 'description')} />
+            <View key={i}>
+              <View style={styles.offerRow}>
+                <View style={styles.offerDesc}>
+                  <Input label={`Περιγραφή ${i + 1}`} value={r.description} onChangeText={setRow(i, 'description')} onFocus={() => setActiveRow(i)} />
+                </View>
+                <View style={styles.offerQty}>
+                  <Input label="Ποσ." value={r.quantity} onChangeText={setRow(i, 'quantity')} keyboardType="decimal-pad" />
+                </View>
+                <View style={styles.offerPrice}>
+                  <Input label="Τιμή €" value={r.unitPrice} onChangeText={setRow(i, 'unitPrice')} keyboardType="decimal-pad" />
+                </View>
               </View>
-              <View style={styles.offerQty}>
-                <Input label="Ποσ." value={r.quantity} onChangeText={setRow(i, 'quantity')} keyboardType="decimal-pad" />
-              </View>
-              <View style={styles.offerPrice}>
-                <Input label="Τιμή €" value={r.unitPrice} onChangeText={setRow(i, 'unitPrice')} keyboardType="decimal-pad" />
-              </View>
+              {activeRow === i && suggestions.length > 0 ? (
+                <View style={styles.suggestBox}>
+                  {suggestions.map((s) => (
+                    <Pressable key={s.id} onPress={() => pickSuggestion(i, s)} style={({ pressed }) => [styles.suggestItem, pressed && styles.pressed]}>
+                      <ThemedText type="small" style={styles.dark} numberOfLines={1}>
+                        {s.name}
+                      </ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        {formatEuro(s.unitPrice)}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              ) : null}
             </View>
           ))}
           <Pressable
@@ -756,78 +655,23 @@ function OfferModal({
             </ThemedText>
           </Pressable>
           <Input label="Σημειώσεις (προαιρετικό)" value={notes} onChangeText={setNotes} multiline />
-          <ThemedText type="smallBold" style={styles.totalLine}>
+          <ThemedText type="smallBold" style={[styles.totalLine, styles.dark]}>
             Σύνολο (χωρίς ΦΠΑ): {formatEuro(total)}
           </ThemedText>
           <PrimaryButton label="Δημιουργία προσφοράς" onPress={() => void create()} busy={busy} />
         </>
       ) : (
-        <SendPreview draft={draft} busy={busy} onSend={() => void send()} />
-      )}
-    </SheetModal>
-  );
-}
-
-// ---------- intake / photos request modal ----------
-
-function IntakeModal({
-  visible,
-  customerId,
-  onClose,
-  onDone,
-}: {
-  visible: boolean;
-  customerId: string;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState<LinkDraft | null>(null);
-
-  useEffect(() => {
-    if (!visible) {
-      setDraft(null);
-      return;
-    }
-    // Build the draft as soon as the sheet opens.
-    (async () => {
-      setBusy(true);
-      try {
-        const d = await apiPost<LinkDraft>(`/api/customers/${customerId}/intake-link`, { mode: 'draft' });
-        if (d?.message) setDraft(d);
-        else Alert.alert('Σφάλμα', d?.error ?? 'Δεν δημιουργήθηκε ο σύνδεσμος.');
-      } catch {
-        Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.');
-      } finally {
-        setBusy(false);
-      }
-    })();
-  }, [visible, customerId]);
-
-  async function send() {
-    setBusy(true);
-    try {
-      const r = await apiPost<LinkDraft>(`/api/customers/${customerId}/intake-link`, {
-        mode: 'send',
-        channel: 'viber',
-      });
-      if (r?.sent === false && r.fallbackReason) Alert.alert('Αποστολή', `Εναλλακτικό κανάλι: ${r.fallbackReason}`);
-      onDone();
-    } catch {
-      Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <SheetModal visible={visible} title="Αίτημα στοιχείων / φωτογραφιών" onClose={onClose}>
-      {draft ? (
-        <SendPreview draft={draft} busy={busy} onSend={() => void send()} />
-      ) : (
-        <View style={styles.center}>
-          <ActivityIndicator color={Brand.primary} />
-        </View>
+        <>
+          <ThemedText type="smallBold" style={styles.dark}>
+            Μήνυμα προς {draft.recipient ?? 'πελάτη'}:
+          </ThemedText>
+          <View style={styles.msgBox}>
+            <ThemedText type="small" style={styles.dark}>
+              {draft.message}
+            </ThemedText>
+          </View>
+          <PrimaryButton label="Αποστολή (Viber → SMS)" onPress={() => void send()} busy={busy} />
+        </>
       )}
     </SheetModal>
   );
@@ -838,6 +682,7 @@ function IntakeModal({
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
+  dark: { color: '#0A1120' },
 
   actionsRow: {
     flexDirection: 'row',
@@ -868,9 +713,22 @@ const styles = StyleSheet.create({
   bubbleCust: { backgroundColor: '#F2F4F7', borderBottomLeftRadius: 4 },
   bubbleHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   when: { fontSize: 11, alignSelf: 'flex-end' },
-  moreLink: { color: Brand.primary, fontWeight: '700' },
+  tapHint: { color: Brand.primary, fontWeight: '700' },
 
-  composerSafe: { borderTopWidth: 1, borderTopColor: '#EEF1F5' },
+  suggestRow: { maxHeight: 44, borderTopWidth: 1, borderTopColor: '#EEF1F5' },
+  suggestContent: { paddingHorizontal: Spacing.four, paddingVertical: 6, gap: Spacing.two, alignItems: 'center' },
+  suggestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: Spacing.three,
+    height: 32,
+    borderRadius: 999,
+    backgroundColor: Brand.primarySoft,
+  },
+  suggestText: { color: Brand.primary, fontWeight: '700' },
+
+  composerSafe: { borderTopWidth: 1, borderTopColor: '#EEF1F5', backgroundColor: '#FFFFFF' },
   composer: { flexDirection: 'row', gap: Spacing.two, paddingHorizontal: Spacing.four, paddingVertical: Spacing.two },
   composerBtn: {
     flex: 1,
@@ -884,60 +742,7 @@ const styles = StyleSheet.create({
   },
   composerBtnText: { color: Brand.onPrimary, fontWeight: '700', fontSize: 14 },
 
-  modalBackdrop: { flex: 1, backgroundColor: 'rgba(10,17,32,0.45)', justifyContent: 'flex-end' },
-  modalKav: { width: '100%' },
-  modalSheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '88%' },
-  modalHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.four,
-    paddingTop: Spacing.four,
-    paddingBottom: Spacing.two,
-  },
-  modalTitle: { fontSize: 17 },
-  modalBody: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three },
-
-  inputBlock: { gap: 4 },
-  input: {
-    minHeight: 46,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#D8DEE6',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 10,
-    fontSize: 16,
-    color: '#0A1120',
-    backgroundColor: '#FFFFFF',
-  },
-  inputMultiline: { minHeight: 84, textAlignVertical: 'top' },
-
-  statusRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
-  statusChip: {
-    paddingHorizontal: Spacing.three,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#D8DEE6',
-  },
-  statusChipActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },
-  statusChipActiveText: { color: Brand.onPrimary, fontWeight: '700' },
-
-  mapsLink: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.one },
-
-  primaryBtn: {
-    height: 50,
-    borderRadius: 14,
-    backgroundColor: Brand.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Spacing.two,
-  },
-  primaryBtnText: { color: Brand.onPrimary, fontSize: 15, fontWeight: '700' },
-
-  previewBlock: { gap: Spacing.three },
-  previewCard: { padding: Spacing.three, borderRadius: 14 },
-  warnText: { color: '#B7791F' },
+  msgBox: { backgroundColor: '#F7F9FB', borderRadius: 14, padding: Spacing.three },
 
   offerRow: { flexDirection: 'row', gap: Spacing.two },
   offerDesc: { flex: 2 },
@@ -945,6 +750,8 @@ const styles = StyleSheet.create({
   offerPrice: { width: 86 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.one },
   totalLine: { textAlign: 'right' },
+  suggestBox: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E7ED', borderRadius: 12, marginTop: 4, overflow: 'hidden' },
+  suggestItem: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: 10 },
 
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.7 },

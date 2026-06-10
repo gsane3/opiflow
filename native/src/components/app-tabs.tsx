@@ -24,7 +24,13 @@ export default function AppTabs() {
       />
       <Tabs.Screen
         name="customers"
-        options={{ title: 'Πελάτες', tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} /> }}
+        options={{
+          title: 'Πελάτες',
+          tabBarIcon: ({ color, size }) => <Ionicons name="people" color={color} size={size} />,
+          // Reset the inner stack when leaving the tab, so tapping «Πελάτες»
+          // always lands on the list (not the last-open customer).
+          popToTopOnBlur: true,
+        }}
       />
       <Tabs.Screen
         name="calls"

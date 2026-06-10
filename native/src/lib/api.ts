@@ -28,3 +28,7 @@ export function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
 export function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
 }
+
+export function apiDelete<T = unknown>(path: string): Promise<T> {
+  return request<T>(path, { method: 'DELETE' });
+}
