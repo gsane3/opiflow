@@ -32,11 +32,24 @@ export async function GET() {
     // Fetching the key itself validates account+key+secret as a matching combo.
     const key = await client.keys(apiKey).fetch();
 
-    let twimlApp: { sid?: string; ok: boolean; code?: number | string | null } = { ok: false };
+    let twimlApp: {
+      sid?: string;
+      ok: boolean;
+      friendlyName?: string;
+      voiceUrl?: string;
+      voiceMethod?: string;
+      code?: number | string | null;
+    } = { ok: false };
     if (twimlAppSid) {
       try {
-        await client.applications(twimlAppSid).fetch();
-        twimlApp = { sid: twimlAppSid, ok: true };
+        const app = await client.applications(twimlAppSid).fetch();
+        twimlApp = {
+          sid: twimlAppSid,
+          ok: true,
+          friendlyName: app.friendlyName,
+          voiceUrl: app.voiceUrl || '(EMPTY)',
+          voiceMethod: app.voiceMethod || '(none)',
+        };
       } catch (e) {
         twimlApp = { sid: twimlAppSid, ok: false, code: (e as { code?: number })?.code ?? 'fetch_failed' };
       }
