@@ -12,9 +12,6 @@
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "ai.opiflow.app",
       "supportsTablet": false,
-      "entitlements": {
-        "aps-environment": "production"
-      },
       "infoPlist": {
         "UIBackgroundModes": ["audio", "voip"],
         "NSMicrophoneUsageDescription": "Η Opiflow χρειάζεται το μικρόφωνο για τις τηλεφωνικές σας κλήσεις.",
