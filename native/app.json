@@ -7,7 +7,6 @@
     "icon": "./assets/images/icon.png",
     "scheme": "opiflow",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": false,
     "ios": {
       "icon": "./assets/expo.icon",
       "bundleIdentifier": "ai.opiflow.app",
