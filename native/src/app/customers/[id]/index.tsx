@@ -442,6 +442,7 @@ function MessageModal({
 }) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const [snippets, setSnippets] = useState<SnippetLite[] | null>(null);
   const [showSnippets, setShowSnippets] = useState(false);
 
@@ -466,6 +467,23 @@ function MessageModal({
     }
   }
 
+  async function draftReply() {
+    if (drafting) return;
+    setDrafting(true);
+    try {
+      const res = await apiPost<{ ok?: boolean; draft?: string; error?: string }>(
+        `/api/customers/${customerId}/reply-draft`,
+        text.trim() ? { hint: text.trim() } : {},
+      );
+      if (res?.ok && res.draft) setText(res.draft);
+      else Alert.alert('AI', res?.error === 'ai_not_configured' ? 'Ο AI βοηθός δεν είναι ρυθμισμένος.' : 'Δεν δημιουργήθηκε πρόταση.');
+    } catch {
+      Alert.alert('AI', 'Δεν δημιουργήθηκε πρόταση.');
+    } finally {
+      setDrafting(false);
+    }
+  }
+
   async function send() {
     const t = text.trim();
     if (!t) return;
@@ -484,12 +502,20 @@ function MessageModal({
   return (
     <SheetModal visible={visible} title="Μήνυμα στον πελάτη" onClose={onClose}>
       <Input label="Μήνυμα (Viber → SMS)" value={text} onChangeText={setText} placeholder="Γράψε ή διάλεξε πρότυπο…" multiline />
-      <Pressable onPress={() => void loadSnippets()} style={({ pressed }) => [styles.snippetToggle, pressed && styles.pressed]}>
-        <Ionicons name="chatbox-ellipses-outline" size={16} color={Brand.primary} />
-        <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
-          {showSnippets ? 'Κλείσιμο προτύπων' : 'Πρότυπα μηνυμάτων'}
-        </ThemedText>
-      </Pressable>
+      <View style={styles.msgTools}>
+        <Pressable onPress={() => void loadSnippets()} style={({ pressed }) => [styles.snippetToggle, pressed && styles.pressed]}>
+          <Ionicons name="chatbox-ellipses-outline" size={16} color={Brand.primary} />
+          <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
+            {showSnippets ? 'Κλείσιμο' : 'Πρότυπα'}
+          </ThemedText>
+        </Pressable>
+        <Pressable onPress={() => void draftReply()} disabled={drafting} style={({ pressed }) => [styles.snippetToggle, (pressed || drafting) && styles.pressed]}>
+          {drafting ? <ActivityIndicator size="small" color={Brand.primary} /> : <Ionicons name="sparkles" size={16} color={Brand.primary} />}
+          <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
+            Πρόταση απάντησης
+          </ThemedText>
+        </Pressable>
+      </View>
       {showSnippets ? (
         snippets === null ? (
           <ActivityIndicator color={Brand.primary} style={{ marginVertical: Spacing.two }} />
@@ -974,6 +1000,7 @@ const styles = StyleSheet.create({
   suggestBox: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E7ED', borderRadius: 12, marginTop: 4, overflow: 'hidden' },
   suggestItem: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: 10 },
 
+  msgTools: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
   snippetToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.one },
   snippetList: { gap: Spacing.one },
   snippetItem: { backgroundColor: '#F7F9FB', borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 10 },
