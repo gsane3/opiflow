@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { generateCallBrief } from '@/lib/server/call-brief';
 import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
+import { sendPushToBusinessOwner } from '@/lib/server/push';
 
 export const runtime = 'nodejs';
 
@@ -404,6 +405,18 @@ export async function POST(request: NextRequest) {
       // AI brief failure is non-fatal.
     }
 
+    // "Not answered" drives the whole missed-call funnel below: the row status
+    // ('missed' → bell/red markers), the call-back task, and the owner push.
+    const upperDialStatus = (dialStatus ?? '').toUpperCase();
+    const notAnswered =
+      !aiBrief &&
+      (upperDialStatus === '' ||
+        upperDialStatus === 'NOANSWER' ||
+        upperDialStatus === 'BUSY' ||
+        upperDialStatus === 'CANCEL' ||
+        upperDialStatus === 'FAILED' ||
+        upperDialStatus === 'CONGESTION');
+
     let communicationSummary: string;
     if (aiBrief) {
       // Real recording -> AI brief + PBX metadata footer.
@@ -411,31 +424,33 @@ export async function POST(request: NextRequest) {
     } else {
       // No AI brief (no recording). Use a clear non-AI label instead of an AI
       // guess. Distinguish "not answered" from "answered but not recorded".
-      const status = (dialStatus ?? '').toUpperCase();
-      const notAnswered =
-        status === '' ||
-        status === 'NOANSWER' ||
-        status === 'BUSY' ||
-        status === 'CANCEL' ||
-        status === 'FAILED' ||
-        status === 'CONGESTION';
       const label = notAnswered ? 'Αναπάντητη κλήση' : 'Κλήση χωρίς ηχογράφηση';
       communicationSummary = `${label}\n\n---\nPBX metadata:\n${summaryParts}`;
     }
 
-    const { data: communicationRow, error: communicationError } = await supabase
-      .from('communications')
-      .insert({
-        business_id: businessId,
-        customer_id: customerLink.customerId,
-        channel: 'call',
-        direction: 'inbound',
-        status: 'completed',
-        phone: normalizePhone(callerNumber),
-        summary: communicationSummary,
-      })
-      .select('id')
-      .single();
+    const commInsert = (status: string) =>
+      supabase
+        .from('communications')
+        .insert({
+          business_id: businessId,
+          customer_id: customerLink.customerId,
+          channel: 'call',
+          direction: 'inbound',
+          status,
+          phone: normalizePhone(callerNumber),
+          summary: communicationSummary,
+        })
+        .select('id')
+        .single();
+
+    let { data: communicationRow, error: communicationError } = await commInsert(
+      notAnswered ? 'missed' : 'completed'
+    );
+    if (communicationError && notAnswered) {
+      // Pre-migration-043 CHECK doesn't allow 'missed' yet — 'failed' also
+      // lights every missed-call UI path (they test missed OR failed).
+      ({ data: communicationRow, error: communicationError } = await commInsert('failed'));
+    }
 
     if (communicationError) {
       await supabase
@@ -451,6 +466,49 @@ export async function POST(request: NextRequest) {
     // No viber_messages logging here anymore: the intake link is not auto-sent
     // by this webhook. The post-call operator-confirmation flow is responsible
     // for sending the link and logging any viber_messages / send rows.
+
+    // Missed-call funnel: the moment the plumber needs the product most. Create
+    // an actionable call-back task and push it to the owner's phone — instead of
+    // a label he'd only find by scanning the calls list later. Best-effort: a
+    // failure here must never fail the webhook (the call row is already stored).
+    if (notAnswered) {
+      const missedCommId = (communicationRow as unknown as { id: string } | null)?.id ?? null;
+      try {
+        let who = normalizePhone(callerNumber) ?? 'άγνωστος αριθμός';
+        if (customerLink.customerId) {
+          const { data: cust } = await supabase
+            .from('customers')
+            .select('name')
+            .eq('id', customerLink.customerId)
+            .maybeSingle();
+          const name = (cust as { name?: string | null } | null)?.name?.trim();
+          if (name) who = name;
+        }
+        await supabase.from('tasks').insert({
+          business_id: businessId,
+          customer_id: customerLink.customerId,
+          offer_id: null,
+          title: `Αναπάντητη κλήση — κάλεσε πίσω: ${who}`,
+          type: 'call_back',
+          status: 'open',
+          priority: 'high',
+          due_date: new Date().toISOString().slice(0, 10),
+          due_time: null,
+          note: null,
+          created_from_ai: false,
+          source_brief_id: missedCommId,
+          completed_at: null,
+          updated_at: new Date().toISOString(),
+        });
+        await sendPushToBusinessOwner(businessId, {
+          title: 'Αναπάντητη κλήση',
+          body: `${who} — πάτησε για να καλέσεις πίσω`,
+          url: customerLink.customerId ? `/customers/${customerLink.customerId}` : '/calls',
+        });
+      } catch {
+        // best-effort
+      }
+    }
 
     await supabase
       .from('provider_webhook_events')

@@ -22,6 +22,7 @@
 
 import { NextRequest } from 'next/server';
 import twilio from 'twilio';
+import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
 
 export const runtime = 'nodejs';
 
@@ -92,6 +93,36 @@ export async function POST(request: NextRequest) {
     // No app target resolved — let the carrier path handle it (don't trap the call).
     tw.say({ language: 'el-GR' }, 'Η κλήση δεν μπορεί να δρομολογηθεί αυτή τη στιγμή.');
     return xml(tw.toString());
+  }
+
+  // Respect the owner's DND switch (business_user_presence — settable from the
+  // web TelephonyPanel). Rejecting as busy keeps the Asterisk DIALSTATUS=BUSY,
+  // so the PBX webhook still logs the call as missed → call-back task + push.
+  // Fail-open on any DB hiccup: the line ringing matters more than the switch.
+  try {
+    const hex = identity.slice(4);
+    const businessId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    const supabase = createServiceSupabaseClient();
+    const { data: biz } = await supabase
+      .from('businesses')
+      .select('owner_id')
+      .eq('id', businessId)
+      .maybeSingle();
+    const ownerId = (biz as { owner_id?: string } | null)?.owner_id;
+    if (ownerId) {
+      const { data: presence } = await supabase
+        .from('business_user_presence')
+        .select('status')
+        .eq('business_id', businessId)
+        .eq('user_id', ownerId)
+        .maybeSingle();
+      if ((presence as { status?: string } | null)?.status === 'dnd') {
+        tw.reject({ reason: 'busy' });
+        return xml(tw.toString());
+      }
+    }
+  } catch {
+    // fail-open — ring the device
   }
 
   // Show the real caller's number in-app (and let the CRM match it).
