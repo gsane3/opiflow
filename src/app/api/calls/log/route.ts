@@ -140,6 +140,43 @@ export async function POST(request: NextRequest) {
 
   const summary = brief ? `${brief}\n\n---\n${basicSummary}` : basicSummary;
 
+  // Native calls are already logged SERVER-SIDE at dial time by the outbound
+  // TwiML webhook (status 'started', provider_call_id = CallSid). When that row
+  // exists, finalise it instead of inserting a duplicate — and never overwrite
+  // a transcript brief the recording webhook may have already attached.
+  if (providerCallId) {
+    const { data: existing } = await supabase
+      .from('communications')
+      .select('id, customer_id, brief_created_at')
+      .eq('business_id', businessId)
+      .eq('channel', 'call')
+      .eq('provider_call_id', providerCallId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const row = existing as { id: string; customer_id: string | null; brief_created_at: string | null } | null;
+    if (row) {
+      const hasTranscriptBrief = Boolean(row.brief_created_at);
+      await supabase
+        .from('communications')
+        .update({
+          status,
+          ...(hasTranscriptBrief ? {} : { summary }),
+          ...(customerId && !row.customer_id ? { customer_id: customerId } : {}),
+        })
+        .eq('id', row.id)
+        .eq('business_id', businessId);
+      await appendCallBrief(supabase, {
+        businessId,
+        customerId: customerId ?? row.customer_id,
+        communicationId: row.id,
+        briefKind: 'metadata',
+        briefText: summary,
+      });
+      return NextResponse.json({ ok: true, communicationId: row.id, brief: brief ?? null });
+    }
+  }
+
   const { data: commRow, error: commError } = await supabase
     .from('communications')
     .insert({

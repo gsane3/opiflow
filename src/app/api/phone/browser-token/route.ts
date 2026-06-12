@@ -172,7 +172,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // --- Mode B: shared env credentials (default / current behaviour) ---
+    // --- Mode B: shared env credentials (single-tenant bootstrap ONLY) ---
+    // The shared credential receives EVERY tenant's inbound DID calls, so handing
+    // it out with more than one business onboarded would let tenant A register
+    // the account from any SIP client and intercept tenant B's calls. Refuse it
+    // the moment a second business exists, unless explicitly overridden with
+    // PHONE_SIP_SHARED_OK=1 (e.g. a controlled migration window).
+    if (process.env.PHONE_SIP_SHARED_OK !== '1') {
+      const { count: businessCount } = await supabase
+        .from('businesses')
+        .select('id', { count: 'exact', head: true });
+      if ((businessCount ?? 0) > 1) {
+        return NextResponse.json(
+          { ok: true, ready: false, message: 'per_user_endpoint_pending' },
+          { headers: NO_STORE }
+        );
+      }
+    }
     const sipUsername = process.env.PHONE_SIP_USERNAME?.trim() || null;
     const sipPassword = process.env.PHONE_SIP_PASSWORD?.trim() || null;
 
