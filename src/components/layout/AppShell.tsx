@@ -10,6 +10,14 @@ import BottomNav from './BottomNav';
 import DesktopSidebar from './DesktopSidebar';
 import PushToast from './PushToast';
 
+// The onboarding/activation gate hits /api/businesses/me (itself several
+// server queries). Re-running it on EVERY navigation made each tab switch pay
+// a full server round-trip — cache the verdict for a few minutes instead. The
+// local session check still runs on every navigation (it's instant).
+let gateCheckedAt = 0;
+let pushRegistered = false;
+const GATE_TTL_MS = 5 * 60 * 1000;
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -25,52 +33,62 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         if (cancelled) return;
 
         if (!data.session) {
+          gateCheckedAt = 0;
           router.replace('/login');
           return;
         }
 
         // Onboarding + activation are gated on SERVER state (not localStorage),
-        // so a fresh device or a new login is handled correctly.
-        try {
-          const meResp = await fetch('/api/businesses/me', {
-            headers: { Authorization: `Bearer ${data.session.access_token}` },
-          });
-          if (cancelled) return;
+        // so a fresh device or a new login is handled correctly. The verdict is
+        // cached for GATE_TTL_MS so plain navigation doesn't refetch it.
+        if (Date.now() - gateCheckedAt > GATE_TTL_MS) {
+          try {
+            const meResp = await fetch('/api/businesses/me', {
+              headers: { Authorization: `Bearer ${data.session.access_token}` },
+            });
+            if (cancelled) return;
 
-          // No business yet → the user hasn't finished onboarding. Resume the
-          // plan → onboarding flow instead of dropping them into an empty app.
-          if (meResp.status === 404) {
-            router.replace('/package');
-            return;
-          }
-
-          if (meResp.ok) {
-            const meData = (await meResp.json()) as {
-              ok?: boolean;
-              activationAllowed?: boolean;
-            };
-            if (meData.ok && meData.activationAllowed === false) {
-              router.replace('/package?activation_required=1');
+            // No business yet → the user hasn't finished onboarding. Resume the
+            // plan → onboarding flow instead of dropping them into an empty app.
+            if (meResp.status === 404) {
+              router.replace('/package');
               return;
             }
+
+            if (meResp.ok) {
+              const meData = (await meResp.json()) as {
+                ok?: boolean;
+                activationAllowed?: boolean;
+              };
+              if (meData.ok && meData.activationAllowed === false) {
+                router.replace('/package?activation_required=1');
+                return;
+              }
+              gateCheckedAt = Date.now();
+            }
+            // Other non-ok (transient 5xx) is non-fatal: let through.
+          } catch {
+            // Network error is non-fatal. Let through.
           }
-          // Other non-ok (transient 5xx) is non-fatal: let through.
-        } catch {
-          // Network error is non-fatal. Let through.
         }
 
         if (cancelled) return;
         setAuthChecked(true);
 
-        // Native push: register this device once the session is confirmed.
-        // No-op on web; failures are swallowed inside the helper.
-        void registerNativePush((url) => router.push(url));
+        // Native registrations only need to run once per app load.
+        if (!pushRegistered) {
+          pushRegistered = true;
 
-        // Native Twilio Voice: register for INCOMING calls + VoIP push so the
-        // phone rings on inbound Greek-DID calls even when backgrounded/killed.
-        // No-op on web / when Twilio isn't configured; never prompts for the mic
-        // here (that happens when a call is answered).
-        void registerNativeVoiceForPush();
+          // Native push: register this device once the session is confirmed.
+          // No-op on web; failures are swallowed inside the helper.
+          void registerNativePush((url) => router.push(url));
+
+          // Native Twilio Voice: register for INCOMING calls + VoIP push so the
+          // phone rings on inbound Greek-DID calls even when backgrounded/killed.
+          // No-op on web / when Twilio isn't configured; never prompts for the mic
+          // here (that happens when a call is answered).
+          void registerNativeVoiceForPush();
+        }
       } catch {
         // Auth client not configured or network error: redirect to login.
         if (!cancelled) {

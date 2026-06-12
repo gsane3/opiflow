@@ -147,6 +147,18 @@ async function generateOfferNumber(
 ): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `OFFER-${year}-`;
+
+  // Atomic per-business counter (migration 043): one UPDATE..RETURNING instead
+  // of fetching every offer row, and no duplicate-number race.
+  try {
+    const { data: n, error } = await supabase.rpc('take_next_offer_number', {
+      p_business_id: businessId,
+    });
+    if (!error && typeof n === 'number' && n > 0) return `${prefix}${n}`;
+  } catch {
+    // pre-043 schema — fall back to the legacy scan below
+  }
+
   const { data } = await supabase
     .from('offers')
     .select('offer_number')

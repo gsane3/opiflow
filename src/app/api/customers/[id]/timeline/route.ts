@@ -77,26 +77,63 @@ export async function GET(
   const items: TimelineItem[] = [];
 
   try {
+    // This is the hottest endpoint in the product (every customer-card open).
+    // All six per-customer sources are independent — fetch them in parallel,
+    // then the two response-token lookups that depend on stage-1 ids.
+    const [rawCommsRes, rawBriefsRes, rawOffersRes, rawTasksRes, rawIntakeRes, rawUploadsRes] =
+      await Promise.all([
+        supabase
+          .from('communications')
+          .select('id, channel, direction, status, summary, created_at')
+          .eq('business_id', businessId)
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: true })
+          .limit(ITEM_LIMIT),
+        supabase
+          .from('call_briefs')
+          .select('communication_id, brief_kind, brief_text, created_at')
+          .eq('business_id', businessId)
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: true })
+          .limit(ITEM_LIMIT),
+        supabase
+          .from('offers')
+          .select('id, offer_number, status, total, offer_date, created_at')
+          .eq('business_id', businessId)
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: true })
+          .limit(ITEM_LIMIT),
+        supabase
+          .from('tasks')
+          .select('id, title, type, due_date, due_time, start_at, end_at, status, note, created_at')
+          .eq('business_id', businessId)
+          .eq('customer_id', customerId)
+          .in('type', ['book_appointment', 'visit_customer'])
+          .order('created_at', { ascending: true })
+          .limit(ITEM_LIMIT),
+        supabase
+          .from('customer_intake_tokens')
+          .select('id, created_at, submitted_at')
+          .eq('business_id', businessId)
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: true })
+          .limit(ITEM_LIMIT),
+        supabase
+          .from('customer_upload_sessions')
+          .select('id, file_count, uploaded_at')
+          .eq('business_id', businessId)
+          .eq('customer_id', customerId)
+          .order('uploaded_at', { ascending: true })
+          .limit(ITEM_LIMIT),
+      ]);
+
     // -- communications (calls + outbound/inbound messages) -------------------
-    const { data: rawComms } = await supabase
-      .from('communications')
-      .select('id, channel, direction, status, summary, created_at')
-      .eq('business_id', businessId)
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
-      .limit(ITEM_LIMIT);
-    const comms = ((rawComms ?? []) as unknown[]) as Array<{
+    const comms = ((rawCommsRes.data ?? []) as unknown[]) as Array<{
       id: string; channel: string; direction: string; status: string; summary: string | null; created_at: string;
     }>;
 
     // -- call_briefs: pick the best brief per communication (transcript wins) --
-    const { data: rawBriefs } = await supabase
-      .from('call_briefs')
-      .select('communication_id, brief_kind, brief_text, created_at')
-      .eq('business_id', businessId)
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
-      .limit(ITEM_LIMIT);
+    const rawBriefs = rawBriefsRes.data;
     const briefByComm = new Map<string, { kind: string; text: string }>();
     for (const b of ((rawBriefs ?? []) as unknown[]) as Array<{ communication_id: string | null; brief_kind: string; brief_text: string }>) {
       if (!b.communication_id) continue;
@@ -142,14 +179,7 @@ export async function GET(
     }
 
     // -- offers (our side) -----------------------------------------------------
-    const { data: rawOffers } = await supabase
-      .from('offers')
-      .select('id, offer_number, status, total, offer_date, created_at')
-      .eq('business_id', businessId)
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
-      .limit(ITEM_LIMIT);
-    const offers = ((rawOffers ?? []) as unknown[]) as Array<{
+    const offers = ((rawOffersRes.data ?? []) as unknown[]) as Array<{
       id: string; offer_number: string | null; status: string; total: number | null; offer_date: string | null; created_at: string;
     }>;
     const offerIds: string[] = [];
@@ -170,43 +200,8 @@ export async function GET(
       });
     }
 
-    // -- offer responses (customer side, interactive) --------------------------
-    if (offerIds.length > 0) {
-      const { data: rawOfferTok } = await supabase
-        .from('offer_response_tokens')
-        .select('id, offer_id, response, responded_at')
-        .eq('business_id', businessId)
-        .in('offer_id', offerIds)
-        .not('responded_at', 'is', null)
-        .limit(ITEM_LIMIT);
-      for (const t of ((rawOfferTok ?? []) as unknown[]) as Array<{ id: string; offer_id: string; response: string | null; responded_at: string }>) {
-        const accepted = t.response === 'accepted';
-        const rejected = t.response === 'rejected';
-        items.push({
-          id: `offerresp:${t.id}`,
-          type: 'offer_response',
-          side: 'customer',
-          interactive: true,
-          title: accepted ? 'Αποδοχή προσφοράς' : rejected ? 'Απόρριψη προσφοράς' : 'Απάντηση σε προσφορά',
-          body: null,
-          status: t.response,
-          occurredAt: t.responded_at,
-          refTable: 'offers',
-          refId: t.offer_id,
-        });
-      }
-    }
-
     // -- appointment tasks (our side) -----------------------------------------
-    const { data: rawTasks } = await supabase
-      .from('tasks')
-      .select('id, title, type, due_date, due_time, start_at, end_at, status, note, created_at')
-      .eq('business_id', businessId)
-      .eq('customer_id', customerId)
-      .in('type', ['book_appointment', 'visit_customer'])
-      .order('created_at', { ascending: true })
-      .limit(ITEM_LIMIT);
-    const tasks = ((rawTasks ?? []) as unknown[]) as Array<{
+    const tasks = ((rawTasksRes.data ?? []) as unknown[]) as Array<{
       id: string; title: string | null; type: string; due_date: string | null; due_time: string | null;
       start_at: string | null; end_at: string | null; status: string; note: string | null; created_at: string;
     }>;
@@ -233,16 +228,49 @@ export async function GET(
       });
     }
 
+    // -- stage 2: customer responses (offer + appointment), in parallel --------
+    const [offerTokRes, apptTokRes] = await Promise.all([
+      offerIds.length > 0
+        ? supabase
+            .from('offer_response_tokens')
+            .select('id, offer_id, response, responded_at')
+            .eq('business_id', businessId)
+            .in('offer_id', offerIds)
+            .not('responded_at', 'is', null)
+            .limit(ITEM_LIMIT)
+        : Promise.resolve({ data: [] as unknown[] }),
+      taskIds.length > 0
+        ? supabase
+            .from('appointment_response_tokens')
+            .select('id, task_id, response, responded_at, requested_due_date, requested_due_time')
+            .eq('business_id', businessId)
+            .in('task_id', taskIds)
+            .not('responded_at', 'is', null)
+            .limit(ITEM_LIMIT)
+        : Promise.resolve({ data: [] as unknown[] }),
+    ]);
+
+    // -- offer responses (customer side, interactive) ---------------------------
+    for (const t of ((offerTokRes.data ?? []) as unknown[]) as Array<{ id: string; offer_id: string; response: string | null; responded_at: string }>) {
+      const accepted = t.response === 'accepted';
+      const rejected = t.response === 'rejected';
+      items.push({
+        id: `offerresp:${t.id}`,
+        type: 'offer_response',
+        side: 'customer',
+        interactive: true,
+        title: accepted ? 'Αποδοχή προσφοράς' : rejected ? 'Απόρριψη προσφοράς' : 'Απάντηση σε προσφορά',
+        body: null,
+        status: t.response,
+        occurredAt: t.responded_at,
+        refTable: 'offers',
+        refId: t.offer_id,
+      });
+    }
+
     // -- appointment responses (customer side, interactive) --------------------
-    if (taskIds.length > 0) {
-      const { data: rawApptTok } = await supabase
-        .from('appointment_response_tokens')
-        .select('id, task_id, response, responded_at, requested_due_date, requested_due_time')
-        .eq('business_id', businessId)
-        .in('task_id', taskIds)
-        .not('responded_at', 'is', null)
-        .limit(ITEM_LIMIT);
-      for (const t of ((rawApptTok ?? []) as unknown[]) as Array<{
+    {
+      for (const t of ((apptTokRes.data ?? []) as unknown[]) as Array<{
         id: string; task_id: string; response: string | null; responded_at: string; requested_due_date: string | null; requested_due_time: string | null;
       }>) {
         let title = 'Απάντηση σε ραντεβού';
@@ -270,14 +298,7 @@ export async function GET(
     }
 
     // -- intake tokens (request = our side; submitted = customer side) ---------
-    const { data: rawIntake } = await supabase
-      .from('customer_intake_tokens')
-      .select('id, created_at, submitted_at')
-      .eq('business_id', businessId)
-      .eq('customer_id', customerId)
-      .order('created_at', { ascending: true })
-      .limit(ITEM_LIMIT);
-    for (const t of ((rawIntake ?? []) as unknown[]) as Array<{ id: string; created_at: string; submitted_at: string | null }>) {
+    for (const t of ((rawIntakeRes.data ?? []) as unknown[]) as Array<{ id: string; created_at: string; submitted_at: string | null }>) {
       items.push({
         id: `intakereq:${t.id}`,
         type: 'intake_request',
@@ -307,14 +328,7 @@ export async function GET(
     }
 
     // -- upload sessions (customer side, interactive) --------------------------
-    const { data: rawUploads } = await supabase
-      .from('customer_upload_sessions')
-      .select('id, file_count, uploaded_at')
-      .eq('business_id', businessId)
-      .eq('customer_id', customerId)
-      .order('uploaded_at', { ascending: true })
-      .limit(ITEM_LIMIT);
-    for (const s of ((rawUploads ?? []) as unknown[]) as Array<{ id: string; file_count: number | null; uploaded_at: string }>) {
+    for (const s of ((rawUploadsRes.data ?? []) as unknown[]) as Array<{ id: string; file_count: number | null; uploaded_at: string }>) {
       const n = typeof s.file_count === 'number' && s.file_count > 0 ? s.file_count : null;
       items.push({
         id: `upload:${s.id}`,

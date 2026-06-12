@@ -50,6 +50,18 @@ async function getNextCrmNumber(
   supabase: SupabaseClient,
   businessId: string
 ): Promise<string> {
+  // Atomic per-business counter (migration 043) — two simultaneous inbound
+  // calls from new numbers can no longer mint the same #N. Falls back to the
+  // legacy scan pre-043.
+  try {
+    const { data: n, error } = await supabase.rpc('take_next_crm_number', {
+      p_business_id: businessId,
+    });
+    if (!error && typeof n === 'number' && n > 0) return `#${n}`;
+  } catch {
+    // fall back
+  }
+
   const { data } = await supabase
     .from('customers')
     .select('crm_number')

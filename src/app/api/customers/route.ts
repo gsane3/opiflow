@@ -149,8 +149,17 @@ async function getNextCrmNumber(
   supabase: SupabaseClient,
   businessId: string
 ): Promise<string> {
-  // Phase 3: no UNIQUE constraint on crm_number, so concurrent POSTs can
-  // produce duplicates. This is an accepted race risk for private beta.
+  // Atomic per-business counter (migration 043): one UPDATE..RETURNING instead
+  // of fetching every customer row, and no duplicate-number race.
+  try {
+    const { data: n, error } = await supabase.rpc('take_next_crm_number', {
+      p_business_id: businessId,
+    });
+    if (!error && typeof n === 'number' && n > 0) return `#${n}`;
+  } catch {
+    // pre-043 schema — fall back to the legacy scan below
+  }
+
   const { data } = await supabase
     .from('customers')
     .select('crm_number')

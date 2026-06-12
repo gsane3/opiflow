@@ -168,120 +168,107 @@ export async function GET(request: NextRequest) {
     const recentSince = RECENT_WINDOW_ISO();
 
     // -------------------------------------------------------------------------
-    // 1. Offer response tokens
+    // Stage 1 — the five independent source queries, in parallel. This endpoint
+    // renders on every dashboard load, so round-trips matter more than rows.
     // -------------------------------------------------------------------------
-    const { data: rawOfferTokens, error: offerTokenErr } = await supabase
-      .from('offer_response_tokens')
-      .select('id, offer_id, response, responded_at')
-      .eq('business_id', businessId)
-      .not('responded_at', 'is', null)
-      .order('responded_at', { ascending: false })
-      .limit(30);
+    const [offerTokensRes, apptTokensRes, intakeTokensRes, uploadSessionsRes, commsRes] =
+      await Promise.all([
+        supabase
+          .from('offer_response_tokens')
+          .select('id, offer_id, response, responded_at')
+          .eq('business_id', businessId)
+          .not('responded_at', 'is', null)
+          .order('responded_at', { ascending: false })
+          .limit(30),
+        supabase
+          .from('appointment_response_tokens')
+          .select('id, task_id, response, responded_at, requested_due_date, requested_due_time')
+          .eq('business_id', businessId)
+          .not('responded_at', 'is', null)
+          .order('responded_at', { ascending: false })
+          .limit(30),
+        supabase
+          .from('customer_intake_tokens')
+          .select('id, customer_id, submitted_at')
+          .eq('business_id', businessId)
+          .not('submitted_at', 'is', null)
+          .gte('submitted_at', recentSince)
+          .order('submitted_at', { ascending: false })
+          .limit(30),
+        supabase
+          .from('customer_upload_sessions')
+          .select('id, customer_id, upload_token_id, file_count, uploaded_at')
+          .eq('business_id', businessId)
+          .gte('uploaded_at', recentSince)
+          .order('uploaded_at', { ascending: false })
+          .limit(30),
+        supabase
+          .from('communications')
+          .select('id, customer_id, channel, direction, status, created_at')
+          .eq('business_id', businessId)
+          .eq('direction', 'inbound')
+          .in('channel', ['call', 'sms'])
+          .gte('created_at', recentSince)
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ]);
 
-    if (offerTokenErr) {
+    if (offerTokensRes.error || apptTokensRes.error) {
       return NextResponse.json({ ok: false, error: 'notifications_query_failed' }, { status: 500 });
     }
 
-    const offerTokens = ((rawOfferTokens ?? []) as unknown[]) as OfferTokenRow[];
+    const offerTokens = ((offerTokensRes.data ?? []) as unknown[]) as OfferTokenRow[];
+    const apptTokens = ((apptTokensRes.data ?? []) as unknown[]) as ApptTokenRow[];
+    const intakeTokens = ((intakeTokensRes.data ?? []) as unknown[]) as IntakeTokenRow[];
+    const uploadSessions = ((uploadSessionsRes.data ?? []) as unknown[]) as UploadSessionRow[];
+    const comms = ((commsRes.data ?? []) as unknown[]) as CommunicationRow[];
 
     // -------------------------------------------------------------------------
-    // 2. Offer metadata (offer_number, customer_id)
+    // Stage 2 — the metadata lookups that depend only on stage-1 ids.
     // -------------------------------------------------------------------------
     const offerIds = [...new Set(offerTokens.map((t) => t.offer_id).filter(Boolean))];
-    const offersById = new Map<string, OfferRow>();
-
-    if (offerIds.length > 0) {
-      const { data: rawOffers } = await supabase
-        .from('offers')
-        .select('id, offer_number, customer_id')
-        .eq('business_id', businessId)
-        .in('id', offerIds);
-
-      for (const row of ((rawOffers ?? []) as unknown[]) as OfferRow[]) {
-        offersById.set(row.id, row);
-      }
-    }
-
-    // -------------------------------------------------------------------------
-    // 3. Appointment response tokens
-    // -------------------------------------------------------------------------
-    const { data: rawApptTokens, error: apptTokenErr } = await supabase
-      .from('appointment_response_tokens')
-      .select('id, task_id, response, responded_at, requested_due_date, requested_due_time')
-      .eq('business_id', businessId)
-      .not('responded_at', 'is', null)
-      .order('responded_at', { ascending: false })
-      .limit(30);
-
-    if (apptTokenErr) {
-      return NextResponse.json({ ok: false, error: 'notifications_query_failed' }, { status: 500 });
-    }
-
-    const apptTokens = ((rawApptTokens ?? []) as unknown[]) as ApptTokenRow[];
-
-    // -------------------------------------------------------------------------
-    // 4. Task metadata (title, customer_id)
-    // -------------------------------------------------------------------------
     const taskIds = [...new Set(apptTokens.map((t) => t.task_id).filter(Boolean))];
-    const tasksById = new Map<string, TaskRow>();
-
-    if (taskIds.length > 0) {
-      const { data: rawTasks } = await supabase
-        .from('tasks')
-        .select('id, title, customer_id')
-        .eq('business_id', businessId)
-        .in('id', taskIds);
-
-      for (const row of ((rawTasks ?? []) as unknown[]) as TaskRow[]) {
-        tasksById.set(row.id, row);
-      }
-    }
-
-    // -------------------------------------------------------------------------
-    // 5. Intake submissions (customer sent their info)
-    // -------------------------------------------------------------------------
-    const { data: rawIntakeTokens } = await supabase
-      .from('customer_intake_tokens')
-      .select('id, customer_id, submitted_at')
-      .eq('business_id', businessId)
-      .not('submitted_at', 'is', null)
-      .gte('submitted_at', recentSince)
-      .order('submitted_at', { ascending: false })
-      .limit(30);
-
-    const intakeTokens = ((rawIntakeTokens ?? []) as unknown[]) as IntakeTokenRow[];
-
-    // -------------------------------------------------------------------------
-    // 6. Customer uploads (only customer-originated, NOT business-side manual)
-    // -------------------------------------------------------------------------
-    const { data: rawUploadSessions } = await supabase
-      .from('customer_upload_sessions')
-      .select('id, customer_id, upload_token_id, file_count, uploaded_at')
-      .eq('business_id', businessId)
-      .gte('uploaded_at', recentSince)
-      .order('uploaded_at', { ascending: false })
-      .limit(30);
-
-    const uploadSessions = ((rawUploadSessions ?? []) as unknown[]) as UploadSessionRow[];
-
-    // Resolve the originating token's channel so we can exclude business-side
-    // manual uploads (sent_channel === 'manual'). Only sessions whose token was
-    // sent to the customer (viber/sms) count as customer-originated.
     const uploadTokenIds = [
       ...new Set(uploadSessions.map((s) => s.upload_token_id).filter((v): v is string => !!v)),
     ];
+
+    const [offersRes, tasksRes, uploadTokensRes] = await Promise.all([
+      offerIds.length > 0
+        ? supabase
+            .from('offers')
+            .select('id, offer_number, customer_id')
+            .eq('business_id', businessId)
+            .in('id', offerIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      taskIds.length > 0
+        ? supabase
+            .from('tasks')
+            .select('id, title, customer_id')
+            .eq('business_id', businessId)
+            .in('id', taskIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      uploadTokenIds.length > 0
+        ? supabase
+            .from('customer_upload_tokens')
+            .select('id, sent_channel')
+            .eq('business_id', businessId)
+            .in('id', uploadTokenIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+    ]);
+
+    const offersById = new Map<string, OfferRow>();
+    for (const row of ((offersRes.data ?? []) as unknown[]) as OfferRow[]) {
+      offersById.set(row.id, row);
+    }
+
+    const tasksById = new Map<string, TaskRow>();
+    for (const row of ((tasksRes.data ?? []) as unknown[]) as TaskRow[]) {
+      tasksById.set(row.id, row);
+    }
+
     const uploadTokensById = new Map<string, UploadTokenRow>();
-
-    if (uploadTokenIds.length > 0) {
-      const { data: rawUploadTokens } = await supabase
-        .from('customer_upload_tokens')
-        .select('id, sent_channel')
-        .eq('business_id', businessId)
-        .in('id', uploadTokenIds);
-
-      for (const row of ((rawUploadTokens ?? []) as unknown[]) as UploadTokenRow[]) {
-        uploadTokensById.set(row.id, row);
-      }
+    for (const row of ((uploadTokensRes.data ?? []) as unknown[]) as UploadTokenRow[]) {
+      uploadTokensById.set(row.id, row);
     }
 
     // Keep only customer-originated uploads: the token must exist and its
@@ -292,21 +279,6 @@ export async function GET(request: NextRequest) {
       if (!tok) return false;
       return tok.sent_channel !== 'manual';
     });
-
-    // -------------------------------------------------------------------------
-    // 7. Inbound communications (calls + SMS) within the window
-    // -------------------------------------------------------------------------
-    const { data: rawComms } = await supabase
-      .from('communications')
-      .select('id, customer_id, channel, direction, status, created_at')
-      .eq('business_id', businessId)
-      .eq('direction', 'inbound')
-      .in('channel', ['call', 'sms'])
-      .gte('created_at', recentSince)
-      .order('created_at', { ascending: false })
-      .limit(30);
-
-    const comms = ((rawComms ?? []) as unknown[]) as CommunicationRow[];
 
     // -------------------------------------------------------------------------
     // 8. Customer names for all referenced customers (single batched lookup)
