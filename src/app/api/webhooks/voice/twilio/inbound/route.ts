@@ -58,14 +58,22 @@ export async function POST(request: NextRequest) {
     return xml(tw.toString());
   }
 
-  // Validate Twilio's signature when configured (fail-closed in prod).
+  // Validate Twilio's signature — FAIL CLOSED in production, including when
+  // TWILIO_AUTH_TOKEN is missing (override with ALLOW_INSECURE_WEBHOOKS=1).
+  const isProd = process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1';
   const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
-  if (authToken) {
+  if (!authToken) {
+    if (isProd) {
+      const tw = new VoiceResponse();
+      tw.reject({ reason: 'rejected' });
+      return xml(tw.toString());
+    }
+  } else {
     const signature = request.headers.get('x-twilio-signature') ?? '';
     const signedUrl = process.env.TWILIO_INBOUND_WEBHOOK_URL?.trim() || request.url;
     let ok = false;
     try { ok = twilio.validateRequest(authToken, signature, signedUrl, params); } catch { ok = false; }
-    if (!ok && process.env.NODE_ENV === 'production' && process.env.ALLOW_INSECURE_WEBHOOKS !== '1') {
+    if (!ok && isProd) {
       const tw = new VoiceResponse();
       tw.reject({ reason: 'rejected' });
       return xml(tw.toString());
