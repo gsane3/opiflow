@@ -8,6 +8,9 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { generateCallBrief } from '@/lib/server/call-brief';
 import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 import { sendPushToBusinessOwner } from '@/lib/server/push';
+import { sendViaPreferredChannel } from '@/lib/server/send-channel';
+import { recordOutboundMessage, extractProviderIds } from '@/lib/server/record-message';
+import { isWithinBusinessHours, parseBusinessHours } from '@/lib/server/business-hours';
 
 export const runtime = 'nodejs';
 
@@ -519,6 +522,57 @@ export async function POST(request: NextRequest) {
         });
       } catch {
         // best-effort
+      }
+
+      // After-hours / missed-call auto-reply to the CUSTOMER (F3, Quo parity).
+      // When enabled, send one Greek acknowledgement so the caller gets instant
+      // reassurance instead of silence. Gated on the business hours: during
+      // configured hours we skip it (the owner calls back fast); outside hours,
+      // or when no hours are set, it fires. Best-effort + tolerant of pre-044.
+      try {
+        const callerPhone = normalizePhone(callerNumber);
+        if (callerPhone) {
+          const { data: bizRow } = await supabase
+            .from('businesses')
+            .select('auto_reply_enabled, auto_reply_text, business_hours')
+            .eq('id', businessId)
+            .maybeSingle();
+          const b = bizRow as { auto_reply_enabled?: boolean; auto_reply_text?: string | null; business_hours?: unknown } | null;
+          const text = b?.auto_reply_text?.trim();
+          if (b?.auto_reply_enabled && text) {
+            const hours = parseBusinessHours(b.business_hours);
+            // Fire after-hours, or always when no hours configured.
+            if (!isWithinBusinessHours(hours)) {
+              let preferred: string | null = null;
+              if (customerLink.customerId) {
+                const { data: cust } = await supabase
+                  .from('customers')
+                  .select('preferred_contact_method')
+                  .eq('id', customerLink.customerId)
+                  .maybeSingle();
+                preferred = (cust as { preferred_contact_method?: string | null } | null)?.preferred_contact_method ?? null;
+              }
+              const referenceId = `autoreply:${businessId.slice(0, 8)}:${Date.now().toString(36)}`;
+              const sent = await sendViaPreferredChannel({ preferred, phone: callerPhone, text, customerId: customerLink.customerId, referenceId });
+              if (sent.ok && sent.channel !== 'none') {
+                const detail = sent.channel === 'sms' ? sent.sms : sent.viber;
+                const ids = extractProviderIds(detail);
+                await recordOutboundMessage({
+                  businessId,
+                  customerId: customerLink.customerId,
+                  channel: sent.channel,
+                  summary: text,
+                  phone: callerPhone,
+                  referenceId,
+                  providerRequestId: ids.providerRequestId,
+                  providerMessageId: ids.providerMessageId,
+                });
+              }
+            }
+          }
+        }
+      } catch {
+        // best-effort: auto-reply must never fail the webhook
       }
     }
 
