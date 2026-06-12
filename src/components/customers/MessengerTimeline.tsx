@@ -104,6 +104,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [sending, setSending] = useState(false);
   const [snippetsOpen, setSnippetsOpen] = useState(false);
   const [snippets, setSnippets] = useState<{ id: string; title: string; body: string }[] | null>(null);
+  const [drafting, setDrafting] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -205,6 +206,27 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   function pickSnippet(s: { body: string }) {
     setMessageText((prev) => (prev ? `${prev} ${fillTokens(s.body)}` : fillTokens(s.body)));
     setSnippetsOpen(false);
+  }
+
+  async function draftReply() {
+    if (drafting) return;
+    const headers = await authHeaders();
+    if (!headers) { setError('Συνδέσου ξανά.'); return; }
+    setDrafting(true);
+    try {
+      const res = await fetch(`/api/customers/${customerId}/reply-draft`, {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageText.trim() ? { hint: messageText.trim() } : {}),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json?.ok && json.draft) setMessageText(json.draft as string);
+      else setError(json?.error === 'ai_not_configured' ? 'Ο AI βοηθός δεν είναι ρυθμισμένος.' : 'Δεν δημιουργήθηκε πρόταση.');
+    } catch {
+      setError('Δεν δημιουργήθηκε πρόταση.');
+    } finally {
+      setDrafting(false);
+    }
   }
 
   async function sendMessage() {
@@ -414,6 +436,11 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         </button>
         <button type="button" onClick={() => void toggleSnippets()} aria-label="Πρότυπα μηνυμάτων" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${snippetsOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+        </button>
+        <button type="button" onClick={() => void draftReply()} disabled={drafting} aria-label="Πρόταση απάντησης" title="Πρόταση απάντησης" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition active:scale-95 enabled:hover:bg-indigo-100 disabled:opacity-50">
+          {drafting ? <Spinner className="text-indigo-500" /> : (
+            <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" /></svg>
+          )}
         </button>
         <textarea
           rows={1}
