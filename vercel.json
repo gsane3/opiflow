@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install --ignore-scripts",
   "crons": [
-    { "path": "/api/cron/intake-reminder", "schedule": "0 * * * *" },
-    { "path": "/api/cron/recordings-reconcile", "schedule": "30 * * * *" }
+    { "path": "/api/cron/intake-reminder", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/recordings-reconcile", "schedule": "30 7 * * *" }
   ]
 }
