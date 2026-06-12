@@ -4,26 +4,34 @@
 // RecordingUrl + CallSid here. We download the WAV (Basic auth) and run it
 // through the SAME engine the PBX path uses — transcribeAndBriefCallAudio()
 // (Deepgram diarization → OpenAI Greek brief → ai_draft task) — then save the
-// brief to communications.summary. Audio + transcript are held in RAM only.
+// brief to communications.summary. Audio + transcript are held in RAM only,
+// and the Twilio cloud Recording is DELETED after successful processing (or a
+// permanent failure) so no copy of the call outlives the pipeline.
+//
+// Reliability: the communications row is created at DIAL time by the outbound
+// TwiML webhook (provider_call_id = CallSid), so matching normally succeeds.
+// If it still doesn't (or transcription fails), the event is persisted into
+// provider_webhook_events and the recordings-reconcile cron retries — the
+// recording is kept at Twilio until then. Re-delivered callbacks for an
+// already-briefed call are idempotent (skip + cleanup).
 //
 // ENV-GATED + INERT: returns 503 'twilio_not_configured' until TWILIO_AUTH_TOKEN
 // + TWILIO_ACCOUNT_SID are set, so nothing runs before Twilio is wired.
-//
-// Matching: the communications row is found by the Twilio CallSid, which the
-// call-logging path (Phase 3/4) stamps into the summary as `twilio_sid=<CallSid>`
-// (mirrors the PBX `uniqueid=` marker). Until calls are logged with their SID
-// this webhook simply ACKs (received) without matching — it never errors.
 
 import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { transcribeAndBriefCallAudio } from '@/lib/server/openai-call-audio';
-import { appendCallBrief } from '@/lib/server/call-briefs';
+import {
+  deleteTwilioRecording,
+  downloadRecordingWav,
+  findCallCommunication,
+  getTwilioEnv,
+  persistRecordingEvent,
+  processRecordingForCommunication,
+} from '@/lib/server/twilio-recording';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
-
-const MAX_AUDIO_BYTES = 25 * 1024 * 1024; // 25 MB
 
 function str(v: FormDataEntryValue | null | undefined): string | null {
   if (typeof v === 'string' && v.trim().length > 0) return v.trim();
@@ -31,12 +39,11 @@ function str(v: FormDataEntryValue | null | undefined): string | null {
 }
 
 export async function POST(request: NextRequest) {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim();
-  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
-
-  if (!accountSid || !authToken) {
+  const env = getTwilioEnv();
+  if (!env) {
     return NextResponse.json({ ok: false, error: 'twilio_not_configured' }, { status: 503 });
   }
+  const { accountSid, authToken } = env;
 
   // Read the raw form so we can both validate the signature and read params.
   let form: URLSearchParams;
@@ -70,6 +77,7 @@ export async function POST(request: NextRequest) {
 
   const callSid = str(form.get('CallSid'));
   const recordingUrl = str(form.get('RecordingUrl'));
+  const recordingSid = str(form.get('RecordingSid'));
   const recordingStatus = str(form.get('RecordingStatus'));
   const fromNumber = str(form.get('From'));
 
@@ -88,132 +96,72 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
   }
 
-  // Find the communications row by the Twilio CallSid. Prefer the exact
-  // provider_call_id column (migration 038); fall back to the legacy summary
-  // marker (`twilio_sid=<CallSid>`) so this keeps working pre-038.
-  type CommRow = { id: string; business_id: string; summary: string | null; customer_id: string | null };
-  let comm: CommRow | null = null;
-  {
-    const byId = await supabase
-      .from('communications')
-      .select('id, business_id, summary, customer_id')
-      .eq('channel', 'call')
-      .eq('provider_call_id', callSid)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (byId.data) comm = byId.data as unknown as CommRow;
-  }
-  if (!comm) {
-    const bySummary = await supabase
-      .from('communications')
-      .select('id, business_id, summary, customer_id')
-      .eq('channel', 'call')
-      .like('summary', `%twilio_sid=${callSid}%`)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (bySummary.data) comm = bySummary.data as unknown as CommRow;
-  }
+  const comm = await findCallCommunication(supabase, callSid);
 
   if (!comm) {
-    // ACK so Twilio does not retry forever; the call may not be logged yet.
+    // Not logged yet (e.g. the dial-time insert failed) — persist for the
+    // reconcile cron and keep the recording at Twilio until it succeeds.
+    await persistRecordingEvent(supabase, {
+      callSid,
+      recordingUrl,
+      recordingSid,
+      fromNumber,
+      reason: 'communication_not_found',
+    });
     return NextResponse.json({ ok: true, received: true, error: 'communication_not_found' });
   }
 
-  // Download the recording WAV (Twilio Basic auth).
-  let audioFile: File;
-  try {
-    const basic = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-    const res = await fetch(`${recordingUrl}.wav`, { headers: { Authorization: `Basic ${basic}` } });
-    if (!res.ok) {
-      return NextResponse.json({ ok: true, received: true, error: 'recording_download_failed' });
-    }
-    const buf = Buffer.from(await res.arrayBuffer());
-    if (buf.length === 0 || buf.length > MAX_AUDIO_BYTES) {
-      return NextResponse.json({ ok: true, received: true, error: 'recording_size_invalid' });
-    }
-    audioFile = new File([buf], 'twilio-recording.wav', { type: 'audio/wav' });
-  } catch {
-    return NextResponse.json({ ok: true, received: true, error: 'recording_download_error' });
+  // Idempotency: a re-delivered callback for an already-briefed call only
+  // needs the cloud-side cleanup.
+  if (comm.brief_created_at) {
+    if (recordingSid) await deleteTwilioRecording(recordingSid, accountSid, authToken);
+    return NextResponse.json({ ok: true, received: true, already_processed: true });
   }
 
-  const auditNow = new Date().toISOString();
-  await supabase
-    .from('communications')
-    .update({ recording_received_at: auditNow, transcription_started_at: auditNow })
-    .eq('id', comm.id)
-    .eq('business_id', comm.business_id);
+  const download = await downloadRecordingWav(recordingUrl, accountSid, authToken);
+  if ('error' in download) {
+    if (download.error === 'size_invalid') {
+      // Unusable audio — never retryable; delete the cloud copy.
+      if (recordingSid) await deleteTwilioRecording(recordingSid, accountSid, authToken);
+      return NextResponse.json({ ok: true, received: true, error: 'recording_size_invalid' });
+    }
+    await persistRecordingEvent(supabase, {
+      callSid,
+      recordingUrl,
+      recordingSid,
+      fromNumber,
+      reason: 'download_failed',
+    });
+    return NextResponse.json({ ok: true, received: true, error: 'recording_download_failed' });
+  }
 
-  const result = await transcribeAndBriefCallAudio({
-    audioFile,
-    callerNumber: fromNumber,
-    dialStatus: null,
-    uniqueId: callSid,
-    communicationSummary: comm.summary,
+  const ok = await processRecordingForCommunication({
+    supabase,
+    comm,
+    audioFile: download.file,
+    fromNumber,
+    callSid,
   });
 
-  if (!result) {
-    await supabase
-      .from('communications')
-      .update({ processing_failed_at: new Date().toISOString(), processing_error_code: 'transcription_or_brief_failed' })
-      .eq('id', comm.id)
-      .eq('business_id', comm.business_id);
+  if (!ok) {
+    // Transient Deepgram/OpenAI failure — schedule a retry, keep the recording.
+    await persistRecordingEvent(supabase, {
+      callSid,
+      recordingUrl,
+      recordingSid,
+      fromNumber,
+      reason: 'transcription_failed',
+    });
     return NextResponse.json({ ok: true, received: true, error: 'transcription_failed' });
   }
 
-  const briefNow = new Date().toISOString();
-  await supabase
-    .from('communications')
-    .update({
-      summary: result.brief,
-      brief_created_at: briefNow,
-      audio_discarded_at: briefNow,
-      transcript_discarded_at: briefNow,
-    })
-    .eq('id', comm.id)
-    .eq('business_id', comm.business_id);
-
-  // Append to the per-call brief timeline (non-fatal) — preserves history.
-  await appendCallBrief(supabase, {
-    businessId: comm.business_id,
-    customerId: comm.customer_id,
-    communicationId: comm.id,
-    briefKind: 'transcript',
-    briefText: result.brief,
-  });
-
-  // ai_draft task when the customer is known (mirrors the PBX path).
-  let taskCreated = false;
-  if (comm.customer_id && result.taskTitle) {
-    const { data: taskRow } = await supabase
-      .from('tasks')
-      .insert({
-        business_id: comm.business_id,
-        customer_id: comm.customer_id,
-        offer_id: null,
-        title: result.taskTitle,
-        type: result.taskType,
-        status: 'ai_draft',
-        priority: 'normal',
-        due_date: result.taskDueDate,
-        due_time: null,
-        note: result.taskNote,
-        created_from_ai: true,
-        source_brief_id: comm.id,
-        completed_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
-    taskCreated = Boolean(taskRow);
-  }
+  // Success — the brief is in the CRM; remove the cloud copy (privacy + cost).
+  if (recordingSid) await deleteTwilioRecording(recordingSid, accountSid, authToken);
 
   return NextResponse.json({
     ok: true,
     received: true,
     communication_updated: true,
     communication_id: comm.id,
-    task_created: taskCreated,
   });
 }

@@ -97,14 +97,15 @@ export async function POST(request: NextRequest) {
   // Show the real caller's number in-app (and let the CRM match it).
   const callerId = extractCaller(params.From || params.Caller || '');
 
+  // NOTE: no `record` here on purpose. Inbound calls traverse Asterisk, whose
+  // MixMonitor already records the leg and feeds /api/webhooks/voice/pbx-recording
+  // — a Twilio-side recording would be a duplicate (double per-minute cost) that
+  // can never match a communications row (PBX rows carry uniqueid, not CallSid).
   const dial = tw.dial({
     answerOnBridge: true,
     callerId,
     // Don't let an unanswered call ring the device forever.
     timeout: 30,
-    record: 'record-from-answer-dual',
-    recordingStatusCallback: process.env.TWILIO_RECORDING_WEBHOOK_URL?.trim() || undefined,
-    recordingStatusCallbackEvent: ['completed'],
   });
   dial.client(identity);
 
