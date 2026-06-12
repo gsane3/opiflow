@@ -1,6 +1,7 @@
 // Πελάτες — searchable list with status filter chips (mirrors the web list).
 
 import { Ionicons } from '@expo/vector-icons';
+import * as Contacts from 'expo-contacts';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -91,6 +92,67 @@ export default function CustomersListScreen() {
     void load(q, st);
   }
 
+  const [importing, setImporting] = useState(false);
+  const phoneKey = (p?: string | null) => (p ? p.replace(/\D/g, '').slice(-10) : '');
+
+  async function importContacts() {
+    if (importing) return;
+    const { status: perm } = await Contacts.requestPermissionsAsync();
+    if (perm !== 'granted') {
+      Alert.alert('Επαφές', 'Χρειάζεται άδεια πρόσβασης στις επαφές για την εισαγωγή.');
+      return;
+    }
+    setImporting(true);
+    try {
+      const { data: contacts } = await Contacts.getContactsAsync({
+        fields: [Contacts.Fields.PhoneNumbers, Contacts.Fields.Emails, Contacts.Fields.Company],
+      });
+      // Dedup against existing customers (server caps at 100; good enough on first run).
+      const existing = new Set<string>();
+      try {
+        const res = await apiGet<{ customers?: Customer[] }>('/api/customers?limit=100');
+        for (const c of res?.customers ?? []) {
+          [c.mobilePhone, c.phone, c.landlinePhone].forEach((p) => { const k = phoneKey(p); if (k) existing.add(k); });
+        }
+      } catch {
+        // proceed without dedup
+      }
+
+      const candidates = contacts
+        .map((c) => {
+          const phone = c.phoneNumbers?.[0]?.number ?? null;
+          return {
+            name: c.name?.trim() || null,
+            companyName: c.company?.trim() || null,
+            mobilePhone: phone,
+            email: c.emails?.[0]?.email?.trim() || null,
+          };
+        })
+        .filter((c) => (c.name || c.companyName) && c.mobilePhone && !existing.has(phoneKey(c.mobilePhone)));
+
+      if (candidates.length === 0) {
+        Alert.alert('Εισαγωγή επαφών', 'Δεν βρέθηκαν νέες επαφές με τηλέφωνο για εισαγωγή.');
+        return;
+      }
+
+      let added = 0;
+      for (const c of candidates.slice(0, 500)) {
+        try {
+          const r = await apiPost<{ ok?: boolean }>('/api/customers', { ...c, source: 'manual_entry' });
+          if (r?.ok) added += 1;
+        } catch {
+          // skip failures, keep going
+        }
+      }
+      Alert.alert('✓', `Εισήχθησαν ${added} ${added === 1 ? 'πελάτης' : 'πελάτες'} από τις επαφές.`);
+      void load(q, status);
+    } catch {
+      Alert.alert('Σφάλμα', 'Η εισαγωγή απέτυχε.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safe} edges={['top']}>
@@ -98,14 +160,24 @@ export default function CustomersListScreen() {
           <ThemedText type="subtitle" style={styles.title}>
             Πελάτες
           </ThemedText>
-          {/* Walk-up / referral customers get saved on the spot — no laptop detour. */}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Νέος πελάτης"
-            onPress={() => setAddOpen(true)}
-            style={({ pressed }) => [styles.addBtn, pressed && styles.rowPressed]}>
-            <Ionicons name="add" size={24} color={Brand.onPrimary} />
-          </Pressable>
+          <View style={styles.titleActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Εισαγωγή από επαφές"
+              onPress={() => void importContacts()}
+              disabled={importing}
+              style={({ pressed }) => [styles.importBtn, (pressed || importing) && styles.rowPressed]}>
+              {importing ? <ActivityIndicator size="small" color={Brand.primary} /> : <Ionicons name="cloud-download-outline" size={20} color={Brand.primary} />}
+            </Pressable>
+            {/* Walk-up / referral customers get saved on the spot — no laptop detour. */}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Νέος πελάτης"
+              onPress={() => setAddOpen(true)}
+              style={({ pressed }) => [styles.addBtn, pressed && styles.rowPressed]}>
+              <Ionicons name="add" size={24} color={Brand.onPrimary} />
+            </Pressable>
+          </View>
         </View>
 
         {/* Search */}
@@ -293,6 +365,15 @@ const styles = StyleSheet.create({
     paddingRight: Spacing.four,
   },
   title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.two },
+  titleActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: Spacing.three },
+  importBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Brand.primarySoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   addBtn: {
     width: 40,
     height: 40,
@@ -300,7 +381,6 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: Spacing.three,
   },
   searchBox: {
     flexDirection: 'row',

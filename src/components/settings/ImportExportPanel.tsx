@@ -120,12 +120,21 @@ export default function ImportExportPanel() {
   }
 
   async function fetchAllCustomers(token: string): Promise<ApiCustomer[]> {
-    const res = await fetch('/api/customers?limit=5000', {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) throw new Error('fetch_failed');
-    const data = await res.json();
-    return Array.isArray(data) ? data : (data.customers ?? []);
+    // The list API caps `limit` at 100, so page through with offset until a
+    // short page — otherwise export + import dedup only ever saw 100 customers.
+    const all: ApiCustomer[] = [];
+    const PAGE = 100;
+    for (let offset = 0; offset < 20000; offset += PAGE) {
+      const res = await fetch(`/api/customers?limit=${PAGE}&offset=${offset}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('fetch_failed');
+      const data = await res.json();
+      const page: ApiCustomer[] = Array.isArray(data) ? data : (data.customers ?? []);
+      all.push(...page);
+      if (page.length < PAGE) break;
+    }
+    return all;
   }
 
   async function handleExport() {
