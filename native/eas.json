@@ -26,13 +26,7 @@
   },
   "submit": {
     "production": {
-      "ios": {
-        "comment": "Fill ascAppId (App Store Connect app id) + appleTeamId, or run `eas submit -p ios` interactively. Apple API key is cached in EAS from session 14.",
-        "ascAppId": "",
-        "appleTeamId": ""
-      },
       "android": {
-        "comment": "Play Console: create the app, upload one AAB manually first, then a Google service-account JSON (serviceAccountKeyPath) enables `eas submit -p android`. Production Android needs an AAB build (eas build -p android --profile production), not the preview APK.",
         "serviceAccountKeyPath": "./play-service-account.json",
         "track": "internal"
       }
