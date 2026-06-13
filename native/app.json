@@ -71,7 +71,15 @@
           "cameraPermission": "Η Opiflow χρειάζεται πρόσβαση στην κάμερα για να τραβάς φωτογραφίες της εργασίας."
         }
       ],
-      "./plugins/withFirebaseAndroidOnly"
+      "./plugins/withFirebaseAndroidOnly",
+      [
+        "expo-build-properties",
+        {
+          "ios": {
+            "useFrameworks": "static"
+          }
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
