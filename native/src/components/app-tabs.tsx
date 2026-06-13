@@ -40,6 +40,14 @@ export default function AppTabs() {
         name="settings"
         options={{ title: 'Ρυθμίσεις', tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} /> }}
       />
+
+      {/* Secondary screens — reachable from the Αρχική dashboard / header, hidden
+          from the tab bar (mirrors the web, which also has only 4 nav tabs). */}
+      <Tabs.Screen name="tasks" options={{ href: null }} />
+      <Tabs.Screen name="appointments" options={{ href: null }} />
+      <Tabs.Screen name="offers" options={{ href: null }} />
+      <Tabs.Screen name="stats" options={{ href: null }} />
+      <Tabs.Screen name="search" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -143,7 +143,7 @@ export default function HomeScreen() {
             <View style={styles.logo}>
               <ThemedText style={styles.logoMark}>O</ThemedText>
             </View>
-            <View>
+            <View style={{ flex: 1 }}>
               <ThemedText type="subtitle" style={styles.headerTitle}>
                 {greeting}
               </ThemedText>
@@ -151,6 +151,19 @@ export default function HomeScreen() {
                 {new Date().toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </ThemedText>
             </View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Αναζήτηση" onPress={() => router.push('/search' as never)} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
+              <Ionicons name="search" size={22} color={Brand.primary} />
+            </Pressable>
+            <Pressable accessibilityRole="button" accessibilityLabel="Στατιστικά" onPress={() => router.push('/stats' as never)} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
+              <Ionicons name="stats-chart" size={22} color={Brand.primary} />
+            </Pressable>
+          </View>
+
+          {/* Quick links to the secondary screens (hidden from the tab bar). */}
+          <View style={styles.quickLinks}>
+            <QuickLink icon="checkbox" label="Εργασίες" onPress={() => router.push('/tasks' as never)} />
+            <QuickLink icon="calendar" label="Ραντεβού" onPress={() => router.push('/appointments' as never)} />
+            <QuickLink icon="document-text" label="Προσφορές" onPress={() => router.push('/offers' as never)} />
           </View>
 
           {phoneState === 'error' ? (
@@ -175,11 +188,11 @@ export default function HomeScreen() {
               {/* Stats */}
               <View style={styles.statsRow}>
                 <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} onPress={() => router.push('/customers/index')} />
-                <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} />
+                <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} onPress={() => router.push('/appointments' as never)} />
               </View>
               <View style={styles.statsRow}>
-                <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} />
-                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} onPress={() => router.push('/customers/index')} />
+                <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} onPress={() => router.push('/tasks' as never)} />
+                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} onPress={() => router.push('/offers' as never)} />
               </View>
 
               {/* Today's appointments */}
@@ -361,6 +374,15 @@ function StatCard({
   );
 }
 
+function QuickLink({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}>
+      <Ionicons name={icon} size={18} color={Brand.primary} />
+      <ThemedText type="small" style={styles.quickLinkText}>{label}</ThemedText>
+    </Pressable>
+  );
+}
+
 function SectionTitle({ icon, title }: { icon: keyof typeof Ionicons.glyphMap; title: string }) {
   return (
     <View style={styles.sectionTitle}>
@@ -385,6 +407,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
   header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingTop: Spacing.four, paddingBottom: Spacing.three },
+  headerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+  quickLinks: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
+  quickLink: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 40, borderRadius: 12, backgroundColor: Brand.primarySoft },
+  quickLinkText: { color: Brand.primary, fontWeight: '700' },
   headerTitle: { fontSize: 26, lineHeight: 32 },
   logo: { width: 48, height: 48, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
   logoMark: { color: Brand.onPrimary, fontSize: 26, fontWeight: '800' },
