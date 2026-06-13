@@ -4,7 +4,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -23,6 +23,21 @@ const PHONE_LABEL: Record<string, string> = {
   registered: 'Συνδεδεμένο ✓',
   error: 'Σφάλμα',
 };
+
+interface Snippet { id: string; title: string; body: string }
+
+const DEFAULT_AUTO_REPLY = 'Γεια σας! Λάβαμε την κλήση σας εκτός ωραρίου. Θα σας καλέσουμε το συντομότερο δυνατό. Ευχαριστούμε!';
+const WEEK_DAYS: Array<{ n: number; label: string }> = [
+  { n: 1, label: 'Δε' }, { n: 2, label: 'Τρ' }, { n: 3, label: 'Τε' },
+  { n: 4, label: 'Πε' }, { n: 5, label: 'Πα' }, { n: 6, label: 'Σα' }, { n: 7, label: 'Κυ' },
+];
+
+interface MessagingSettings {
+  businessHours: { days: number[]; open: string; close: string } | null;
+  autoReplyEnabled: boolean;
+  autoReplyText: string | null;
+  weeklySummaryEnabled: boolean;
+}
 
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
@@ -50,12 +65,46 @@ export default function SettingsScreen() {
   const [catVat, setCatVat] = useState('24');
   const [catBusy, setCatBusy] = useState(false);
 
+  // ----- snippets (message templates) -----
+  const [snippets, setSnippets] = useState<Snippet[]>([]);
+  const [snTitle, setSnTitle] = useState('');
+  const [snBody, setSnBody] = useState('');
+  const [snEditId, setSnEditId] = useState<string | null>(null);
+  const [snBusy, setSnBusy] = useState(false);
+
+  // ----- automations (hours / auto-reply / weekly summary) -----
+  const [autoLoaded, setAutoLoaded] = useState(false);
+  const [autoReplyEnabled, setAutoReplyEnabled] = useState(false);
+  const [autoReplyText, setAutoReplyText] = useState(DEFAULT_AUTO_REPLY);
+  const [hoursEnabled, setHoursEnabled] = useState(false);
+  const [hoursDays, setHoursDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [hoursOpen, setHoursOpen] = useState('09:00');
+  const [hoursClose, setHoursClose] = useState('18:00');
+  const [weeklyEnabled, setWeeklyEnabled] = useState(true);
+  const [autoBusy, setAutoBusy] = useState(false);
+
   const load = useCallback(async () => {
     try {
-      const [b, c] = await Promise.all([
+      const [b, c, sn, ms] = await Promise.all([
         apiGet<{ ok?: boolean; business?: Business }>('/api/businesses/me'),
         apiGet<{ ok?: boolean; items?: CatalogItem[] }>('/api/catalog'),
+        apiGet<{ ok?: boolean; snippets?: Snippet[] }>('/api/snippets'),
+        apiGet<{ ok?: boolean; settings?: MessagingSettings }>('/api/businesses/me/messaging-settings'),
       ]);
+      setSnippets(sn?.snippets ?? []);
+      if (ms?.settings) {
+        const s = ms.settings;
+        if (s.businessHours) {
+          setHoursEnabled(true);
+          setHoursDays(s.businessHours.days);
+          setHoursOpen(s.businessHours.open);
+          setHoursClose(s.businessHours.close);
+        }
+        setAutoReplyEnabled(s.autoReplyEnabled);
+        if (s.autoReplyText) setAutoReplyText(s.autoReplyText);
+        setWeeklyEnabled(s.weeklySummaryEnabled);
+        setAutoLoaded(true);
+      }
       if (b?.business) {
         setBiz(b.business);
         setBizForm({
@@ -139,6 +188,67 @@ export default function SettingsScreen() {
       Alert.alert('Σφάλμα', 'Η προσθήκη απέτυχε.');
     } finally {
       setCatBusy(false);
+    }
+  }
+
+  // ----- snippets CRUD -----
+  async function saveSnippet() {
+    if (!snTitle.trim() || !snBody.trim() || snBusy) return;
+    setSnBusy(true);
+    try {
+      if (snEditId) {
+        const res = await apiPatch<{ ok?: boolean }>(`/api/snippets/${snEditId}`, { title: snTitle.trim(), body: snBody.trim() });
+        if (!res?.ok) throw new Error();
+      } else {
+        const res = await apiPost<{ ok?: boolean }>('/api/snippets', { title: snTitle.trim(), body: snBody.trim() });
+        if (!res?.ok) throw new Error();
+      }
+      setSnTitle('');
+      setSnBody('');
+      setSnEditId(null);
+      void load();
+    } catch {
+      Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
+    } finally {
+      setSnBusy(false);
+    }
+  }
+
+  function onSnippetTap(s: Snippet) {
+    Alert.alert(s.title, undefined, [
+      { text: 'Επεξεργασία', onPress: () => { setSnEditId(s.id); setSnTitle(s.title); setSnBody(s.body); } },
+      {
+        text: 'Διαγραφή',
+        style: 'destructive',
+        onPress: async () => {
+          setSnippets((prev) => prev.filter((x) => x.id !== s.id));
+          try { await apiDelete(`/api/snippets/${s.id}`); } catch { void load(); }
+        },
+      },
+      { text: 'Άκυρο', style: 'cancel' },
+    ]);
+  }
+
+  // ----- automations save -----
+  function toggleHoursDay(n: number) {
+    setHoursDays((prev) => (prev.includes(n) ? prev.filter((d) => d !== n) : [...prev, n].sort()));
+  }
+
+  async function saveAutomations() {
+    setAutoBusy(true);
+    try {
+      const res = await apiPatch<{ ok?: boolean; hint?: string }>('/api/businesses/me/messaging-settings', {
+        businessHours: hoursEnabled && hoursDays.length > 0 ? { days: hoursDays, open: hoursOpen, close: hoursClose } : null,
+        autoReplyEnabled,
+        autoReplyText: autoReplyText.trim() || null,
+        weeklySummaryEnabled: weeklyEnabled,
+      });
+      if (res?.ok) Alert.alert('✓', 'Αποθηκεύτηκε.');
+      else Alert.alert('Σφάλμα', res?.hint === 'migration_044_pending' ? 'Η βάση δεν είναι ακόμη έτοιμη γι’ αυτό.' : 'Η αποθήκευση απέτυχε.');
+    } catch {
+      Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
+    } finally {
+      setAutoBusy(false);
     }
   }
 
@@ -248,11 +358,101 @@ export default function SettingsScreen() {
             </ThemedText>
           </Section>
 
+          {/* Πρότυπα μηνυμάτων */}
+          <Section title="Πρότυπα μηνυμάτων" count={snippets.length}>
+            {snippets.map((s) => (
+              <ListRow key={s.id} title={s.title} subtitle={s.body} onPress={() => onSnippetTap(s)} />
+            ))}
+            <ThemedText type="smallBold" style={styles.subhead}>
+              {snEditId ? 'Επεξεργασία προτύπου' : 'Νέο πρότυπο'}
+            </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Μπορείς να βάλεις {'{όνομα}'}, {'{ημερομηνία}'}, {'{ώρα}'}, {'{διεύθυνση}'} — συμπληρώνονται αυτόματα.
+            </ThemedText>
+            <Input label="Τίτλος" value={snTitle} onChangeText={setSnTitle} placeholder="π.χ. Ερχόμαστε σύντομα" />
+            <Input label="Κείμενο" value={snBody} onChangeText={setSnBody} multiline />
+            <View style={styles.inlineBtns}>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label={snEditId ? 'Αποθήκευση' : 'Προσθήκη'} onPress={() => void saveSnippet()} busy={snBusy} disabled={!snTitle.trim() || !snBody.trim()} />
+              </View>
+              {snEditId ? (
+                <View style={{ flex: 1 }}>
+                  <PrimaryButton label="Άκυρο" tone="outline" onPress={() => { setSnEditId(null); setSnTitle(''); setSnBody(''); }} />
+                </View>
+              ) : null}
+            </View>
+            <ThemedText type="small" themeColor="textSecondary">
+              Tip: πάτησε ένα πρότυπο για επεξεργασία ή διαγραφή. Τα πρότυπα μπαίνουν με ένα tap στη συνομιλία.
+            </ThemedText>
+          </Section>
+
+          {/* Ωράριο & αυτοματισμοί */}
+          <Section title="Ωράριο & αυτοματισμοί">
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">Αυτόματη απάντηση σε αναπάντητη</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Εκτός ωραρίου, ο πελάτης λαμβάνει αυτόματο μήνυμα (Viber → SMS).
+                </ThemedText>
+              </View>
+              <Switch value={autoReplyEnabled} onValueChange={setAutoReplyEnabled} trackColor={{ true: Brand.primary }} />
+            </View>
+            {autoReplyEnabled ? (
+              <Input label="Μήνυμα" value={autoReplyText} onChangeText={setAutoReplyText} multiline />
+            ) : null}
+
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">Ωράριο λειτουργίας</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Καθορίζει το «εκτός ωραρίου». Χωρίς ωράριο, στέλνεται σε κάθε αναπάντητη.
+                </ThemedText>
+              </View>
+              <Switch value={hoursEnabled} onValueChange={setHoursEnabled} trackColor={{ true: Brand.primary }} />
+            </View>
+            {hoursEnabled ? (
+              <>
+                <View style={styles.dayRow}>
+                  {WEEK_DAYS.map((d) => (
+                    <Pressable
+                      key={d.n}
+                      onPress={() => toggleHoursDay(d.n)}
+                      style={({ pressed }) => [styles.dayChip, hoursDays.includes(d.n) && styles.dayChipOn, pressed && styles.pressed]}>
+                      <ThemedText type="small" style={hoursDays.includes(d.n) ? styles.dayChipOnText : styles.dayChipText}>
+                        {d.label}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+                <View style={styles.catRow}>
+                  <View style={styles.catCol}>
+                    <Input label="Από (ΩΩ:ΛΛ)" value={hoursOpen} onChangeText={setHoursOpen} placeholder="09:00" />
+                  </View>
+                  <View style={styles.catCol}>
+                    <Input label="Έως (ΩΩ:ΛΛ)" value={hoursClose} onChangeText={setHoursClose} placeholder="18:00" />
+                  </View>
+                </View>
+              </>
+            ) : null}
+
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">Εβδομαδιαία σύνοψη</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Μία ειδοποίηση τη βδομάδα: κλήσεις, αναπάντητες, εκκρεμότητες.
+                </ThemedText>
+              </View>
+              <Switch value={weeklyEnabled} onValueChange={setWeeklyEnabled} trackColor={{ true: Brand.primary }} />
+            </View>
+
+            <PrimaryButton label="Αποθήκευση" onPress={() => void saveAutomations()} busy={autoBusy} disabled={!autoLoaded} />
+          </Section>
+
           {/* Δεδομένα / Ειδοποιήσεις hint */}
           <Section title="Δεδομένα & Ειδοποιήσεις">
             <ThemedText type="small" themeColor="textSecondary">
-              Εισαγωγή/εξαγωγή πελατών (CSV), ομάδα και ρυθμίσεις ειδοποιήσεων γίνονται από το web:
-              www.opiflow.ai → Ρυθμίσεις.
+              Εξαγωγή πελατών (CSV), ομάδα και δοκιμή ειδοποιήσεων γίνονται από το web:
+              www.opiflow.ai → Ρυθμίσεις. (Η εισαγωγή επαφών γίνεται από την καρτέλα «Πελάτες».)
             </ThemedText>
           </Section>
 
@@ -299,6 +499,13 @@ const styles = StyleSheet.create({
   subhead: { marginTop: Spacing.two },
   catRow: { flexDirection: 'row', gap: Spacing.two },
   catCol: { flex: 1 },
+  inlineBtns: { flexDirection: 'row', gap: Spacing.two },
+  toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: 6 },
+  dayRow: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
+  dayChip: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#F2F4F7' },
+  dayChipOn: { backgroundColor: Brand.primary },
+  dayChipText: { color: '#5B6472', fontWeight: '700' },
+  dayChipOnText: { color: '#FFFFFF', fontWeight: '700' },
   signout: {
     height: 50,
     borderRadius: 14,

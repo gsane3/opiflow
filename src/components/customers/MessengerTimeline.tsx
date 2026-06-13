@@ -107,6 +107,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const [drafting, setDrafting] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleAt, setScheduleAt] = useState('');
+  const [pendingScheduled, setPendingScheduled] = useState<{ id: string; body: string; scheduledFor: string }[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
@@ -231,6 +232,35 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
     }
   }
 
+  async function loadPendingScheduled() {
+    const headers = await authHeaders();
+    if (!headers) return;
+    try {
+      const res = await fetch(`/api/customers/${customerId}/scheduled-messages`, { headers });
+      const json = await res.json().catch(() => ({}));
+      setPendingScheduled(json?.ok && Array.isArray(json.messages) ? json.messages : []);
+    } catch {
+      setPendingScheduled([]);
+    }
+  }
+
+  async function cancelScheduled(id: string) {
+    setPendingScheduled((prev) => prev.filter((p) => p.id !== id));
+    const headers = await authHeaders();
+    if (!headers) return;
+    try {
+      await fetch(`/api/scheduled-messages/${id}`, { method: 'DELETE', headers });
+    } catch {
+      void loadPendingScheduled();
+    }
+  }
+
+  function toggleSchedule() {
+    const next = !scheduleOpen;
+    setScheduleOpen(next);
+    if (next) void loadPendingScheduled();
+  }
+
   async function scheduleMessage() {
     const text = messageText.trim();
     if (!text || !scheduleAt || sending) return;
@@ -246,7 +276,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         body: JSON.stringify({ text, scheduledFor: when.toISOString() }),
       });
       const json = await res.json().catch(() => ({}));
-      if (json?.ok) { setMessageText(''); setScheduleOpen(false); setScheduleAt(''); }
+      if (json?.ok) { setMessageText(''); setScheduleAt(''); void loadPendingScheduled(); }
       else setError(json?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Ο προγραμματισμός απέτυχε.');
     } catch {
       setError('Ο προγραμματισμός απέτυχε.');
@@ -457,6 +487,23 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
 
       {/* Schedule-later panel */}
       {scheduleOpen && (
+        <>
+        {pendingScheduled.length > 0 && (
+          <div className="shrink-0 space-y-1 border-t border-zinc-200/60 bg-white px-3 py-2">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Προγραμματισμένα ({pendingScheduled.length})</p>
+            {pendingScheduled.map((p) => (
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] tabular-nums text-zinc-400">{fmtTime(p.scheduledFor)}</p>
+                  <p className="truncate text-[13px] text-zinc-700">{p.body}</p>
+                </div>
+                <button type="button" onClick={() => void cancelScheduled(p.id)} aria-label="Ακύρωση" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-red-500 transition hover:bg-red-50">
+                  <svg className="h-4 w-4" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200/60 bg-white px-3 py-2">
           <span className="text-xs font-semibold text-zinc-500">Αποστολή στις:</span>
           <input
@@ -469,6 +516,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
             Προγραμμάτισε
           </button>
         </div>
+        </>
       )}
 
       {/* Composer */}
@@ -479,7 +527,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
         <button type="button" onClick={() => void toggleSnippets()} aria-label="Πρότυπα μηνυμάτων" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${snippetsOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
         </button>
-        <button type="button" onClick={() => setScheduleOpen((v) => !v)} aria-label="Αποστολή αργότερα" title="Αποστολή αργότερα" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${scheduleOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
+        <button type="button" onClick={toggleSchedule} aria-label="Αποστολή αργότερα" title="Αποστολή αργότερα" className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition active:scale-95 ${scheduleOpen ? 'bg-indigo-600 text-white' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}>
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
         </button>
         <button type="button" onClick={() => void draftReply()} disabled={drafting} aria-label="Πρόταση απάντησης" title="Πρόταση απάντησης" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition active:scale-95 enabled:hover:bg-indigo-100 disabled:opacity-50">

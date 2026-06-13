@@ -24,7 +24,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing } from '@/constants/theme';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
 import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
 
@@ -448,6 +448,18 @@ function MessageModal({
   const [scheduleMode, setScheduleMode] = useState(false);
   const [schedDate, setSchedDate] = useState('');
   const [schedTime, setSchedTime] = useState('');
+  const [pending, setPending] = useState<Array<{ id: string; body: string; scheduledFor: string }>>([]);
+
+  const loadPending = useCallback(async () => {
+    try {
+      const res = await apiGet<{ ok?: boolean; messages?: Array<{ id: string; body: string; scheduledFor: string }> }>(
+        `/api/customers/${customerId}/scheduled-messages`,
+      );
+      setPending(res?.messages ?? []);
+    } catch {
+      setPending([]);
+    }
+  }, [customerId]);
 
   useEffect(() => {
     if (visible) {
@@ -456,8 +468,14 @@ function MessageModal({
       setScheduleMode(false);
       setSchedDate('');
       setSchedTime('');
+      void loadPending();
     }
-  }, [visible]);
+  }, [visible, loadPending]);
+
+  async function cancelPending(id: string) {
+    setPending((prev) => prev.filter((p) => p.id !== id));
+    try { await apiDelete(`/api/scheduled-messages/${id}`); } catch { void loadPending(); }
+  }
 
   async function schedule() {
     const t = text.trim();
@@ -544,6 +562,33 @@ function MessageModal({
 
   return (
     <SheetModal visible={visible} title="Μήνυμα στον πελάτη" onClose={onClose}>
+      {pending.length > 0 ? (
+        <View style={styles.pendingBox}>
+          <ThemedText type="smallBold" style={styles.dark}>
+            Προγραμματισμένα ({pending.length})
+          </ThemedText>
+          {pending.map((p) => (
+            <View key={p.id} style={styles.pendingItem}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  {formatWhen(p.scheduledFor)}
+                </ThemedText>
+                <ThemedText type="small" style={styles.dark} numberOfLines={1}>
+                  {p.body}
+                </ThemedText>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ακύρωση"
+                onPress={() => void cancelPending(p.id)}
+                hitSlop={8}
+                style={({ pressed }) => [pressed && styles.pressed]}>
+                <Ionicons name="close-circle" size={22} color="#D14343" />
+              </Pressable>
+            </View>
+          ))}
+        </View>
+      ) : null}
       <Input label="Μήνυμα (Viber → SMS)" value={text} onChangeText={setText} placeholder="Γράψε ή διάλεξε πρότυπο…" multiline />
       <View style={styles.msgTools}>
         <Pressable onPress={() => void loadSnippets()} style={({ pressed }) => [styles.snippetToggle, pressed && styles.pressed]}>
@@ -1078,6 +1123,8 @@ const styles = StyleSheet.create({
   suggestBox: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#E3E7ED', borderRadius: 12, marginTop: 4, overflow: 'hidden' },
   suggestItem: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two, paddingHorizontal: Spacing.three, paddingVertical: 10 },
 
+  pendingBox: { backgroundColor: '#F7F9FB', borderRadius: 12, padding: Spacing.three, gap: Spacing.one },
+  pendingItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 4 },
   msgTools: { flexDirection: 'row', alignItems: 'center', gap: Spacing.four },
   snippetToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.one },
   snippetList: { gap: Spacing.one },
