@@ -125,9 +125,32 @@ export function CallActionSheet({
         source: 'inbound_call',
       });
       if (res?.customer?.id) {
-        await apiPatch(`/api/communications?id=${call!.id}`, { customerId: res.customer.id });
+        const newId = res.customer.id;
+        await apiPatch(`/api/communications?id=${call!.id}`, { customerId: newId });
         onChanged();
-        onClose();
+        // Post-call intake prompt: for an inbound caller we now have, offer to
+        // immediately ask them for job details (web parity — the inbound flow
+        // nudges toward an intake link).
+        if (call!.direction === 'inbound') {
+          Alert.alert('Επαφή δημιουργήθηκε', 'Να σταλεί αίτημα στοιχείων στον πελάτη (Viber → SMS);', [
+            { text: 'Όχι', style: 'cancel', onPress: onClose },
+            {
+              text: 'Αποστολή αιτήματος',
+              onPress: async () => {
+                try {
+                  const r = await apiPost<{ sent?: boolean; error?: string }>(`/api/customers/${newId}/intake-link`, { mode: 'send' });
+                  Alert.alert(r?.sent ? '✓' : 'Αποστολή', r?.sent ? 'Στάλθηκε αίτημα στοιχείων.' : 'Δεν στάλθηκε (λείπει κινητό;).');
+                } catch {
+                  Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε.');
+                } finally {
+                  onClose();
+                }
+              },
+            },
+          ]);
+        } else {
+          onClose();
+        }
       } else {
         Alert.alert('Σφάλμα', 'Η επαφή δεν δημιουργήθηκε.');
       }

@@ -27,6 +27,7 @@ import { Brand, Spacing } from '@/constants/theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
 import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
+import { pickAndUploadPhotos } from '@/lib/upload';
 
 export default function CustomerWorkspaceScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -115,11 +116,35 @@ export default function CustomerWorkspaceScreen() {
   }
 
   function chooseRequest() {
-    Alert.alert('Αίτημα προς πελάτη', 'Τι θες να ζητήσεις;', [
-      { text: 'Αίτημα στοιχείων', onPress: () => sendRequest('intake') },
-      { text: 'Αίτημα φωτογραφιών', onPress: () => sendRequest('upload') },
+    Alert.alert('Στοιχεία & αρχεία', undefined, [
+      { text: 'Ανέβασμα φωτογραφίας (από εμένα)', onPress: photoSource },
+      { text: 'Αίτημα στοιχείων (στον πελάτη)', onPress: () => sendRequest('intake') },
+      { text: 'Αίτημα φωτογραφιών (στον πελάτη)', onPress: () => sendRequest('upload') },
       { text: 'Ακύρωση', style: 'cancel' },
     ]);
+  }
+
+  function photoSource() {
+    Alert.alert('Ανέβασμα φωτογραφίας', undefined, [
+      { text: 'Κάμερα', onPress: () => void runUpload('camera') },
+      { text: 'Από συλλογή', onPress: () => void runUpload('library') },
+      { text: 'Ακύρωση', style: 'cancel' },
+    ]);
+  }
+
+  async function runUpload(src: 'camera' | 'library') {
+    setSending(true);
+    try {
+      const r = await pickAndUploadPhotos(String(id), src);
+      if (r.ok) {
+        Alert.alert('✓', `Ανέβηκε ${r.count > 1 ? `${r.count} φωτογραφίες` : 'η φωτογραφία'}.`);
+        void load();
+      } else if (r.error !== 'canceled') {
+        Alert.alert('Σφάλμα', r.error);
+      }
+    } finally {
+      setSending(false);
+    }
   }
 
   async function dismissSuggestion(sid: string) {
