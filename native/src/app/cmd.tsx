@@ -66,7 +66,9 @@ function addDays(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function CmdScreen() {
+// Body of the AI command assistant. Rendered both as the /cmd route (fallback)
+// and — primarily — inside the bottom-sheet host (see components/ai-sheet.tsx).
+export function AiCommand({ onClose }: { onClose?: () => void }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
@@ -293,16 +295,16 @@ export default function CmdScreen() {
 
   return (
     <ThemedView style={styles.fill}>
-      <SafeAreaView edges={['top']} style={styles.headerSafe}>
+      <SafeAreaView edges={onClose ? [] : ['top']} style={styles.headerSafe}>
         <View style={styles.header}>
-          <Pressable onPress={() => router.back()} hitSlop={10} style={styles.back}>
-            <Ionicons name="chevron-back" size={28} color={Brand.primary} />
-          </Pressable>
+          <Ionicons name="sparkles" size={22} color={Brand.primary} />
           <View style={{ flex: 1 }}>
             <ThemedText type="subtitle" style={styles.title}>AI εντολές</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">Γράψε ή υπαγόρευσε — βλέπεις έλεγχο πριν αποθηκευτεί.</ThemedText>
           </View>
-          <Ionicons name="sparkles" size={22} color={Brand.primary} />
+          <Pressable onPress={() => (onClose ? onClose() : router.back())} hitSlop={10} style={styles.back}>
+            <Ionicons name="close" size={26} color={c.textSecondary} />
+          </Pressable>
         </View>
       </SafeAreaView>
 
@@ -475,6 +477,11 @@ export default function CmdScreen() {
       </ScrollView>
     </ThemedView>
   );
+}
+
+// /cmd route fallback (the FAB now opens AiCommand as a bottom sheet instead).
+export default function CmdScreen() {
+  return <AiCommand />;
 }
 
 function Row({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
