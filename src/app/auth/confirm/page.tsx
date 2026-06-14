@@ -38,19 +38,40 @@ export default function AuthConfirmPage() {
         return;
       }
 
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-      const tokenHash = params.get('token_hash');
-      const type = params.get('type');
+      // Supabase returns the confirmation in the query string (?token_hash, ?code)
+      // OR the URL hash fragment (#access_token, implicit flow — the default
+      // "Confirm email change" link lands here after Supabase verifies it).
+      const search = new URLSearchParams(window.location.search);
+      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''));
 
+      // Expired/used links come back as ?error=... or #error=...
+      if (search.get('error') || search.get('error_description') || hash.get('error') || hash.get('error_description')) {
+        setState('error');
+        return;
+      }
+
+      const code = search.get('code');
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
         setState(error ? 'error' : 'success');
         return;
       }
 
+      // token_hash + type, in either the query or the hash → verifyOtp.
+      const tokenHash = search.get('token_hash') ?? hash.get('token_hash');
+      const type = search.get('type') ?? hash.get('type');
       if (tokenHash && type && isOtpType(type)) {
         const { error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type });
+        setState(error ? 'error' : 'success');
+        return;
+      }
+
+      // Implicit flow: Supabase already verified server-side and put the session
+      // tokens in the hash. setSession finalises the (email-change) confirmation.
+      const accessToken = hash.get('access_token');
+      const refreshToken = hash.get('refresh_token');
+      if (accessToken && refreshToken) {
+        const { error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
         setState(error ? 'error' : 'success');
         return;
       }
