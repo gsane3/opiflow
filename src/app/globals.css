@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* Class-based dark mode (manual toggle, like the native «Σκούρο θέμα»). A `dark`
+   class on <html> activates every `dark:` variant; ThemeToggle persists it. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   /* Geist covers Latin; Greek glyphs fall back to the native system font so the
      UI looks right on every platform (and "native" inside an app wrapper). */
@@ -51,6 +55,16 @@ html {
 body {
   /* Kill the grey/blue tap flash so taps feel native. */
   -webkit-tap-highlight-color: transparent;
+}
+
+/* Dark theme base (navy, matching the native app). Per-screen surfaces add
+   their own `dark:` variants; this covers the page backdrop + form controls. */
+html.dark {
+  color-scheme: dark;
+}
+.dark body {
+  background-color: #0e1722;
+  color: #eaf0f6;
 }
 
 /* iOS safe-area helpers (active when viewport-fit=cover). */

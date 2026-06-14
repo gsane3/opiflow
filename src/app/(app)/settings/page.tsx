@@ -16,8 +16,9 @@ import NativeCallTestPanel from '@/components/settings/NativeCallTestPanel';
 import SystemStatusCard from '@/components/settings/SystemStatusCard';
 import TeamPanel from '@/components/settings/TeamPanel';
 import ServiceCatalogPanel from '@/components/settings/ServiceCatalogPanel';
+import AppearancePanel from '@/components/settings/AppearancePanel';
 
-type SettingsSection = 'business' | 'telephony' | 'catalog' | 'snippets' | 'automations' | 'data' | 'account' | 'notifications';
+type SettingsSection = 'business' | 'telephony' | 'appearance' | 'catalog' | 'snippets' | 'automations' | 'data' | 'account' | 'notifications';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -58,6 +59,7 @@ type BusinessMeResponse = {
 const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
   telephony: 'Τηλεφωνία',
+  appearance: 'Εμφάνιση',
   catalog: 'Κατάλογος υπηρεσιών',
   snippets: 'Πρότυπα μηνυμάτων',
   automations: 'Ωράριο & αυτοματισμοί',
@@ -446,6 +448,17 @@ export default function SettingsPage() {
                 bg: 'bg-indigo-50',
               },
               {
+                id: 'appearance' as SettingsSection,
+                label: 'Εμφάνιση',
+                subtitle: 'Σκούρο θέμα',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
                 id: 'catalog' as SettingsSection,
                 label: 'Κατάλογος υπηρεσιών',
                 subtitle: 'Υπηρεσίες & υλικά με τιμές για προσφορές',
@@ -574,6 +587,7 @@ export default function SettingsPage() {
           </div>
           {activeSection === 'business' && renderBusiness()}
           {activeSection === 'telephony' && renderTelephony()}
+          {activeSection === 'appearance' && <AppearancePanel />}
           {activeSection === 'catalog' && renderCatalog()}
           {activeSection === 'snippets' && renderSnippets()}
           {activeSection === 'automations' && renderAutomations()}

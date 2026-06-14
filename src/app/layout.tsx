@@ -46,14 +46,21 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
 };
 
+// Runs before paint: apply the saved theme (or the system preference) so there's
+// no light flash before React hydrates. Mirrors the native «Σκούρο θέμα» toggle.
+const themeScript = `(function(){try{var t=localStorage.getItem('opiflow-theme');var d=t?t==='dark':window.matchMedia('(prefers-color-scheme: dark)').matches;if(d)document.documentElement.classList.add('dark');}catch(e){}})();`;
+
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <html lang="el" className={`${geist.variable} h-full`}>
-      <body className="h-full bg-zinc-50 text-zinc-900 antialiased font-sans">
+    <html lang="el" className={`${geist.variable} h-full`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
+      <body className="h-full bg-zinc-50 text-zinc-900 antialiased font-sans dark:bg-[#0e1722] dark:text-[#eaf0f6]">
         {children}
       </body>
     </html>
