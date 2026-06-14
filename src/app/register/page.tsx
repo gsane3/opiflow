@@ -49,6 +49,9 @@ export default function RegisterPage() {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // When email confirmation is required, signUp returns no session — show a
+  // "check your email" screen instead of dropping the user into /package.
+  const [awaitingVerify, setAwaitingVerify] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -80,7 +83,7 @@ export default function RegisterPage() {
       return;
     }
 
-    const { error: signUpError } = await supabase.auth.signUp({
+    const { data, error: signUpError } = await supabase.auth.signUp({
       email: trimmedEmail,
       password,
       // Send the confirmation link back to THIS origin (not the Supabase Site URL
@@ -96,6 +99,14 @@ export default function RegisterPage() {
       return;
     }
 
+    // Supabase's email-enumeration protection: signing up an EXISTING email
+    // doesn't error — it returns a user with an empty identities array and no
+    // session. Treat that as "already registered" instead of a silent dead-end.
+    if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
+      setError('Υπάρχει ήδη λογαριασμός με αυτό το email. Κάνε σύνδεση.');
+      return;
+    }
+
     try {
       localStorage.setItem(
         'deskop_onboarding_prefill',
@@ -104,7 +115,16 @@ export default function RegisterPage() {
     } catch {
       // non-fatal
     }
-    router.push('/package');
+
+    if (data.session) {
+      // Email confirmation is disabled → the user is already signed in. Continue.
+      router.push('/package');
+    } else {
+      // Confirmation required → wait for the email link (→ /auth/confirm → /package).
+      // Do NOT push to /package: there's no session, so the app would just bounce
+      // them to /login on the next navigation.
+      setAwaitingVerify(true);
+    }
   }
 
   return (
@@ -133,6 +153,25 @@ export default function RegisterPage() {
           </p>
         </div>
 
+        {awaitingVerify ? (
+          <div className="rounded-2xl bg-indigo-50 p-5 text-center ring-1 ring-indigo-200 dark:bg-indigo-500/10 dark:ring-indigo-500/20">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-500/20">
+              <svg className="h-6 w-6 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
+              </svg>
+            </div>
+            <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Έλεγξε το email σου</p>
+            <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+              Στείλαμε σύνδεσμο επιβεβαίωσης στο{' '}
+              <span className="font-semibold">{email.trim()}</span>. Πάτησέ τον για να ενεργοποιήσεις τον λογαριασμό σου και να συνεχίσεις στην επιλογή πακέτου.
+            </p>
+            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">Δεν ήρθε; Έλεγξε και τα ανεπιθύμητα (spam).</p>
+            <Link href="/login" className="mt-4 inline-block text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+              Πήγαινε στη Σύνδεση
+            </Link>
+          </div>
+        ) : (
+        <>
         <OAuthButtons />
         <div className="my-5 flex items-center gap-3">
           <span className="h-px flex-1 bg-zinc-200 dark:bg-white/10" />
@@ -257,6 +296,8 @@ export default function RegisterPage() {
             Σύνδεση
           </Link>
         </p>
+        </>
+        )}
 
       </div>
     </main>
