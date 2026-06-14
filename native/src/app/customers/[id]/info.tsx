@@ -783,7 +783,7 @@ const styles = StyleSheet.create({
 
   hero: { alignItems: 'center', gap: 6, paddingTop: Spacing.two },
   avatar: { width: 96, height: 96, borderRadius: 48, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: Brand.primary, fontSize: 40, fontWeight: '700' },
+  avatarText: { color: Brand.primary, fontSize: 40, lineHeight: 48, fontWeight: '700' },
   name: { fontSize: 26, lineHeight: 32, textAlign: 'center' },
   badge: { backgroundColor: Brand.primarySoft, paddingHorizontal: Spacing.three, paddingVertical: 4, borderRadius: 999 },
   badgeText: { color: Brand.primary, fontSize: 13, fontWeight: '700' },

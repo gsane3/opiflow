@@ -95,5 +95,5 @@ export const Spacing = {
 } as const;
 
 // Clearance for the floating glass tab bar (bar height + raised FAB + safe area).
-export const BottomTabInset = Platform.select({ ios: 96, android: 96 }) ?? 0;
+export const BottomTabInset = Platform.select({ ios: 110, android: 108 }) ?? 0;
 export const MaxContentWidth = 800;

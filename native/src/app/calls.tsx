@@ -186,7 +186,7 @@ export default function CallsScreen() {
           <View style={styles.keypadWrap}>
             <View style={styles.display}>
               {num ? (
-                <ThemedText style={styles.number} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                <ThemedText style={styles.number} numberOfLines={1} ellipsizeMode="head">
                   {num}
                 </ThemedText>
               ) : (
@@ -404,8 +404,8 @@ const styles = StyleSheet.create({
   tabTextActive: { color: Brand.primary },
 
   keypadWrap: { flex: 1, alignItems: 'center' },
-  display: { minHeight: 76, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.three, paddingHorizontal: Spacing.four },
-  number: { fontSize: 34, fontWeight: '700', letterSpacing: 0.5, color: '#11273B' },
+  display: { minHeight: 84, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.two, paddingHorizontal: Spacing.four },
+  number: { fontSize: 34, lineHeight: 44, fontWeight: '700', letterSpacing: 1, color: '#11273B' },
   numberPlaceholder: { fontSize: 17, fontWeight: '500', color: '#6B7585' },
   debug: { textAlign: 'center', paddingHorizontal: Spacing.four },
   pad: { gap: Spacing.three, marginTop: Spacing.one },
@@ -431,7 +431,7 @@ const styles = StyleSheet.create({
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: Brand.primary },
   overlaySafe: { flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.six },
   overlayTop: { alignItems: 'center', gap: Spacing.three, marginTop: Spacing.six },
-  overlayNumber: { color: '#FFFFFF', fontSize: 34, fontWeight: '700', letterSpacing: 1 },
+  overlayNumber: { color: '#FFFFFF', fontSize: 34, lineHeight: 44, fontWeight: '700', letterSpacing: 1 },
   overlayStatusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
   overlayStatus: { color: 'rgba(255,255,255,0.9)', fontSize: 17 },
   overlayBottom: { alignItems: 'center', gap: Spacing.four, marginBottom: Spacing.five },
@@ -445,5 +445,5 @@ const styles = StyleSheet.create({
   dtmfSent: { color: 'rgba(255,255,255,0.85)', fontSize: 18, letterSpacing: 2, fontWeight: '700' },
   dtmfRow: { flexDirection: 'row', gap: Spacing.three },
   dtmfKey: { width: 56, height: 56, borderRadius: 28, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
-  dtmfKeyText: { color: '#FFFFFF', fontSize: 24, fontWeight: '600' },
+  dtmfKeyText: { color: '#FFFFFF', fontSize: 24, lineHeight: 30, fontWeight: '600' },
 });

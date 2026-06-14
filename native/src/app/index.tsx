@@ -174,7 +174,7 @@ export default function HomeScreen() {
               <ThemedText type="subtitle" style={styles.headerTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
                 {greeting}
               </ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                 {new Date().toLocaleDateString('el-GR', { weekday: 'long', day: 'numeric', month: 'long' })}
               </ThemedText>
             </View>
@@ -191,9 +191,6 @@ export default function HomeScreen() {
             </Pressable>
             <Pressable accessibilityRole="button" accessibilityLabel="Στατιστικά" onPress={() => router.push('/stats' as never)} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
               <Ionicons name="stats-chart" size={22} color={Brand.primary} />
-            </Pressable>
-            <Pressable accessibilityRole="button" accessibilityLabel="AI εντολές" onPress={() => router.push('/cmd' as never)} hitSlop={8} style={({ pressed }) => [styles.headerIcon, pressed && styles.pressed]}>
-              <Ionicons name="sparkles" size={22} color={Brand.primary} />
             </Pressable>
           </View>
 
@@ -470,14 +467,14 @@ const styles = StyleSheet.create({
   quickLinkText: { color: Brand.navy, fontWeight: '700' },
   headerTitle: { fontSize: 26, lineHeight: 32 },
   logo: { width: 48, height: 48, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
-  logoMark: { color: Brand.onPrimary, fontSize: 26, fontWeight: '800' },
+  logoMark: { color: Brand.onPrimary, fontSize: 26, lineHeight: 32, fontWeight: '800' },
   loadingBox: { paddingVertical: Spacing.six, alignItems: 'center' },
 
   statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
   statCardWrap: { flex: 1 },
   statCard: { padding: Spacing.three, borderRadius: 22, gap: 4, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
   statIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  statValue: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5, color: Brand.ink },
+  statValue: { fontSize: 30, lineHeight: 38, fontWeight: '800', letterSpacing: -0.5, color: Brand.ink },
 
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.four, marginBottom: Spacing.two },
   sectionTitleText: { fontSize: 15 },

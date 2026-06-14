@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.four, paddingBottom: BottomTabInset + Spacing.four, gap: Spacing.three },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
   metric: { width: '47.8%', flexGrow: 1, padding: Spacing.three, borderRadius: 16, gap: 4 },
-  metricValue: { fontSize: 22, fontWeight: '800' },
+  metricValue: { fontSize: 22, lineHeight: 28, fontWeight: '800' },
   panel: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: Spacing.three, gap: Spacing.one, borderWidth: 1, borderColor: '#EEF1F5' },
   panelTitle: { marginBottom: Spacing.one },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, paddingVertical: 6 },
