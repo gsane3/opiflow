@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   kav: { flex: 1, justifyContent: 'center', paddingHorizontal: Spacing.four, gap: Spacing.five },
   header: { alignItems: 'center', gap: Spacing.three },
   logo: { width: 72, height: 72, borderRadius: 20, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
-  logoMark: { color: Brand.onPrimary, fontSize: 36, fontWeight: '800' },
+  logoMark: { color: Brand.onPrimary, fontSize: 36, lineHeight: 44, fontWeight: '800' },
   title: { color: Brand.primary },
   tagline: { color: Brand.slate, letterSpacing: 1.2, textTransform: 'uppercase', fontSize: 11 },
   sub: { textAlign: 'center' },

@@ -55,7 +55,7 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   return (
     <View pointerEvents="box-none" style={[styles.wrap, { paddingBottom: insets.bottom ? insets.bottom - 4 : 16 }]}>
       <View style={[styles.barShadow, Shadow.float]}>
-        <BlurView intensity={32} tint="light" style={styles.bar}>
+        <BlurView intensity={45} tint="light" style={styles.bar}>
           <View style={styles.glassOverlay} pointerEvents="none" />
           {LEFT.map(renderTab)}
           <View style={styles.centerSlot} />
@@ -88,7 +88,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(17,39,59,0.08)',
   },
-  glassOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.9)' },
+  glassOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.94)' },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, height: '100%', borderRadius: 18 },
   tabOn: { backgroundColor: Brand.primarySoft },
   label: { fontSize: 11, fontWeight: '600' },
