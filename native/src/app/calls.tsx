@@ -31,6 +31,11 @@ const KEYS: string[][] = [
   ['*', '0', '#'],
 ];
 
+const SUBS: Record<string, string> = {
+  '2': 'ABC', '3': 'DEF', '4': 'GHI', '5': 'JKL', '6': 'MNO',
+  '7': 'PQRS', '8': 'TUV', '9': 'WXYZ', '0': '+',
+};
+
 const STATUS_LABEL: Record<CallStatus, string> = {
   connecting: 'Σύνδεση…',
   ringing: 'Κουδουνίζει…',
@@ -180,9 +185,13 @@ export default function CallsScreen() {
         {tab === 'keypad' ? (
           <View style={styles.keypadWrap}>
             <View style={styles.display}>
-              <ThemedText style={styles.number} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                {num || ' '}
-              </ThemedText>
+              {num ? (
+                <ThemedText style={styles.number} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                  {num}
+                </ThemedText>
+              ) : (
+                <ThemedText style={styles.numberPlaceholder}>Εισήγαγε αριθμό</ThemedText>
+              )}
             </View>
 
             {debug ? (
@@ -200,6 +209,7 @@ export default function CallsScreen() {
                       onPress={() => press(k)}
                       style={({ pressed }) => [styles.key, pressed && styles.keyPressed]}>
                       <ThemedText style={styles.keyText}>{k}</ThemedText>
+                      {SUBS[k] ? <ThemedText style={styles.keySub}>{SUBS[k]}</ThemedText> : null}
                     </Pressable>
                   ))}
                 </View>
@@ -396,12 +406,14 @@ const styles = StyleSheet.create({
   keypadWrap: { flex: 1, alignItems: 'center' },
   display: { minHeight: 76, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.three, paddingHorizontal: Spacing.four },
   number: { fontSize: 34, fontWeight: '700', letterSpacing: 0.5, color: '#11273B' },
+  numberPlaceholder: { fontSize: 17, fontWeight: '500', color: '#6B7585' },
   debug: { textAlign: 'center', paddingHorizontal: Spacing.four },
   pad: { gap: Spacing.three, marginTop: Spacing.one },
   row: { flexDirection: 'row', gap: Spacing.four, justifyContent: 'center' },
   key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
   keyPressed: { backgroundColor: '#E2E7EE' },
-  keyText: { fontSize: 30, fontWeight: '600', color: '#11273B' },
+  keyText: { fontSize: 29, fontWeight: '600', color: '#11273B', lineHeight: 32 },
+  keySub: { fontSize: 9.5, fontWeight: '700', letterSpacing: 1.5, color: '#6B7585', marginTop: -1 },
   actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.four, marginTop: Spacing.three },
   sideSlot: { width: KEY, alignItems: 'center' },
   callBtn: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#21A05A', alignItems: 'center', justifyContent: 'center' },
