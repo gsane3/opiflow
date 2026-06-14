@@ -477,7 +477,7 @@ const styles = StyleSheet.create({
   statCardWrap: { flex: 1 },
   statCard: { padding: Spacing.three, borderRadius: 22, gap: 4, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
   statIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-  statValue: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5, color: Brand.ink, fontVariant: ['tabular-nums'] },
+  statValue: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5, color: Brand.ink },
 
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.four, marginBottom: Spacing.two },
   sectionTitleText: { fontSize: 15 },

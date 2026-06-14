@@ -4,6 +4,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -28,6 +29,11 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const currentName = state.routes[state.index]?.name;
+
+  // Hide the floating bar on pushed detail screens (customer chat/profile have
+  // their own bottom composer + a back header — full-screen, no tab bar).
+  const nestedName = getFocusedRouteNameFromRoute(state.routes[state.index]);
+  if (nestedName && nestedName.includes('[id]')) return null;
 
   function go(name: string) {
     const route = state.routes.find((r) => r.name === name);
