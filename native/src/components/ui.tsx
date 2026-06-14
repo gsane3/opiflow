@@ -2,6 +2,7 @@
 // Light theme only (the product is light-only, like the web app).
 
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { type ReactNode, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,7 +17,7 @@ import {
 } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { Brand, Spacing } from '@/constants/theme';
+import { Brand, BrandGradient, Shadow, Spacing } from '@/constants/theme';
 
 export function SheetModal({
   visible,
@@ -109,11 +110,15 @@ export function PrimaryButton({
       disabled={busy || disabled}
       style={({ pressed }) => [
         styles.btn,
+        tone === 'primary' && Shadow.card,
         tone === 'danger' && styles.btnDanger,
         tone === 'outline' && styles.btnOutline,
         (busy || disabled) && styles.disabled,
         pressed && styles.pressed,
       ]}>
+      {tone === 'primary' ? (
+        <LinearGradient colors={[...BrandGradient]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} />
+      ) : null}
       {busy ? (
         <ActivityIndicator color={tone === 'outline' ? Brand.primary : '#FFFFFF'} />
       ) : (
@@ -241,12 +246,13 @@ const styles = StyleSheet.create({
   inputMultiline: { minHeight: 84, textAlignVertical: 'top' },
 
   btn: {
-    height: 50,
-    borderRadius: 14,
+    height: 52,
+    borderRadius: 16,
     backgroundColor: Brand.primary,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: Spacing.one,
+    overflow: 'hidden',
   },
   btnDanger: { backgroundColor: '#D14343' },
   btnOutline: { backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#D8DEE6' },

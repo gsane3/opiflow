@@ -11,14 +11,30 @@ import { Platform } from 'react-native';
 // Navy·Brand #1A3550, Muted #6B7585.
 export const Brand = {
   primary: '#2A86C5',
+  primaryDeep: '#1A3550',
   primaryPressed: '#226C9E',
   primarySoft: '#E7F0F8',
   onPrimary: '#FFFFFF',
   ink: '#11273B',
   navy: '#1A3550',
   slate: '#6B7585',
+  success: '#18A06A',
+  warn: '#E0922F',
+  danger: '#DA4A4A',
   tagline: 'Customer Action Management',
 } as const;
+
+// Brand gradient stops (water → navy) — buttons, FABs, chat bubbles, icon tiles.
+export const BrandGradient = ['#2A86C5', '#1A3550'] as const;
+export const SuccessGradient = ['#2CC27E', '#18A06A'] as const;
+
+// Layered soft shadows (iOS shadow* + Android elevation).
+export const Shadow = {
+  card: { shadowColor: '#11273B', shadowOpacity: 0.06, shadowRadius: 18, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  float: { shadowColor: '#11273B', shadowOpacity: 0.16, shadowRadius: 28, shadowOffset: { width: 0, height: 14 }, elevation: 10 },
+} as const;
+
+export const Radius = { card: 22, control: 16, pill: 999 } as const;
 
 export const Colors = {
   light: {
@@ -78,5 +94,6 @@ export const Spacing = {
   six: 64,
 } as const;
 
-export const BottomTabInset = Platform.select({ ios: 50, android: 80 }) ?? 0;
+// Clearance for the floating glass tab bar (bar height + raised FAB + safe area).
+export const BottomTabInset = Platform.select({ ios: 96, android: 96 }) ?? 0;
 export const MaxContentWidth = 800;

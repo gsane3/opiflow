@@ -1,23 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
-import { useColorScheme } from 'react-native';
 
-import { Colors } from '@/constants/theme';
+import { GlassTabBar } from '@/components/glass-tab-bar';
 
 // Stable expo-router Tabs (works in release on Expo SDK 54; replaces the SDK-56
-// unstable NativeTabs). Cross-platform — no separate .web variant needed.
+// unstable NativeTabs). The default bar is swapped for a floating glass bar with
+// a center AI FAB (redesign). Cross-platform — no separate .web variant needed.
 export default function AppTabs() {
-  const scheme = useColorScheme();
-  const colors = Colors[scheme === 'dark' ? 'dark' : 'light'];
-
   return (
     <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.tint,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: { backgroundColor: colors.background, borderTopColor: colors.border },
-      }}>
+      tabBar={(props) => <GlassTabBar {...props} />}
+      screenOptions={{ headerShown: false }}>
       <Tabs.Screen
         name="index"
         options={{ title: 'Αρχική', tabBarIcon: ({ color, size }) => <Ionicons name="home" color={color} size={size} /> }}
