@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Card, EmptyState } from '@/components/ui';
 import type { Offer, OfferStatus, Customer } from '@/lib/types';
@@ -112,6 +113,7 @@ function buildOfferBody(offer: Offer): Record<string, unknown> {
 }
 
 export default function OffersPage() {
+  const router = useRouter();
   const [hydrated, setHydrated] = useState(false);
   const [noSession, setNoSession] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -278,6 +280,11 @@ export default function OffersPage() {
         const data = await resp.json();
         const created = mapBackendOffer(data.offer as Record<string, unknown>);
         setOffers((prev) => [...prev, created]);
+        // Take the user straight to the offer page so they can send the link.
+        setShowForm(false);
+        setEditingOffer(null);
+        router.push(`/offers/${created.id}`);
+        return;
       } else {
         setActionError('Αποτυχία δημιουργίας προσφοράς. Δοκίμασε ξανά.');
         return;

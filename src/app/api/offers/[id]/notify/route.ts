@@ -249,7 +249,10 @@ export async function POST(
     // -------------------------------------------------------------------------
 
     const reviewedResponseUrl = str(raw.responseUrl);
-    let messageText: string;
+    // Optional user-edited message from the review/wizard step. We still force the
+    // verified canonical link to be present so SMS (no buttons) stays usable.
+    const customMessage = str(raw.message);
+    let finalUrl: string;
     let verifiedTokenId: string | null = null;
 
     if (reviewedResponseUrl) {
@@ -281,10 +284,9 @@ export async function POST(
       }
 
       verifiedTokenId = (tokenData as unknown as TokenRow).id;
-      // Build message from the server-canonical URL (same as what draft returned),
-      // not the raw frontend-provided string.
-      const canonicalUrl = buildOfferResponseUrl(rawToken);
-      messageText = buildOfferMessage(offer.offer_number, canonicalUrl);
+      // Use the server-canonical URL (same as what draft returned), not the raw
+      // frontend-provided string.
+      finalUrl = buildOfferResponseUrl(rawToken);
     } else {
       // No reviewed URL provided: revoke and create a fresh token as fallback.
       const { error: revokeError } = await serviceClient
@@ -310,8 +312,14 @@ export async function POST(
         return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
       }
 
-      messageText = buildOfferMessage(offer.offer_number, tokenResult.responseUrl);
+      finalUrl = tokenResult.responseUrl;
     }
+
+    // Prefer the user-edited message from the wizard; otherwise the default.
+    // Guarantee the verified link is in the text so SMS delivers a usable link.
+    const messageText = customMessage
+      ? (customMessage.includes(finalUrl) ? customMessage : `${customMessage}\n${finalUrl}`)
+      : buildOfferMessage(offer.offer_number, finalUrl);
 
     // Look up customer phone for Viber send
     if (!offer.customer_id) {
