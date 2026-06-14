@@ -139,14 +139,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isChatPage = /^\/customers\/[^/]+\/chat\/?$/.test(pathname);
 
   return (
-    <div className="flex min-h-[100dvh] overflow-x-hidden">
+    // h-[100dvh] (a definite height, not min-h) so <main> below is a bounded
+    // scroll container — otherwise the page can't scroll on desktop.
+    <div className="flex h-[100dvh] overflow-x-hidden">
       <PushToast />
       <DesktopSidebar />
       <div className="flex min-w-0 flex-1 flex-col md:pl-60">
         {/* Bottom padding clears the mobile nav + iOS home indicator (except the
             full-screen chat, which sizes itself above the nav). */}
         <main className={`min-w-0 flex-1 overflow-x-hidden scroll-smooth bg-[#F5F5F7] dark:bg-[#0e1722] ${
-          isChatPage ? 'overflow-y-hidden' : 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6'
+          isChatPage ? 'overflow-y-hidden' : 'overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6'
         }`}>{children}</main>
 
         {/* Global AI assistant: dictate or type any action from anywhere. */}
