@@ -18,7 +18,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CallActionSheet } from '@/components/call-action-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, Shadow, Spacing } from '@/constants/theme';
 import { apiGet } from '@/lib/api';
 import { briefExcerpt, formatWhen } from '@/lib/format';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
@@ -399,7 +399,7 @@ const styles = StyleSheet.create({
   debug: { textAlign: 'center', paddingHorizontal: Spacing.four },
   pad: { gap: Spacing.three, marginTop: Spacing.one },
   row: { flexDirection: 'row', gap: Spacing.four, justifyContent: 'center' },
-  key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#F2F4F7', alignItems: 'center', justifyContent: 'center' },
+  key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
   keyPressed: { backgroundColor: '#E2E7EE' },
   keyText: { fontSize: 30, fontWeight: '600', color: '#11273B', fontVariant: ['tabular-nums'] },
   actionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.four, marginTop: Spacing.three },

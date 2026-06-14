@@ -5,6 +5,7 @@
 // (two separate direct-send actions, like the web ChatComposerSheet).
 
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -23,7 +24,7 @@ import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { Input, PrimaryButton, SheetModal } from '@/components/ui';
-import { Brand, Spacing } from '@/constants/theme';
+import { Brand, BrandGradient, Shadow, Spacing } from '@/constants/theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
 import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
@@ -380,6 +381,7 @@ function Bubble({ item, onPress }: { item: TimelineItem; onPress: () => void }) 
         onPress={tappable ? onPress : undefined}
         disabled={!tappable}
         style={({ pressed }) => [styles.bubble, us ? styles.bubbleUs : styles.bubbleCust, pressed && styles.pressed]}>
+        {us ? <LinearGradient colors={[...BrandGradient]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFill} /> : null}
         <View style={styles.bubbleHead}>
           <Ionicons name={meta.icon} size={14} color={us ? '#FFFFFF' : '#6B7585'} />
           <ThemedText type="smallBold" style={[fg, tone && !us ? { color: tone.color } : null]}>
@@ -1104,9 +1106,9 @@ const styles = StyleSheet.create({
   bubbleRow: { flexDirection: 'row', marginVertical: 3 },
   rowUs: { justifyContent: 'flex-end' },
   rowCust: { justifyContent: 'flex-start' },
-  bubble: { maxWidth: '85%', borderRadius: 16, padding: Spacing.three, gap: 4 },
-  bubbleUs: { backgroundColor: Brand.primary, borderBottomRightRadius: 4 },
-  bubbleCust: { backgroundColor: '#F2F4F7', borderBottomLeftRadius: 4 },
+  bubble: { maxWidth: '85%', borderRadius: 20, padding: Spacing.three, gap: 4, overflow: 'hidden' },
+  bubbleUs: { backgroundColor: Brand.primary, borderBottomRightRadius: 5, ...Shadow.card },
+  bubbleCust: { backgroundColor: '#FFFFFF', borderBottomLeftRadius: 5, borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
   bubbleHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   when: { fontSize: 11, alignSelf: 'flex-end' },
   tapHint: { color: Brand.primary, fontWeight: '700' },

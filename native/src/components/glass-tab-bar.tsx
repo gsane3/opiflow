@@ -16,8 +16,8 @@ import { Brand, BrandGradient, Shadow } from '@/constants/theme';
 type TabItem = { name: string; label: string; icon: keyof typeof Ionicons.glyphMap };
 
 const LEFT: TabItem[] = [
-  { name: 'calls', label: 'Κλήσεις', icon: 'call' },
   { name: 'index', label: 'Αρχική', icon: 'home' },
+  { name: 'calls', label: 'Κλήσεις', icon: 'call' },
 ];
 const RIGHT: TabItem[] = [
   { name: 'customers', label: 'Πελάτες', icon: 'people' },

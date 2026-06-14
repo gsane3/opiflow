@@ -3,6 +3,7 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -20,7 +21,7 @@ import { CallActionSheet } from '@/components/call-action-sheet';
 import { NotificationsSheet, type NotificationItem } from '@/components/notifications-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Brand, Spacing } from '@/constants/theme';
+import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, SuccessGradient } from '@/constants/theme';
 import { apiGet, apiPatch } from '@/lib/api';
 import { briefExcerpt, formatWhen, todayYMD } from '@/lib/format';
 import { getIncomingState, subscribeIncomingState } from '@/lib/twilio-state';
@@ -224,12 +225,12 @@ export default function HomeScreen() {
             <>
               {/* Stats */}
               <View style={styles.statsRow}>
-                <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} onPress={() => router.push('/customers/index')} />
-                <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} onPress={() => router.push('/appointments' as never)} />
+                <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} tone="brand" onPress={() => router.push('/customers/index')} />
+                <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} tone="ink" onPress={() => router.push('/appointments' as never)} />
               </View>
               <View style={styles.statsRow}>
-                <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} onPress={() => router.push('/tasks' as never)} />
-                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} onPress={() => router.push('/offers' as never)} />
+                <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} tone="warn" onPress={() => router.push('/tasks' as never)} />
+                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} tone="success" onPress={() => router.push('/offers' as never)} />
               </View>
 
               {/* Today's appointments */}
@@ -393,26 +394,37 @@ export default function HomeScreen() {
   );
 }
 
+const STAT_TONES: Record<string, readonly [string, string]> = {
+  brand: BrandGradient,
+  ink: ['#1A3550', '#11273B'],
+  warn: ['#E0922F', '#B5651A'],
+  success: SuccessGradient,
+};
+
 function StatCard({
   icon,
   label,
   value,
   onPress,
+  tone = 'brand',
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
   value: number;
   onPress?: () => void;
+  tone?: 'brand' | 'ink' | 'warn' | 'success';
 }) {
   return (
     <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.statCardWrap, pressed && styles.pressed]}>
-      <ThemedView type="backgroundElement" style={styles.statCard}>
-        <Ionicons name={icon} size={18} color={Brand.primary} />
+      <View style={styles.statCard}>
+        <LinearGradient colors={[...STAT_TONES[tone]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statIcon}>
+          <Ionicons name={icon} size={19} color="#FFFFFF" />
+        </LinearGradient>
         <ThemedText style={styles.statValue}>{value}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {label}
         </ThemedText>
-      </ThemedView>
+      </View>
     </Pressable>
   );
 }
@@ -454,8 +466,8 @@ const styles = StyleSheet.create({
   badge: { position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#D14343', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
   quickLinks: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
-  quickLink: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, height: 40, borderRadius: 12, backgroundColor: Brand.primarySoft },
-  quickLinkText: { color: Brand.primary, fontWeight: '700' },
+  quickLink: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, borderRadius: 15, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,39,59,0.08)', ...Shadow.card },
+  quickLinkText: { color: Brand.navy, fontWeight: '700' },
   headerTitle: { fontSize: 26, lineHeight: 32 },
   logo: { width: 48, height: 48, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
   logoMark: { color: Brand.onPrimary, fontSize: 26, fontWeight: '800' },
@@ -463,8 +475,9 @@ const styles = StyleSheet.create({
 
   statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
   statCardWrap: { flex: 1 },
-  statCard: { padding: Spacing.three, borderRadius: 16, gap: 4 },
-  statValue: { fontSize: 24, fontWeight: '800' },
+  statCard: { padding: Spacing.three, borderRadius: 22, gap: 4, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: 'rgba(17,39,59,0.05)', ...Shadow.card },
+  statIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
+  statValue: { fontSize: 30, fontWeight: '800', letterSpacing: -0.5, color: Brand.ink, fontVariant: ['tabular-nums'] },
 
   sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.four, marginBottom: Spacing.two },
   sectionTitleText: { fontSize: 15 },
