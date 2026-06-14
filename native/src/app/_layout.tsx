@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
 
+import { AiSheetProvider } from '@/components/ai-sheet';
 import AppTabs from '@/components/app-tabs';
 import { LoginScreen } from '@/components/login-screen';
 import { Brand } from '@/constants/theme';
@@ -89,5 +90,9 @@ function Gate() {
     return <LoginScreen />;
   }
 
-  return <AppTabs />;
+  return (
+    <AiSheetProvider>
+      <AppTabs />
+    </AiSheetProvider>
+  );
 }

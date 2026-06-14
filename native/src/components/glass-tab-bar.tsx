@@ -7,11 +7,11 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
 import { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useAiSheet } from '@/components/ai-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { Brand, BrandGradient, Shadow, type ThemePalette } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -29,7 +29,7 @@ const RIGHT: TabItem[] = [
 ];
 
 export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
-  const router = useRouter();
+  const { show } = useAiSheet();
   const insets = useSafeAreaInsets();
   const c = useTheme();
   const scheme = useColorScheme();
@@ -70,7 +70,7 @@ export function GlassTabBar({ state, navigation }: BottomTabBarProps) {
       </View>
 
       {/* Raised AI FAB, centered above the bar */}
-      <Pressable onPress={() => router.push('/cmd' as never)} style={({ pressed }) => [styles.fabWrap, pressed && styles.fabPressed]}>
+      <Pressable onPress={show} style={({ pressed }) => [styles.fabWrap, pressed && styles.fabPressed]}>
         <LinearGradient colors={[...BrandGradient]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fab}>
           <Ionicons name="sparkles" size={24} color="#FFFFFF" />
         </LinearGradient>
