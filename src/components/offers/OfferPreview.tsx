@@ -7,8 +7,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Offer, OfferStatus, Task, Customer, BusinessProfile } from '@/lib/types';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
-import CopyDraftButtons from './CopyDraftButtons';
-import SendEmailSection from './SendEmailSection';
+import SendOfferLink from './SendOfferLink';
 import OfferAcceptanceDemoSection from './OfferAcceptanceDemoSection';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
@@ -342,12 +341,22 @@ export default function OfferPreview({ offerId }: Props) {
     }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!offer) return;
     if (loadedFromBackend) {
-      // No DELETE API exists yet.
-      setActionError('Η διαγραφή προσφοράς δεν είναι διαθέσιμη ακόμα.');
-      setConfirmingOfferDelete(false);
+      const token = tokenRef.current;
+      if (!token) return;
+      setActionError(null);
+      const resp = await fetch(`/api/offers/${offer.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (resp.ok) {
+        router.push('/offers');
+      } else {
+        setActionError('Αποτυχία διαγραφής. Δοκίμασε ξανά.');
+        setConfirmingOfferDelete(false);
+      }
       return;
     }
     deleteOffer(offerId);
@@ -970,65 +979,23 @@ export default function OfferPreview({ offerId }: Props) {
         )}
       </section>
 
-      {/* Send email */}
-      <SendEmailSection
-        offer={offer}
-        customerEmail={customer?.email || undefined}
-        customerName={customerName}
-        businessName={bp?.businessName}
-        offerStatus={offer.status}
-        onMarkSent={handleMarkSent}
-        onCreateFollowUpTask={handleCreateFollowUpTask}
-      />
-
-      {/* Response link generation for backend offers */}
+      {/* Send the acceptance link via Viber/SMS with an editable message */}
       {loadedFromBackend && (
-        <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden space-y-3">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-              Link αποδοχής πελάτη
-            </p>
-            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-              Δημιουργεί ασφαλές link για να το στείλεις χειροκίνητα στον πελάτη. Δεν γίνεται αυτόματη αποστολή.
-            </p>
-          </div>
-
-          <button
-            type="button"
-            disabled={responseLinkState === 'generating'}
-            onClick={() => { void handleGenerateResponseLink(); }}
-            className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-              responseLinkState === 'copied'
-                ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-indigo-600 text-white hover:bg-indigo-700'
-            }`}
-          >
-            {responseLinkState === 'generating'
-              ? 'Δημιουργία...'
-              : responseLinkState === 'copied'
-              ? 'Αντιγράφηκε'
-              : 'Αντιγραφή link αποδοχής'}
-          </button>
-
-          {responseLinkState === 'error' && (
-            <p className="text-xs text-red-600">{responseLinkError}</p>
-          )}
-
-          {responseLinkState === 'manual_copy' && responseLinkUrl && (
-            <div className="space-y-1.5">
-              <p className="text-xs text-zinc-500 dark:text-zinc-400">
-                Το clipboard δεν ήταν διαθέσιμο. Αντέγραψε το link χειροκίνητα:
-              </p>
-              <textarea
-                readOnly
-                rows={2}
-                value={responseLinkUrl}
-                onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 dark:text-zinc-200 outline-none"
-              />
-            </div>
-          )}
-        </section>
+        <SendOfferLink
+          offerId={offer.id}
+          bp={bp}
+          onSent={() =>
+            setOffer((o) =>
+              o
+                ? {
+                    ...o,
+                    status: o.status === 'draft' || o.status === 'ready_to_send' ? 'sent_manually' : o.status,
+                    updatedAt: new Date().toISOString(),
+                  }
+                : o,
+            )
+          }
+        />
       )}
 
       {/* Acceptance demo - only for demo/local offers */}
@@ -1316,33 +1283,19 @@ export default function OfferPreview({ offerId }: Props) {
         </section>
       )}
 
-      {/* Copy drafts */}
-      <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-          Drafts επικοινωνίας
-        </p>
-        <CopyDraftButtons
-          offer={offer}
-          customerName={customerName}
-          businessName={bp?.businessName}
-        />
-      </section>
-
       {/* Delete */}
-      <section className="rounded-2xl border border-red-100 bg-red-50 p-4 print:hidden">
-        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-400">
+      <section className="rounded-2xl border border-red-100 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 p-4 print:hidden">
+        <h2 className="mb-1 text-xs font-semibold uppercase tracking-wide text-red-400 dark:text-red-300/70">
           Ζώνη κινδύνου
         </h2>
-        {loadedFromBackend ? (
-          <p className="text-xs text-zinc-500 dark:text-zinc-400">Η διαγραφή προσφοράς από τον server δεν είναι διαθέσιμη ακόμα.</p>
-        ) : confirmingOfferDelete ? (
+        {confirmingOfferDelete ? (
           <div className="space-y-2">
             <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Να διαγραφεί αυτή η προσφορά;</p>
-            <p className="text-xs text-zinc-500 dark:text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Η προσφορά θα διαγραφεί οριστικά. Η ενέργεια δεν αναιρείται.</p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => void handleDelete()}
                 className="rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
               >
                 Ναι, διαγραφή
@@ -1357,16 +1310,13 @@ export default function OfferPreview({ offerId }: Props) {
             </div>
           </div>
         ) : (
-          <>
-            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">Η διαγραφή αφαιρεί μόνο τοπικά δεδομένα.</p>
-            <button
-              type="button"
-              onClick={() => setConfirmingOfferDelete(true)}
-              className="rounded-xl border border-red-200 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
-            >
-              Διαγραφή προσφοράς
-            </button>
-          </>
+          <button
+            type="button"
+            onClick={() => setConfirmingOfferDelete(true)}
+            className="rounded-xl border border-red-200 dark:border-red-500/30 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-medium text-red-600 dark:text-red-300 transition hover:bg-red-50 dark:hover:bg-white/5"
+          >
+            Διαγραφή προσφοράς
+          </button>
         )}
       </section>
     </div>

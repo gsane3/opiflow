@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { parseOfferItems, calculateOfferTotals, type ValidOfferItem } from '@/lib/offer-totals';
+import { createServiceSupabaseClient } from '@/lib/server/offer-response-tokens';
 
 export const runtime = 'nodejs';
 
@@ -484,5 +485,61 @@ export async function PATCH(
     return NextResponse.json({ ok: true, offer: dbToOffer(updatedOffer, responseItems) });
   } catch {
     return NextResponse.json({ ok: false, error: 'offer_update_failed' }, { status: 500 });
+  }
+}
+
+// DELETE /api/offers/[id] — hard-delete an offer (business-scoped). Clears the
+// FK dependents first (response tokens, then detaches tasks) so the delete isn't
+// blocked, then removes the offer.
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
+
+  try {
+    const { id } = await params;
+
+    const { data: existing, error: findError } = await supabase
+      .from('offers')
+      .select('id')
+      .eq('id', id)
+      .eq('business_id', businessId)
+      .maybeSingle();
+    if (findError) {
+      return NextResponse.json({ ok: false, error: 'offer_delete_failed' }, { status: 500 });
+    }
+    if (!existing) {
+      return NextResponse.json({ ok: false, error: 'offer_not_found' }, { status: 404 });
+    }
+
+    // Remove dependent response tokens (FK), and detach any tasks that point at
+    // this offer, all scoped to the business.
+    try {
+      const service = createServiceSupabaseClient();
+      await service.from('offer_response_tokens').delete().eq('offer_id', id).eq('business_id', businessId);
+    } catch {
+      // non-fatal: the offer delete below may still succeed if there's no FK
+    }
+    try {
+      await supabase.from('tasks').update({ offer_id: null }).eq('offer_id', id).eq('business_id', businessId);
+    } catch {
+      // non-fatal
+    }
+
+    const { error: delError } = await supabase
+      .from('offers')
+      .delete()
+      .eq('id', id)
+      .eq('business_id', businessId);
+    if (delError) {
+      return NextResponse.json({ ok: false, error: 'offer_delete_failed' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ ok: false, error: 'offer_delete_failed' }, { status: 500 });
   }
 }
