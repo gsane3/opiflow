@@ -15,7 +15,7 @@ export default function AppError({
   }, [error]);
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#F5F5F7] px-6 text-center">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#F5F5F7] px-6 text-center dark:bg-[#0e1722]">
       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-100">
         <svg
           className="h-7 w-7 text-amber-600"
@@ -33,8 +33,8 @@ export default function AppError({
         </svg>
       </div>
       <div className="space-y-1">
-        <h1 className="text-lg font-semibold text-zinc-900">Κάτι πήγε στραβά</h1>
-        <p className="max-w-xs text-sm text-zinc-500">
+        <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Κάτι πήγε στραβά</h1>
+        <p className="max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
           Παρουσιάστηκε ένα πρόβλημα. Δοκίμασε ξανά σε λίγο.
         </p>
       </div>

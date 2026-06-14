@@ -24,9 +24,9 @@ interface Props {
 }
 
 const inputCls =
-  'w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
-const labelCls = 'mb-1 block text-sm font-medium text-zinc-700';
-const sectionTitleCls = 'mb-3 text-sm font-semibold text-zinc-800';
+  'w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-100 dark:placeholder-zinc-500 dark:focus:ring-indigo-500/20';
+const labelCls = 'mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300';
+const sectionTitleCls = 'mb-3 text-sm font-semibold text-zinc-800 dark:text-zinc-200';
 
 function Field({
   label,
@@ -44,12 +44,12 @@ function Field({
       <label className={labelCls}>
         {label}
         {optional && (
-          <span className="ml-1 text-xs font-normal text-zinc-400">(προαιρετικό)</span>
+          <span className="ml-1 text-xs font-normal text-zinc-400 dark:text-zinc-500">(προαιρετικό)</span>
         )}
       </label>
       {children}
       {helperText && (
-        <p className="mt-1 text-xs text-zinc-400">{helperText}</p>
+        <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{helperText}</p>
       )}
     </div>
   );

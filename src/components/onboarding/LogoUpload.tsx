@@ -24,15 +24,15 @@ export default function LogoUpload({ value, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-zinc-500">
+      <p className="text-sm text-zinc-500 dark:text-zinc-400">
         Θα εμφανίζεται στο preview της προσφοράς.{' '}
-        <span className="text-zinc-400">
+        <span className="text-zinc-400 dark:text-zinc-500">
           Στο MVP αποθηκεύεται μόνο τοπικά στον browser.
         </span>
       </p>
 
       <div
-        className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 p-8 transition hover:border-indigo-300 hover:bg-indigo-50"
+        className="flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-zinc-200 bg-zinc-50 p-8 transition hover:border-indigo-300 hover:bg-indigo-50 dark:border-white/15 dark:bg-[#1e2b38] dark:hover:bg-indigo-500/10"
         onClick={() => inputRef.current?.click()}
       >
         {value ? (
@@ -44,9 +44,9 @@ export default function LogoUpload({ value, onChange }: Props) {
           />
         ) : (
           <>
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-200">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-200 dark:bg-[#26384a]">
               <svg
-                className="h-6 w-6 text-zinc-500"
+                className="h-6 w-6 text-zinc-500 dark:text-zinc-400"
                 fill="none"
                 strokeWidth={1.5}
                 stroke="currentColor"
@@ -59,8 +59,8 @@ export default function LogoUpload({ value, onChange }: Props) {
                 />
               </svg>
             </div>
-            <p className="text-sm text-zinc-500">Πάτα για να ανεβάσεις εικόνα</p>
-            <p className="text-xs text-zinc-400">PNG, JPG, SVG</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Πάτα για να ανεβάσεις εικόνα</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">PNG, JPG, SVG</p>
           </>
         )}
       </div>
@@ -82,11 +82,11 @@ export default function LogoUpload({ value, onChange }: Props) {
           >
             Αλλαγή
           </button>
-          <span className="text-zinc-300">·</span>
+          <span className="text-zinc-300 dark:text-zinc-600">·</span>
           <button
             type="button"
             onClick={() => onChange('')}
-            className="text-sm text-zinc-500 hover:text-zinc-700"
+            className="text-sm text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
             Αφαίρεση
           </button>
