@@ -19,7 +19,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 const base =
   'inline-flex items-center justify-center gap-2 rounded-2xl font-semibold ' +
   'transition select-none ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white ' +
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-[#0e1722] ' +
   'disabled:cursor-not-allowed disabled:opacity-60';
 
 // `primary` uses the native water→navy gradient (see .bg-brand-gradient in
@@ -28,9 +28,9 @@ const variantClasses: Record<ButtonVariant, string> = {
   primary:
     'bg-brand-gradient text-white shadow-sm shadow-indigo-900/15 hover:opacity-95 active:opacity-90 focus-visible:ring-indigo-500',
   secondary:
-    'bg-white text-zinc-800 ring-1 ring-zinc-200/80 hover:bg-zinc-50 active:bg-zinc-100 focus-visible:ring-indigo-500',
+    'bg-white text-zinc-800 ring-1 ring-zinc-200/80 hover:bg-zinc-50 active:bg-zinc-100 focus-visible:ring-indigo-500 dark:bg-[#1e2b38] dark:text-zinc-100 dark:ring-white/10 dark:hover:bg-[#26384a] dark:active:bg-[#26384a]',
   ghost:
-    'bg-transparent text-zinc-700 hover:bg-zinc-100 active:bg-zinc-200 focus-visible:ring-indigo-500',
+    'bg-transparent text-zinc-700 hover:bg-zinc-100 active:bg-zinc-200 focus-visible:ring-indigo-500 dark:text-zinc-200 dark:hover:bg-white/5 dark:active:bg-white/10',
   danger:
     'bg-red-600 text-white hover:bg-red-700 active:bg-red-800 focus-visible:ring-red-500',
 };

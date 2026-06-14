@@ -25,10 +25,10 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 p-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Επαναφορά κωδικού</h1>
-        <p className="text-sm text-zinc-500 mb-6">
+    <main className="min-h-screen bg-zinc-50 dark:bg-[#0e1722] flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white dark:bg-[#17232f] rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 p-8">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">Επαναφορά κωδικού</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
           Δώσε το email σου και θα σου στείλουμε σύνδεσμο επαναφοράς.
         </p>
 
@@ -39,7 +39,7 @@ export default function ForgotPasswordPage() {
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1">Email</label>
+              <label htmlFor="email" className="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">Email</label>
               <input
                 id="email"
                 type="email"
@@ -48,7 +48,7 @@ export default function ForgotPasswordPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
-                className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             <button
@@ -61,7 +61,7 @@ export default function ForgotPasswordPage() {
           </form>
         )}
 
-        <p className="mt-6 text-center text-sm text-zinc-500">
+        <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
           <Link href="/login" className="font-semibold text-indigo-600 hover:text-indigo-700 transition">
             Πίσω στη σύνδεση
           </Link>

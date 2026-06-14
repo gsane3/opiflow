@@ -91,14 +91,14 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
   }
 
   const inputCls =
-    'w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+    'w-full rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
   const selectCls =
-    'w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white';
-  const labelCls = 'mb-1 block text-sm font-medium text-zinc-700';
+    'w-full rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 bg-white dark:bg-[#0f1923]';
+  const labelCls = 'mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-200';
 
   return (
-    <div className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-zinc-100">
-      <h3 className="mb-4 text-base font-semibold text-zinc-900">
+    <div className="rounded-2xl bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10">
+      <h3 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
         {initial ? 'Επεξεργασία εργασίας' : 'Νέα εργασία'}
       </h3>
 
@@ -131,7 +131,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
         <div>
           <label className={labelCls}>
             Πελάτης{' '}
-            <span className="text-xs font-normal text-zinc-500">(προαιρετικό)</span>
+            <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">(προαιρετικό)</span>
           </label>
           <div className="relative">
             <input
@@ -158,7 +158,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
               <button
                 type="button"
                 onMouseDown={(e) => { e.preventDefault(); clearCustomer(); }}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
                 tabIndex={-1}
               >
                 ✕
@@ -167,17 +167,17 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
             {showDropdown && (
               <div
                 ref={dropdownRef}
-                className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-zinc-200 bg-white shadow-md"
+                className="absolute z-20 mt-1 max-h-48 w-full overflow-y-auto rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] shadow-md"
               >
                 <button
                   type="button"
                   onMouseDown={(e) => { e.preventDefault(); clearCustomer(); }}
-                  className="w-full px-3 py-2 text-left text-sm text-zinc-400 hover:bg-zinc-50"
+                  className="w-full px-3 py-2 text-left text-sm text-zinc-400 dark:text-zinc-500 hover:bg-zinc-50 dark:hover:bg-white/5"
                 >
                   — Χωρίς πελάτη —
                 </button>
                 {filteredCustomers.length === 0 ? (
-                  <p className="px-3 py-2 text-sm text-zinc-400">Δεν βρέθηκαν αποτελέσματα.</p>
+                  <p className="px-3 py-2 text-sm text-zinc-400 dark:text-zinc-500">Δεν βρέθηκαν αποτελέσματα.</p>
                 ) : (
                   filteredCustomers.map((c) => (
                     <button
@@ -187,12 +187,12 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
                       className={`w-full px-3 py-2 text-left text-sm transition hover:bg-indigo-50 ${
                         c.id === customerId
                           ? 'bg-indigo-50 font-medium text-indigo-700'
-                          : 'text-zinc-800'
+                          : 'text-zinc-800 dark:text-zinc-200'
                       }`}
                     >
                       <span className="block truncate">{c.name}</span>
                       {c.companyName && (
-                        <span className="block truncate text-xs text-zinc-400">{c.companyName}</span>
+                        <span className="block truncate text-xs text-zinc-400 dark:text-zinc-500">{c.companyName}</span>
                       )}
                     </button>
                   ))
@@ -215,7 +215,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
           <div className="w-32">
             <label className={labelCls}>
               Ώρα{' '}
-              <span className="text-xs font-normal text-zinc-500">(προαιρετικό)</span>
+              <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">(προαιρετικό)</span>
             </label>
             <input
               type="time"
@@ -244,7 +244,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
         <div>
           <label className={labelCls}>
             Σημείωση{' '}
-            <span className="text-xs font-normal text-zinc-500">(προαιρετικό)</span>
+            <span className="text-xs font-normal text-zinc-500 dark:text-zinc-400">(προαιρετικό)</span>
           </label>
           <textarea
             rows={2}
@@ -261,7 +261,7 @@ export default function TaskForm({ initial, customers, onSave, onCancel }: Props
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            className="flex-1 rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
           >
             Ακύρωση
           </button>

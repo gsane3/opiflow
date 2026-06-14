@@ -137,7 +137,7 @@ function PriorityDot({ priority }: { priority: TaskPriority }) {
       ? 'bg-red-500'
       : priority === 'low'
       ? 'bg-green-400'
-      : 'bg-zinc-300';
+      : 'bg-zinc-300 dark:bg-zinc-500';
   return <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${color}`} />;
 }
 
@@ -463,8 +463,8 @@ export default function TasksPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-500">Φόρτωση εργασιών...</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Φόρτωση εργασιών...</p>
         </div>
       </div>
     );
@@ -473,8 +473,8 @@ export default function TasksPage() {
   if (noSession) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τις εργασίες σου.</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">Συνδέσου για να δεις τις εργασίες σου.</p>
           <Link
             href="/login"
             className="inline-block rounded-full bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
@@ -489,7 +489,7 @@ export default function TasksPage() {
   if (fetchError) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           <button
             type="button"
@@ -520,8 +520,8 @@ export default function TasksPage() {
       <div className="flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Εργασίες</p>
-          <h1 className="mt-0.5 text-2xl font-bold text-zinc-900">Τι πρέπει να γίνει;</h1>
-          <p className="mt-1 text-sm text-zinc-600">
+          <h1 className="mt-0.5 text-2xl font-bold text-zinc-900 dark:text-zinc-100">Τι πρέπει να γίνει;</h1>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
             Οι εκκρεμότητες που χρειάζονται προσοχή σήμερα.
           </p>
         </div>
@@ -530,7 +530,7 @@ export default function TasksPage() {
           onClick={showForm && !editingTask ? handleCancelForm : openNewForm}
           className={`mt-1 shrink-0 rounded-full px-4 py-2 text-sm font-semibold transition ${
             showForm && !editingTask
-              ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              ? 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/5'
               : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800'
           }`}
         >
@@ -540,7 +540,7 @@ export default function TasksPage() {
 
       {/* Create / edit form */}
       {showForm && (
-        <div className="rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <TaskForm
             initial={editingTask ?? undefined}
             customers={customers}
@@ -568,7 +568,7 @@ export default function TasksPage() {
       )}
 
       {/* Primary focus card */}
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <p className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Επόμενη ενέργεια</p>
         {focusTask ? (
           <div className="mt-2">
@@ -577,15 +577,15 @@ export default function TasksPage() {
                 <PriorityDot priority={focusTask.priority} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-[15px] font-semibold leading-snug text-zinc-900">
+                <p className="text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
                   {focusTask.title}
                 </p>
                 {focusTask.customerId && customerMap[focusTask.customerId] && (
-                  <p className="mt-0.5 text-sm text-zinc-600">
+                  <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">
                     {customerMap[focusTask.customerId]}
                   </p>
                 )}
-                <p className="mt-0.5 text-sm text-zinc-500">
+                <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
                   {fmtDue(focusTask.dueDate, focusTask.dueTime)}
                 </p>
               </div>
@@ -614,14 +614,14 @@ export default function TasksPage() {
               <button
                 type="button"
                 onClick={() => handleComplete(focusTask.id)}
-                className="inline-flex min-h-[48px] items-center rounded-xl border border-zinc-200 bg-white px-5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                className="inline-flex min-h-[48px] items-center rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Ολοκλήρωση
               </button>
             </div>
           </div>
         ) : (
-          <p className="mt-2 text-sm text-zinc-600">Χωρίς επείγουσες εκκρεμότητες.</p>
+          <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">Χωρίς επείγουσες εκκρεμότητες.</p>
         )}
       </div>
 
@@ -638,12 +638,12 @@ export default function TasksPage() {
         ].map(({ label, count, urgent }) => (
           <div
             key={label}
-            className="rounded-[28px] bg-white px-3 py-3 text-center shadow-sm ring-1 ring-zinc-200/60"
+            className="rounded-[28px] bg-white dark:bg-[#17232f] px-3 py-3 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10"
           >
-            <p className={`text-xl font-bold ${urgent ? 'text-red-600' : 'text-zinc-900'}`}>
+            <p className={`text-xl font-bold ${urgent ? 'text-red-600' : 'text-zinc-900 dark:text-zinc-100'}`}>
               {count}
             </p>
-            <p className="mt-0.5 text-[11px] font-medium text-zinc-500">{label}</p>
+            <p className="mt-0.5 text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
           </div>
         ))}
       </div>
@@ -665,7 +665,7 @@ export default function TasksPage() {
                 className={`flex min-h-[40px] items-center gap-1.5 rounded-full px-4 text-sm font-semibold transition ${
                   isActive
                     ? 'bg-indigo-600 text-white'
-                    : 'bg-white text-zinc-700 ring-1 ring-zinc-200 hover:ring-indigo-300'
+                    : 'bg-white dark:bg-[#17232f] text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 hover:ring-indigo-300'
                 }`}
               >
                 {TAB_LABELS[tab]}
@@ -676,7 +676,7 @@ export default function TasksPage() {
                         ? 'bg-white/20 text-white'
                         : hasOverdue
                         ? 'bg-red-50 text-red-600'
-                        : 'bg-zinc-100 text-zinc-600'
+                        : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-600 dark:text-zinc-300'
                     }`}
                   >
                     {count}
@@ -688,9 +688,9 @@ export default function TasksPage() {
         </div>
 
         {/* Search */}
-        <div className="flex items-center gap-3 rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="flex items-center gap-3 rounded-[28px] bg-white dark:bg-[#17232f] px-4 py-3 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <svg
-            className="h-4 w-4 shrink-0 text-zinc-400"
+            className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500"
             fill="none"
             strokeWidth={1.5}
             stroke="currentColor"
@@ -707,7 +707,7 @@ export default function TasksPage() {
             value={taskSearch}
             onChange={(e) => setTaskSearch(e.target.value)}
             placeholder="Αναζήτηση τίτλου, σημείωσης, πελάτη..."
-            className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+            className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none"
           />
         </div>
 
@@ -716,7 +716,7 @@ export default function TasksPage() {
           <select
             value={priorityFilter}
             onChange={(e) => setPriorityFilter(e.target.value as TaskPriority | '')}
-            className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+            className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-xs text-zinc-700 dark:text-zinc-200 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
           >
             <option value="">Όλες οι προτεραιότητες</option>
             {(Object.entries(TASK_PRIORITY_LABELS) as [TaskPriority, string][]).map(([v, l]) => (
@@ -726,7 +726,7 @@ export default function TasksPage() {
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as TaskType | '')}
-            className="rounded-2xl border border-zinc-200 bg-white px-3 py-2 text-xs text-zinc-700 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+            className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-xs text-zinc-700 dark:text-zinc-200 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
           >
             <option value="">Όλοι οι τύποι</option>
             {(Object.entries(TASK_TYPE_LABELS) as [TaskType, string][]).map(([v, l]) => (
@@ -737,7 +737,7 @@ export default function TasksPage() {
             <button
               type="button"
               onClick={clearTaskFilters}
-              className="rounded-2xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+              className="rounded-2xl border border-zinc-200 dark:border-white/10 px-3 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Καθαρισμός
             </button>
@@ -772,7 +772,7 @@ export default function TasksPage() {
                 <button
                   type="button"
                   onClick={clearTaskFilters}
-                  className="mt-3 rounded-full border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:ring-1 hover:ring-indigo-300"
+                  className="mt-3 rounded-full border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:ring-1 hover:ring-indigo-300"
                 >
                   Καθαρισμός φίλτρων
                 </button>

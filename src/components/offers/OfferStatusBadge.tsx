@@ -10,12 +10,12 @@ export const OFFER_STATUS_LABELS: Record<OfferStatus, string> = {
 };
 
 const STATUS_COLORS: Record<OfferStatus, string> = {
-  draft: 'bg-zinc-100 text-zinc-500',
+  draft: 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400',
   ready_to_send: 'bg-amber-100 text-amber-700',
   sent_manually: 'bg-blue-100 text-blue-700',
   accepted: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
-  expired: 'bg-zinc-100 text-zinc-400',
+  expired: 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-400 dark:text-zinc-500',
 };
 
 export default function OfferStatusBadge({ status }: { status: OfferStatus }) {

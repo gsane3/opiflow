@@ -60,7 +60,7 @@ export default function CollapsibleSection({
   return (
     <section
       id={id}
-      className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60"
+      className="overflow-hidden rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10"
     >
       <div className="flex min-h-[56px] items-stretch">
         <button
@@ -68,15 +68,15 @@ export default function CollapsibleSection({
           onClick={toggle}
           aria-expanded={expanded}
           aria-controls={bodyId}
-          className="flex min-h-[56px] flex-1 items-center gap-3 px-4 py-3.5 text-left transition hover:bg-zinc-50"
+          className="flex min-h-[56px] flex-1 items-center gap-3 px-4 py-3.5 text-left transition hover:bg-zinc-50 dark:hover:bg-white/5"
         >
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h2 className="text-sm font-semibold text-zinc-900">{title}</h2>
+              <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
               {badge != null && <span className="shrink-0">{badge}</span>}
             </div>
             {description != null && (
-              <p className="mt-0.5 text-xs text-zinc-500">{description}</p>
+              <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{description}</p>
             )}
           </div>
         </button>
@@ -90,10 +90,10 @@ export default function CollapsibleSection({
           onClick={toggle}
           tabIndex={-1}
           aria-label={expanded ? 'Σύμπτυξη' : 'Ανάπτυξη'}
-          className="flex shrink-0 items-center pl-2 pr-4 transition hover:bg-zinc-50"
+          className="flex shrink-0 items-center pl-2 pr-4 transition hover:bg-zinc-50 dark:hover:bg-white/5"
         >
           <svg
-            className={`h-5 w-5 text-zinc-400 transition-transform ${expanded ? 'rotate-180' : ''}`}
+            className={`h-5 w-5 text-zinc-400 dark:text-zinc-500 transition-transform ${expanded ? 'rotate-180' : ''}`}
             fill="none"
             strokeWidth={2}
             stroke="currentColor"
@@ -105,7 +105,7 @@ export default function CollapsibleSection({
         </button>
       </div>
       {expanded && (
-        <div id={bodyId} className="border-t border-zinc-100">
+        <div id={bodyId} className="border-t border-zinc-100 dark:border-white/10">
           {children}
         </div>
       )}

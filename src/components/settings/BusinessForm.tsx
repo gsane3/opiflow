@@ -26,9 +26,9 @@ interface Props {
   saved: boolean;
 }
 
-const labelCls = 'block text-sm font-medium text-zinc-700 mb-1';
+const labelCls = 'block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1';
 const inputCls =
-  'w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200';
+  'w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200';
 const selectCls = inputCls + ' cursor-pointer';
 
 function Field({
@@ -77,7 +77,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 1. Ταυτότητα επιχείρησης */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Ταυτότητα επιχείρησης</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">Ταυτότητα επιχείρησης</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Επωνυμία εμφάνισης">
             <input
@@ -121,7 +121,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 2. Υπεύθυνος */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Υπεύθυνος</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">Υπεύθυνος</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Όνομα υπευθύνου">
             <input
@@ -144,7 +144,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 3. Επικοινωνία */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Επικοινωνία</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">Επικοινωνία</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Τηλέφωνο">
             <input
@@ -163,7 +163,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
               onChange={(e) => set('email', e.target.value)}
               placeholder="π.χ. info@example.gr"
             />
-            <p className="mt-1 text-xs text-zinc-400">
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
               Διεύθυνση απαντήσεων: όταν στέλνεις email σε πελάτη, οι απαντήσεις του
               πηγαίνουν εδώ. Το email φαίνεται να αποστέλλεται από «{profile.businessName?.trim() || 'την επιχείρησή σου'} via Opiflow».
             </p>
@@ -182,7 +182,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 4. Διεύθυνση */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Διεύθυνση</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">Διεύθυνση</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Οδός και αριθμός" fullWidth>
             <input
@@ -230,7 +230,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 5. Φορολογικά */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Φορολογικά</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">Φορολογικά</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="ΑΦΜ">
             <input
@@ -253,8 +253,8 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 6. Logo */}
       <section>
-        <h2 className="mb-1 text-base font-semibold text-zinc-900">Λογότυπο</h2>
-        <p className="mb-4 text-xs text-zinc-400">
+        <h2 className="mb-1 text-base font-semibold text-zinc-900 dark:text-zinc-100">Λογότυπο</h2>
+        <p className="mb-4 text-xs text-zinc-400 dark:text-zinc-500">
           Το λογότυπο αποθηκεύεται μόνο στον browser σας. Δεν ανεβαίνει πουθενά.
         </p>
         <div className="flex items-start gap-4">
@@ -265,10 +265,10 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
               width={64}
               height={64}
               unoptimized
-              className="h-16 w-16 rounded-xl border border-zinc-200 object-contain"
+              className="h-16 w-16 rounded-xl border border-zinc-200 dark:border-white/10 object-contain"
             />
           ) : (
-            <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-zinc-300 bg-zinc-50 text-xs text-zinc-400">
+            <div className="flex h-16 w-16 items-center justify-center rounded-xl border border-dashed border-zinc-300 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] text-xs text-zinc-400 dark:text-zinc-500">
               Χωρίς
             </div>
           )}
@@ -276,7 +276,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm text-zinc-700 hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-1.5 text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               {profile.logoDataUrl ? 'Αλλαγή' : 'Επιλογή αρχείου'}
             </button>
@@ -302,7 +302,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 7. Offer settings */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Ρυθμίσεις προσφορών</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">Ρυθμίσεις προσφορών</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Προεπιλεγμένος ΦΠΑ (%)">
             <select
@@ -333,7 +333,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
 
       {/* 8. Communication defaults */}
       <section>
-        <h2 className="mb-4 text-base font-semibold text-zinc-900">Προεπιλεγμένη επικοινωνία</h2>
+        <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">Προεπιλεγμένη επικοινωνία</h2>
         <Field label="Προτιμώμενος τρόπος επικοινωνίας">
           <div className="flex flex-wrap gap-2 mt-1">
             {CONTACT_METHODS.map((m) => {
@@ -346,7 +346,7 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
                   className={`rounded-xl border px-4 py-2 text-sm font-medium transition ${
                     active
                       ? 'border-indigo-400 bg-indigo-50 text-indigo-700'
-                      : 'border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'
+                      : 'border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5'
                   }`}
                 >
                   {m.label}

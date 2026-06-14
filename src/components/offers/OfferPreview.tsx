@@ -704,7 +704,7 @@ export default function OfferPreview({ offerId }: Props) {
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center">
-        <p className="text-sm text-zinc-400">Φόρτωση προσφοράς...</p>
+        <p className="text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση προσφοράς...</p>
       </div>
     );
   }
@@ -712,7 +712,7 @@ export default function OfferPreview({ offerId }: Props) {
   if (!offer) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 text-center">
-        <p className="text-sm text-zinc-500">Η προσφορά δεν βρέθηκε.</p>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Η προσφορά δεν βρέθηκε.</p>
         <button
           type="button"
           onClick={() => router.push('/offers')}
@@ -731,8 +731,8 @@ export default function OfferPreview({ offerId }: Props) {
 
       {/* Action error banner */}
       {actionError && (
-        <div className="rounded-xl bg-red-50 px-4 py-2.5 ring-1 ring-red-200 print:hidden">
-          <p className="text-sm text-red-700">{actionError}</p>
+        <div className="rounded-xl bg-red-50 dark:bg-red-500/15 px-4 py-2.5 ring-1 ring-red-200 dark:ring-red-500/20 print:hidden">
+          <p className="text-sm text-red-700 dark:text-red-300">{actionError}</p>
         </div>
       )}
 
@@ -785,14 +785,14 @@ export default function OfferPreview({ offerId }: Props) {
         <button
           type="button"
           onClick={() => router.push('/offers')}
-          className="flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-700"
+          className="flex items-center gap-1 text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200"
         >
           ← Προσφορές
         </button>
         <button
           type="button"
           onClick={() => window.print()}
-          className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
         >
           <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
@@ -803,14 +803,14 @@ export default function OfferPreview({ offerId }: Props) {
 
       {/* Page title */}
       <div className="flex items-center justify-between gap-3 print:hidden">
-        <h1 className="text-base font-semibold text-zinc-700">Προεπισκόπηση προσφοράς</h1>
+        <h1 className="text-base font-semibold text-zinc-700 dark:text-zinc-200">Προεπισκόπηση προσφοράς</h1>
         {offer.isDemo && (
           <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs text-amber-600">Demo</span>
         )}
       </div>
 
       {/* PDF-style document */}
-      <div className="offer-print-document rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 space-y-5">
+      <div className="offer-print-document rounded-2xl bg-white dark:bg-[#17232f] p-6 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 space-y-5">
 
         {/* Header row: business + offer meta */}
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
@@ -829,33 +829,33 @@ export default function OfferPreview({ offerId }: Props) {
                 .filter(Boolean).join(' ');
               return (
                 <>
-                  <p className="text-base font-bold text-zinc-900">{primaryName}</p>
+                  <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">{primaryName}</p>
                   {showTrade && (
-                    <p className="text-sm text-zinc-500">{bp!.tradeName}</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">{bp!.tradeName}</p>
                   )}
-                  {bp?.phone   && <p className="text-sm text-zinc-500">{bp.phone}</p>}
-                  {bp?.email   && <p className="text-sm text-zinc-500">{bp.email}</p>}
-                  {bp?.website && <p className="text-sm text-zinc-500">{bp.website}</p>}
-                  {addrLine1   && <p className="text-sm text-zinc-500">{addrLine1}</p>}
+                  {bp?.phone   && <p className="text-sm text-zinc-500 dark:text-zinc-400">{bp.phone}</p>}
+                  {bp?.email   && <p className="text-sm text-zinc-500 dark:text-zinc-400">{bp.email}</p>}
+                  {bp?.website && <p className="text-sm text-zinc-500 dark:text-zinc-400">{bp.website}</p>}
+                  {addrLine1   && <p className="text-sm text-zinc-500 dark:text-zinc-400">{addrLine1}</p>}
                   {bp?.addressLine2 && (
-                    <p className="text-sm text-zinc-500">{bp.addressLine2}</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">{bp.addressLine2}</p>
                   )}
-                  {postalCity  && <p className="text-sm text-zinc-500">{postalCity}</p>}
-                  {bp?.region  && <p className="text-sm text-zinc-500">{bp.region}</p>}
+                  {postalCity  && <p className="text-sm text-zinc-500 dark:text-zinc-400">{postalCity}</p>}
+                  {bp?.region  && <p className="text-sm text-zinc-500 dark:text-zinc-400">{bp.region}</p>}
                   {bp?.vatNumber  && (
-                    <p className="text-sm text-zinc-500">ΑΦΜ: {bp.vatNumber}</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">ΑΦΜ: {bp.vatNumber}</p>
                   )}
                   {bp?.taxOffice  && (
-                    <p className="text-sm text-zinc-500">ΔΟΥ: {bp.taxOffice}</p>
+                    <p className="text-sm text-zinc-500 dark:text-zinc-400">ΔΟΥ: {bp.taxOffice}</p>
                   )}
                 </>
               );
             })()}
           </div>
           <div className="sm:text-right">
-            <p className="text-xl font-bold text-zinc-900">ΠΡΟΣΦΟΡΑ {offer.offerNumber}</p>
-            <p className="mt-1 text-sm text-zinc-500">Ημερομηνία: {formatDate(offer.offerDate)}</p>
-            <p className="text-sm text-zinc-500">Ισχύει μέχρι: {formatDate(offer.validUntil)}</p>
+            <p className="text-xl font-bold text-zinc-900 dark:text-zinc-100">ΠΡΟΣΦΟΡΑ {offer.offerNumber}</p>
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Ημερομηνία: {formatDate(offer.offerDate)}</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Ισχύει μέχρι: {formatDate(offer.validUntil)}</p>
             <div className="mt-2">
               <OfferStatusBadge status={offer.status} />
             </div>
@@ -864,13 +864,13 @@ export default function OfferPreview({ offerId }: Props) {
 
         {/* Customer info */}
         {customer && (
-          <div className="rounded-xl bg-zinc-50 p-4">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Πελάτης</p>
-            <p className="font-semibold text-zinc-800">{customer.name}</p>
-            {customer.companyName && <p className="text-sm text-zinc-500">{customer.companyName}</p>}
-            {customer.phone && <p className="text-sm text-zinc-500">{customer.phone}</p>}
-            {customer.email && <p className="text-sm text-zinc-500">{customer.email}</p>}
-            {customer.address && <p className="text-sm text-zinc-500">{customer.address}</p>}
+          <div className="rounded-xl bg-zinc-50 dark:bg-[#1e2b38] p-4">
+            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Πελάτης</p>
+            <p className="font-semibold text-zinc-800 dark:text-zinc-200">{customer.name}</p>
+            {customer.companyName && <p className="text-sm text-zinc-500 dark:text-zinc-400">{customer.companyName}</p>}
+            {customer.phone && <p className="text-sm text-zinc-500 dark:text-zinc-400">{customer.phone}</p>}
+            {customer.email && <p className="text-sm text-zinc-500 dark:text-zinc-400">{customer.email}</p>}
+            {customer.address && <p className="text-sm text-zinc-500 dark:text-zinc-400">{customer.address}</p>}
           </div>
         )}
 
@@ -884,7 +884,7 @@ export default function OfferPreview({ offerId }: Props) {
               <col className="w-[18%]" />
             </colgroup>
             <thead>
-              <tr className="border-b border-zinc-200 text-xs uppercase tracking-wide text-zinc-400">
+              <tr className="border-b border-zinc-200 dark:border-white/10 text-xs uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 <th className="pb-2 text-left font-medium">Περιγραφή</th>
                 <th className="pb-2 text-right font-medium">Ποσ.</th>
                 <th className="pb-2 text-right font-medium">Τιμή</th>
@@ -893,13 +893,13 @@ export default function OfferPreview({ offerId }: Props) {
             </thead>
             <tbody>
               {offer.items.map((item) => (
-                <tr key={item.id} className="border-b border-zinc-100">
-                  <td className="py-2 pr-2 text-zinc-800 break-words">
+                <tr key={item.id} className="border-b border-zinc-100 dark:border-white/10">
+                  <td className="py-2 pr-2 text-zinc-800 dark:text-zinc-200 break-words">
                     {item.description}
                   </td>
-                  <td className="py-2 text-right text-zinc-600">{item.quantity}</td>
-                  <td className="py-2 text-right text-zinc-600">{fmtEur(item.unitPrice)}</td>
-                  <td className="py-2 text-right font-medium text-zinc-800">{fmtEur(lineTotal(item))}</td>
+                  <td className="py-2 text-right text-zinc-600 dark:text-zinc-300">{item.quantity}</td>
+                  <td className="py-2 text-right text-zinc-600 dark:text-zinc-300">{fmtEur(item.unitPrice)}</td>
+                  <td className="py-2 text-right font-medium text-zinc-800 dark:text-zinc-200">{fmtEur(lineTotal(item))}</td>
                 </tr>
               ))}
             </tbody>
@@ -909,15 +909,15 @@ export default function OfferPreview({ offerId }: Props) {
         {/* Totals */}
         <div className="flex justify-end">
           <div className="w-full max-w-[16rem] space-y-1 text-sm">
-            <div className="flex justify-between text-zinc-500">
+            <div className="flex justify-between text-zinc-500 dark:text-zinc-400">
               <span>Καθαρή αξία</span>
               <span>{fmtEur(offer.subtotal)}</span>
             </div>
-            <div className="flex justify-between text-zinc-500">
+            <div className="flex justify-between text-zinc-500 dark:text-zinc-400">
               <span>ΦΠΑ {offer.vatRate}%</span>
               <span>{fmtEur(offer.vatAmount)}</span>
             </div>
-            <div className="flex justify-between border-t border-zinc-200 pt-1.5 font-bold text-zinc-900">
+            <div className="flex justify-between border-t border-zinc-200 dark:border-white/10 pt-1.5 font-bold text-zinc-900 dark:text-zinc-100">
               <span>ΣΥΝΟΛΟ</span>
               <span>{fmtEur(offer.total)}</span>
             </div>
@@ -927,44 +927,44 @@ export default function OfferPreview({ offerId }: Props) {
         {/* Notes */}
         {offer.notes && (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Σημειώσεις</p>
-            <p className="mt-1 text-sm text-zinc-600 whitespace-pre-wrap">{offer.notes}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Σημειώσεις</p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap">{offer.notes}</p>
           </div>
         )}
 
         {/* Terms */}
         {offer.terms && (
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Όροι</p>
-            <p className="mt-1 text-sm text-zinc-600 whitespace-pre-wrap">{offer.terms}</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Όροι</p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap">{offer.terms}</p>
           </div>
         )}
 
         {/* Acceptance text */}
         {offer.acceptanceText && (
-          <div className="rounded-xl border border-dashed border-zinc-300 p-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Κείμενο αποδοχής</p>
-            <p className="mt-1 text-sm text-zinc-600">{offer.acceptanceText}</p>
+          <div className="rounded-xl border border-dashed border-zinc-300 dark:border-white/10 p-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Κείμενο αποδοχής</p>
+            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{offer.acceptanceText}</p>
           </div>
         )}
       </div>
 
       {/* Status management */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           Αλλαγή status
         </p>
         <select
           value={offer.status}
           onChange={(e) => handleStatusChange(e.target.value as OfferStatus)}
-          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
         >
           {ALL_STATUSES.map((s) => (
             <option key={s} value={s}>{OFFER_STATUS_LABELS[s]}</option>
           ))}
         </select>
         {offer.status === 'sent_manually' && (
-          <p className="mt-2 text-xs text-zinc-400">
+          <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
             Η προσφορά στάλθηκε χειροκίνητα εκτός της εφαρμογής. Η εφαρμογή δεν πραγματοποίησε αποστολή.
           </p>
         )}
@@ -983,12 +983,12 @@ export default function OfferPreview({ offerId }: Props) {
 
       {/* Response link generation for backend offers */}
       {loadedFromBackend && (
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden space-y-3">
+        <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden space-y-3">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
               Link αποδοχής πελάτη
             </p>
-            <p className="mt-1 text-xs text-zinc-500">
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
               Δημιουργεί ασφαλές link για να το στείλεις χειροκίνητα στον πελάτη. Δεν γίνεται αυτόματη αποστολή.
             </p>
           </div>
@@ -1016,7 +1016,7 @@ export default function OfferPreview({ offerId }: Props) {
 
           {responseLinkState === 'manual_copy' && responseLinkUrl && (
             <div className="space-y-1.5">
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 Το clipboard δεν ήταν διαθέσιμο. Αντέγραψε το link χειροκίνητα:
               </p>
               <textarea
@@ -1024,7 +1024,7 @@ export default function OfferPreview({ offerId }: Props) {
                 rows={2}
                 value={responseLinkUrl}
                 onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 outline-none"
+                className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 dark:text-zinc-200 outline-none"
               />
             </div>
           )}
@@ -1038,9 +1038,9 @@ export default function OfferPreview({ offerId }: Props) {
 
       {/* Step 128: Response history card - only for demo/local offers */}
       {!loadedFromBackend && offer && (offer.status === 'accepted' || offer.status === 'rejected') && (
-        <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
+        <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
           <div className="mb-3 flex items-center gap-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
               Απάντηση πελάτη
             </p>
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
@@ -1059,10 +1059,10 @@ export default function OfferPreview({ offerId }: Props) {
                 ? 'Η προσφορά έγινε αποδεκτή'
                 : 'Η προσφορά απορρίφθηκε'}
             </p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
               Πηγή: demo link · τοπικό MVP
             </p>
-            <p className="text-xs text-zinc-400">
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">
               Τελευταία ενημέρωση:{' '}
               {new Date(offer.updatedAt).toLocaleDateString('el-GR', {
                 day: 'numeric', month: 'short', year: 'numeric',
@@ -1072,20 +1072,20 @@ export default function OfferPreview({ offerId }: Props) {
             {offer.status === 'rejected' && offer.notes && (() => {
               const commentMatch = offer.notes.match(/Σχόλιο: (.+?)(?:\n|$)/);
               return commentMatch ? (
-                <p className="text-xs text-zinc-600 mt-1">
+                <p className="text-xs text-zinc-600 dark:text-zinc-300 mt-1">
                   Σχόλιο: {commentMatch[1]}
                 </p>
               ) : null;
             })()}
           </div>
-          <p className="mt-2 text-xs text-zinc-400">
+          <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
             Δεν αποτελεί νόμιμη ηλεκτρονική υπογραφή. Επικοινωνήστε με τον πελάτη για επιβεβαίωση.
           </p>
           {/* Step 137: demo-only undo response */}
-          <div className="mt-3 pt-3 border-t border-zinc-100">
+          <div className="mt-3 pt-3 border-t border-zinc-100 dark:border-white/10">
             {undoResponseState === 'done' ? (
               <div className="space-y-1.5">
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
                   Η απάντηση επαναφέρθηκε. Μπορείς να δοκιμάσεις ξανά το demo link.
                 </p>
                 {/* Step 150: demo replay link */}
@@ -1097,28 +1097,28 @@ export default function OfferPreview({ offerId }: Props) {
                 >
                   Άνοιγμα ξανά demo link
                 </a>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">
                   Το demo link λειτουργεί μόνο στον ίδιο browser.
                 </p>
               </div>
             ) : confirmingUndoResponse ? (
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-zinc-700">Επαναφορά απάντησης demo;</p>
-                <p className="text-xs text-zinc-400">
+                <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">Επαναφορά απάντησης demo;</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">
                   Η προσφορά θα επιστρέψει σε status &quot;Στάλθηκε χειροκίνητα&quot;. Μόνο για επανάληψη demo.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={() => { setConfirmingUndoResponse(false); handleUndoResponse(); }}
-                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                    className="rounded-lg border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                   >
                     Ναι, επαναφορά
                   </button>
                   <button
                     type="button"
                     onClick={() => setConfirmingUndoResponse(false)}
-                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50"
+                    className="rounded-lg border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                   >
                     Πίσω
                   </button>
@@ -1129,11 +1129,11 @@ export default function OfferPreview({ offerId }: Props) {
                 <button
                   type="button"
                   onClick={() => setConfirmingUndoResponse(true)}
-                  className="rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+                  className="rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                 >
                   Επαναφορά απάντησης demo
                 </button>
-                <span className="text-[10px] text-zinc-400">Για επανάληψη demo μόνο</span>
+                <span className="text-[10px] text-zinc-400 dark:text-zinc-500">Για επανάληψη demo μόνο</span>
               </div>
             )}
           </div>
@@ -1152,10 +1152,10 @@ export default function OfferPreview({ offerId }: Props) {
                 {acceptTaskKind === 'appointment' ? '✓ Το task ραντεβού δημιουργήθηκε.' : '✓ Το task δημιουργήθηκε.'}
               </p>
               {acceptTaskKind === 'appointment' && confirmedAppointmentDate && (
-                <div className="rounded-xl border border-green-200 bg-white p-3 space-y-2">
-                  <p className="text-xs font-semibold text-zinc-600">Πρόταση ραντεβού, αναμονή απάντησης</p>
+                <div className="rounded-xl border border-green-200 bg-white dark:bg-[#17232f] p-3 space-y-2">
+                  <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Πρόταση ραντεβού, αναμονή απάντησης</p>
                   {!customer?.email ? (
-                    <p className="text-xs text-zinc-400">Δεν υπάρχει email πελάτη για αποστολή επιβεβαίωσης.</p>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500">Δεν υπάρχει email πελάτη για αποστολή επιβεβαίωσης.</p>
                   ) : appointmentEmailState === 'sent' ? (
                     <p className="text-xs font-medium text-green-700">Στάλθηκε email πρότασης ραντεβού.</p>
                   ) : (appointmentEmailState === 'missing_config' || appointmentEmailState === 'error') ? (
@@ -1169,19 +1169,19 @@ export default function OfferPreview({ offerId }: Props) {
                         readOnly
                         rows={5}
                         value={buildAppointmentEmailText()}
-                        className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                        className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 font-mono leading-relaxed"
                       />
                       <button
                         type="button"
                         onClick={handleCopyAppointmentEmail}
-                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${appointmentEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                        className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${appointmentEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5'}`}
                       >
                         {appointmentEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
                       </button>
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">
                         Αν η αποστολή email είναι ρυθμισμένη στον server, αυτό θα στείλει επιβεβαίωση ραντεβού στον πελάτη ({customer.email}).
                       </p>
                       <div className="flex flex-wrap gap-2">
@@ -1196,7 +1196,7 @@ export default function OfferPreview({ offerId }: Props) {
                         <button
                           type="button"
                           onClick={handleCopyAppointmentEmail}
-                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${appointmentEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 bg-white text-zinc-600 hover:bg-zinc-50'}`}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-medium transition ${appointmentEmailCopied ? 'bg-green-100 text-green-700' : 'border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5'}`}
                         >
                           {appointmentEmailCopied ? 'Αντιγράφηκε' : 'Αντιγραφή email'}
                         </button>
@@ -1206,7 +1206,7 @@ export default function OfferPreview({ offerId }: Props) {
                           readOnly
                           rows={5}
                           value={buildAppointmentEmailText()}
-                          className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-600 font-mono leading-relaxed"
+                          className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 text-xs text-zinc-600 dark:text-zinc-300 font-mono leading-relaxed"
                         />
                       )}
                     </div>
@@ -1215,27 +1215,27 @@ export default function OfferPreview({ offerId }: Props) {
               )}
             </div>
           ) : acceptTaskState === 'duplicate' ? (
-            <p className="text-sm text-zinc-500">Υπάρχει ήδη σχετικό task.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Υπάρχει ήδη σχετικό task.</p>
           ) : appointmentFormOpen ? (
             <div className="space-y-3">
-              <p className="text-sm text-zinc-700">Επέλεξε ημερομηνία και ώρα ραντεβού:</p>
+              <p className="text-sm text-zinc-700 dark:text-zinc-200">Επέλεξε ημερομηνία και ώρα ραντεβού:</p>
               <div className="flex flex-wrap gap-3">
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">Ημερομηνία</label>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Ημερομηνία</label>
                   <input
                     type="date"
                     value={appointmentDate}
                     onChange={(e) => setAppointmentDate(e.target.value)}
-                    className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                    className="rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-xs font-medium text-zinc-600">Ώρα</label>
+                  <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Ώρα</label>
                   <input
                     type="time"
                     value={appointmentTime}
                     onChange={(e) => setAppointmentTime(e.target.value)}
-                    className="rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+                    className="rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
                   />
                 </div>
               </div>
@@ -1251,7 +1251,7 @@ export default function OfferPreview({ offerId }: Props) {
                 <button
                   type="button"
                   onClick={() => setAppointmentFormOpen(false)}
-                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                 >
                   Ακύρωση
                 </button>
@@ -1259,7 +1259,7 @@ export default function OfferPreview({ offerId }: Props) {
             </div>
           ) : (
             <div className="space-y-3">
-              <p className="text-sm text-zinc-700">
+              <p className="text-sm text-zinc-700 dark:text-zinc-200">
                 Ορίσε ραντεβού με τον πελάτη ή δημιούργησε γενικό task εκτέλεσης.
               </p>
               <div className="flex flex-wrap gap-2">
@@ -1273,7 +1273,7 @@ export default function OfferPreview({ offerId }: Props) {
                 <button
                   type="button"
                   onClick={handleCreateAcceptTask}
-                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                 >
                   Χωρίς ραντεβού τώρα
                 </button>
@@ -1285,30 +1285,30 @@ export default function OfferPreview({ offerId }: Props) {
 
       {/* Step 132: Rejection learning prompt */}
       {offer && offer.status === 'rejected' && (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-4 print:hidden">
-          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+        <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] p-4 print:hidden">
+          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
             Μάθηση από απόρριψη
           </p>
           {offer.notes && (() => {
             const commentMatch = offer.notes.match(/Σχόλιο: (.+?)(?:\n|$)/);
             return commentMatch ? (
-              <p className="mb-2 text-sm text-zinc-600">
+              <p className="mb-2 text-sm text-zinc-600 dark:text-zinc-300">
                 Λόγος: {commentMatch[1]}
               </p>
             ) : null;
           })()}
-          <p className="text-sm text-zinc-700 mb-3">
+          <p className="text-sm text-zinc-700 dark:text-zinc-200 mb-3">
             Σκέψου follow-up ή αναθεώρηση προσφοράς.
           </p>
           {rejectTaskState === 'created' ? (
             <p className="text-sm font-medium text-indigo-600">✓ Το task δημιουργήθηκε.</p>
           ) : rejectTaskState === 'duplicate' ? (
-            <p className="text-sm text-zinc-500">Υπάρχει ήδη σχετικό task.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Υπάρχει ήδη σχετικό task.</p>
           ) : (
             <button
               type="button"
               onClick={handleCreateRejectTask}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Δημιουργία follow-up task
             </button>
@@ -1317,8 +1317,8 @@ export default function OfferPreview({ offerId }: Props) {
       )}
 
       {/* Copy drafts */}
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           Drafts επικοινωνίας
         </p>
         <CopyDraftButtons
@@ -1334,11 +1334,11 @@ export default function OfferPreview({ offerId }: Props) {
           Ζώνη κινδύνου
         </h2>
         {loadedFromBackend ? (
-          <p className="text-xs text-zinc-500">Η διαγραφή προσφοράς από τον server δεν είναι διαθέσιμη ακόμα.</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">Η διαγραφή προσφοράς από τον server δεν είναι διαθέσιμη ακόμα.</p>
         ) : confirmingOfferDelete ? (
           <div className="space-y-2">
-            <p className="text-sm font-medium text-zinc-800">Να διαγραφεί αυτή η προσφορά;</p>
-            <p className="text-xs text-zinc-500">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Να διαγραφεί αυτή η προσφορά;</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
@@ -1350,7 +1350,7 @@ export default function OfferPreview({ offerId }: Props) {
               <button
                 type="button"
                 onClick={() => setConfirmingOfferDelete(false)}
-                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                className="rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Πίσω
               </button>
@@ -1358,11 +1358,11 @@ export default function OfferPreview({ offerId }: Props) {
           </div>
         ) : (
           <>
-            <p className="mb-3 text-xs text-zinc-500">Η διαγραφή αφαιρεί μόνο τοπικά δεδομένα.</p>
+            <p className="mb-3 text-xs text-zinc-500 dark:text-zinc-400">Η διαγραφή αφαιρεί μόνο τοπικά δεδομένα.</p>
             <button
               type="button"
               onClick={() => setConfirmingOfferDelete(true)}
-              className="rounded-xl border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
+              className="rounded-xl border border-red-200 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50"
             >
               Διαγραφή προσφοράς
             </button>

@@ -44,15 +44,15 @@ type EditableItem = {
 };
 
 const inputCls =
-  'w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+  'w-full rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 dark:bg-[#0f1923] placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
 const selectCls =
-  'w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
-const labelCls = 'mb-1 block text-xs font-medium text-zinc-600';
+  'w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+const labelCls = 'mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300';
 
 function SectionCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+    <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10">
+      <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
         {title}
       </h2>
       {children}
@@ -585,7 +585,7 @@ export default function AiReviewPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto max-w-2xl px-4 pt-5 pb-10">
-        <p className="py-10 text-center text-sm text-zinc-400">Φόρτωση AI review...</p>
+        <p className="py-10 text-center text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση AI review...</p>
       </div>
     );
   }
@@ -608,8 +608,8 @@ export default function AiReviewPage() {
           </div>
         </div>
         <div>
-          <h1 className="text-xl font-bold text-zinc-900">Αποθηκεύτηκε στο CRM</h1>
-          <p className="mt-2 text-sm text-zinc-500">
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Αποθηκεύτηκε στο CRM</h1>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
             Η περίληψη, τα tasks και οι αλλαγές αποθηκεύτηκαν στο CRM.
             Δεν στάλθηκε τίποτα αυτόματα.
           </p>
@@ -625,11 +625,11 @@ export default function AiReviewPage() {
           )}
           <Link
             href="/tasks"
-            className="flex items-center justify-center rounded-xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            className="flex items-center justify-center rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
           >
             Δες τα tasks
           </Link>
-          <Link href="/dashboard" className="text-sm text-zinc-500 hover:text-zinc-700">
+          <Link href="/dashboard" className="text-sm text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200">
             Πίσω στην αρχική
           </Link>
         </div>
@@ -643,7 +643,7 @@ export default function AiReviewPage() {
       {/* Header */}
       <div>
         <div className="flex flex-wrap items-center gap-2 mb-1">
-          <h1 className="text-lg font-semibold text-zinc-900">AI Review</h1>
+          <h1 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">AI Review</h1>
           {resultSource === 'ai' ? (
             <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-medium text-green-700">
               AI αποτέλεσμα
@@ -654,14 +654,14 @@ export default function AiReviewPage() {
             </span>
           )}
         </div>
-        <p className="text-sm text-zinc-500">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">
           Μετά την κλήση, το AI ετοιμάζει brief για CRM, tasks και draft προσφοράς. Μπορείς να διορθώσεις πριν αποθηκευτεί.
         </p>
       </div>
 
       {/* AI input */}
-      <div className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100">
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <div className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           Επεξεργασία με AI
         </p>
         <textarea
@@ -670,20 +670,20 @@ export default function AiReviewPage() {
           placeholder='π.χ. "Ο Παπαδόπουλος θέλει HVAC 120τμ, ζήτησε προσφορά εργασίας και υλικών"'
           rows={2}
           disabled={isListening}
-          className={`${inputCls} resize-none disabled:bg-zinc-50`}
+          className={`${inputCls} resize-none disabled:bg-zinc-50 dark:disabled:bg-[#1e2b38]`}
         />
 
         {/* Example prompts by business type  -  shown when input is empty and not listening */}
         {!aiInputText && !isListening && (
           <div className="mt-2 space-y-1.5">
-            <p className="text-xs text-zinc-400">Παραδείγματα:</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Παραδείγματα:</p>
             <div className="flex flex-wrap gap-1.5">
               {getDictationExamples(businessProfile?.businessType).map((example) => (
                 <button
                   key={example}
                   type="button"
                   onClick={() => setAiInputText(example)}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-left text-xs text-zinc-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                  className="rounded-lg border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-2.5 py-1 text-left text-xs text-zinc-600 dark:text-zinc-300 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
                 >
                   {example}
                 </button>
@@ -694,7 +694,7 @@ export default function AiReviewPage() {
 
         {/* Interim speech preview  -  shown while listening, not stored */}
         {isListening && (
-          <p className="mt-1 min-h-[1.25rem] text-xs italic text-zinc-400">
+          <p className="mt-1 min-h-[1.25rem] text-xs italic text-zinc-400 dark:text-zinc-500">
             {interimText ? interimText + '...' : 'Ακούω... μίλησε τώρα'}
           </p>
         )}
@@ -709,7 +709,7 @@ export default function AiReviewPage() {
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
                 isListening
                   ? 'bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100'
-                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                  : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/5'
               }`}
             >
               {isListening ? (
@@ -741,7 +741,7 @@ export default function AiReviewPage() {
             <button
               type="button"
               onClick={handleResetToDemo}
-              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Καθαρισμός
             </button>
@@ -751,13 +751,13 @@ export default function AiReviewPage() {
         {aiError && <p className="mt-2 text-xs text-red-600">{aiError}</p>}
 
         {/* Privacy / support note */}
-        <p className="mt-2 text-xs text-zinc-400">
+        <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
           {speechSupported
             ? 'Η υπαγόρευση ξεκινά μόνο όταν πατήσεις το μικρόφωνο. Δεν αποθηκεύουμε ήχο.'
             : 'Η υπαγόρευση δεν υποστηρίζεται σε αυτόν τον browser. Μπορείς να γράψεις το κείμενο.'}
         </p>
         {resultSource === 'demo' && !aiError && (
-          <p className="text-xs text-zinc-400">
+          <p className="text-xs text-zinc-400 dark:text-zinc-500">
             Συμπλήρωσε τα στοιχεία χειροκίνητα ή δημιούργησε με AI.
           </p>
         )}
@@ -881,17 +881,17 @@ export default function AiReviewPage() {
       {/* Tasks */}
       <SectionCard title={`Tasks (${tasks.length})`}>
         {tasks.length === 0 ? (
-          <p className="text-sm text-zinc-400">Δεν υπάρχουν προτεινόμενα tasks.</p>
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">Δεν υπάρχουν προτεινόμενα tasks.</p>
         ) : (
           <div className="space-y-3">
             {tasks.map((task, idx) => (
-              <div key={task._id} className="rounded-xl border border-zinc-200 p-3 space-y-2">
+              <div key={task._id} className="rounded-xl border border-zinc-200 dark:border-white/10 p-3 space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-zinc-400">Task {idx + 1}</span>
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">Task {idx + 1}</span>
                   <button
                     type="button"
                     onClick={() => setTasks((prev) => prev.filter((t) => t._id !== task._id))}
-                    className="text-xs text-zinc-400 hover:text-red-500"
+                    className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-red-500"
                   >
                     Αφαίρεση
                   </button>
@@ -951,9 +951,9 @@ export default function AiReviewPage() {
             id="create-offer"
             checked={createOffer}
             onChange={(e) => setCreateOffer(e.target.checked)}
-            className="h-4 w-4 rounded border-zinc-300 accent-indigo-600"
+            className="h-4 w-4 rounded border-zinc-300 dark:border-white/10 accent-indigo-600"
           />
-          <label htmlFor="create-offer" className="text-sm font-medium text-zinc-700">
+          <label htmlFor="create-offer" className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
             Δημιουργία προσφοράς
           </label>
         </div>
@@ -981,7 +981,7 @@ export default function AiReviewPage() {
                 <button
                   type="button"
                   onClick={() => setOfferItems((prev) => prev.filter((i) => i._id !== item._id))}
-                  className="shrink-0 text-lg text-zinc-400 hover:text-red-500 leading-none"
+                  className="shrink-0 text-lg text-zinc-400 dark:text-zinc-500 hover:text-red-500 leading-none"
                 >
                   ×
                 </button>
@@ -1000,16 +1000,16 @@ export default function AiReviewPage() {
               + Προσθήκη υπηρεσίας
             </button>
 
-            <div className="rounded-xl bg-zinc-50 p-3 text-sm space-y-1">
-              <div className="flex justify-between text-zinc-500">
+            <div className="rounded-xl bg-zinc-50 dark:bg-[#1e2b38] p-3 text-sm space-y-1">
+              <div className="flex justify-between text-zinc-500 dark:text-zinc-400">
                 <span>Καθαρή αξία</span>
                 <span>{fmtEur(offerTotals.subtotal)}</span>
               </div>
-              <div className="flex justify-between text-zinc-500">
+              <div className="flex justify-between text-zinc-500 dark:text-zinc-400">
                 <span>ΦΠΑ {vatRate}%</span>
                 <span>{fmtEur(offerTotals.vatAmount)}</span>
               </div>
-              <div className="flex justify-between border-t border-zinc-200 pt-1 font-semibold text-zinc-900">
+              <div className="flex justify-between border-t border-zinc-200 dark:border-white/10 pt-1 font-semibold text-zinc-900 dark:text-zinc-100">
                 <span>Σύνολο</span>
                 <span>{fmtEur(offerTotals.total)}</span>
               </div>
@@ -1045,7 +1045,7 @@ export default function AiReviewPage() {
 
       {/* Next best action */}
       <SectionCard title="Προτεινόμενη επόμενη ενέργεια">
-        <p className="text-sm italic text-zinc-600">{nextBestAction || ''}</p>
+        <p className="text-sm italic text-zinc-600 dark:text-zinc-300">{nextBestAction || ''}</p>
       </SectionCard>
 
       {/* Error */}
@@ -1056,7 +1056,7 @@ export default function AiReviewPage() {
         <button
           type="button"
           onClick={() => router.push('/dashboard')}
-          className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+          className="flex-1 rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
         >
           Ακύρωση
         </button>

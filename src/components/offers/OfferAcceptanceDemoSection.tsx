@@ -76,10 +76,10 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
   }
 
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
+    <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
       {/* Header */}
       <div className="mb-3 flex items-center gap-2">
-        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+        <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           Link αποδοχής πελάτη
         </p>
         <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-700">
@@ -89,7 +89,7 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
 
       {/* Demo link row */}
       <div className="mb-3 flex items-center gap-2">
-        <div className="min-w-0 flex-1 truncate rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs text-zinc-500">
+        <div className="min-w-0 flex-1 truncate rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2 font-mono text-xs text-zinc-500 dark:text-zinc-400">
           {demoLink}
         </div>
         <button
@@ -98,7 +98,7 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
           className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-medium transition ${
             copied
               ? 'border-green-200 bg-green-50 text-green-700'
-              : 'border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+              : 'border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/5'
           }`}
         >
           {copied ? 'Αντιγράφηκε' : 'Αντιγραφή'}
@@ -118,10 +118,10 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
           </svg>
           Άνοιγμα demo link πελάτη
         </a>
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Το demo link λειτουργεί μόνο με τα τοπικά δεδομένα αυτού του browser.
         </p>
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Στην πραγματική έκδοση ο πελάτης θα ανοίγει δημόσια σελίδα και θα πατάει αποδοχή ή απόρριψη.
         </p>
       </div>
@@ -154,7 +154,7 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
           <button
             type="button"
             onClick={() => setMode('rejecting')}
-            className="flex-1 rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            className="flex-1 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
           >
             Προσομοίωση απόρριψης
           </button>
@@ -164,7 +164,7 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
       {/* Rejection reason picker */}
       {!isSettled && mode === 'rejecting' && (
         <div className="space-y-3">
-          <p className="text-xs font-medium text-zinc-700">Λόγος απόρριψης:</p>
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">Λόγος απόρριψης:</p>
           <div className="flex flex-col gap-1.5">
             {REJECTION_REASONS.map((r) => (
               <label key={r} className="flex cursor-pointer items-center gap-2">
@@ -176,7 +176,7 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
                   onChange={() => setRejectionReason(r)}
                   className="accent-red-600"
                 />
-                <span className="text-sm text-zinc-700">{r}</span>
+                <span className="text-sm text-zinc-700 dark:text-zinc-200">{r}</span>
               </label>
             ))}
           </div>
@@ -185,7 +185,7 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
             onChange={(e) => setRejectionComment(e.target.value)}
             placeholder="Σχόλιο (προαιρετικό)..."
             rows={2}
-            className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+            className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
           />
           <div className="flex gap-2">
             <button
@@ -198,7 +198,7 @@ export default function OfferAcceptanceDemoSection({ offer, onUpdateOffer }: Pro
             <button
               type="button"
               onClick={() => setMode('idle')}
-              className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Ακύρωση
             </button>

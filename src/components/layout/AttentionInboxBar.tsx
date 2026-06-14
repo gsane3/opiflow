@@ -403,15 +403,15 @@ export default function AttentionInboxBar() {
         aria-label="Ειδοποιήσεις"
         aria-expanded={open}
         onClick={toggleOpen}
-        className={`relative flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50 active:bg-zinc-100 ${
-          open ? 'bg-zinc-100' : 'bg-white'
+        className={`relative flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 transition hover:bg-zinc-50 dark:hover:bg-white/5 active:bg-zinc-100 dark:active:bg-white/5 ${
+          open ? 'bg-zinc-100 dark:bg-[#1e2b38]' : 'bg-white dark:bg-[#17232f]'
         }`}
       >
         <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
           <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white ring-2 ring-white tabular-nums">
+          <span className="absolute -right-0.5 -top-0.5 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-indigo-600 px-1 text-[10px] font-bold text-white ring-2 ring-white dark:ring-[#17232f] tabular-nums">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -419,11 +419,11 @@ export default function AttentionInboxBar() {
 
       {/* Dropdown panel */}
       {open && (
-        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-zinc-200/60 motion-safe:animate-[fadeIn_0.16s]">
+        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-2rem)] origin-top-right overflow-hidden rounded-2xl bg-white dark:bg-[#17232f] shadow-xl ring-1 ring-zinc-200/60 dark:ring-white/10 motion-safe:animate-[fadeIn_0.16s]">
           {/* Panel header */}
-          <div className="flex items-center justify-between border-b border-zinc-200/60 px-4 py-3">
+          <div className="flex items-center justify-between border-b border-zinc-200/60 dark:border-white/10 px-4 py-3">
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-zinc-900">Ειδοποιήσεις</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ειδοποιήσεις</p>
               {unreadCount > 0 && (
                 <span className="rounded-full bg-indigo-100 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700">
                   {unreadCount} νέα
@@ -434,7 +434,7 @@ export default function AttentionInboxBar() {
               type="button"
               onClick={closePanel}
               aria-label="Κλείσιμο"
-              className="rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+              className="rounded-lg p-1 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -442,15 +442,15 @@ export default function AttentionInboxBar() {
             </button>
           </div>
 
-          <p className="px-4 pb-1 pt-2 text-xs text-zinc-500">Τα νέα που χρειάζονται προσοχή.</p>
+          <p className="px-4 pb-1 pt-2 text-xs text-zinc-500 dark:text-zinc-400">Τα νέα που χρειάζονται προσοχή.</p>
 
           {/* Content area */}
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
+              <div className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 dark:border-white/10 border-t-indigo-500" />
             </div>
           ) : sorted.length === 0 ? (
-            <p className="px-4 pb-6 pt-2 text-center text-sm text-zinc-400">Δεν υπάρχουν νέες ειδοποιήσεις.</p>
+            <p className="px-4 pb-6 pt-2 text-center text-sm text-zinc-400 dark:text-zinc-500">Δεν υπάρχουν νέες ειδοποιήσεις.</p>
           ) : (
             <ul className="max-h-[60vh] space-y-1.5 overflow-y-auto px-3 pb-3 pt-1">
               {sorted.map((n) => {
@@ -461,14 +461,14 @@ export default function AttentionInboxBar() {
                   const busy = busyId === n.id;
                   return (
                     <li key={n.id}>
-                      <div className="rounded-xl bg-amber-50 px-3 py-2.5 ring-1 ring-amber-200">
+                      <div className="rounded-xl bg-amber-50 dark:bg-amber-500/15 px-3 py-2.5 ring-1 ring-amber-200 dark:ring-amber-500/20">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-xs font-semibold text-zinc-900">{n.title}</span>
+                          <span className="text-xs font-semibold text-zinc-900 dark:text-zinc-100">{n.title}</span>
                           <span className="shrink-0 rounded-full bg-amber-500 px-1.5 py-0.5 text-[10px] font-semibold text-white">
                             Νέο
                           </span>
                         </div>
-                        <p className="mt-0.5 text-xs text-zinc-600">{n.description}</p>
+                        <p className="mt-0.5 text-xs text-zinc-600 dark:text-zinc-300">{n.description}</p>
                         {errorId === n.id && (
                           <p className="mt-1 text-[11px] text-red-600">Κάτι πήγε στραβά. Δοκίμασε ξανά.</p>
                         )}
@@ -485,7 +485,7 @@ export default function AttentionInboxBar() {
                             type="button"
                             disabled={busy}
                             onClick={() => rejectTimeChange(n)}
-                            className="flex-1 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-red-600 ring-1 ring-red-200 transition hover:bg-red-50 disabled:opacity-50"
+                            className="flex-1 rounded-lg bg-white dark:bg-[#17232f] px-3 py-2 text-xs font-semibold text-red-600 ring-1 ring-red-200 transition hover:bg-red-50 disabled:opacity-50"
                           >
                             Απόρριψη
                           </button>
@@ -506,8 +506,8 @@ export default function AttentionInboxBar() {
                 if (n.isTimeChange && resolvedKind) {
                   return (
                     <li key={n.id}>
-                      <div className="rounded-xl bg-zinc-50 px-3 py-2.5">
-                        <p className="text-xs font-medium text-zinc-500">{n.title}</p>
+                      <div className="rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2.5">
+                        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">{n.title}</p>
                         <p className="mt-0.5 text-[11px] font-medium text-green-700">
                           {resolvedKind === 'rejected'
                             ? '✓ Απορρίφθηκε — ειδοποιήθηκε ο πελάτης'
@@ -526,20 +526,20 @@ export default function AttentionInboxBar() {
                       href={n.href}
                       onClick={closePanel}
                       className={`block rounded-xl px-3 py-2.5 transition ${
-                        unseen ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-zinc-50 hover:bg-zinc-100'
+                        unseen ? 'bg-indigo-50 hover:bg-indigo-100' : 'bg-zinc-50 dark:bg-[#1e2b38] hover:bg-zinc-100 dark:hover:bg-white/5'
                       }`}
                     >
                       <div className="flex items-start gap-2.5">
                         <span
                           className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
-                            unseen ? 'bg-indigo-100 text-indigo-600' : 'bg-zinc-100 text-zinc-400'
+                            unseen ? 'bg-indigo-100 text-indigo-600' : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-400 dark:text-zinc-500'
                           }`}
                         >
                           <KindIcon kind={n.kind} />
                         </span>
                         <div className="min-w-0 flex-1 space-y-0.5">
                           <div className="flex items-center gap-1.5">
-                            <span className={`text-xs font-semibold ${unseen ? 'text-zinc-900' : 'text-zinc-500'}`}>
+                            <span className={`text-xs font-semibold ${unseen ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-500 dark:text-zinc-400'}`}>
                               {n.title}
                             </span>
                             {unseen && (
@@ -548,9 +548,9 @@ export default function AttentionInboxBar() {
                               </span>
                             )}
                           </div>
-                          <p className={`text-xs ${unseen ? 'text-zinc-600' : 'text-zinc-400'}`}>{n.description}</p>
+                          <p className={`text-xs ${unseen ? 'text-zinc-600 dark:text-zinc-300' : 'text-zinc-400 dark:text-zinc-500'}`}>{n.description}</p>
                           <div className="flex items-center justify-between pt-0.5">
-                            <span className="text-[10px] text-zinc-400">
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500">
                               {n.typeLabel} · {n.timeLabel}
                             </span>
                             <span className="text-[10px] font-medium text-indigo-600">Άνοιγμα</span>

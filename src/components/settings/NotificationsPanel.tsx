@@ -76,9 +76,9 @@ export default function NotificationsPanel() {
   }
 
   return (
-    <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-      <p className="text-sm font-semibold text-zinc-900">Ειδοποιήσεις</p>
-      <p className="mt-0.5 text-xs text-zinc-500">
+    <div className="mt-4 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ειδοποιήσεις</p>
+      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
         Λάβε ειδοποίηση στο κινητό όταν ένας πελάτης απαντά σε προσφορά ή ραντεβού. Πάτα για δοκιμή.
       </p>
       <button
@@ -105,7 +105,7 @@ export default function NotificationsPanel() {
             </p>
           )}
           {state.result.failed > 0 && (
-            <p className="mt-1 text-zinc-400">
+            <p className="mt-1 text-zinc-400 dark:text-zinc-500">
               Αποτυχίες: {state.result.details.filter((d) => !d.ok).map((d) => `${d.platform}:${d.error ?? '?'}`).join(', ')}
             </p>
           )}

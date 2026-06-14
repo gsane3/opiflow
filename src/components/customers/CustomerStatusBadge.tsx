@@ -21,7 +21,7 @@ const STATUS_COLORS: Record<CustomerStatus, string> = {
   offer_drafted: 'bg-purple-50 text-purple-700',
   offer_sent: 'bg-blue-50 text-blue-700',
   won: 'bg-green-50 text-green-700',
-  lost: 'bg-zinc-100 text-zinc-500',
+  lost: 'bg-zinc-100 text-zinc-500 dark:bg-[#1e2b38] dark:text-zinc-400',
 };
 
 export default function CustomerStatusBadge({ status }: { status: CustomerStatus }) {

@@ -57,21 +57,21 @@ export default function JoinPage() {
   const next = `/join/${encodeURIComponent(token)}`;
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#F5F5F7] px-6 text-center">
-      <div className="w-full max-w-sm rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60">
+    <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-4 bg-[#F5F5F7] dark:bg-[#0e1722] px-6 text-center">
+      <div className="w-full max-w-sm rounded-[28px] bg-white dark:bg-[#17232f] p-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <p className="text-2xl">👋</p>
-        <h1 className="mt-2 text-lg font-bold text-zinc-900">Πρόσκληση στην ομάδα Opiflow</h1>
+        <h1 className="mt-2 text-lg font-bold text-zinc-900 dark:text-zinc-100">Πρόσκληση στην ομάδα Opiflow</h1>
 
         {state === 'checking' || state === 'accepting' ? (
-          <p className="mt-3 text-sm text-zinc-500">Έλεγχος πρόσκλησης…</p>
+          <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400">Έλεγχος πρόσκλησης…</p>
         ) : state === 'ok' ? (
           <p className="mt-3 text-sm text-emerald-700">Μπήκες στην ομάδα! 🎉 Μεταφορά στην εφαρμογή…</p>
         ) : state === 'need_login' ? (
           <>
-            <p className="mt-3 text-sm text-zinc-600">Συνδέσου ή κάνε εγγραφή <b>με το email στο οποίο έλαβες την πρόσκληση</b> και μετά άνοιξε ξανά αυτόν τον σύνδεσμο.</p>
+            <p className="mt-3 text-sm text-zinc-600 dark:text-zinc-300">Συνδέσου ή κάνε εγγραφή <b>με το email στο οποίο έλαβες την πρόσκληση</b> και μετά άνοιξε ξανά αυτόν τον σύνδεσμο.</p>
             <div className="mt-4 flex flex-col gap-2">
               <Link href={`/login?next=${encodeURIComponent(next)}`} className="rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700">Σύνδεση</Link>
-              <Link href={`/register?next=${encodeURIComponent(next)}`} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Εγγραφή</Link>
+              <Link href={`/register?next=${encodeURIComponent(next)}`} className="rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/5">Εγγραφή</Link>
             </div>
           </>
         ) : state === 'wrong' ? (

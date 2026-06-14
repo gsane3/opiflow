@@ -54,14 +54,14 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
   const expiryState = getExpiryState(offer);
 
   return (
-    <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
+    <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
       {/* Customer + offer number */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-base font-semibold text-zinc-900">
+          <p className="truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">
             {customerName ?? 'Χωρίς πελάτη'}
           </p>
-          <p className="mt-0.5 text-xs font-medium text-zinc-500">{offer.offerNumber}</p>
+          <p className="mt-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">{offer.offerNumber}</p>
         </div>
         {offer.isDemo && (
           <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">
@@ -72,7 +72,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
 
       {/* Total + status + expiry */}
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <span className="text-lg font-bold text-zinc-900">{fmtEur(offer.total)}</span>
+        <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{fmtEur(offer.total)}</span>
         <OfferStatusBadge status={offer.status} />
         {expiryState === 'expired' && (
           <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
@@ -87,12 +87,12 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
       </div>
 
       {/* Dates */}
-      <p className="mt-2 text-xs text-zinc-500">
+      <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
         Εκδόθηκε {formatDate(offer.offerDate)} · Ισχύει μέχρι {formatDate(offer.validUntil)}
       </p>
 
       {offer.status === 'sent_manually' && (
-        <p className="mt-1 text-xs text-zinc-500">
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Στάλθηκε χειροκίνητα εκτός της εφαρμογής.
         </p>
       )}
@@ -114,7 +114,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
           id={`offer-status-${offer.id}`}
           value={offer.status}
           onChange={(e) => onStatusChange(offer.id, e.target.value as OfferStatus)}
-          className="h-12 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm text-zinc-700 outline-none focus:border-indigo-400"
+          className="h-12 flex-1 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 text-sm text-zinc-700 dark:text-zinc-200 outline-none focus:border-indigo-400"
           aria-label="Αλλαγή κατάστασης"
         >
           {ALL_STATUSES.map((s) => (
@@ -128,7 +128,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
           <button
             type="button"
             onClick={() => setConfirmingDelete(true)}
-            className="h-12 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-red-600"
+            className="h-12 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 hover:text-red-600"
           >
             Διαγραφή
           </button>
@@ -136,9 +136,9 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
       </div>
 
       {confirmingDelete && (
-        <div className="mt-3 space-y-2 rounded-xl bg-zinc-50 p-3 ring-1 ring-zinc-200/60">
-          <p className="text-sm font-semibold text-zinc-800">Να διαγραφεί αυτή η προσφορά;</p>
-          <p className="text-xs text-zinc-600">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
+        <div className="mt-3 space-y-2 rounded-xl bg-zinc-50 dark:bg-[#1e2b38] p-3 ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Να διαγραφεί αυτή η προσφορά;</p>
+          <p className="text-xs text-zinc-600 dark:text-zinc-300">Η ενέργεια αφορά μόνο το τοπικό CRM.</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -150,7 +150,7 @@ export default function OfferCard({ offer, customerName, onStatusChange, onDelet
             <button
               type="button"
               onClick={() => setConfirmingDelete(false)}
-              className="h-12 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+              className="h-12 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Πίσω
             </button>

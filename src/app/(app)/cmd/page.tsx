@@ -208,7 +208,7 @@ function CustomerCandidatePicker({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-zinc-600">Βρέθηκαν πολλοί πελάτες. Διάλεξε τον σωστό:</p>
+      <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Βρέθηκαν πολλοί πελάτες. Διάλεξε τον σωστό:</p>
       <div className="space-y-1.5">
         {candidates.map((c) => (
           <button
@@ -218,20 +218,20 @@ function CustomerCandidatePicker({
             className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm transition ${
               c.id === selectedId
                 ? 'border-indigo-300 bg-indigo-50'
-                : 'border-zinc-200 bg-white hover:border-indigo-200 hover:bg-indigo-50'
+                : 'border-zinc-200 bg-white hover:border-indigo-200 hover:bg-indigo-50 dark:border-white/10 dark:bg-[#17232f] dark:hover:bg-white/5'
             }`}
           >
-            <p className="font-semibold text-zinc-800">{c.name}</p>
-            {(c.mobilePhone || c.phone) && <p className="text-xs text-zinc-500">{c.mobilePhone || c.phone}</p>}
-            {c.email && <p className="text-xs text-zinc-500">{c.email}</p>}
-            {c.address && <p className="text-xs text-zinc-400">{c.address}</p>}
+            <p className="font-semibold text-zinc-800 dark:text-zinc-200">{c.name}</p>
+            {(c.mobilePhone || c.phone) && <p className="text-xs text-zinc-500 dark:text-zinc-400">{c.mobilePhone || c.phone}</p>}
+            {c.email && <p className="text-xs text-zinc-500 dark:text-zinc-400">{c.email}</p>}
+            {c.address && <p className="text-xs text-zinc-400 dark:text-zinc-500">{c.address}</p>}
           </button>
         ))}
       </div>
       <button
         type="button"
         onClick={onContinueWithout}
-        className="text-xs text-zinc-400 hover:text-zinc-600 transition"
+        className="text-xs text-zinc-400 hover:text-zinc-600 transition dark:text-zinc-500 dark:hover:text-zinc-300"
       >
         Συνέχεια χωρίς σύνδεση πελάτη
       </button>
@@ -923,8 +923,8 @@ export default function CmdPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-2xl md:px-8">
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-400">Φόρτωση...</p>
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10">
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση...</p>
         </div>
       </div>
     );
@@ -934,51 +934,51 @@ export default function CmdPage() {
     <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-2xl md:px-8">
       {/* Header */}
       <div>
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Βοηθός</p>
-        <h1 className="text-xl font-bold text-zinc-900">AI εντολές</h1>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Βοηθός</p>
+        <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">AI εντολές</h1>
+        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
           Γράψε ή υπαγόρευσε τι θέλεις να οργανώσεις. Θα δεις πρώτα έλεγχο πριν αποθηκευτεί κάτι.
         </p>
       </div>
 
       {/* Backend context status */}
       {backendContextState === 'loading' && (
-        <p className="text-xs text-zinc-400">Φόρτωση δεδομένων assistant...</p>
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">Φόρτωση δεδομένων assistant...</p>
       )}
       {backendContextState === 'no_session' && (
         <p className="text-xs text-amber-600">Συνδέσου για να χρησιμοποιήσεις το AI Assistant με δεδομένα από το CRM σου.</p>
       )}
       {backendContextState === 'error' && (
-        <p className="text-xs text-zinc-500">
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">
           {backendContextError ?? 'Δεν φορτώθηκαν όλα τα δεδομένα από το CRM. Μπορείς να δοκιμάσεις ξανά.'}
         </p>
       )}
       {backendContextState === 'ready' && (
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Δεδομένα CRM: {backendCustomers.length} πελάτες, {backendTasks.length} tasks, {backendOffers.length} προσφορές.
         </p>
       )}
 
       {/* Input card */}
-      <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
+      <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3 dark:bg-[#17232f] dark:ring-white/10">
         <textarea
           value={cmdInput}
           onChange={(e) => setCmdInput(e.target.value)}
           placeholder="Π.χ. Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10"
           rows={2}
           disabled={isListening}
-          className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-zinc-50"
+          className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-zinc-50 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-100 dark:placeholder-zinc-500"
         />
 
         {isListening && (
-          <p className="min-h-[1.25rem] text-xs italic text-zinc-400">
+          <p className="min-h-[1.25rem] text-xs italic text-zinc-400 dark:text-zinc-500">
             {interimText ? interimText + '...' : 'Ακούω...'}
           </p>
         )}
 
         {!cmdInput.trim() && !isListening && !isLoading && (
           <div className="space-y-1.5">
-            <p className="text-xs text-zinc-400">Παραδείγματα:</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Παραδείγματα:</p>
             <div className="flex flex-wrap gap-1.5">
               {CMD_EXAMPLES.map((example) => (
                 <button
@@ -990,7 +990,7 @@ export default function CmdPage() {
                     setSavedResult(false);
                     setCmdError('');
                   }}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-left text-xs text-zinc-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-left text-xs text-zinc-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-white/10 dark:bg-[#1e2b38] dark:text-zinc-300"
                 >
                   {example}
                 </button>
@@ -1008,7 +1008,7 @@ export default function CmdPage() {
               className={`flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium transition disabled:opacity-50 ${
                 isListening
                   ? 'bg-red-50 text-red-700 ring-1 ring-red-200 hover:bg-red-100'
-                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-200 dark:hover:bg-white/5'
               }`}
             >
               {isListening ? (
@@ -1044,9 +1044,9 @@ export default function CmdPage() {
       {result && !isLoading && (
         <div className="space-y-4">
           {/* Summary */}
-          <div className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Ανάλυση</p>
-            <p className="mt-1 text-sm text-zinc-700">{result.summary}</p>
+          <div className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200 dark:bg-[#1e2b38] dark:ring-white/10">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Ανάλυση</p>
+            <p className="mt-1 text-sm text-zinc-700 dark:text-zinc-200">{result.summary}</p>
           </div>
 
           {/* unknown */}
@@ -1060,16 +1060,16 @@ export default function CmdPage() {
 
           {/* query_appointments */}
           {result.intent === 'query_appointments' && (
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Ραντεβού</p>
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3 dark:bg-[#17232f] dark:ring-white/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Ραντεβού</p>
               {queryAppointments.length === 0 ? (
-                <p className="text-sm text-zinc-400">Δεν βρέθηκαν ραντεβού για αυτό το διάστημα.</p>
+                <p className="text-sm text-zinc-400 dark:text-zinc-500">Δεν βρέθηκαν ραντεβού για αυτό το διάστημα.</p>
               ) : (
                 <ul className="space-y-2">
                   {queryAppointments.map((appt) => (
-                    <li key={appt.id} className="rounded-xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100">
-                      <p className="text-sm font-semibold text-zinc-800">{appt.title}</p>
-                      <p className="mt-0.5 text-xs text-zinc-500">
+                    <li key={appt.id} className="rounded-xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100 dark:bg-[#1e2b38] dark:ring-white/10">
+                      <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{appt.title}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                         {appt.dueDate}
                         {appt.dueTime ? ` ${appt.dueTime}` : ''}
                         {appt.customerName ? ` · ${appt.customerName}` : ''}
@@ -1086,11 +1086,11 @@ export default function CmdPage() {
 
           {/* create_task */}
           {result.intent === 'create_task' && !savedResult && (
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4 dark:bg-[#17232f] dark:ring-white/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 Νέο task (προεπισκόπηση)
               </p>
-              <div className="space-y-1.5 text-sm text-zinc-700">
+              <div className="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-200">
                 <p><span className="font-medium">Τίτλος:</span> {result.params.title || 'Νέο task'}</p>
                 {matchedCustomer && (
                   <div className="flex items-center gap-2">
@@ -1128,7 +1128,7 @@ export default function CmdPage() {
                 )}
               </div>
               {customerCandidates.length > 1 && !customerMatchResolved && (
-                <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
               )}
               {taskSaveError && (
                 <p className="text-xs text-red-600">{taskSaveError}</p>
@@ -1155,11 +1155,11 @@ export default function CmdPage() {
 
           {/* create_appointment */}
           {result.intent === 'create_appointment' && !savedResult && (
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4 dark:bg-[#17232f] dark:ring-white/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 Νέο ραντεβού (προεπισκόπηση)
               </p>
-              <div className="space-y-1.5 text-sm text-zinc-700">
+              <div className="space-y-1.5 text-sm text-zinc-700 dark:text-zinc-200">
                 <p>
                   <span className="font-medium">Τίτλος:</span>{' '}
                   {result.params.title?.trim() ||
@@ -1206,7 +1206,7 @@ export default function CmdPage() {
                 </p>
               </div>
               {customerCandidates.length > 1 && !customerMatchResolved && (
-                <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
               )}
               {appointmentSaveError && (
                 <p className="text-xs text-red-600">{appointmentSaveError}</p>
@@ -1238,13 +1238,13 @@ export default function CmdPage() {
 
           {/* create_offer */}
           {result.intent === 'create_offer' && !savedResult && (
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4 dark:bg-[#17232f] dark:ring-white/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 Πρόχειρη προσφορά (προεπισκόπηση)
               </p>
               {matchedCustomer && (
                 <div className="flex items-center gap-2">
-                  <p className="text-sm text-zinc-700"><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                  <p className="text-sm text-zinc-700 dark:text-zinc-200"><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
                   {customerCandidates.length > 1 && customerMatchResolved && (
                     <button type="button" onClick={() => setCustomerMatchResolved(false)} className="text-xs text-indigo-600 hover:text-indigo-700 transition">Αλλαγή</button>
                   )}
@@ -1274,44 +1274,44 @@ export default function CmdPage() {
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-zinc-100 text-left text-xs text-zinc-400">
+                        <tr className="border-b border-zinc-100 text-left text-xs text-zinc-400 dark:border-white/10 dark:text-zinc-500">
                           <th className="pb-1.5 font-medium">Περιγραφή</th>
                           <th className="pb-1.5 font-medium text-right">Ποσ.</th>
                           <th className="pb-1.5 font-medium text-right">Τιμή</th>
                           <th className="pb-1.5 font-medium text-right">Σύνολο</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-zinc-50">
+                      <tbody className="divide-y divide-zinc-50 dark:divide-white/10">
                         {offerPreviewData.validItems.map((item, idx) => (
                           <tr key={idx}>
-                            <td className="py-1.5 text-zinc-800">{item.description}</td>
-                            <td className="py-1.5 text-right text-zinc-600">{item.quantity}</td>
-                            <td className="py-1.5 text-right text-zinc-600">{fmtEur(item.unitPrice)}</td>
-                            <td className="py-1.5 text-right text-zinc-800">{fmtEur(item.quantity * item.unitPrice)}</td>
+                            <td className="py-1.5 text-zinc-800 dark:text-zinc-200">{item.description}</td>
+                            <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{item.quantity}</td>
+                            <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{fmtEur(item.unitPrice)}</td>
+                            <td className="py-1.5 text-right text-zinc-800 dark:text-zinc-200">{fmtEur(item.quantity * item.unitPrice)}</td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div className="rounded-xl bg-zinc-50 px-3 py-2.5 text-sm space-y-1">
-                    <div className="flex justify-between text-zinc-500">
+                  <div className="rounded-xl bg-zinc-50 px-3 py-2.5 text-sm space-y-1 dark:bg-[#1e2b38]">
+                    <div className="flex justify-between text-zinc-500 dark:text-zinc-400">
                       <span>Καθαρή αξία</span>
                       <span>{fmtEur(offerPreviewData.subtotal)}</span>
                     </div>
-                    <div className="flex justify-between text-zinc-500">
+                    <div className="flex justify-between text-zinc-500 dark:text-zinc-400">
                       <span>ΦΠΑ {offerPreviewData.vatRate}%</span>
                       <span>{fmtEur(offerPreviewData.vatAmount)}</span>
                     </div>
-                    <div className="flex justify-between border-t border-zinc-200 pt-1 font-semibold text-zinc-900">
+                    <div className="flex justify-between border-t border-zinc-200 pt-1 font-semibold text-zinc-900 dark:border-white/10 dark:text-zinc-100">
                       <span>Σύνολο</span>
                       <span>{fmtEur(offerPreviewData.total)}</span>
                     </div>
                   </div>
                   {result.params.offerNotes && (
-                    <p className="text-sm text-zinc-600"><span className="font-medium">Σημειώσεις:</span> {result.params.offerNotes}</p>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-300"><span className="font-medium">Σημειώσεις:</span> {result.params.offerNotes}</p>
                   )}
                   {result.params.offerTerms && (
-                    <p className="text-sm text-zinc-600"><span className="font-medium">Όροι:</span> {result.params.offerTerms}</p>
+                    <p className="text-sm text-zinc-600 dark:text-zinc-300"><span className="font-medium">Όροι:</span> {result.params.offerTerms}</p>
                   )}
                   <div className="rounded-xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
                     <p className="text-xs text-amber-700">
@@ -1319,7 +1319,7 @@ export default function CmdPage() {
                     </p>
                   </div>
                   {customerCandidates.length > 1 && !customerMatchResolved && (
-                    <p className="text-xs text-zinc-400">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
                   )}
                   {offerSaveError && (
                     <p className="text-xs text-red-600">{offerSaveError}</p>
@@ -1340,7 +1340,7 @@ export default function CmdPage() {
           {result.intent === 'create_offer' && savedResult && (
             <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1.5">
               <p className="text-sm font-medium text-green-700">Η draft προσφορά δημιουργήθηκε.</p>
-              <p className="text-xs text-zinc-600">Δημιουργήθηκε και task για έλεγχο και αποστολή.</p>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300">Δημιουργήθηκε και task για έλεγχο και αποστολή.</p>
               {offerSaveWarning && (
                 <p className="text-xs text-amber-600">{offerSaveWarning}</p>
               )}
@@ -1352,8 +1352,8 @@ export default function CmdPage() {
 
           {/* cancel_appointment */}
           {result.intent === 'cancel_appointment' && (
-            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4 dark:bg-[#17232f] dark:ring-white/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 Ακύρωση ραντεβού
               </p>
 
@@ -1388,22 +1388,22 @@ export default function CmdPage() {
                   {cancelApptSuccess ? (
                     <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1">
                       <p className="text-sm font-medium text-green-700">Το ραντεβού ακυρώθηκε.</p>
-                      <p className="text-xs text-zinc-500">Δεν γίνεται αποστολή ενημέρωσης στον πελάτη από αυτή την εντολή.</p>
+                      <p className="text-xs text-zinc-500 dark:text-zinc-400">Δεν γίνεται αποστολή ενημέρωσης στον πελάτη από αυτή την εντολή.</p>
                     </div>
                   ) : appointmentCandidates.length === 0 ? (
-                    <p className="text-sm text-zinc-400">Δεν βρέθηκαν ανοιχτά ραντεβού με αυτά τα κριτήρια.</p>
+                    <p className="text-sm text-zinc-400 dark:text-zinc-500">Δεν βρέθηκαν ανοιχτά ραντεβού με αυτά τα κριτήρια.</p>
                   ) : (
                     <>
                       <ul className="space-y-2">
                         {appointmentCandidates.map((appt) => (
-                          <li key={appt.id} className="rounded-xl bg-zinc-50 ring-1 ring-zinc-100">
+                          <li key={appt.id} className="rounded-xl bg-zinc-50 ring-1 ring-zinc-100 dark:bg-[#1e2b38] dark:ring-white/10">
                             {confirmingCancelApptId === appt.id ? (
                               <div className="p-3 space-y-2">
-                                <p className="text-xs font-semibold text-zinc-800">Επιβεβαίωση ακύρωσης ραντεβού</p>
-                                <p className="text-xs text-zinc-600">
+                                <p className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">Επιβεβαίωση ακύρωσης ραντεβού</p>
+                                <p className="text-xs text-zinc-600 dark:text-zinc-300">
                                   {appt.title}{appt.customerName ? ` · ${appt.customerName}` : ''}
                                 </p>
-                                <p className="text-xs text-zinc-500">
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400">
                                   {appt.dueDate}{appt.dueTime ? ` ${appt.dueTime}` : ''}
                                 </p>
                                 {cancelAppointmentError && (
@@ -1421,7 +1421,7 @@ export default function CmdPage() {
                                   <button
                                     type="button"
                                     onClick={() => setConfirmingCancelApptId(null)}
-                                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                                    className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
                                   >
                                     Πίσω
                                   </button>
@@ -1429,12 +1429,12 @@ export default function CmdPage() {
                               </div>
                             ) : (
                               <div className="p-3">
-                                <p className="text-sm font-semibold text-zinc-800">{appt.title}</p>
-                                <p className="text-xs text-zinc-500 mt-0.5">
+                                <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{appt.title}</p>
+                                <p className="text-xs text-zinc-500 mt-0.5 dark:text-zinc-400">
                                   {appt.dueDate}{appt.dueTime ? ` ${appt.dueTime}` : ''}
                                   {appt.customerName ? ` · ${appt.customerName}` : ''}
                                 </p>
-                                <p className="text-xs text-zinc-400">{APPT_TYPE_LABELS[appt.type] ?? appt.type}</p>
+                                <p className="text-xs text-zinc-400 dark:text-zinc-500">{APPT_TYPE_LABELS[appt.type] ?? appt.type}</p>
                                 <button
                                   type="button"
                                   onClick={() => { setCancelApptSuccess(false); setCancelAppointmentError(null); setConfirmingCancelApptId(appt.id); }}
@@ -1447,7 +1447,7 @@ export default function CmdPage() {
                           </li>
                         ))}
                       </ul>
-                      <p className="text-xs text-zinc-400">Δεν γίνεται αποστολή ενημέρωσης στον πελάτη από αυτή την εντολή.</p>
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500">Δεν γίνεται αποστολή ενημέρωσης στον πελάτη από αυτή την εντολή.</p>
                     </>
                   )}
                 </>
@@ -1459,7 +1459,7 @@ export default function CmdPage() {
           <button
             type="button"
             onClick={reset}
-            className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+            className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
           >
             Νέα εντολή
           </button>

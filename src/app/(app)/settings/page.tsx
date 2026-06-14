@@ -16,8 +16,9 @@ import NativeCallTestPanel from '@/components/settings/NativeCallTestPanel';
 import SystemStatusCard from '@/components/settings/SystemStatusCard';
 import TeamPanel from '@/components/settings/TeamPanel';
 import ServiceCatalogPanel from '@/components/settings/ServiceCatalogPanel';
+import AppearancePanel from '@/components/settings/AppearancePanel';
 
-type SettingsSection = 'business' | 'telephony' | 'catalog' | 'snippets' | 'automations' | 'data' | 'account' | 'notifications';
+type SettingsSection = 'business' | 'telephony' | 'appearance' | 'catalog' | 'snippets' | 'automations' | 'data' | 'account' | 'notifications';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -58,6 +59,7 @@ type BusinessMeResponse = {
 const SECTION_LABELS: Record<SettingsSection, string> = {
   business: 'Επιχείρηση',
   telephony: 'Τηλεφωνία',
+  appearance: 'Εμφάνιση',
   catalog: 'Κατάλογος υπηρεσιών',
   snippets: 'Πρότυπα μηνυμάτων',
   automations: 'Ωράριο & αυτοματισμοί',
@@ -81,9 +83,9 @@ function subStatusPill(status: string): { label: string; cls: string } {
     case 'active':
       return { label: 'Ενεργή', cls: 'bg-green-50 text-green-700 ring-green-200' };
     case 'cancelled':
-      return { label: 'Ακυρώθηκε', cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
+      return { label: 'Ακυρώθηκε', cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-300 dark:ring-white/10' };
     default:
-      return { label: status, cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200' };
+      return { label: status, cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-300 dark:ring-white/10' };
   }
 }
 
@@ -296,8 +298,8 @@ export default function SettingsPage() {
       <div className="space-y-6">
         <BusinessForm profile={profile} onChange={setProfile} onSave={handleSave} saved={saved} />
         {saveError && (
-          <div className="rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-red-200">
-            <p className="text-sm text-red-700">{saveError}</p>
+          <div className="rounded-2xl bg-red-50 px-4 py-3 ring-1 ring-red-200 dark:bg-red-950/40 dark:ring-red-900/40">
+            <p className="text-sm text-red-700 dark:text-red-300">{saveError}</p>
           </div>
         )}
       </div>
@@ -328,21 +330,21 @@ export default function SettingsPage() {
     return (
       <div className="space-y-4">
         {/* Phone line */}
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-zinc-900">Ο αριθμός σου</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ο αριθμός σου</p>
               {phoneLoading ? (
-                <p className="mt-0.5 text-xs text-zinc-400">Έλεγχος γραμμής...</p>
+                <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">Έλεγχος γραμμής...</p>
               ) : phoneError ? (
                 <p className="mt-0.5 text-xs text-red-600">{phoneError}</p>
               ) : phoneInfo?.business?.business_phone_number ? (
                 <>
-                  <p className="mt-0.5 text-base font-semibold text-zinc-900">{phoneInfo.business.business_phone_number}</p>
-                  <p className="mt-0.5 text-xs text-zinc-400">Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.</p>
+                  <p className="mt-0.5 text-base font-semibold text-zinc-900 dark:text-zinc-100">{phoneInfo.business.business_phone_number}</p>
+                  <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.</p>
                 </>
               ) : (
-                <p className="mt-0.5 text-xs text-zinc-400">Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.</p>
+                <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">Ο αριθμός ενεργοποιείται αυτόματα από το Opiflow. Δεν χρειάζεται χειροκίνητη ρύθμιση.</p>
               )}
             </div>
             {!phoneLoading && !phoneError && (
@@ -362,24 +364,24 @@ export default function SettingsPage() {
     return (
       <div className="space-y-4">
         {/* Subscription */}
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="mb-2 text-sm font-semibold text-zinc-900">Συνδρομή</p>
+        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10">
+          <p className="mb-2 text-sm font-semibold text-zinc-900 dark:text-zinc-100">Συνδρομή</p>
           {phoneLoading ? (
-            <p className="text-xs text-zinc-400">Φόρτωση...</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Φόρτωση...</p>
           ) : phoneInfo?.subscription ? (
             <div className="space-y-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-sm font-medium text-zinc-800">{PLAN_NAMES[phoneInfo.subscription.plan_key] ?? phoneInfo.subscription.plan_key}</span>
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{PLAN_NAMES[phoneInfo.subscription.plan_key] ?? phoneInfo.subscription.plan_key}</span>
                 {(() => {
                   const pill = subStatusPill(phoneInfo.subscription!.status);
                   return <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ${pill.cls}`}>{pill.label}</span>;
                 })()}
               </div>
-              {phoneInfo.subscription.trial_ends_at && <p className="text-xs text-zinc-500">Λήγει: {fmtSubDate(phoneInfo.subscription.trial_ends_at)}</p>}
+              {phoneInfo.subscription.trial_ends_at && <p className="text-xs text-zinc-500 dark:text-zinc-400">Λήγει: {fmtSubDate(phoneInfo.subscription.trial_ends_at)}</p>}
               {phoneInfo.activationAllowed === false && <p className="text-xs text-amber-700">Επικοινώνησε με την υποστήριξη για ενεργοποίηση.</p>}
             </div>
           ) : (
-            <p className="text-xs text-zinc-400">Δεν βρέθηκε ενεργή συνδρομή.</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Δεν βρέθηκε ενεργή συνδρομή.</p>
           )}
         </div>
         <AccountPanel />
@@ -388,7 +390,7 @@ export default function SettingsPage() {
         <button
           type="button"
           onClick={handleLogout}
-          className="flex w-full items-center justify-center gap-2 rounded-[28px] bg-white px-5 py-3.5 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-red-50"
+          className="flex w-full items-center justify-center gap-2 rounded-[28px] bg-white px-5 py-3.5 text-sm font-semibold text-red-600 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-red-50 dark:bg-[#17232f] dark:ring-white/10"
         >
           <svg className="h-5 w-5" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
@@ -404,10 +406,10 @@ export default function SettingsPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-2xl md:px-8">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Λογαριασμός</p>
-        <h1 className="mb-6 text-xl font-bold text-zinc-900">Ρυθμίσεις</h1>
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-400">Φόρτωση ρυθμίσεων...</p>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Λογαριασμός</p>
+        <h1 className="mb-6 text-xl font-bold text-zinc-900 dark:text-zinc-100">Ρυθμίσεις</h1>
+        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10">
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση ρυθμίσεων...</p>
         </div>
       </div>
     );
@@ -418,8 +420,8 @@ export default function SettingsPage() {
       {activeSection === null ? (
         <>
           <div className="mb-6">
-            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Λογαριασμός</p>
-            <h1 className="text-xl font-bold text-zinc-900">Ρυθμίσεις</h1>
+            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Λογαριασμός</p>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Ρυθμίσεις</h1>
           </div>
           <div className="space-y-2">
             {([
@@ -441,6 +443,17 @@ export default function SettingsPage() {
                 icon: (
                   <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
+                id: 'appearance' as SettingsSection,
+                label: 'Εμφάνιση',
+                subtitle: 'Σκούρο θέμα',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
                   </svg>
                 ),
                 bg: 'bg-indigo-50',
@@ -516,18 +529,18 @@ export default function SettingsPage() {
                 key={id}
                 type="button"
                 onClick={() => setActiveSection(id)}
-                className={`flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 transition active:bg-zinc-50 ${
-                  danger ? 'ring-red-100 hover:ring-red-200' : 'ring-zinc-200/60 hover:ring-indigo-200'
+                className={`flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 transition active:bg-zinc-50 dark:bg-[#17232f] dark:active:bg-white/5 ${
+                  danger ? 'ring-red-100 hover:ring-red-200' : 'ring-zinc-200/60 hover:ring-indigo-200 dark:ring-white/10'
                 }`}
               >
                 <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${bg}`}>
                   {icon}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
-                  <p className={`text-sm font-semibold ${danger ? 'text-red-700' : 'text-zinc-900'}`}>{label}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500">{subtitle}</p>
+                  <p className={`text-sm font-semibold ${danger ? 'text-red-700' : 'text-zinc-900 dark:text-zinc-100'}`}>{label}</p>
+                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
                 </div>
-                <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
                 </svg>
               </button>
@@ -535,12 +548,12 @@ export default function SettingsPage() {
           </div>
 
           {/* Στατιστικά — opens the analytics page */}
-          <div className="mt-6 border-t border-zinc-200/60 pt-6">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-400">Επισκόπηση</p>
+          <div className="mt-6 border-t border-zinc-200/60 pt-6 dark:border-white/10">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Επισκόπηση</p>
           <button
             type="button"
             onClick={() => router.push('/stats')}
-            className="flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:ring-indigo-200 active:bg-zinc-50"
+            className="flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:ring-indigo-200 active:bg-zinc-50 dark:bg-[#17232f] dark:ring-white/10 dark:active:bg-white/5"
           >
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50">
               <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -548,10 +561,10 @@ export default function SettingsPage() {
               </svg>
             </div>
             <div className="min-w-0 flex-1 text-left">
-              <p className="text-sm font-semibold text-zinc-900">Στατιστικά</p>
-              <p className="mt-0.5 text-xs text-zinc-500">Τζίρος, win rate, πελάτες ανά κατάσταση</p>
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Στατιστικά</p>
+              <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">Τζίρος, win rate, πελάτες ανά κατάσταση</p>
             </div>
-            <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
             </svg>
           </button>
@@ -570,10 +583,11 @@ export default function SettingsPage() {
               </svg>
               Ρυθμίσεις
             </button>
-            <h1 className="text-xl font-bold text-zinc-900">{SECTION_LABELS[activeSection]}</h1>
+            <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">{SECTION_LABELS[activeSection]}</h1>
           </div>
           {activeSection === 'business' && renderBusiness()}
           {activeSection === 'telephony' && renderTelephony()}
+          {activeSection === 'appearance' && <AppearancePanel />}
           {activeSection === 'catalog' && renderCatalog()}
           {activeSection === 'snippets' && renderSnippets()}
           {activeSection === 'automations' && renderAutomations()}

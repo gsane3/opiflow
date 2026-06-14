@@ -41,7 +41,7 @@ export default function NativeGate() {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-white"
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-white dark:bg-[#0e1722]"
       aria-hidden
     >
       <OpiflowMark className="h-14 w-14 animate-pulse" />

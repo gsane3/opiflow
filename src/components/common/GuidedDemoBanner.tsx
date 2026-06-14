@@ -151,7 +151,7 @@ export default function GuidedDemoBanner({
 
       {confirmingDemoExit && (
         <div className="rounded-xl bg-red-50 px-3 py-2 ring-1 ring-red-200 space-y-1.5">
-          <p className="text-xs font-medium text-zinc-700">Να βγεις από το guided demo;</p>
+          <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">Να βγεις από το guided demo;</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -163,7 +163,7 @@ export default function GuidedDemoBanner({
             <button
               type="button"
               onClick={() => setConfirmingDemoExit(false)}
-              className="rounded-lg border border-zinc-200 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+              className="rounded-lg border border-zinc-200 dark:border-white/10 px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Πίσω
             </button>
@@ -212,7 +212,7 @@ export default function GuidedDemoBanner({
             Ολοκληρωθηκε
           </span>
         ) : (
-          <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-500">
+          <span className="rounded-full bg-zinc-200 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
             Βημα ανολοκληρωτο
           </span>
         )}
@@ -236,14 +236,14 @@ export default function GuidedDemoBanner({
           className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
             isDone
               ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-              : 'cursor-not-allowed bg-zinc-200 text-zinc-400'
+              : 'cursor-not-allowed bg-zinc-200 dark:bg-[#1e2b38] text-zinc-400 dark:text-zinc-500'
           }`}
         >
           {isFinalStep ? 'Ολοκληρωση guided demo' : 'Επομενο →'}
         </button>
         <Link
           href="/demo"
-          className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
+          className="rounded-xl border border-indigo-200 bg-white dark:bg-[#17232f] px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
         >
           ← Αποστολες
         </Link>

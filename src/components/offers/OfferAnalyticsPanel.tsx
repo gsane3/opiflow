@@ -31,27 +31,27 @@ export default function OfferAnalyticsPanel({ offers }: Props) {
   const rejectedOffers = offers.filter((o) => o.status === 'rejected');
 
   return (
-    <div className="mb-4 rounded-2xl bg-white ring-1 ring-zinc-100 shadow-sm overflow-hidden">
+    <div className="mb-4 rounded-2xl bg-white dark:bg-[#17232f] ring-1 ring-zinc-100 dark:ring-white/10 shadow-sm overflow-hidden">
       {/* Compact summary row — always visible */}
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50"
+        className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left transition hover:bg-zinc-50 dark:hover:bg-white/5"
       >
         <div className="flex items-center gap-4">
-          <span className="text-sm font-semibold text-zinc-900">{total} προσφορές</span>
+          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{total} προσφορές</span>
           {sent > 0 && (
-            <span className="text-sm text-zinc-500">{sent} εστάλησαν</span>
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">{sent} εστάλησαν</span>
           )}
           {sent > 0 && (
-            <span className={`text-sm font-semibold ${acceptanceRate > 0 ? 'text-green-600' : 'text-zinc-400'}`}>
+            <span className={`text-sm font-semibold ${acceptanceRate > 0 ? 'text-green-600' : 'text-zinc-400 dark:text-zinc-500'}`}>
               {acceptanceRate}% αποδοχή
             </span>
           )}
           {/* Quick pill breakdown */}
           <div className="hidden sm:flex items-center gap-1.5">
             {draft > 0 && (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-600">{draft} πρόχ.</span>
+              <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-[10px] font-medium text-zinc-600 dark:text-zinc-300">{draft} πρόχ.</span>
             )}
             {ready > 0 && (
               <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">{ready} έτ.</span>
@@ -60,12 +60,12 @@ export default function OfferAnalyticsPanel({ offers }: Props) {
               <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-medium text-green-700">{accepted} αποδ.</span>
             )}
             {expired > 0 && (
-              <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-[10px] font-medium text-zinc-400">{expired} ληγ.</span>
+              <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-[10px] font-medium text-zinc-400 dark:text-zinc-500">{expired} ληγ.</span>
             )}
           </div>
         </div>
         <svg
-          className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500 transition-transform duration-150 ${expanded ? 'rotate-180' : ''}`}
           fill="none"
           strokeWidth={2}
           stroke="currentColor"
@@ -77,11 +77,11 @@ export default function OfferAnalyticsPanel({ offers }: Props) {
 
       {/* Expanded details */}
       {expanded && (
-        <div className="border-t border-zinc-100 px-4 py-4 space-y-3">
+        <div className="border-t border-zinc-100 dark:border-white/10 px-4 py-4 space-y-3">
           {/* Status pills */}
           <div className="flex flex-wrap gap-2">
             {draft > 0 && (
-              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600">{draft} Πρόχειρες</span>
+              <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300">{draft} Πρόχειρες</span>
             )}
             {ready > 0 && (
               <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">{ready} Έτοιμες</span>
@@ -96,14 +96,14 @@ export default function OfferAnalyticsPanel({ offers }: Props) {
               <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">{rejected} Απορρίφθηκαν</span>
             )}
             {expired > 0 && (
-              <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-400">{expired} Ληγμένες</span>
+              <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-400 dark:text-zinc-500">{expired} Ληγμένες</span>
             )}
           </div>
 
           {/* Rejection insights */}
           {rejectedOffers.length > 0 && (
             <div>
-              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                 Λόγοι απόρριψης
               </p>
               <ul className="space-y-1.5">
@@ -117,9 +117,9 @@ export default function OfferAnalyticsPanel({ offers }: Props) {
                         </svg>
                       </span>
                       <span className="min-w-0">
-                        <span className="font-medium text-zinc-700">{offer.offerNumber}</span>
+                        <span className="font-medium text-zinc-700 dark:text-zinc-200">{offer.offerNumber}</span>
                         {' — '}
-                        <span className="text-zinc-500">
+                        <span className="text-zinc-500 dark:text-zinc-400">
                           {reason || 'Δεν έχει καταγραφεί λόγος.'}
                         </span>
                       </span>

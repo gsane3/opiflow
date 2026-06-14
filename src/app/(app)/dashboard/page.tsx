@@ -106,7 +106,7 @@ function mapCustomer(d: Record<string, unknown>): Customer {
 function ChevronRight() {
   return (
     <svg
-      className="h-4 w-4 shrink-0 text-zinc-300"
+      className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500"
       fill="none"
       strokeWidth={2}
       stroke="currentColor"
@@ -167,13 +167,13 @@ function StatCard({
   return (
     <Link
       href={href}
-      className="flex flex-col justify-between gap-2 rounded-[28px] bg-white px-4 py-4 shadow-sm ring-1 ring-zinc-200/60 transition active:bg-zinc-50/60"
+      className="flex flex-col justify-between gap-2 rounded-[28px] bg-white dark:bg-[#17232f] px-4 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 transition active:bg-zinc-50/60 dark:active:bg-white/5"
     >
-      <span className="text-xs font-medium leading-snug text-zinc-600">{label}</span>
+      <span className="text-xs font-medium leading-snug text-zinc-600 dark:text-zinc-300">{label}</span>
       <div className="flex items-end justify-between">
         <span
           className={`text-3xl font-bold leading-none ${
-            value > 0 ? 'text-zinc-900' : 'text-zinc-300'
+            value > 0 ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-300 dark:text-zinc-500'
           }`}
         >
           {value}
@@ -311,18 +311,18 @@ export default function DashboardPage() {
       <div className="mx-auto w-full max-w-md space-y-5 px-5 py-6 md:max-w-4xl md:px-8">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1.5">
-            <div className="h-3 w-24 rounded-full bg-zinc-200" />
-            <div className="h-7 w-36 rounded-full bg-zinc-200" />
-            <div className="h-4 w-44 rounded-full bg-zinc-200" />
+            <div className="h-3 w-24 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
+            <div className="h-7 w-36 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
+            <div className="h-4 w-44 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
           </div>
-          <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-200" />
+          <div className="h-9 w-9 shrink-0 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
         </div>
-        <div className="h-36 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-14 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-36 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-36 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-14 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-24 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-24 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-24 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-36 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
       </div>
     );
   }
@@ -599,13 +599,13 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs capitalize text-zinc-500">
-            <span className="font-semibold text-zinc-600">{greeting}</span> · {todayLabel}
+          <p className="text-xs capitalize text-zinc-500 dark:text-zinc-400">
+            <span className="font-semibold text-zinc-600 dark:text-zinc-300">{greeting}</span> · {todayLabel}
           </p>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             Τι πρέπει να γίνει τώρα;
           </h1>
-          <p className="mt-0.5 text-sm text-zinc-600">Τα σημαντικά επόμενα βήματα για σήμερα.</p>
+          <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">Τα σημαντικά επόμενα βήματα για σήμερα.</p>
         </div>
         <AttentionInboxBar />
       </div>
@@ -616,7 +616,7 @@ export default function DashboardPage() {
       {/* Hero card - the single most important pending action */}
       {focusCard ? (
         <div
-          className={`rounded-[28px] border-l-4 bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 ${HERO_ACCENT[focusCard.tone]}`}
+          className={`rounded-[28px] border-l-4 bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 ${HERO_ACCENT[focusCard.tone]}`}
         >
           <div className="flex items-start gap-3">
             {/* Icon bubble (color driven by focusCard tone) */}
@@ -626,12 +626,12 @@ export default function DashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold text-indigo-600">Κάνε αυτό τώρα</p>
               {focusCard.customerName && (
-                <p className="mt-1 text-sm font-medium text-zinc-600">{focusCard.customerName}</p>
+                <p className="mt-1 text-sm font-medium text-zinc-600 dark:text-zinc-300">{focusCard.customerName}</p>
               )}
-              <p className="text-[19px] font-bold leading-snug text-zinc-900">
+              <p className="text-[19px] font-bold leading-snug text-zinc-900 dark:text-zinc-100">
                 {focusCard.title}
               </p>
-              <p className="mt-0.5 text-sm text-zinc-600">{focusCard.label}</p>
+              <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{focusCard.label}</p>
             </div>
           </div>
           <Link
@@ -642,9 +642,9 @@ export default function DashboardPage() {
           </Link>
         </div>
       ) : (
-        <div className="rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-[19px] font-bold leading-snug text-zinc-900">Όλα τακτοποιημένα</p>
-          <p className="mt-1 text-sm text-zinc-600">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-[19px] font-bold leading-snug text-zinc-900 dark:text-zinc-100">Όλα τακτοποιημένα</p>
+          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
             Δεν υπάρχει κάτι επείγον αυτή τη στιγμή.
           </p>
           <Link

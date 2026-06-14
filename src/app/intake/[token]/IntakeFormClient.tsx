@@ -145,33 +145,33 @@ export default function IntakeFormClient({
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-10">
+    <main className="min-h-screen bg-zinc-50 dark:bg-[#0e1722] px-4 py-10">
       <div className="mx-auto max-w-lg">
         <header className="px-1 text-center">
-          <h1 className="text-2xl font-bold text-[#0B1120]">
+          <h1 className="text-2xl font-bold text-[#0B1120] dark:text-zinc-100">
             Συμπλήρωση στοιχείων
           </h1>
-          <p className="mt-2 text-base leading-7 text-zinc-600">
+          <p className="mt-2 text-base leading-7 text-zinc-600 dark:text-zinc-300">
             Συμπληρώστε τα βασικά στοιχεία σας για να σας εξυπηρετήσουμε σωστά.
           </p>
         </header>
 
-        <section className="mt-6 rounded-[28px] bg-white p-6 shadow-sm ring-1 ring-zinc-200/60">
+        <section className="mt-6 rounded-[28px] bg-white dark:bg-[#17232f] p-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           {customer ? (
-            <div className="rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-700">
+            <div className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] p-4 text-sm text-zinc-700 dark:text-zinc-200">
               <p>
-                <span className="font-semibold text-zinc-900">Καρτέλα:</span>{' '}
+                <span className="font-semibold text-zinc-900 dark:text-zinc-100">Καρτέλα:</span>{' '}
                 {customer.crmNumber ?? 'Νέα καρτέλα'}
               </p>
               {customer.phoneMasked ? (
                 <p className="mt-1">
-                  <span className="font-semibold text-zinc-900">Τηλέφωνο:</span>{' '}
+                  <span className="font-semibold text-zinc-900 dark:text-zinc-100">Τηλέφωνο:</span>{' '}
                   {customer.phoneMasked}
                 </p>
               ) : null}
             </div>
           ) : loading ? (
-            <p className="rounded-2xl bg-zinc-50 p-4 text-sm text-zinc-700">Φόρτωση...</p>
+            <p className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] p-4 text-sm text-zinc-700 dark:text-zinc-200">Φόρτωση...</p>
           ) : null}
 
           {message ? (
@@ -184,32 +184,32 @@ export default function IntakeFormClient({
             <form action={`/api/intake/${encodeURIComponent(token)}`} method="post" onSubmit={handleSubmit} className="mt-5 space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block">
-                  <span className="text-sm font-medium text-zinc-700">Όνομα</span>
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Όνομα</span>
                   <input
                     name="firstName"
                     value={firstName}
                     onChange={(event) => setFirstName(event.target.value)}
                     autoComplete="given-name"
-                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
                     placeholder="π.χ. Γιώργος"
                   />
                 </label>
 
                 <label className="block">
-                  <span className="text-sm font-medium text-zinc-700">Επώνυμο</span>
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Επώνυμο</span>
                   <input
                     name="lastName"
                     value={lastName}
                     onChange={(event) => setLastName(event.target.value)}
                     autoComplete="family-name"
-                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
                     placeholder="π.χ. Παπαδόπουλος"
                   />
                 </label>
               </div>
 
               <label className="block">
-                <span className="text-sm font-medium text-zinc-700">Email</span>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Email</span>
                 <input
                   name="email"
                   type="email"
@@ -218,25 +218,25 @@ export default function IntakeFormClient({
                   autoComplete="email"
                   inputMode="email"
                   autoCapitalize="none"
-                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
+                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
                   placeholder="name@example.com"
                 />
               </label>
 
               <label className="block">
-                <span className="text-sm font-medium text-zinc-700">Διεύθυνση</span>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Διεύθυνση</span>
                 <input
                   name="address"
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
                   autoComplete="street-address"
-                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 bg-white px-4 text-base outline-none focus:border-indigo-400"
+                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
                   placeholder="Οδός, αριθμός, περιοχή"
                 />
               </label>
 
               <fieldset className="block">
-                <legend className="text-sm font-medium text-zinc-700">
+                <legend className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
                   Πώς προτιμάς να επικοινωνούμε;
                 </legend>
                 <input type="hidden" name="preferredContactMethod" value={preferredContactMethod} />
@@ -253,7 +253,7 @@ export default function IntakeFormClient({
                         className={`flex min-h-[44px] items-center justify-center rounded-xl border px-4 text-base font-medium transition ${
                           selected
                             ? 'border-indigo-600 bg-indigo-600 text-white'
-                            : 'border-zinc-200 bg-white text-zinc-700 hover:border-indigo-400'
+                            : 'border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] text-zinc-700 dark:text-zinc-200 hover:border-indigo-400'
                         }`}
                       >
                         {option.label}
@@ -264,12 +264,12 @@ export default function IntakeFormClient({
               </fieldset>
 
               <label className="block">
-                <span className="text-sm font-medium text-zinc-700">Σχόλια</span>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Σχόλια</span>
                 <textarea
                   name="comments"
                   value={comments}
                   onChange={(event) => setComments(event.target.value)}
-                  className="mt-1 min-h-28 w-full rounded-xl border border-zinc-200 bg-white px-4 py-3 text-base outline-none focus:border-indigo-400"
+                  className="mt-1 min-h-28 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-3 text-base outline-none focus:border-indigo-400"
                   placeholder="Οτιδήποτε θέλετε να μας ενημερώσετε."
                 />
               </label>
@@ -290,7 +290,7 @@ export default function IntakeFormClient({
             </div>
           ) : null}
 
-          <p className="mt-6 text-center text-sm text-zinc-500">
+          <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
             Τα στοιχεία χρησιμοποιούνται μόνο για την εξυπηρέτησή σας.
           </p>
         </section>

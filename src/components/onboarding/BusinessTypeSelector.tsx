@@ -52,19 +52,19 @@ export default function BusinessTypeSelector({ value, onChange }: Props) {
             className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
               selected
                 ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-200'
-                : 'border-zinc-200 bg-white hover:border-zinc-300 hover:bg-zinc-50'
+                : 'border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] hover:border-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5'
             }`}
           >
             <span className="text-2xl leading-none">{option.emoji}</span>
             <div>
               <p
                 className={`text-sm font-semibold ${
-                  selected ? 'text-indigo-700' : 'text-zinc-800'
+                  selected ? 'text-indigo-700' : 'text-zinc-800 dark:text-zinc-200'
                 }`}
               >
                 {option.label}
               </p>
-              <p className="mt-0.5 text-xs text-zinc-500">{option.description}</p>
+              <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{option.description}</p>
             </div>
           </button>
         );

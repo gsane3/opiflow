@@ -62,15 +62,15 @@ export default function AuthConfirmPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-sm ring-1 ring-zinc-100 p-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Επιβεβαίωση email</h1>
-        <p className="text-sm text-zinc-500 mb-6">
+    <main className="min-h-screen bg-zinc-50 dark:bg-[#0e1722] flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white dark:bg-[#17232f] rounded-2xl shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 p-8">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">Επιβεβαίωση email</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
           Επιβεβαιώνουμε το email σου...
         </p>
 
         {state === 'loading' && (
-          <p className="text-sm text-zinc-500">Επιβεβαιώνουμε το email σου...</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Επιβεβαιώνουμε το email σου...</p>
         )}
 
         {state === 'no_config' && (

@@ -71,9 +71,9 @@ const REJECT_MESSAGE = 'Καλησπέρα σας. Ευχαριστούμε πο
 
 function SectionCard({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
+    <div className="rounded-[24px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">{title}</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{title}</p>
         {action}
       </div>
       <div className="mt-2">{children}</div>
@@ -103,14 +103,14 @@ function SavedCheck({ label }: { label: string }) {
 }
 function SectionCardSkeleton() {
   return (
-    <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
-      <div className="h-3 w-28 rounded bg-zinc-200/80" />
-      <div className="mt-3 space-y-2"><div className="h-10 rounded-xl bg-zinc-100" /><div className="h-10 w-3/4 rounded-xl bg-zinc-100" /></div>
+    <div className="rounded-[24px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+      <div className="h-3 w-28 rounded bg-zinc-200/80 dark:bg-[#1e2b38]" />
+      <div className="mt-3 space-y-2"><div className="h-10 rounded-xl bg-zinc-100 dark:bg-[#1e2b38]" /><div className="h-10 w-3/4 rounded-xl bg-zinc-100 dark:bg-[#1e2b38]" /></div>
     </div>
   );
 }
 
-const FIELD_CLASS = 'w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-base text-zinc-900 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100';
+const FIELD_CLASS = 'w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-base text-zinc-900 dark:text-zinc-100 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100';
 
 export default function CustomerInfoPanel({
   customerId, open, onClose, callBriefs, initialSection = null, autoOpenGallery = false,
@@ -300,12 +300,12 @@ export default function CustomerInfoPanel({
   return (
     <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
       <button type="button" aria-label="Κλείσιμο" className="absolute inset-0 bg-black/30 motion-safe:animate-[fadeIn_0.2s_ease-out]" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] shadow-2xl motion-safe:animate-[slideInRight_0.28s_cubic-bezier(0.32,0.72,0,1)]">
-        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <button type="button" onClick={onClose} aria-label="Πίσω στη συνομιλία" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition active:scale-95 hover:bg-zinc-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] dark:bg-[#0e1722] shadow-2xl motion-safe:animate-[slideInRight_0.28s_cubic-bezier(0.32,0.72,0,1)]">
+        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <button type="button" onClick={onClose} aria-label="Πίσω στη συνομιλία" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 transition active:scale-95 hover:bg-zinc-100 dark:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
             <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
           </button>
-          <p className="flex-1 truncate text-base font-semibold text-zinc-900">{name}</p>
+          <p className="flex-1 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">{name}</p>
           {customer?.status && <Badge tone={STATUS_TONE[customer.status] ?? 'zinc'} className="shrink-0">{STATUS_GR[customer.status] ?? customer.status}</Badge>}
         </header>
 
@@ -340,13 +340,13 @@ export default function CustomerInfoPanel({
                       <Input label="Email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} inputMode="email" />
                       <Input label="Διεύθυνση" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} />
                       <div>
-                        <label className="mb-1 block text-xs font-medium text-zinc-500">Προτιμώμενο κανάλι</label>
+                        <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Προτιμώμενο κανάλι</label>
                         <select value={form.preferredContactMethod} onChange={(e) => setForm((f) => ({ ...f, preferredContactMethod: e.target.value }))} className={FIELD_CLASS}>
                           {CONTACT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
                         </select>
                       </div>
                       <div>
-                        <label className="mb-1 block text-xs font-medium text-zinc-500">Πηγή</label>
+                        <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Πηγή</label>
                         <select value={form.source} onChange={(e) => setForm((f) => ({ ...f, source: e.target.value }))} className={FIELD_CLASS}>
                           <option value="">— Χωρίς πηγή —</option>
                           {SOURCES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -362,12 +362,12 @@ export default function CustomerInfoPanel({
                     <div>
                       <dl className="space-y-2 text-sm">
                         {(form.mobilePhone || form.landlinePhone) && (
-                          <div className="flex justify-between gap-2"><dt className="text-zinc-400">{form.mobilePhone ? 'Κινητό' : 'Σταθερό'}</dt><dd className="font-medium tabular-nums text-zinc-800">{form.mobilePhone || form.landlinePhone}</dd></div>
+                          <div className="flex justify-between gap-2"><dt className="text-zinc-400 dark:text-zinc-500">{form.mobilePhone ? 'Κινητό' : 'Σταθερό'}</dt><dd className="font-medium tabular-nums text-zinc-800 dark:text-zinc-200">{form.mobilePhone || form.landlinePhone}</dd></div>
                         )}
-                        {form.email && (<div className="flex justify-between gap-2"><dt className="shrink-0 text-zinc-400">Email</dt><dd className="break-all font-medium text-zinc-800">{form.email}</dd></div>)}
-                        {form.companyName && (<div className="flex justify-between gap-2"><dt className="text-zinc-400">Εταιρεία</dt><dd className="font-medium text-zinc-800">{form.companyName}</dd></div>)}
+                        {form.email && (<div className="flex justify-between gap-2"><dt className="shrink-0 text-zinc-400 dark:text-zinc-500">Email</dt><dd className="break-all font-medium text-zinc-800 dark:text-zinc-200">{form.email}</dd></div>)}
+                        {form.companyName && (<div className="flex justify-between gap-2"><dt className="text-zinc-400 dark:text-zinc-500">Εταιρεία</dt><dd className="font-medium text-zinc-800 dark:text-zinc-200">{form.companyName}</dd></div>)}
                         {!form.mobilePhone && !form.landlinePhone && !form.email && !form.companyName && (
-                          <p className="py-1 text-zinc-400">Δεν υπάρχουν στοιχεία ακόμα. Πάτα «Επεξεργασία».</p>
+                          <p className="py-1 text-zinc-400 dark:text-zinc-500">Δεν υπάρχουν στοιχεία ακόμα. Πάτα «Επεξεργασία».</p>
                         )}
                       </dl>
                       {contactSaved && <div className="mt-2"><SavedCheck label="Αποθηκεύτηκε" /></div>}
@@ -378,15 +378,15 @@ export default function CustomerInfoPanel({
 
               {/* Google Maps — its own button, outside the contact card */}
               {form.address && (
-                <a href={buildMapsUrl(form.address)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-[24px] bg-white px-4 py-3.5 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-zinc-200/60 transition active:scale-[0.99] hover:bg-indigo-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
+                <a href={buildMapsUrl(form.address)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-[24px] bg-white dark:bg-[#17232f] px-4 py-3.5 text-sm font-semibold text-indigo-700 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 transition active:scale-[0.99] hover:bg-indigo-50/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-50">
                     <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1 1 15 0Z" /></svg>
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block">Άνοιγμα στο Google Maps</span>
-                    <span className="block truncate text-xs font-normal text-zinc-400">{form.address}</span>
+                    <span className="block truncate text-xs font-normal text-zinc-400 dark:text-zinc-500">{form.address}</span>
                   </span>
-                  <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                  <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                 </a>
               )}
 
@@ -396,14 +396,14 @@ export default function CustomerInfoPanel({
                   {offers.length === 0 ? <Empty text="Δεν υπάρχουν προσφορές." /> : (
                     <div className="space-y-1.5">
                       {offers.map((o) => (
-                        <button key={o.id} type="button" onClick={() => setPreviewOfferId(o.id)} className="flex w-full items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-left ring-1 ring-transparent transition hover:bg-white hover:ring-zinc-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        <button key={o.id} type="button" onClick={() => setPreviewOfferId(o.id)} className="flex w-full items-center justify-between gap-2 rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2.5 text-left ring-1 ring-transparent transition hover:bg-white dark:hover:bg-white/5 hover:ring-zinc-200 dark:hover:ring-white/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                           <div className="min-w-0">
-                            <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber ?? 'Προσφορά'}</p>
-                            <p className="text-xs text-zinc-500">{fmtDate(o.offerDate)} · {OFFER_STATUS_GR[o.status] ?? o.status}</p>
+                            <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{o.offerNumber ?? 'Προσφορά'}</p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">{fmtDate(o.offerDate)} · {OFFER_STATUS_GR[o.status] ?? o.status}</p>
                           </div>
                           <div className="flex shrink-0 items-center gap-2">
-                            {typeof o.total === 'number' && <span className="text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>}
-                            <svg className="h-4 w-4 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                            {typeof o.total === 'number' && <span className="text-sm font-semibold tabular-nums text-zinc-800 dark:text-zinc-200">€{o.total.toLocaleString('el-GR')}</span>}
+                            <svg className="h-4 w-4 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                           </div>
                         </button>
                       ))}
@@ -418,12 +418,12 @@ export default function CustomerInfoPanel({
                   {appts.length === 0 ? <Empty text="Δεν υπάρχουν ραντεβού." /> : (
                     <div className="space-y-1.5">
                       {appts.map((a) => (
-                        <button key={a.id} type="button" onClick={() => setPreviewAppt(a)} className="flex w-full items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5 text-left ring-1 ring-transparent transition hover:bg-white hover:ring-zinc-200 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                        <button key={a.id} type="button" onClick={() => setPreviewAppt(a)} className="flex w-full items-center justify-between gap-2 rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2.5 text-left ring-1 ring-transparent transition hover:bg-white dark:hover:bg-white/5 hover:ring-zinc-200 dark:hover:ring-white/10 active:scale-[0.99] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
                           <div className="min-w-0">
-                            <p className="text-sm font-medium text-zinc-900">{fmtDate(a.dueDate)}{a.dueTime ? ` · ${a.dueTime}` : ''}</p>
-                            {(a.note || a.title) && <p className="truncate text-xs text-zinc-500">{a.note || a.title}</p>}
+                            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">{fmtDate(a.dueDate)}{a.dueTime ? ` · ${a.dueTime}` : ''}</p>
+                            {(a.note || a.title) && <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{a.note || a.title}</p>}
                           </div>
-                          <svg className="h-4 w-4 shrink-0 text-zinc-300" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                          <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                         </button>
                       ))}
                     </div>
@@ -440,7 +440,7 @@ export default function CustomerInfoPanel({
                         const key = `${f.sessionId}:${f.fileIndex}`;
                         const thumb = thumbUrls[key];
                         return (
-                          <button key={key} type="button" onClick={() => { setGalleryIndex(i); setGalleryOpen(true); }} className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-zinc-100 text-zinc-400 ring-1 ring-zinc-200/60 transition active:scale-95 hover:ring-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={f.name}>
+                          <button key={key} type="button" onClick={() => { setGalleryIndex(i); setGalleryOpen(true); }} className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-zinc-100 dark:bg-[#1e2b38] text-zinc-400 dark:text-zinc-500 ring-1 ring-zinc-200/60 dark:ring-white/10 transition active:scale-95 hover:ring-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2" aria-label={f.name}>
                             {f.kind === 'image' ? (
                               thumb ? (
                                 // eslint-disable-next-line @next/next/no-img-element
@@ -469,8 +469,8 @@ export default function CustomerInfoPanel({
                     <div className="space-y-3">
                       {callBriefs.map((b) => (
                         <div key={b.id} className="border-l-2 border-indigo-200 pl-3">
-                          <p className="text-[11px] font-medium text-zinc-500">{fmtDate(b.occurredAt)}</p>
-                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{b.body}</p>
+                          <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{fmtDate(b.occurredAt)}</p>
+                          <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">{b.body}</p>
                         </div>
                       ))}
                     </div>

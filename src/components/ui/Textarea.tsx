@@ -51,7 +51,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
         {label && (
           <label
             htmlFor={textareaId}
-            className="mb-1 block text-sm font-medium text-zinc-700"
+            className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-200"
           >
             {label}
             {required && (
@@ -71,12 +71,12 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           aria-describedby={describedBy}
           // text-base (16px) prevents iOS Safari from auto-zooming on focus.
           className={cn(
-            'w-full resize-y rounded-xl border bg-white px-4 py-2.5 text-base text-zinc-900 placeholder-zinc-400',
+            'w-full resize-y rounded-xl border bg-white dark:bg-[#0f1923] px-4 py-2.5 text-base text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500',
             'transition-colors focus:outline-none focus:ring-2',
-            'disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-400',
+            'disabled:cursor-not-allowed disabled:bg-zinc-50 dark:disabled:bg-white/5 disabled:text-zinc-400 dark:disabled:text-zinc-500',
             hasError
               ? 'border-red-300 focus:border-red-400 focus:ring-red-500'
-              : 'border-zinc-200 focus:border-indigo-400 focus:ring-indigo-500',
+              : 'border-zinc-200 dark:border-white/10 focus:border-indigo-400 focus:ring-indigo-500',
             className,
           )}
           {...props}
@@ -87,7 +87,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
             {error}
           </p>
         ) : hint ? (
-          <p id={hintId} className="mt-1 text-sm text-zinc-500">
+          <p id={hintId} className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             {hint}
           </p>
         ) : null}

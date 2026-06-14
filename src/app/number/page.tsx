@@ -195,13 +195,13 @@ export default function NumberPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white px-5 pt-6 pb-28">
+    <main className="min-h-screen bg-white dark:bg-[#0e1722] px-5 pt-6 pb-28">
       <div className="mx-auto max-w-md">
 
         {/* Back */}
         <Link
           href="/package"
-          className="inline-flex items-center text-zinc-400 hover:text-zinc-600 transition mb-5"
+          className="inline-flex items-center text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition mb-5"
           aria-label="Πίσω"
         >
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
@@ -210,7 +210,7 @@ export default function NumberPage() {
         </Link>
 
         {/* Step label */}
-        <p className="text-xs font-medium text-zinc-400 mb-2">Βήμα 3 από 3</p>
+        <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500 mb-2">Βήμα 3 από 3</p>
 
         {/* Phone illustration area */}
         <div className="flex justify-center mt-2 mb-6">
@@ -220,19 +220,19 @@ export default function NumberPage() {
         </div>
 
         {/* Title */}
-        <h1 className="text-2xl font-bold text-zinc-900 text-center leading-snug">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 text-center leading-snug">
           Ο αριθμός σου
         </h1>
-        <p className="mt-2 text-sm text-zinc-500 text-center">
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 text-center">
           Ο επαγγελματικός αριθμός θα συνδεθεί με τις κλήσεις και το CRM σου.
         </p>
 
         {/* Number card */}
-        <div className="mt-6 rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="mt-6 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           {phoneLoading ? (
-            <p className="text-sm text-zinc-400">Έλεγχος αριθμού...</p>
+            <p className="text-sm text-zinc-400 dark:text-zinc-500">Έλεγχος αριθμού...</p>
           ) : noSession ? (
-            <p className="text-sm text-zinc-500">Συνδέσου για να δεις τον αριθμό σου.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Συνδέσου για να δεις τον αριθμό σου.</p>
           ) : phoneError ? (
             <p className="text-sm text-red-600">
               Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.
@@ -240,7 +240,7 @@ export default function NumberPage() {
           ) : phoneInfo?.activationAllowed === false ? (
             <>
               <p className="text-xs font-medium text-red-500">Απαιτείται ενεργοποίηση</p>
-              <p className="mt-2 text-sm text-zinc-700">
+              <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-200">
                 Χρειάζεται ενεργοποίηση πακέτου πριν χρησιμοποιήσεις αριθμό.
               </p>
               <div className="mt-3">
@@ -254,8 +254,8 @@ export default function NumberPage() {
             </>
           ) : phoneInfo?.phoneAssigned && phoneInfo.business?.business_phone_number ? (
             <>
-              <p className="text-xs font-medium text-zinc-400">Ο αριθμός σου</p>
-              <p className="mt-2 text-2xl font-bold tracking-wide text-zinc-900">
+              <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Ο αριθμός σου</p>
+              <p className="mt-2 text-2xl font-bold tracking-wide text-zinc-900 dark:text-zinc-100">
                 {phoneInfo.business.business_phone_number}
               </p>
               <div className="mt-2">
@@ -264,7 +264,7 @@ export default function NumberPage() {
                   <span className="text-xs font-medium text-green-700">Ενεργός</span>
                 </span>
               </div>
-              <p className="mt-3 text-xs text-zinc-400">
+              <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
                 Ο αριθμός σου έχει ενεργοποιηθεί για την επιχείρησή σου.
               </p>
               <div className="mt-4">
@@ -278,13 +278,13 @@ export default function NumberPage() {
             </>
           ) : (
             <>
-              <p className="text-xs font-medium text-zinc-400">Ο αριθμός σου</p>
-              <p className="mt-2 text-base font-medium text-zinc-700">
+              <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Ο αριθμός σου</p>
+              <p className="mt-2 text-base font-medium text-zinc-700 dark:text-zinc-200">
                 Ο αριθμός σου ετοιμάζεται.
               </p>
               {localNumberRequest?.status === 'pending' ? (
                 <>
-                  <p className="mt-1 text-xs text-zinc-500">
+                  <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
                     Καταγράψαμε ότι χρειάζεσαι αριθμό
                     {localNumberRequest.requestedCity
                       ? ` για ${localNumberRequest.requestedCity}`
@@ -296,13 +296,13 @@ export default function NumberPage() {
                       <span className="text-xs font-medium text-indigo-700">Αίτημα σε εκκρεμότητα</span>
                     </span>
                   </div>
-                  <p className="mt-3 text-xs text-zinc-400">
+                  <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
                     Θα εμφανιστεί εδώ μόλις ενεργοποιηθεί.
                   </p>
                   <button
                     type="button"
                     disabled
-                    className="mt-4 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-400 cursor-not-allowed"
+                    className="mt-4 rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-4 py-2 text-sm font-medium text-zinc-400 dark:text-zinc-500 cursor-not-allowed"
                   >
                     Το αίτημα έχει καταχωρηθεί
                   </button>
@@ -310,7 +310,7 @@ export default function NumberPage() {
                     type="button"
                     onClick={handleCheckStatus}
                     disabled={phoneLoading}
-                    className="mt-3 text-xs font-medium text-zinc-500 transition hover:text-zinc-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-3 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition hover:text-zinc-700 dark:hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {phoneLoading ? 'Έλεγχος...' : 'Έλεγχος κατάστασης'}
                   </button>
@@ -323,7 +323,7 @@ export default function NumberPage() {
                       <span className="text-xs font-medium text-amber-700">Σε αναμονή</span>
                     </span>
                   </div>
-                  <p className="mt-3 text-xs text-zinc-400">
+                  <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
                     Δεν χρειάζεται να ρυθμίσεις κάτι άλλο τώρα.
                   </p>
                   <button
@@ -350,14 +350,14 @@ export default function NumberPage() {
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-50">
                 {f.icon}
               </div>
-              <span className="mt-1 text-sm text-zinc-600">{f.text}</span>
+              <span className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{f.text}</span>
             </li>
           ))}
         </ul>
 
         {/* Secondary note */}
-        <div className="mt-6 rounded-[28px] bg-zinc-50 px-5 py-4 ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-500">
+        <div className="mt-6 rounded-[28px] bg-zinc-50 dark:bg-[#1e2b38] px-5 py-4 ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             Μπορείς να συνεχίσεις στην εφαρμογή και να το ρυθμίσεις αργότερα.
           </p>
         </div>
@@ -374,7 +374,7 @@ export default function NumberPage() {
           <button
             type="button"
             onClick={handleContinue}
-            className="w-full py-2.5 text-sm font-medium text-zinc-500 transition hover:text-zinc-700"
+            className="w-full py-2.5 text-sm font-medium text-zinc-500 dark:text-zinc-400 transition hover:text-zinc-700 dark:hover:text-zinc-200"
           >
             Θα το ρυθμίσω αργότερα
           </button>

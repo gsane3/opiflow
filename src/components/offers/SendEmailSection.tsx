@@ -9,7 +9,7 @@ type SendState = 'idle' | 'sending' | 'sent' | 'missing_config' | 'invalid_email
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const inputCls =
-  'w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+  'w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
 
 interface Props {
   offer: Offer;
@@ -81,8 +81,8 @@ export default function SendEmailSection({
 
   if (state === 'missing_config') {
     return (
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           Αποστολή email
         </p>
         <p className="rounded-xl bg-amber-50 px-3 py-2.5 text-sm text-amber-700">
@@ -91,7 +91,7 @@ export default function SendEmailSection({
         <button
           type="button"
           onClick={() => setState('idle')}
-          className="mt-2 text-xs text-zinc-400 hover:text-zinc-600"
+          className="mt-2 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           Πίσω
         </button>
@@ -102,8 +102,8 @@ export default function SendEmailSection({
   if (state === 'sent') {
     const alreadyMarked = offerStatus === 'sent_manually';
     return (
-      <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+      <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
           Αποστολή email
         </p>
 
@@ -124,7 +124,7 @@ export default function SendEmailSection({
                 <button
                   type="button"
                   onClick={onMarkSent}
-                  className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-4 py-2 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-100 dark:hover:bg-white/5"
                 >
                   Σήμανση ως &quot;Στάλθηκε&quot;
                 </button>
@@ -134,7 +134,7 @@ export default function SendEmailSection({
             {/* Follow-up task */}
             {onCreateFollowUpTask && (
               taskCreated ? (
-                <p className="text-xs text-zinc-500">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
                   Δημιουργήθηκε task follow-up για σε 3 μέρες.
                 </p>
               ) : (
@@ -156,7 +156,7 @@ export default function SendEmailSection({
         <button
           type="button"
           onClick={() => setState('idle')}
-          className="mt-3 text-xs text-zinc-400 hover:text-zinc-600"
+          className="mt-3 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           Αποστολή νέου
         </button>
@@ -165,14 +165,14 @@ export default function SendEmailSection({
   }
 
   return (
-    <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-zinc-100 print:hidden">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400">
+    <section className="rounded-2xl bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 print:hidden">
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
         Αποστολή email
       </p>
 
       <div className="space-y-3">
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">Προς</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Προς</label>
           <input
             type="email"
             value={to}
@@ -192,7 +192,7 @@ export default function SendEmailSection({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">Θέμα</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Θέμα</label>
           <input
             type="text"
             value={subject}
@@ -202,7 +202,7 @@ export default function SendEmailSection({
         </div>
 
         <div>
-          <label className="mb-1 block text-xs font-medium text-zinc-600">Μήνυμα</label>
+          <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Μήνυμα</label>
           <textarea
             rows={9}
             value={body}
@@ -211,13 +211,13 @@ export default function SendEmailSection({
           />
         </div>
 
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Η προσφορά δεν επισυνάπτεται ως PDF σε αυτό το MVP. Μπορείς να κάνεις{' '}
-          <span className="font-medium text-zinc-500">Αποθήκευση ως PDF</span> και να τη στείλεις
+          <span className="font-medium text-zinc-500 dark:text-zinc-400">Αποθήκευση ως PDF</span> και να τη στείλεις
           χειροκίνητα.
         </p>
 
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Αν η αποστολή email είναι ρυθμισμένη στον server, το κουμπί θα στείλει πραγματικό email στη διεύθυνση παραλήπτη.
         </p>
 

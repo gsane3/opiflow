@@ -108,13 +108,13 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="min-h-screen bg-white flex flex-col items-center px-5 pt-10 pb-12">
+    <main className="min-h-screen bg-white dark:bg-[#0e1722] flex flex-col items-center px-5 pt-10 pb-12">
       <div className="w-full max-w-md">
 
         {/* Wordmark */}
         <div className="flex flex-col items-center mb-8">
           <div className="flex items-center gap-1">
-            <span className="text-[22px] font-bold tracking-tight text-zinc-900">opiflow</span>
+            <span className="text-[22px] font-bold tracking-tight text-zinc-900 dark:text-zinc-100">opiflow</span>
             <span className="text-[22px] font-bold tracking-tight text-indigo-600">.ai</span>
             <svg
               className="ml-0.5 h-3.5 w-3.5 text-indigo-400"
@@ -125,26 +125,26 @@ export default function RegisterPage() {
               <path d="M12 2l1.09 6.26L19 9l-5.5 5.14 1.68 6.86L12 17.77l-3.18 3.23L10.5 14.14 5 9l5.91-.74L12 2z" />
             </svg>
           </div>
-          <h1 className="mt-6 text-2xl font-bold text-zinc-900 text-center leading-snug">
+          <h1 className="mt-6 text-2xl font-bold text-zinc-900 dark:text-zinc-100 text-center leading-snug">
             Καλωσόρισες στο Opiflow
           </h1>
-          <p className="mt-2 text-sm text-zinc-500 text-center">
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400 text-center">
             Δημιούργησε τον λογαριασμό σου σε λίγα δευτερόλεπτα.
           </p>
         </div>
 
         <OAuthButtons />
         <div className="my-5 flex items-center gap-3">
-          <span className="h-px flex-1 bg-zinc-200" />
-          <span className="text-xs text-zinc-400">ή με email</span>
-          <span className="h-px flex-1 bg-zinc-200" />
+          <span className="h-px flex-1 bg-zinc-200 dark:bg-white/10" />
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">ή με email</span>
+          <span className="h-px flex-1 bg-zinc-200 dark:bg-white/10" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Ονοματεπώνυμο */}
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1.5">
               Ονοματεπώνυμο
             </label>
             <input
@@ -152,13 +152,13 @@ export default function RegisterPage() {
               value={name}
               onChange={(e) => setProfessionalName(e.target.value)}
               placeholder="π.χ. Κωνσταντίνος Σιδέρης"
-              className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+              className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
             />
           </div>
 
           {/* Email */}
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1.5">
               Email
             </label>
             <input
@@ -168,17 +168,17 @@ export default function RegisterPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="π.χ. ksid@example.com"
-              className="w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+              className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
             />
           </div>
 
           {/* Κωδικός */}
           <div>
-            <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1.5">
               Κωδικός
             </label>
             <div className="relative">
-              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400">
+              <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500">
                 <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
                 </svg>
@@ -190,13 +190,13 @@ export default function RegisterPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full rounded-2xl border border-zinc-200 bg-white pl-11 pr-11 py-3 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
+                className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] pl-11 pr-11 py-3 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition"
               />
               <button
                 type="button"
                 aria-label={showPassword ? 'Απόκρυψη κωδικού' : 'Εμφάνιση κωδικού'}
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 transition"
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition"
               >
                 {showPassword ? (
                   <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -220,7 +220,7 @@ export default function RegisterPage() {
               onChange={(e) => setAgreed(e.target.checked)}
               className="mt-0.5 h-4 w-4 rounded accent-indigo-600 shrink-0"
             />
-            <span className="text-xs text-zinc-500 leading-relaxed">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">
               Συμφωνώ με τους{' '}
               <Link href="/terms" target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="font-medium text-indigo-600 hover:text-indigo-700">Όρους Χρήσης</Link>
               {' '}και την{' '}
@@ -248,7 +248,7 @@ export default function RegisterPage() {
           </div>
         </form>
 
-        <p className="mt-6 text-center text-sm text-zinc-500">
+        <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
           Έχεις ήδη λογαριασμό;{' '}
           <Link
             href="/login"

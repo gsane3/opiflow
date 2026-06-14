@@ -37,7 +37,7 @@ function CloseButton({ onClose }: { onClose: () => void }) {
       type="button"
       onClick={onClose}
       aria-label="Κλείσιμο"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-white/5"
     >
       <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -86,7 +86,7 @@ export function BottomSheet({
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'flex max-h-[85vh] w-full flex-col bg-white shadow-2xl ring-1 ring-zinc-200/60',
+          'flex max-h-[85vh] w-full flex-col bg-white dark:bg-[#17232f] shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10',
           'rounded-t-[28px] animate-[sheetUp_0.28s_ease-out]',
           'pb-[env(safe-area-inset-bottom)]',
           'md:max-w-md md:rounded-[28px]',
@@ -95,17 +95,17 @@ export function BottomSheet({
       >
         {/* Grab handle (mobile affordance) */}
         <div className="flex justify-center pb-1 pt-3 md:hidden">
-          <span className="h-1.5 w-10 rounded-full bg-zinc-300" />
+          <span className="h-1.5 w-10 rounded-full bg-zinc-300 dark:bg-white/10" />
         </div>
 
         {/* Header — the close button is always present even without a title. */}
         <div className="flex items-start justify-between gap-3 px-5 pb-2 pt-2 md:pt-5">
           <div className="min-w-0 flex-1">
             {title != null && (
-              <div className="text-base font-semibold text-zinc-900">{title}</div>
+              <div className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{title}</div>
             )}
             {description != null && (
-              <p className="mt-0.5 text-sm text-zinc-500">{description}</p>
+              <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
             )}
           </div>
           <CloseButton onClose={onClose} />
@@ -116,7 +116,7 @@ export function BottomSheet({
 
         {/* Sticky footer */}
         {footer != null && (
-          <div className="border-t border-zinc-100 px-5 py-3">{footer}</div>
+          <div className="border-t border-zinc-100 dark:border-white/10 px-5 py-3">{footer}</div>
         )}
       </div>
     </div>
@@ -166,14 +166,14 @@ export function SheetRow({
         'disabled:cursor-not-allowed disabled:opacity-50',
         isDanger
           ? 'text-red-600 hover:bg-red-50'
-          : 'text-zinc-800 hover:bg-zinc-50',
+          : 'text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/5',
       )}
     >
       {icon != null && (
         <span
           className={cn(
             'flex h-9 w-9 shrink-0 items-center justify-center rounded-full',
-            isDanger ? 'bg-red-50 text-red-500' : 'bg-zinc-100 text-zinc-500',
+            isDanger ? 'bg-red-50 text-red-500' : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400',
           )}
         >
           {icon}
@@ -183,7 +183,7 @@ export function SheetRow({
       <span className="min-w-0 flex-1">
         <span className="block truncate">{label}</span>
         {description != null && (
-          <span className="mt-0.5 block truncate text-xs text-zinc-500">{description}</span>
+          <span className="mt-0.5 block truncate text-xs text-zinc-500 dark:text-zinc-400">{description}</span>
         )}
       </span>
 

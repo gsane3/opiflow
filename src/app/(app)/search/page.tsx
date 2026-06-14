@@ -91,7 +91,7 @@ const MAX_PER_GROUP = 8;
 function ChevronRight() {
   return (
     <svg
-      className="h-4 w-4 shrink-0 text-zinc-300"
+      className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500"
       fill="none"
       strokeWidth={2}
       stroke="currentColor"
@@ -105,7 +105,7 @@ function ChevronRight() {
 function SearchIcon() {
   return (
     <svg
-      className="h-5 w-5 text-zinc-400"
+      className="h-5 w-5 text-zinc-400 dark:text-zinc-500"
       fill="none"
       strokeWidth={1.5}
       stroke="currentColor"
@@ -247,12 +247,12 @@ export default function SearchPage() {
     return (
       <div className="mx-auto w-full max-w-md space-y-5 px-5 py-6 md:max-w-4xl md:px-8">
         <div className="space-y-1.5">
-          <div className="h-3 w-20 rounded-full bg-zinc-200" />
-          <div className="h-7 w-32 rounded-full bg-zinc-200" />
+          <div className="h-3 w-20 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
+          <div className="h-7 w-32 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
         </div>
-        <div className="h-14 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-24 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-14 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-24 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-24 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
       </div>
     );
   }
@@ -283,12 +283,12 @@ export default function SearchPage() {
 
       {/* Header */}
       <div>
-        <p className="text-xs text-zinc-400">Παντού</p>
-        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Αναζήτηση</h1>
+        <p className="text-xs text-zinc-400 dark:text-zinc-400">Παντού</p>
+        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Αναζήτηση</h1>
       </div>
 
       {/* Search input */}
-      <div className="flex items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 focus-within:ring-indigo-300">
+      <div className="flex items-center gap-3 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 focus-within:ring-indigo-300">
         <SearchIcon />
         <input
           ref={inputRef}
@@ -297,7 +297,7 @@ export default function SearchPage() {
           autoFocus
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Πελάτες, προσφορές, tasks…"
-          className="w-full bg-transparent text-base text-zinc-900 placeholder:text-zinc-400 outline-none"
+          className="w-full bg-transparent text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 outline-none"
         />
         {query && (
           <button
@@ -306,7 +306,7 @@ export default function SearchPage() {
               setQuery('');
               inputRef.current?.focus();
             }}
-            className="text-xs font-medium text-zinc-400 hover:text-zinc-600"
+            className="text-xs font-medium text-zinc-400 dark:text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
           >
             Καθαρισμός
           </button>
@@ -335,9 +335,9 @@ export default function SearchPage() {
 
       {/* Results: Customers */}
       {hasQuery && matchedCustomers.length > 0 && (
-        <section className="rounded-[28px] bg-white px-5 py-6 shadow-sm ring-1 ring-zinc-200/60">
-          <h2 className="text-sm font-semibold text-zinc-900">Πελάτες</h2>
-          <ul className="mt-3 divide-y divide-zinc-100">
+        <section className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Πελάτες</h2>
+          <ul className="mt-3 divide-y divide-zinc-100 dark:divide-white/10">
             {matchedCustomers.map((c) => (
               <li key={c.id}>
                 <Link
@@ -345,8 +345,8 @@ export default function SearchPage() {
                   className="flex items-center justify-between gap-3 py-3 transition active:opacity-60"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-900">{c.name}</p>
-                    <p className="truncate text-xs text-zinc-400">
+                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{c.name}</p>
+                    <p className="truncate text-xs text-zinc-400 dark:text-zinc-400">
                       {c.phone || c.mobilePhone || c.email || c.companyName || '—'}
                     </p>
                   </div>
@@ -360,9 +360,9 @@ export default function SearchPage() {
 
       {/* Results: Offers */}
       {hasQuery && matchedOffers.length > 0 && (
-        <section className="rounded-[28px] bg-white px-5 py-6 shadow-sm ring-1 ring-zinc-200/60">
-          <h2 className="text-sm font-semibold text-zinc-900">Προσφορές</h2>
-          <ul className="mt-3 divide-y divide-zinc-100">
+        <section className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Προσφορές</h2>
+          <ul className="mt-3 divide-y divide-zinc-100 dark:divide-white/10">
             {matchedOffers.map((o) => (
               <li key={o.id}>
                 <Link
@@ -370,8 +370,8 @@ export default function SearchPage() {
                   className="flex items-center justify-between gap-3 py-3 transition active:opacity-60"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber}</p>
-                    <p className="truncate text-xs text-zinc-400">
+                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{o.offerNumber}</p>
+                    <p className="truncate text-xs text-zinc-400 dark:text-zinc-400">
                       {o.customerId ? customerMap[o.customerId] ?? '—' : '—'}
                     </p>
                   </div>
@@ -385,9 +385,9 @@ export default function SearchPage() {
 
       {/* Results: Tasks */}
       {hasQuery && matchedTasks.length > 0 && (
-        <section className="rounded-[28px] bg-white px-5 py-6 shadow-sm ring-1 ring-zinc-200/60">
-          <h2 className="text-sm font-semibold text-zinc-900">Εργασίες</h2>
-          <ul className="mt-3 divide-y divide-zinc-100">
+        <section className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Εργασίες</h2>
+          <ul className="mt-3 divide-y divide-zinc-100 dark:divide-white/10">
             {matchedTasks.map((t) => (
               <li key={t.id}>
                 <Link
@@ -395,8 +395,8 @@ export default function SearchPage() {
                   className="flex items-center justify-between gap-3 py-3 transition active:opacity-60"
                 >
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-900">{t.title}</p>
-                    <p className="truncate text-xs text-zinc-400">
+                    <p className="truncate text-sm font-medium text-zinc-900 dark:text-zinc-100">{t.title}</p>
+                    <p className="truncate text-xs text-zinc-400 dark:text-zinc-400">
                       {t.customerId ? customerMap[t.customerId] ?? '—' : '—'}
                     </p>
                   </div>

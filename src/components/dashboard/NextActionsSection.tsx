@@ -196,9 +196,9 @@ function buildActions(
 }
 
 const TONE_ROW: Record<ActionItem['tone'], string> = {
-  red: 'bg-red-50 ring-red-200',
-  amber: 'bg-amber-50 ring-amber-200',
-  indigo: 'bg-indigo-50 ring-indigo-200',
+  red: 'bg-red-50 ring-red-200 dark:bg-red-500/15 dark:ring-red-500/20',
+  amber: 'bg-amber-50 ring-amber-200 dark:bg-amber-500/15 dark:ring-amber-500/20',
+  indigo: 'bg-indigo-50 ring-indigo-200 dark:bg-indigo-500/15 dark:ring-indigo-500/20',
 };
 
 const TONE_DOT: Record<ActionItem['tone'], string> = {
@@ -265,20 +265,20 @@ export default function NextActionsSection({
   }
 
   return (
-    <section className={compact ? 'overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60' : 'space-y-3'}>
+    <section className={compact ? 'overflow-hidden rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10' : 'space-y-3'}>
       {/* Section header */}
       <div
         className={
           compact
-            ? 'flex items-center justify-between border-b border-zinc-100 px-4 pb-3 pt-4'
+            ? 'flex items-center justify-between border-b border-zinc-100 dark:border-white/10 px-4 pb-3 pt-4'
             : 'flex items-center gap-2'
         }
       >
         <h2
           className={
             compact
-              ? 'text-sm font-semibold text-zinc-900'
-              : 'text-xs font-semibold uppercase tracking-wide text-zinc-500'
+              ? 'text-sm font-semibold text-zinc-900 dark:text-zinc-100'
+              : 'text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400'
           }
         >
           {compact ? 'Επόμενες προτεραιότητες' : 'Προτεραιότητες σήμερα'}
@@ -316,7 +316,7 @@ export default function NextActionsSection({
                 className={`flex shrink-0 items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition ${
                   active
                     ? 'bg-indigo-600 text-white'
-                    : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                    : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-white/5'
                 }`}
               >
                 {f.label}
@@ -327,7 +327,7 @@ export default function NextActionsSection({
                         ? 'bg-white/20 text-white'
                         : f.id === 'urgent'
                         ? 'bg-red-100 text-red-700'
-                        : 'bg-zinc-200 text-zinc-600'
+                        : 'bg-zinc-200 dark:bg-white/10 text-zinc-600 dark:text-zinc-300'
                     }`}
                   >
                     {count}
@@ -349,7 +349,7 @@ export default function NextActionsSection({
           <button
             type="button"
             onClick={onUndoCompleteTask}
-            className="shrink-0 rounded-lg border border-green-300 bg-white px-2.5 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
+            className="shrink-0 rounded-lg border border-green-300 bg-white dark:bg-[#17232f] px-2.5 py-1 text-xs font-semibold text-green-700 transition hover:bg-green-50"
           >
             Αναίρεση
           </button>
@@ -358,31 +358,31 @@ export default function NextActionsSection({
 
       {/* Items */}
       {(compact ? allItems : filteredItems).length === 0 ? (
-        <p className={`text-sm text-zinc-500${compact ? ' px-4 py-4' : ''}`}>
+        <p className={`text-sm text-zinc-500 dark:text-zinc-400${compact ? ' px-4 py-4' : ''}`}>
           {compact ? 'Δεν υπάρχουν άμεσες εκκρεμότητες.' : FILTER_EMPTY[activeFilter]}
         </p>
       ) : (
         <>
-          <ul className={compact ? 'divide-y divide-zinc-100' : 'space-y-2'}>
+          <ul className={compact ? 'divide-y divide-zinc-100 dark:divide-white/10' : 'space-y-2'}>
             {visible.map((item) => (
               <li key={item.id}>
                 {compact ? (
                   /* Compact mode: clean row inside the white card */
                   <Link
                     href={item.href}
-                    className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-zinc-50/60"
+                    className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-zinc-50/60 dark:hover:bg-white/5"
                   >
                     <span
                       className={`inline-block h-2 w-2 shrink-0 rounded-full ${TONE_DOT[item.tone]}`}
                     />
                     <div className="min-w-0 flex-1">
                       {item.customerName && (
-                        <p className="truncate text-xs text-zinc-500">{item.customerName}</p>
+                        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{item.customerName}</p>
                       )}
-                      <p className="truncate text-sm font-medium text-zinc-800">{item.title}</p>
+                      <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">{item.title}</p>
                     </div>
                     <svg
-                      className="h-4 w-4 shrink-0 text-zinc-300"
+                      className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500"
                       fill="none"
                       strokeWidth={2}
                       stroke="currentColor"
@@ -408,15 +408,15 @@ export default function NextActionsSection({
                         />
                         <div className="min-w-0 flex-1">
                           {item.customerName && (
-                            <p className="truncate text-xs font-medium text-zinc-500">
+                            <p className="truncate text-xs font-medium text-zinc-500 dark:text-zinc-400">
                               {item.customerName}
                             </p>
                           )}
-                          <p className="truncate text-sm font-semibold text-zinc-800">
+                          <p className="truncate text-sm font-semibold text-zinc-800 dark:text-zinc-200">
                             {item.title}
                           </p>
                           {item.detail && (
-                            <p className="text-xs text-zinc-500">{item.detail}</p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400">{item.detail}</p>
                           )}
                         </div>
                       </Link>
@@ -449,9 +449,9 @@ export default function NextActionsSection({
                         )}
                         {item.category === 'offer_followup' && item.offerId && (
                           !item.customerName ? (
-                            <span className="text-[10px] text-zinc-300">Χωρίς πελάτη</span>
+                            <span className="text-[10px] text-zinc-300 dark:text-zinc-500">Χωρίς πελάτη</span>
                           ) : item.hasExistingTask || createdFollowUpOfferIds.has(item.offerId) ? (
-                            <span className="text-[10px] font-medium text-zinc-500">Υπάρχει εργασία</span>
+                            <span className="text-[10px] font-medium text-zinc-500 dark:text-zinc-400">Υπάρχει εργασία</span>
                           ) : onCreateOfferFollowUpTask ? (
                             <button
                               type="button"
@@ -459,7 +459,7 @@ export default function NextActionsSection({
                                 onCreateOfferFollowUpTask(item.offerId!);
                                 setCreatedFollowUpOfferIds((prev) => new Set(prev).add(item.offerId!));
                               }}
-                              className="rounded-lg border border-indigo-300 bg-white px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
+                              className="rounded-lg border border-indigo-300 bg-white dark:bg-[#17232f] px-2 py-1 text-[10px] font-semibold text-indigo-700 transition hover:bg-indigo-50"
                             >
                               Να ξαναμιλήσω
                             </button>

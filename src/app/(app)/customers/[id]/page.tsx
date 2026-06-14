@@ -1719,7 +1719,7 @@ export default function CustomerDetailPage() {
   if (pageState === 'loading') {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-10 md:max-w-4xl">
-        <p className="text-center text-sm text-zinc-400">Φόρτωση καρτέλας πελάτη...</p>
+        <p className="text-center text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση καρτέλας πελάτη...</p>
       </div>
     );
   }
@@ -1730,8 +1730,8 @@ export default function CustomerDetailPage() {
   if (pageState === 'no_session') {
     return (
       <div className="mx-auto w-full max-w-2xl px-4 py-10 md:max-w-4xl">
-        <div className="rounded-2xl bg-zinc-50 px-6 py-10 text-center ring-1 ring-zinc-100">
-          <p className="text-sm font-medium text-zinc-600">
+        <div className="rounded-2xl bg-zinc-50 dark:bg-[#17232f] px-6 py-10 text-center ring-1 ring-zinc-100 dark:ring-white/10">
+          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">
             Συνδέσου για να δεις την καρτέλα πελάτη.
           </p>
           <Link
@@ -1758,7 +1758,7 @@ export default function CustomerDetailPage() {
           <button
             type="button"
             onClick={() => setRefreshTick(t => t + 1)}
-            className="mt-4 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+            className="mt-4 rounded-xl bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-50 dark:hover:bg-white/5"
           >
             Δοκίμασε ξανά
           </button>
@@ -1793,23 +1793,23 @@ export default function CustomerDetailPage() {
       <div className="flex items-center gap-2 text-sm">
         <Link
           href="/customers"
-          className="font-medium text-zinc-400 transition hover:text-zinc-700"
+          className="font-medium text-zinc-400 dark:text-zinc-500 transition hover:text-zinc-700 dark:hover:text-zinc-300"
         >
           Πελάτες
         </Link>
-        <span className="text-zinc-300">/</span>
-        <span className="text-zinc-500">{customer.crmNumber ?? customerTitle(customer)}</span>
+        <span className="text-zinc-300 dark:text-zinc-500">/</span>
+        <span className="text-zinc-500 dark:text-zinc-400">{customer.crmNumber ?? customerTitle(customer)}</span>
       </div>
 
       {/* Hero card — name large, identifiers small, ONE status pill, tappable phone */}
-      <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+      <section className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold leading-tight text-zinc-900">
+            <h1 className="text-2xl font-bold leading-tight text-zinc-900 dark:text-zinc-100">
               {customerTitle(customer)}
             </h1>
             {customer.companyName && (
-              <p className="mt-0.5 text-sm text-zinc-500">{customer.companyName}</p>
+              <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{customer.companyName}</p>
             )}
           </div>
           <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusBadgeClass(customer.status)}`}>
@@ -1817,7 +1817,7 @@ export default function CustomerDetailPage() {
           </span>
         </div>
         {(customer.crmNumber || customer.source) && (
-          <p className="mt-1.5 text-xs text-zinc-500">
+          <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
             {customer.crmNumber && <span>{customer.crmNumber}</span>}
             {customer.crmNumber && customer.source && <span> · </span>}
             {customer.source && <span>{SOURCE_LABELS[customer.source] ?? customer.source}</span>}
@@ -1836,7 +1836,7 @@ export default function CustomerDetailPage() {
         )}
 
         {customer.address && (
-          <p className="mt-2 text-sm text-zinc-500">{customer.address}</p>
+          <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{customer.address}</p>
         )}
 
         {/* Optional Χάρτης link — επεξεργασία γίνεται από την ενότητα «Στοιχεία επικοινωνίας» παρακάτω */}
@@ -1846,7 +1846,7 @@ export default function CustomerDetailPage() {
               href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address)}`}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-zinc-200 bg-white px-3 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               <span aria-hidden>📍</span>
               Χάρτης
@@ -1870,7 +1870,7 @@ export default function CustomerDetailPage() {
             <button
               type="button"
               disabled
-              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-zinc-100 px-2 py-2 text-zinc-400"
+              className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] px-2 py-2 text-zinc-400 dark:text-zinc-500"
             >
               <span className="text-lg leading-none opacity-60" aria-hidden>📞</span>
               <span className="text-xs font-semibold">Κλήση</span>
@@ -1898,7 +1898,7 @@ export default function CustomerDetailPage() {
           <button
             type="button"
             onClick={() => setMoreSheetOpen(true)}
-            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-zinc-100 px-2 py-2 text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+            className="flex min-h-[48px] flex-col items-center justify-center gap-0.5 rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] px-2 py-2 text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 active:bg-zinc-300 dark:hover:bg-white/5 dark:active:bg-white/5"
           >
             <span className="text-lg leading-none" aria-hidden>⋯</span>
             <span className="text-xs font-semibold">Άλλα</span>
@@ -1947,13 +1947,13 @@ export default function CustomerDetailPage() {
           ? 'bg-amber-50 ring-1 ring-amber-200'
           : openTasks.length > 0
           ? 'bg-indigo-50 ring-1 ring-indigo-200'
-          : 'bg-white shadow-sm ring-1 ring-zinc-200/60';
+          : 'bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10';
 
         return (
           <section className={`rounded-[28px] p-5 ${tone}`}>
             <div className="mb-3 flex items-center justify-between gap-2">
               <h2 className={`text-sm font-semibold ${
-                draftTask ? 'text-amber-700' : openTasks.length > 0 ? 'text-indigo-700' : 'text-zinc-700'
+                draftTask ? 'text-amber-700' : openTasks.length > 0 ? 'text-indigo-700' : 'text-zinc-700 dark:text-zinc-200'
               }`}>
                 Επόμενο βήμα
               </h2>
@@ -1962,7 +1962,7 @@ export default function CustomerDetailPage() {
                   ? 'bg-amber-100 text-amber-700'
                   : openTasks.length > 0
                   ? 'bg-indigo-100 text-indigo-700'
-                  : 'bg-zinc-100 text-zinc-600'
+                  : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-600 dark:text-zinc-300'
               }`}>
                 {draftTask
                   ? 'Χρειάζεται έλεγχος'
@@ -2007,9 +2007,9 @@ export default function CustomerDetailPage() {
               </div>
             ) : pendingOffer ? (
               <div className="space-y-1">
-                <p className="text-xs font-medium text-zinc-500">Προσφορά</p>
-                <p className="text-sm font-semibold text-zinc-800">{pendingOffer.offerNumber}</p>
-                <p className="text-xs text-zinc-600">
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Προσφορά</p>
+                <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{pendingOffer.offerNumber}</p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300">
                   {OFFER_STATUS_LABELS[pendingOffer.status] ?? pendingOffer.status}
                   {' · '}
                   {formatMoney(pendingOffer.total)}
@@ -2017,24 +2017,24 @@ export default function CustomerDetailPage() {
               </div>
             ) : openAppointment ? (
               <div className="space-y-1">
-                <p className="text-xs font-medium text-zinc-500">Ραντεβού</p>
-                <p className="text-sm font-semibold text-zinc-800">{openAppointment.title}</p>
-                <p className="text-xs text-zinc-600">
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Ραντεβού</p>
+                <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{openAppointment.title}</p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300">
                   {openAppointment.dueDate}
                   {openAppointment.dueTime ? ` ${openAppointment.dueTime}` : ''}
                 </p>
               </div>
             ) : (
-              <p className="text-sm text-zinc-600">Δεν υπάρχει επείγουσα ενέργεια.</p>
+              <p className="text-sm text-zinc-600 dark:text-zinc-300">Δεν υπάρχει επείγουσα ενέργεια.</p>
             )}
 
             {(customer.statusSummary || customer.nextBestAction) && (
-              <div className="mt-3 space-y-1 border-t border-zinc-200/70 pt-3">
+              <div className="mt-3 space-y-1 border-t border-zinc-200/70 dark:border-white/10 pt-3">
                 {customer.statusSummary && (
-                  <p className="text-xs text-zinc-600">{truncate(customer.statusSummary, 160)}</p>
+                  <p className="text-xs text-zinc-600 dark:text-zinc-300">{truncate(customer.statusSummary, 160)}</p>
                 )}
                 {customer.nextBestAction && (
-                  <p className="text-xs font-medium text-zinc-700">{truncate(customer.nextBestAction, 120)}</p>
+                  <p className="text-xs font-medium text-zinc-700 dark:text-zinc-200">{truncate(customer.nextBestAction, 120)}</p>
                 )}
               </div>
             )}
@@ -2054,7 +2054,7 @@ export default function CustomerDetailPage() {
                 </Button>
               )}
               {nothingPending && (
-                <p className="mt-2 text-center text-xs text-zinc-500">
+                <p className="mt-2 text-center text-xs text-zinc-500 dark:text-zinc-400">
                   Όλα τακτοποιημένα για τώρα.
                 </p>
               )}
@@ -2064,11 +2064,11 @@ export default function CustomerDetailPage() {
       })()}
 
       {/* Status line + change-status button (opens the status sheet) */}
-      <section className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+      <section className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-xs font-medium text-zinc-500">Κατάσταση</p>
-            <p className="mt-0.5 text-base font-semibold text-zinc-900">
+            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Κατάσταση</p>
+            <p className="mt-0.5 text-base font-semibold text-zinc-900 dark:text-zinc-100">
               {STATUS_LABELS[customer.status] ?? customer.status}
             </p>
           </div>
@@ -2085,7 +2085,7 @@ export default function CustomerDetailPage() {
           <p className="mt-2 text-xs font-medium text-indigo-600">Αποθήκευση...</p>
         )}
         {editMode !== null && (
-          <p className="mt-2 text-xs text-zinc-500">Ολοκλήρωσε πρώτα την επεξεργασία στοιχείων για να αλλάξεις κατάσταση.</p>
+          <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">Ολοκλήρωσε πρώτα την επεξεργασία στοιχείων για να αλλάξεις κατάσταση.</p>
         )}
         {statusError && (
           <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700 ring-1 ring-red-100">
@@ -2125,71 +2125,71 @@ export default function CustomerDetailPage() {
           {editMode === 'contact' && customerDraft ? (
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Ονοματεπώνυμο</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Ονοματεπώνυμο</label>
                 <input
                   type="text"
                   value={customerDraft.name ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, name: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Ονοματεπώνυμο"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Εταιρεία</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Εταιρεία</label>
                 <input
                   type="text"
                   value={customerDraft.companyName ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, companyName: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Εταιρεία"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Κινητό</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Κινητό</label>
                 <input
                   type="tel"
                   value={customerDraft.mobilePhone ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, mobilePhone: e.target.value || null, phone: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Κινητό"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Σταθερό</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Σταθερό</label>
                 <input
                   type="tel"
                   value={customerDraft.landlinePhone ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, landlinePhone: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Σταθερό"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Email</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Email</label>
                 <input
                   type="email"
                   value={customerDraft.email ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, email: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Email"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Διεύθυνση</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Διεύθυνση</label>
                 <input
                   type="text"
                   value={customerDraft.address ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, address: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Διεύθυνση"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Προτιμώμενο κανάλι</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Προτιμώμενο κανάλι</label>
                 <select
                   value={customerDraft.preferredContactMethod}
                   onChange={e => setCustomerDraft(d => d ? { ...d, preferredContactMethod: e.target.value } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 >
                   {Object.entries(CONTACT_LABELS).map(([k, v]) => (
                     <option key={k} value={k}>{v}</option>
@@ -2197,11 +2197,11 @@ export default function CustomerDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Πηγή</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Πηγή</label>
                 <select
                   value={customerDraft.source ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, source: e.target.value || null } : d)}
-                  className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 >
                   <option value=""> - Χωρίς πηγή - </option>
                   {Object.entries(SOURCE_LABELS).map(([k, v]) => (
@@ -2210,12 +2210,12 @@ export default function CustomerDetailPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">Ανάγκες πελάτη</label>
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Ανάγκες πελάτη</label>
                 <textarea
                   rows={3}
                   value={customerDraft.needsSummary ?? ''}
                   onChange={e => setCustomerDraft(d => d ? { ...d, needsSummary: e.target.value || null } : d)}
-                  className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   placeholder="Ανάγκες πελάτη"
                 />
               </div>
@@ -2237,7 +2237,7 @@ export default function CustomerDetailPage() {
                   type="button"
                   onClick={cancelEdit}
                   disabled={customerSaveState === 'saving'}
-                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                  className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
                 >
                   Ακύρωση
                 </button>
@@ -2247,37 +2247,37 @@ export default function CustomerDetailPage() {
             <dl className="space-y-2 text-sm">
               {(customer.mobilePhone || customer.phone) && (
                 <div className="flex justify-between gap-2">
-                  <dt className="text-zinc-400">Κινητό</dt>
-                  <dd className="font-medium text-zinc-800">{customer.mobilePhone ?? customer.phone}</dd>
+                  <dt className="text-zinc-400 dark:text-zinc-500">Κινητό</dt>
+                  <dd className="font-medium text-zinc-800 dark:text-zinc-200">{customer.mobilePhone ?? customer.phone}</dd>
                 </div>
               )}
               {customer.landlinePhone && (
                 <div className="flex justify-between gap-2">
-                  <dt className="text-zinc-400">Σταθερό</dt>
-                  <dd className="font-medium text-zinc-800">{customer.landlinePhone}</dd>
+                  <dt className="text-zinc-400 dark:text-zinc-500">Σταθερό</dt>
+                  <dd className="font-medium text-zinc-800 dark:text-zinc-200">{customer.landlinePhone}</dd>
                 </div>
               )}
               {customer.email && (
                 <div className="flex justify-between gap-2">
-                  <dt className="shrink-0 text-zinc-400">Email</dt>
-                  <dd className="break-all font-medium text-zinc-800">{customer.email}</dd>
+                  <dt className="shrink-0 text-zinc-400 dark:text-zinc-500">Email</dt>
+                  <dd className="break-all font-medium text-zinc-800 dark:text-zinc-200">{customer.email}</dd>
                 </div>
               )}
               {customer.address && (
                 <div className="flex justify-between gap-2">
-                  <dt className="shrink-0 text-zinc-400">Διεύθυνση</dt>
-                  <dd className="text-zinc-700">{customer.address}</dd>
+                  <dt className="shrink-0 text-zinc-400 dark:text-zinc-500">Διεύθυνση</dt>
+                  <dd className="text-zinc-700 dark:text-zinc-200">{customer.address}</dd>
                 </div>
               )}
               {customer.lastContactAt && (
-                <div className="flex justify-between gap-2 border-t border-zinc-50 pt-2">
-                  <dt className="text-zinc-400">Τελευταία επαφή</dt>
-                  <dd className="text-zinc-600">{formatDateShort(customer.lastContactAt)}</dd>
+                <div className="flex justify-between gap-2 border-t border-zinc-50 dark:border-white/10 pt-2">
+                  <dt className="text-zinc-400 dark:text-zinc-500">Τελευταία επαφή</dt>
+                  <dd className="text-zinc-600 dark:text-zinc-300">{formatDateShort(customer.lastContactAt)}</dd>
                 </div>
               )}
               <div className="flex justify-between gap-2">
-                <dt className="text-zinc-400">Δημιουργία</dt>
-                <dd className="text-zinc-500">{formatDateFull(customer.createdAt)}</dd>
+                <dt className="text-zinc-400 dark:text-zinc-500">Δημιουργία</dt>
+                <dd className="text-zinc-500 dark:text-zinc-400">{formatDateFull(customer.createdAt)}</dd>
               </div>
             </dl>
           )}
@@ -2300,46 +2300,46 @@ export default function CustomerDetailPage() {
         {editMode === 'memory' && customerDraft ? (
           <div className="space-y-4 px-4 py-4">
             <div>
-              <label className="block text-xs font-medium text-zinc-600 mb-1">Τρέχουσα κατάσταση</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1">Τρέχουσα κατάσταση</label>
               <textarea
                 rows={2}
                 value={customerDraft.statusSummary ?? ''}
                 onChange={(e) => setCustomerDraft({ ...customerDraft, statusSummary: e.target.value || null })}
                 placeholder="Σύντομη περιγραφή της τρέχουσας κατάστασης του πελάτη."
-                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+                className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-600 mb-1">Επαγγελματικές σημειώσεις</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1">Επαγγελματικές σημειώσεις</label>
               <textarea
                 rows={3}
                 value={customerDraft.businessNotes ?? ''}
                 onChange={(e) => setCustomerDraft({ ...customerDraft, businessNotes: e.target.value || null })}
                 placeholder="Πληροφορίες για την επαγγελματική δραστηριότητα, ανάγκες, προτιμήσεις."
-                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+                className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-600 mb-1">Προσωπικά που αξίζει να θυμόμαστε</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1">Προσωπικά που αξίζει να θυμόμαστε</label>
               <textarea
                 rows={2}
                 value={customerDraft.personalNotes ?? ''}
                 onChange={(e) => setCustomerDraft({ ...customerDraft, personalNotes: e.target.value || null })}
                 placeholder="Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο."
-                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+                className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              <p className="mt-1 text-[11px] text-zinc-400">Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο.</p>
+              <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">Κράτα εδώ ανθρώπινες λεπτομέρειες που βοηθούν στη σχέση με τον πελάτη. Όχι ευαίσθητα δεδομένα χωρίς λόγο.</p>
             </div>
             <div>
-              <label className="block text-xs font-medium text-zinc-600 mb-1">Επόμενη ενέργεια</label>
+              <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-300 mb-1">Επόμενη ενέργεια</label>
               <textarea
                 rows={2}
                 value={customerDraft.nextBestAction ?? ''}
                 onChange={(e) => setCustomerDraft({ ...customerDraft, nextBestAction: e.target.value || null })}
                 placeholder="Σύντομη υπενθύμιση για την επόμενη ενέργεια."
-                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
+                className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition resize-none"
               />
-              <p className="mt-1 text-[11px] text-zinc-400">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε εργασία.</p>
+              <p className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">Σύντομη υπενθύμιση. Για προθεσμία, χρησιμοποίησε εργασία.</p>
             </div>
             {customerSaveError && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700 ring-1 ring-red-100">
@@ -2359,7 +2359,7 @@ export default function CustomerDetailPage() {
                 type="button"
                 onClick={cancelEdit}
                 disabled={customerSaveState === 'saving'}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
               >
                 Ακύρωση
               </button>
@@ -2368,37 +2368,37 @@ export default function CustomerDetailPage() {
         ) : (
           <div className="px-4 py-4 space-y-3">
             {!customer.statusSummary && !customer.businessNotes && !customer.personalNotes && !customer.nextBestAction ? (
-              <p className="text-sm text-zinc-400">Δεν έχει συμπληρωθεί μνήμη πελάτη ακόμα.</p>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">Δεν έχει συμπληρωθεί μνήμη πελάτη ακόμα.</p>
             ) : (
               <>
                 {customer.statusSummary && (
                   <div>
-                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Τρέχουσα κατάσταση</p>
-                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.statusSummary}</p>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">Τρέχουσα κατάσταση</p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-200 whitespace-pre-wrap">{customer.statusSummary}</p>
                   </div>
                 )}
                 {customer.businessNotes && (
                   <div>
-                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Επαγγελματικές σημειώσεις</p>
-                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.businessNotes}</p>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">Επαγγελματικές σημειώσεις</p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-200 whitespace-pre-wrap">{customer.businessNotes}</p>
                   </div>
                 )}
                 {customer.personalNotes && (
                   <div>
-                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Προσωπικά που αξίζει να θυμόμαστε</p>
-                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.personalNotes}</p>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">Προσωπικά που αξίζει να θυμόμαστε</p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-200 whitespace-pre-wrap">{customer.personalNotes}</p>
                   </div>
                 )}
                 {customer.nextBestAction && (
                   <div>
-                    <p className="text-xs font-medium text-zinc-500 mb-0.5">Επόμενη ενέργεια</p>
-                    <p className="text-sm text-zinc-700 whitespace-pre-wrap">{customer.nextBestAction}</p>
+                    <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-0.5">Επόμενη ενέργεια</p>
+                    <p className="text-sm text-zinc-700 dark:text-zinc-200 whitespace-pre-wrap">{customer.nextBestAction}</p>
                   </div>
                 )}
               </>
             )}
             {customer.memoryUpdatedAt && (
-              <p className="text-[11px] text-zinc-400 pt-1">
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500 pt-1">
                 Τελευταία ενημέρωση: {new Date(customer.memoryUpdatedAt).toLocaleString('el-GR', { day: 'numeric', month: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false })}
               </p>
             )}
@@ -2413,17 +2413,17 @@ export default function CustomerDetailPage() {
         title="Ιστορικό"
         description="Σημαντικές ενέργειες, απαντήσεις πελατών και αλλαγές θα φαίνονται εδώ."
         badge={timeline.length > 0 ? (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+          <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             {timeline.length}
           </span>
         ) : undefined}
       >
         {timeline.length === 0 ? (
-          <p className="px-4 py-5 text-sm text-zinc-500">
+          <p className="px-4 py-5 text-sm text-zinc-500 dark:text-zinc-400">
             Δεν υπάρχει ιστορικό ακόμα.
           </p>
         ) : (
-          <ul className="divide-y divide-zinc-100">
+          <ul className="divide-y divide-zinc-100 dark:divide-white/10">
             {timeline.map(entry =>
               entry.kind === 'comm' ? (
                 <li
@@ -2437,15 +2437,15 @@ export default function CustomerDetailPage() {
                   <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${commDotClass(entry.item.channel)}`} />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-center justify-between gap-3">
-                      <span className={`text-xs font-semibold ${entry.item.channel === 'call' ? 'text-indigo-600' : 'text-zinc-600'}`}>
+                      <span className={`text-xs font-semibold ${entry.item.channel === 'call' ? 'text-indigo-600' : 'text-zinc-600 dark:text-zinc-300'}`}>
                         {commChannelLabel(entry.item.channel)}
                       </span>
-                      <span className="shrink-0 text-xs text-zinc-400">
+                      <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
                         {formatDateShort(entry.item.createdAt)}
                       </span>
                     </div>
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs text-zinc-400">
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500">
                         {entry.item.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'}
                       </span>
                       <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${commStatusBadgeClass(entry.item.status)}`}>
@@ -2453,7 +2453,7 @@ export default function CustomerDetailPage() {
                       </span>
                     </div>
                     {entry.item.summary && (
-                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500">
+                      <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
                         {truncate(entry.item.summary.replace(/^AI brief[:\s]*/i, ''), 180)}
                       </p>
                     )}
@@ -2464,13 +2464,13 @@ export default function CustomerDetailPage() {
                   <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${taskToneDot(entry.item.status, entry.item.priority)}`} />
                   <div className="min-w-0 flex-1 space-y-0.5">
                     <div className="flex items-center justify-between gap-3">
-                      <span className="text-xs font-semibold text-zinc-500">Εργασία</span>
-                      <span className="shrink-0 text-xs text-zinc-400">
+                      <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Εργασία</span>
+                      <span className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500">
                         {formatDateShort(entry.item.createdAt)}
                       </span>
                     </div>
-                    <p className="text-sm font-semibold text-zinc-700">{entry.item.title}</p>
-                    <p className="text-xs text-zinc-400">
+                    <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">{entry.item.title}</p>
+                    <p className="text-xs text-zinc-400 dark:text-zinc-500">
                       {TASK_STATUS_LABELS[entry.item.status] ?? entry.item.status}
                       {' · '}
                       {TASK_TYPE_LABELS[entry.item.type] ?? entry.item.type}
@@ -2493,7 +2493,7 @@ export default function CustomerDetailPage() {
         defaultOpen={openTasks.length > 0 || !!focusTaskId}
         badge={sortedTasks.length > 0 ? (
           <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-            openTasks.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-zinc-100 text-zinc-500'
+            openTasks.length > 0 ? 'bg-indigo-100 text-indigo-700' : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400'
           }`}>
             {openTasks.length > 0 ? `${openTasks.length} ανοιχτές` : sortedTasks.length}
           </span>
@@ -2520,7 +2520,7 @@ export default function CustomerDetailPage() {
           />
         ) : (
           <>
-            <ul className="divide-y divide-zinc-100">
+            <ul className="divide-y divide-zinc-100 dark:divide-white/10">
               {sortedTasks.map(t => (
                 <li
                   key={t.id}
@@ -2536,32 +2536,32 @@ export default function CustomerDetailPage() {
                         {TASK_STATUS_LABELS[t.status] ?? t.status}
                       </span>
                       {t.createdFromAi && (
-                        <span className="text-xs text-zinc-400">από AI</span>
+                        <span className="text-xs text-zinc-400 dark:text-zinc-500">από AI</span>
                       )}
-                      <span className="text-xs text-zinc-400">
+                      <span className="text-xs text-zinc-400 dark:text-zinc-500">
                         {PRIORITY_LABELS[t.priority] ?? t.priority}
                       </span>
                     </div>
-                    <p className="font-semibold text-zinc-800">{t.title}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="font-semibold text-zinc-800 dark:text-zinc-200">{t.title}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {TASK_TYPE_LABELS[t.type] ?? t.type} · {t.dueDate}
                       {t.dueTime ? ` ${t.dueTime}` : ''}
                     </p>
                     {t.note && (
-                      <p className="text-sm text-zinc-500">{truncate(t.note, 160)}</p>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-400">{truncate(t.note, 160)}</p>
                     )}
                   </div>
                   <button
                     type="button"
                     onClick={() => openEditTask(t)}
-                    className="shrink-0 rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                    className="shrink-0 rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-white/5"
                   >
                     Επεξεργασία
                   </button>
                 </li>
               ))}
             </ul>
-            <div className="border-t border-zinc-100 px-4 py-3">
+            <div className="border-t border-zinc-100 dark:border-white/10 px-4 py-3">
               <Button variant="secondary" size="sm" onClick={() => setQuickModal('task')}>
                 Νέα εργασία
               </Button>
@@ -2576,7 +2576,7 @@ export default function CustomerDetailPage() {
         title="Ραντεβού"
         description="Ραντεβού, απαντήσεις πελάτη και αλλαγές ώρας."
         badge={appointmentTasks.length > 0 ? (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+          <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             {appointmentTasks.length}
           </span>
         ) : undefined}
@@ -2601,35 +2601,35 @@ export default function CustomerDetailPage() {
             }
           />
         ) : (
-          <ul className="divide-y divide-zinc-100">
+          <ul className="divide-y divide-zinc-100 dark:divide-white/10">
             {appointmentTasks.map(task => (
               <li key={task.id} className="space-y-1.5 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-medium text-zinc-500">
+                      <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                         {TASK_TYPE_LABELS[task.type] ?? task.type}
                       </span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${taskStatusClass(task.status)}`}>
                         {appointmentStatusLabel(task)}
                       </span>
                       {task.createdFromAi && (
-                        <span className="text-xs text-zinc-400">από AI</span>
+                        <span className="text-xs text-zinc-400 dark:text-zinc-500">από AI</span>
                       )}
                     </div>
-                    <p className="text-sm font-semibold text-zinc-800">{task.title}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{task.title}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {task.dueDate}{task.dueTime ? ` ${task.dueTime}` : ''}
                     </p>
                     {task.note && (
-                      <p className="text-xs text-zinc-400">{truncate(task.note, 120)}</p>
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500">{truncate(task.note, 120)}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1.5">
                     <button
                       type="button"
                       onClick={() => openEditTask(task)}
-                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                      className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-white/5"
                     >
                       Επεξεργασία
                     </button>
@@ -2638,7 +2638,7 @@ export default function CustomerDetailPage() {
                         type="button"
                         onClick={() => openApptLinkModal(task)}
                         disabled={!customer.mobilePhone && !customer.phone}
-                        className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-zinc-50"
+                        className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-zinc-50 dark:disabled:hover:bg-[#1e2b38]"
                       >
                         Αποστολή link ραντεβού
                       </button>
@@ -2657,7 +2657,7 @@ export default function CustomerDetailPage() {
         title="Προσφορές"
         description="Προσφορές, κατάσταση και να ξαναμιλήσω."
         badge={sortedOffers.length > 0 ? (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+          <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             {sortedOffers.length}
           </span>
         ) : undefined}
@@ -2685,28 +2685,28 @@ export default function CustomerDetailPage() {
             }
           />
         ) : (
-          <ul className="divide-y divide-zinc-100">
+          <ul className="divide-y divide-zinc-100 dark:divide-white/10">
             {sortedOffers.map(offer => (
               <li key={offer.id} className="space-y-1.5 px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-zinc-900">{offer.offerNumber}</span>
+                      <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{offer.offerNumber}</span>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${offerStatusBadgeClass(offer.status)}`}>
                         {OFFER_STATUS_LABELS[offer.status] ?? offer.status}
                       </span>
                       {offer.createdFromAi && (
-                        <span className="text-xs text-zinc-400">από AI</span>
+                        <span className="text-xs text-zinc-400 dark:text-zinc-500">από AI</span>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">
                       {offer.offerDate ?? ''}
                       {offer.offerDate && offer.validUntil ? ' · ' : ''}
                       {offer.validUntil ? `Ισχύει έως ${offer.validUntil}` : ''}
                     </p>
-                    <p className="text-sm font-semibold text-zinc-800">{formatMoney(offer.total)}</p>
+                    <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{formatMoney(offer.total)}</p>
                     {offer.notes && (
-                      <p className="text-xs text-zinc-400">{truncate(offer.notes, 120)}</p>
+                      <p className="text-xs text-zinc-400 dark:text-zinc-500">{truncate(offer.notes, 120)}</p>
                     )}
                   </div>
                   <div className="flex shrink-0 flex-col gap-1.5">
@@ -2714,7 +2714,7 @@ export default function CustomerDetailPage() {
                       type="button"
                       onClick={() => openEditOffer(offer.id)}
                       disabled={editingOfferLoading === offer.id}
-                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {editingOfferLoading === offer.id ? 'Φόρτωση...' : 'Επεξεργασία'}
                     </button>
@@ -2728,7 +2728,7 @@ export default function CustomerDetailPage() {
                       type="button"
                       onClick={() => { void generateResponseLink(offer.id); }}
                       disabled={offerLinkGeneratingId === offer.id}
-                      className="rounded-xl border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-100 dark:hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {offerLinkGeneratingId === offer.id
                         ? 'Δημιουργία...'
@@ -2740,13 +2740,13 @@ export default function CustomerDetailPage() {
                 </div>
                 {offerLinkManualCopyOfferId === offer.id && offerLinkManualCopyUrl && (
                   <div className="space-y-1">
-                    <p className="text-xs text-zinc-500">Αντέγραψε το link χειροκίνητα:</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">Αντέγραψε το link χειροκίνητα:</p>
                     <textarea
                       readOnly
                       rows={2}
                       value={offerLinkManualCopyUrl}
                       onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-                      className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 outline-none"
+                      className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 font-mono text-xs leading-relaxed text-zinc-700 dark:text-zinc-200 outline-none"
                     />
                   </div>
                 )}
@@ -2778,7 +2778,7 @@ export default function CustomerDetailPage() {
               rows={6}
               value={customerDraft.notes ?? ''}
               onChange={e => setCustomerDraft(d => d ? { ...d, notes: e.target.value || null } : d)}
-              className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
               placeholder="Σημειώσεις"
             />
             {customerSaveError && (
@@ -2799,7 +2799,7 @@ export default function CustomerDetailPage() {
                 type="button"
                 onClick={cancelEdit}
                 disabled={customerSaveState === 'saving'}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
               >
                 Ακύρωση
               </button>
@@ -2808,11 +2808,11 @@ export default function CustomerDetailPage() {
         ) : (
           <>
             {customer.notes ? (
-              <p className="whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-zinc-700">
+              <p className="whitespace-pre-wrap px-4 py-3 text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">
                 {customer.notes}
               </p>
             ) : (
-              <p className="px-4 py-5 text-sm text-zinc-500">
+              <p className="px-4 py-5 text-sm text-zinc-500 dark:text-zinc-400">
                 Δεν υπάρχουν σημειώσεις ακόμα.
               </p>
             )}
@@ -2828,7 +2828,7 @@ export default function CustomerDetailPage() {
         open={filesOpen}
         onToggle={setFilesOpen}
         badge={uploadSessions.length > 0 ? (
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+          <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             {uploadSessions.length}
           </span>
         ) : undefined}
@@ -2857,7 +2857,7 @@ export default function CustomerDetailPage() {
         />
 
         {/* Upload affordance + progress/error */}
-        <div className="border-b border-zinc-100 px-4 py-3 space-y-2">
+        <div className="border-b border-zinc-100 dark:border-white/10 px-4 py-3 space-y-2">
           <Button
             variant="secondary"
             size="sm"
@@ -2878,14 +2878,14 @@ export default function CustomerDetailPage() {
         </div>
 
         {uploadSessions.length > 0 ? (
-          <div className="divide-y divide-zinc-100">
+          <div className="divide-y divide-zinc-100 dark:divide-white/10">
             {uploadSessions.map(session => (
               <div key={session.id} className="px-4 py-3">
                 <div className="mb-2 flex items-center justify-between gap-2">
-                  <span className="text-xs font-medium text-zinc-500">
+                  <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
                     {formatDateShort(session.uploaded_at)}
                   </span>
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-zinc-400 dark:text-zinc-500">
                     {session.file_count} {session.file_count === 1 ? 'αρχείο' : 'αρχεία'}
                   </span>
                 </div>
@@ -2905,7 +2905,7 @@ export default function CustomerDetailPage() {
                   ))}
                 </div>
                 {session.customer_comment ? (
-                  <p className="mt-2 text-xs italic text-zinc-500">
+                  <p className="mt-2 text-xs italic text-zinc-500 dark:text-zinc-400">
                     &ldquo;{session.customer_comment}&rdquo;
                   </p>
                 ) : null}
@@ -2914,7 +2914,7 @@ export default function CustomerDetailPage() {
           </div>
         ) : (
           <div className="px-4 py-6 text-center">
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
               Δεν υπάρχουν αρχεία ακόμα. Πρόσθεσε φωτογραφίες/αρχεία ή στείλε link φωτογραφιών στον πελάτη.
             </p>
           </div>
@@ -2925,7 +2925,7 @@ export default function CustomerDetailPage() {
         <button
           type="button"
           onClick={() => setRefreshTick(t => t + 1)}
-          className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-xs font-medium text-zinc-400 transition hover:bg-zinc-50 hover:text-zinc-600"
+          className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2 text-xs font-medium text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-50 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
         >
           Ανανέωση σελίδας
         </button>
@@ -2934,11 +2934,11 @@ export default function CustomerDetailPage() {
       {/* Απόρριψη πελάτη (#5): one danger button → multi-channel send sheet.
           The customer is marked «Χάθηκε» on open; the polite message is shown
           ready to send via Viber / WhatsApp / Email (nothing is auto-sent). */}
-      <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+      <section className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] p-4">
         <div className="mb-2 flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-700">Απόρριψη πελάτη</h2>
+          <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-200">Απόρριψη πελάτη</h2>
         </div>
-        <p className="text-xs text-zinc-400">
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">
           Ο πελάτης θα μαρκαριστεί ως «Χάθηκε» και θα ετοιμαστεί ευγενικό μήνυμα για αποστολή.
         </p>
         <Button
@@ -2958,41 +2958,41 @@ export default function CustomerDetailPage() {
           onClick={() => setSelectedCall(null)}
         >
           <div
-            className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
             onClick={e => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">Περίληψη κλήσης</h2>
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Περίληψη κλήσης</h2>
               <button
                 type="button"
                 onClick={() => setSelectedCall(null)}
                 aria-label="Κλείσιμο"
-                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                className="rounded-full p-1.5 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
               >
                 <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
+            <div className="mb-3 flex flex-wrap items-center gap-3 text-xs text-zinc-500 dark:text-zinc-400">
               <span>{selectedCall.direction === 'inbound' ? 'Εισερχόμενη' : 'Εξερχόμενη'}</span>
               {selectedCall.createdAt && (
                 <span>{formatDateFull(selectedCall.createdAt)}</span>
               )}
             </div>
-            <p className="mb-1.5 text-xs font-medium text-zinc-400">Περίληψη κλήσης</p>
+            <p className="mb-1.5 text-xs font-medium text-zinc-400 dark:text-zinc-500">Περίληψη κλήσης</p>
             {selectedCall.summary ? (
-              <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">
                 {selectedCall.summary.replace(/^AI brief[:\s]*/i, '')}
               </p>
             ) : (
-              <p className="text-sm text-zinc-400">Δεν υπάρχει διαθέσιμη περίληψη για αυτή την κλήση.</p>
+              <p className="text-sm text-zinc-400 dark:text-zinc-500">Δεν υπάρχει διαθέσιμη περίληψη για αυτή την κλήση.</p>
             )}
             <div className="mt-5 flex justify-end">
               <button
                 type="button"
                 onClick={() => setSelectedCall(null)}
-                className="rounded-2xl border border-zinc-200 bg-white px-5 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-5 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Κλείσιμο
               </button>
@@ -3008,18 +3008,18 @@ export default function CustomerDetailPage() {
           onClick={closeQuickModal}
         >
           <div
-            className="mx-4 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-white shadow-2xl ring-1 ring-zinc-200/60"
+            className="mx-4 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-white dark:bg-[#17232f] shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-[28px] bg-white px-5 pt-5 pb-3 border-b border-zinc-100">
-              <p className="text-xs text-zinc-400">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-[28px] bg-white dark:bg-[#17232f] px-5 pt-5 pb-3 border-b border-zinc-100 dark:border-white/10">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 Η αποστολή στον πελάτη θα γίνει σε επόμενο βήμα.
               </p>
               <button
                 type="button"
                 onClick={closeQuickModal}
                 aria-label="Κλείσιμο"
-                className="shrink-0 rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                className="shrink-0 rounded-full p-1.5 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
               >
                 <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -3190,7 +3190,7 @@ export default function CustomerDetailPage() {
           onClick={closeQuickModal}
         >
           <div
-            className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
             onClick={e => e.stopPropagation()}
           >
 
@@ -3198,12 +3198,12 @@ export default function CustomerDetailPage() {
             {quickModal === 'task' && (
               <>
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-zinc-900">Νέα εργασία</h2>
+                  <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Νέα εργασία</h2>
                   <button
                     type="button"
                     onClick={closeQuickModal}
                     aria-label="Κλείσιμο"
-                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                    className="rounded-full p-1.5 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
                   >
                     <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -3217,7 +3217,7 @@ export default function CustomerDetailPage() {
                     {[1, 2, 3].map(n => (
                       <span
                         key={n}
-                        className={`h-1.5 flex-1 rounded-full ${n <= taskStep ? 'bg-indigo-500' : 'bg-zinc-200'}`}
+                        className={`h-1.5 flex-1 rounded-full ${n <= taskStep ? 'bg-indigo-500' : 'bg-zinc-200 dark:bg-[#1e2b38]'}`}
                       />
                     ))}
                   </div>
@@ -3226,7 +3226,7 @@ export default function CustomerDetailPage() {
                 {/* Step 1: τίτλος */}
                 {taskStep === 1 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τι θέλετε να κάνετε;</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Τι θέλετε να κάνετε;</label>
                     <input
                       autoFocus
                       type="text"
@@ -3234,38 +3234,38 @@ export default function CustomerDetailPage() {
                       onChange={e => setTaskTitle(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && taskTitle.trim()) { e.preventDefault(); taskWizardNext(); } }}
                       placeholder="π.χ. Να καλέσω για επιβεβαίωση."
-                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
-                    <p className="mt-1 text-xs text-zinc-400">Το επόμενο βήμα που θέλετε να θυμάστε.</p>
+                    <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Το επόμενο βήμα που θέλετε να θυμάστε.</p>
                   </div>
                 )}
 
                 {/* Step 2: ημερομηνία (deadline) */}
                 {taskStep === 2 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία (deadline)</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Ημερομηνία (deadline)</label>
                     <input
                       type="date"
                       value={taskDate}
                       onChange={e => setTaskDate(e.target.value)}
-                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
-                    <p className="mt-1 text-xs text-zinc-400">Προκαθορισμένη ημερομηνία: σήμερα.</p>
+                    <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Προκαθορισμένη ημερομηνία: σήμερα.</p>
                   </div>
                 )}
 
                 {/* Step 3: σημείωση */}
                 {taskStep === 3 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Σημείωση</label>
                     <textarea
                       rows={4}
                       value={taskNote}
                       onChange={e => setTaskNote(e.target.value)}
                       placeholder="Προαιρετική σημείωση."
-                      className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full resize-none rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
-                    <p className="mt-1 text-xs text-zinc-400">Προαιρετικό.</p>
+                    <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Προαιρετικό.</p>
                   </div>
                 )}
 
@@ -3280,7 +3280,7 @@ export default function CustomerDetailPage() {
                       type="button"
                       onClick={() => { setTaskError(null); setTaskStep(s => Math.max(1, s - 1)); }}
                       disabled={taskSaving}
-                      className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                      className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
                     >
                       Πίσω
                     </button>
@@ -3312,12 +3312,12 @@ export default function CustomerDetailPage() {
             {quickModal === 'appointment' && (
               <>
                 <div className="mb-1 flex items-center justify-between gap-2">
-                  <h2 className="text-base font-semibold text-zinc-900">Ραντεβού</h2>
+                  <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Ραντεβού</h2>
                   <button
                     type="button"
                     onClick={closeQuickModal}
                     aria-label="Κλείσιμο"
-                    className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                    className="rounded-full p-1.5 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
                   >
                     <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -3331,7 +3331,7 @@ export default function CustomerDetailPage() {
                     {[1, 2, 3, 4].map(n => (
                       <span
                         key={n}
-                        className={`h-1.5 flex-1 rounded-full ${n <= apptStep ? 'bg-indigo-500' : 'bg-zinc-200'}`}
+                        className={`h-1.5 flex-1 rounded-full ${n <= apptStep ? 'bg-indigo-500' : 'bg-zinc-200 dark:bg-[#1e2b38]'}`}
                       />
                     ))}
                   </div>
@@ -3340,7 +3340,7 @@ export default function CustomerDetailPage() {
                 {/* Step 1: τίτλος ραντεβού (η αιτία) */}
                 {apptStep === 1 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος ραντεβού</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Τίτλος ραντεβού</label>
                     <input
                       autoFocus
                       type="text"
@@ -3348,22 +3348,22 @@ export default function CustomerDetailPage() {
                       onChange={e => setApptTitle(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter' && apptTitle.trim()) { e.preventDefault(); void appointmentWizardNext(); } }}
                       placeholder="π.χ. Συνάντηση αξιολόγησης"
-                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
-                    <p className="mt-1 text-xs text-zinc-400">Η αιτία του ραντεβού.</p>
+                    <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Η αιτία του ραντεβού.</p>
                   </div>
                 )}
 
                 {/* Step 2: ημερομηνία */}
                 {apptStep === 2 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Ημερομηνία</label>
                     <input
                       autoFocus
                       type="date"
                       value={apptDate}
                       onChange={e => setApptDate(e.target.value)}
-                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
                 )}
@@ -3371,13 +3371,13 @@ export default function CustomerDetailPage() {
                 {/* Step 3: ώρα */}
                 {apptStep === 3 && (
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-zinc-600">Ώρα</label>
+                    <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Ώρα</label>
                     <input
                       autoFocus
                       type="time"
                       value={apptTime}
                       onChange={e => setApptTime(e.target.value)}
-                      className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                      className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                     />
                   </div>
                 )}
@@ -3385,18 +3385,18 @@ export default function CustomerDetailPage() {
                 {/* Step 4: αποστολή ραντεβού */}
                 {apptStep === 4 && (
                   <div className="space-y-3">
-                    <div className="rounded-2xl bg-zinc-50 px-3 py-2.5 ring-1 ring-zinc-100">
-                      <p className="text-sm font-semibold text-zinc-800">{apptTitle.trim()}</p>
-                      <p className="mt-0.5 text-xs text-zinc-500">{apptTime ? `${apptDate} · ${apptTime}` : apptDate}</p>
+                    <div className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2.5 ring-1 ring-zinc-100 dark:ring-white/10">
+                      <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{apptTitle.trim()}</p>
+                      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{apptTime ? `${apptDate} · ${apptTime}` : apptDate}</p>
                     </div>
                     {apptSaving ? (
                       <div className="flex items-center gap-3 py-2">
-                        <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
-                        <p className="text-sm text-zinc-600">Αποθήκευση ραντεβού...</p>
+                        <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 dark:border-white/10 border-t-indigo-500" />
+                        <p className="text-sm text-zinc-600 dark:text-zinc-300">Αποθήκευση ραντεβού...</p>
                       </div>
                     ) : (
                       <>
-                        <p className="text-sm font-medium text-zinc-600">Αποστολή ραντεβού</p>
+                        <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Αποστολή ραντεβού</p>
                         <div className="grid grid-cols-2 gap-3">
                           {/* Viber */}
                           <button
@@ -3426,17 +3426,17 @@ export default function CustomerDetailPage() {
                               type="button"
                               disabled
                               title="Ο πελάτης δεν έχει email"
-                              className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-zinc-100 px-3 py-4 text-center cursor-not-allowed"
+                              className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] px-3 py-4 text-center cursor-not-allowed"
                             >
-                              <svg className="h-7 w-7 text-zinc-300" fill="none" strokeWidth={1.8} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <svg className="h-7 w-7 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={1.8} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25m19.5 0v.243a2.25 2.25 0 0 1-1.07 1.916l-7.5 4.615a2.25 2.25 0 0 1-2.36 0L3.32 8.91a2.25 2.25 0 0 1-1.07-1.916V6.75" />
                               </svg>
-                              <span className="text-xs font-semibold text-zinc-400">Email</span>
+                              <span className="text-xs font-semibold text-zinc-400 dark:text-zinc-500">Email</span>
                             </button>
                           )}
                         </div>
                         {!customer.email && (
-                          <p className="text-xs text-zinc-400">Ο πελάτης δεν έχει email. Πρόσθεσέ το από τα στοιχεία επικοινωνίας για αποστολή με email.</p>
+                          <p className="text-xs text-zinc-400 dark:text-zinc-500">Ο πελάτης δεν έχει email. Πρόσθεσέ το από τα στοιχεία επικοινωνίας για αποστολή με email.</p>
                         )}
                         <p className="text-xs text-green-600">Το ραντεβού αποθηκεύτηκε. Διάλεξε τρόπο αποστολής ή κλείσε.</p>
                       </>
@@ -3455,7 +3455,7 @@ export default function CustomerDetailPage() {
                       type="button"
                       onClick={() => { setApptError(null); setApptStep(s => Math.max(1, s - 1)); }}
                       disabled={apptSaving}
-                      className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                      className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
                     >
                       Πίσω
                     </button>
@@ -3478,7 +3478,7 @@ export default function CustomerDetailPage() {
                     <button
                       type="button"
                       onClick={closeQuickModal}
-                      className="flex-1 rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                      className="flex-1 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                     >
                       Κλείσιμο
                     </button>
@@ -3499,13 +3499,13 @@ export default function CustomerDetailPage() {
           onClick={closeEditOffer}
         >
           <div
-            className="mx-4 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-white shadow-2xl ring-1 ring-zinc-200/60"
+            className="mx-4 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-[28px] bg-white dark:bg-[#17232f] shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
             onClick={e => e.stopPropagation()}
           >
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-[28px] bg-white px-5 pt-5 pb-3 border-b border-zinc-100">
+            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 rounded-t-[28px] bg-white dark:bg-[#17232f] px-5 pt-5 pb-3 border-b border-zinc-100 dark:border-white/10">
               <div>
-                <h2 className="text-base font-semibold text-zinc-900">Επεξεργασία προσφοράς</h2>
-                <p className="mt-0.5 text-xs text-zinc-400">
+                <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Επεξεργασία προσφοράς</h2>
+                <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                   Η αποστολή στον πελάτη γίνεται μόνο από ξεχωριστό βήμα.
                 </p>
               </div>
@@ -3513,7 +3513,7 @@ export default function CustomerDetailPage() {
                 type="button"
                 onClick={closeEditOffer}
                 aria-label="Κλείσιμο"
-                className="shrink-0 rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                className="shrink-0 rounded-full p-1.5 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
               >
                 <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -3546,11 +3546,11 @@ export default function CustomerDetailPage() {
           onClick={closeEditTask}
         >
           <div
-            className="mx-4 w-full max-w-lg rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+            className="mx-4 w-full max-w-lg rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
             onClick={e => e.stopPropagation()}
           >
             <div className="mb-4 flex items-center justify-between gap-2">
-              <h2 className="text-base font-semibold text-zinc-900">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                 {editingTask.type === 'book_appointment' || editingTask.type === 'visit_customer'
                   ? 'Επεξεργασία ραντεβού'
                   : 'Επεξεργασία εργασίας'}
@@ -3559,7 +3559,7 @@ export default function CustomerDetailPage() {
                 type="button"
                 onClick={closeEditTask}
                 aria-label="Κλείσιμο"
-                className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+                className="rounded-full p-1.5 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
               >
                 <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -3568,39 +3568,39 @@ export default function CustomerDetailPage() {
             </div>
             <div className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-600">Τίτλος</label>
+                <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Τίτλος</label>
                 <input
                   type="text"
                   value={editTaskTitle}
                   onChange={e => setEditTaskTitle(e.target.value)}
-                  className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-600">Ημερομηνία</label>
+                <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Ημερομηνία</label>
                 <input
                   type="date"
                   value={editTaskDate}
                   onChange={e => setEditTaskDate(e.target.value)}
-                  className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-600">Ώρα</label>
+                <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Ώρα</label>
                 <input
                   type="time"
                   value={editTaskTime}
                   onChange={e => setEditTaskTime(e.target.value)}
-                  className="w-full rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-zinc-600">Σημείωση</label>
+                <label className="mb-1 block text-sm font-medium text-zinc-600 dark:text-zinc-300">Σημείωση</label>
                 <textarea
                   rows={3}
                   value={editTaskNote}
                   onChange={e => setEditTaskNote(e.target.value)}
-                  className="w-full resize-none rounded-2xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full resize-none rounded-2xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
             </div>
@@ -3620,7 +3620,7 @@ export default function CustomerDetailPage() {
                 type="button"
                 onClick={closeEditTask}
                 disabled={editTaskSaving}
-                className="rounded-2xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+                className="rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
               >
                 Ακύρωση
               </button>
@@ -3828,7 +3828,7 @@ function FileThumb({
       type="button"
       onClick={onOpen}
       aria-label={file.name}
-      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-zinc-100 ring-1 ring-zinc-200/60 transition hover:ring-indigo-300 active:ring-indigo-400"
+      className="relative flex aspect-square items-center justify-center overflow-hidden rounded-xl bg-zinc-100 dark:bg-[#1e2b38] ring-1 ring-zinc-200/60 dark:ring-white/10 transition hover:ring-indigo-300 active:ring-indigo-400"
     >
       {file.kind === 'photo' && url ? (
         // eslint-disable-next-line @next/next/no-img-element
