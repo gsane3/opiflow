@@ -129,25 +129,25 @@ export default function TeamPanel() {
 
   if (loading) {
     return (
-      <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-        <p className="text-sm font-semibold text-zinc-900">Ομάδα</p>
-        <p className="mt-2 text-xs text-zinc-400">Φόρτωση…</p>
+      <div className="mt-4 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ομάδα</p>
+        <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">Φόρτωση…</p>
       </div>
     );
   }
 
   return (
-    <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-      <p className="text-sm font-semibold text-zinc-900">Ομάδα</p>
-      <p className="mt-0.5 text-xs text-zinc-500">Πρόσθεσε τεχνικούς που θα μοιράζονται την ίδια επιχείρηση.</p>
+    <div className="mt-4 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ομάδα</p>
+      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">Πρόσθεσε τεχνικούς που θα μοιράζονται την ίδια επιχείρηση.</p>
 
       {/* Members */}
-      <ul className="mt-3 divide-y divide-zinc-100">
+      <ul className="mt-3 divide-y divide-zinc-100 dark:divide-white/10">
         {members.map((m) => (
           <li key={m.userId} className="flex items-center justify-between gap-3 py-2">
             <div className="min-w-0">
-              <p className="truncate text-sm text-zinc-800">{m.email ?? m.userId.slice(0, 8)}{m.isYou && ' (εσύ)'}</p>
-              <p className="text-[11px] text-zinc-400">{ROLE_LABEL[m.role] ?? m.role}</p>
+              <p className="truncate text-sm text-zinc-800 dark:text-zinc-200">{m.email ?? m.userId.slice(0, 8)}{m.isYou && ' (εσύ)'}</p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">{ROLE_LABEL[m.role] ?? m.role}</p>
             </div>
             {canManage && !m.isYou && m.role !== 'owner' && (
               <button type="button" onClick={() => removeMember(m.userId)} className="shrink-0 text-[11px] font-medium text-red-600 hover:text-red-700">
@@ -159,20 +159,20 @@ export default function TeamPanel() {
       </ul>
 
       {!canManage && (
-        <p className="mt-2 text-[11px] text-zinc-400">Μόνο ο ιδιοκτήτης/διαχειριστής μπορεί να προσκαλεί μέλη.</p>
+        <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">Μόνο ο ιδιοκτήτης/διαχειριστής μπορεί να προσκαλεί μέλη.</p>
       )}
 
       {canManage && (
         <>
           {/* Pending invites */}
           {invites.length > 0 && (
-            <div className="mt-3 border-t border-zinc-100 pt-3">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">Εκκρεμείς προσκλήσεις</p>
+            <div className="mt-3 border-t border-zinc-100 dark:border-white/10 pt-3">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Εκκρεμείς προσκλήσεις</p>
               <ul className="mt-1.5 space-y-1.5">
                 {invites.map((i) => (
                   <li key={i.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate text-zinc-600">{i.email} · {ROLE_LABEL[i.role] ?? i.role}</span>
-                    <button type="button" onClick={() => revoke(i.id)} className="shrink-0 text-[11px] text-zinc-400 hover:text-red-600">Ακύρωση</button>
+                    <span className="truncate text-zinc-600 dark:text-zinc-300">{i.email} · {ROLE_LABEL[i.role] ?? i.role}</span>
+                    <button type="button" onClick={() => revoke(i.id)} className="shrink-0 text-[11px] text-zinc-400 dark:text-zinc-500 hover:text-red-600">Ακύρωση</button>
                   </li>
                 ))}
               </ul>
@@ -180,19 +180,19 @@ export default function TeamPanel() {
           )}
 
           {/* Invite form */}
-          <div className="mt-3 border-t border-zinc-100 pt-3">
+          <div className="mt-3 border-t border-zinc-100 dark:border-white/10 pt-3">
             <div className="flex flex-col gap-2 sm:flex-row">
               <input
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 inputMode="email"
                 placeholder="email@τεχνικού.gr"
-                className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-100 px-3 py-2 text-sm outline-none focus:border-indigo-400"
               />
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as 'member' | 'admin')}
-                className="rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-indigo-400"
+                className="rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-100 px-3 py-2 text-sm outline-none focus:border-indigo-400"
               >
                 <option value="member">Μέλος</option>
                 <option value="admin">Διαχειριστής</option>
@@ -210,7 +210,7 @@ export default function TeamPanel() {
             {joinUrl && (
               <div className="mt-2 rounded-xl bg-indigo-50/60 p-3 ring-1 ring-indigo-100">
                 <p className="text-xs font-medium text-indigo-900">Στείλε αυτόν τον σύνδεσμο στον τεχνικό:</p>
-                <p className="mt-1 break-all rounded-lg bg-white px-2 py-1.5 text-[11px] text-zinc-600 ring-1 ring-zinc-200">{joinUrl}</p>
+                <p className="mt-1 break-all rounded-lg bg-white dark:bg-[#0f1923] px-2 py-1.5 text-[11px] text-zinc-600 dark:text-zinc-300 ring-1 ring-zinc-200 dark:ring-white/10">{joinUrl}</p>
                 <button type="button" onClick={copyLink} className="mt-2 rounded-lg bg-indigo-600 px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-indigo-700">
                   {copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή συνδέσμου'}
                 </button>

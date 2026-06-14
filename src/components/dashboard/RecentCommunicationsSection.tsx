@@ -50,11 +50,11 @@ export default function RecentCommunicationsSection({ communications, customerMa
 
   return (
     <section className="space-y-3">
-      <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+      <h2 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         Τελευταίες επικοινωνίες
       </h2>
-      <div className="rounded-2xl bg-white shadow-sm ring-1 ring-zinc-100 overflow-hidden">
-        <ul className="divide-y divide-zinc-100">
+      <div className="rounded-2xl bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-100 dark:ring-white/10 overflow-hidden">
+        <ul className="divide-y divide-zinc-100 dark:divide-white/10">
           {recent.map((comm) => {
             const customerName = comm.customerId ? customerMap[comm.customerId] : undefined;
             // What happened (channel + direction), in plain Greek.
@@ -78,8 +78,8 @@ export default function RecentCommunicationsSection({ communications, customerMa
               <div className="flex items-center gap-3 px-4 py-3">
                 {icon}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-zinc-800">{title}</p>
-                  <p className="truncate text-xs text-zinc-500">{subtitle}</p>
+                  <p className="truncate text-sm font-medium text-zinc-800 dark:text-zinc-200">{title}</p>
+                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
                 </div>
               </div>
             );
@@ -89,7 +89,7 @@ export default function RecentCommunicationsSection({ communications, customerMa
                 {comm.customerId ? (
                   <Link
                     href={`/customers/${comm.customerId}`}
-                    className="block transition hover:bg-zinc-50"
+                    className="block transition hover:bg-zinc-50 dark:hover:bg-white/5"
                   >
                     {inner}
                   </Link>

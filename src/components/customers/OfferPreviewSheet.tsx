@@ -136,39 +136,39 @@ export default function OfferPreviewSheet({
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true">
       <button type="button" aria-label="Κλείσιμο" className="absolute inset-0 bg-black/30 motion-safe:animate-[fadeIn_0.2s_ease-out]" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] shadow-2xl motion-safe:animate-[slideInRight_0.28s_cubic-bezier(0.32,0.72,0,1)]">
-        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <button type="button" onClick={onClose} aria-label="Πίσω" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition active:scale-95 hover:bg-zinc-100">
+      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] dark:bg-[#0e1722] shadow-2xl motion-safe:animate-[slideInRight_0.28s_cubic-bezier(0.32,0.72,0,1)]">
+        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <button type="button" onClick={onClose} aria-label="Πίσω" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 transition active:scale-95 hover:bg-zinc-100 dark:hover:bg-white/5">
             <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
           </button>
-          <p className="flex-1 truncate text-base font-semibold text-zinc-900">{offer?.offerNumber ?? 'Προσφορά'}</p>
+          <p className="flex-1 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">{offer?.offerNumber ?? 'Προσφορά'}</p>
           {offer && <Badge tone={OFFER_STATUS_TONE[offer.status] ?? 'zinc'}>{OFFER_STATUS_GR[offer.status] ?? offer.status}</Badge>}
         </header>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {loading ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-sm text-zinc-500"><Spinner size="md" className="text-indigo-500" /><span>Φόρτωση…</span></div>
+            <div className="flex items-center justify-center gap-2 py-16 text-sm text-zinc-500 dark:text-zinc-400"><Spinner size="md" className="text-indigo-500" /><span>Φόρτωση…</span></div>
           ) : !offer ? (
-            <p className="py-16 text-center text-sm text-zinc-500">Η προσφορά δεν βρέθηκε.</p>
+            <p className="py-16 text-center text-sm text-zinc-500 dark:text-zinc-400">Η προσφορά δεν βρέθηκε.</p>
           ) : (
             <>
               {/* Document */}
-              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
+              <div className="rounded-[24px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-lg font-bold text-zinc-900">ΠΡΟΣΦΟΡΑ</p>
-                    <p className="text-sm font-medium text-zinc-500">{offer.offerNumber}</p>
+                    <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">ΠΡΟΣΦΟΡΑ</p>
+                    <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">{offer.offerNumber}</p>
                   </div>
-                  <div className="text-right text-xs text-zinc-500">
+                  <div className="text-right text-xs text-zinc-500 dark:text-zinc-400">
                     <p>Ημ/νία: {formatDateGr(offer.offerDate)}</p>
                     {offer.validUntil && <p>Ισχύει: {formatDateGr(offer.validUntil)}</p>}
                   </div>
                 </div>
 
-                <div className="mt-4 overflow-hidden rounded-xl ring-1 ring-zinc-100">
+                <div className="mt-4 overflow-hidden rounded-xl ring-1 ring-zinc-100 dark:ring-white/10">
                   <table className="w-full table-fixed text-sm">
                     <colgroup><col className="w-1/2" /><col className="w-[14%]" /><col className="w-[18%]" /><col className="w-[18%]" /></colgroup>
-                    <thead><tr className="bg-zinc-50 text-[11px] uppercase tracking-wide text-zinc-400">
+                    <thead><tr className="bg-zinc-50 dark:bg-[#1e2b38] text-[11px] uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                       <th className="px-2.5 py-2 text-left font-medium">Περιγραφή</th>
                       <th className="px-1 py-2 text-right font-medium">Ποσ.</th>
                       <th className="px-1 py-2 text-right font-medium">Τιμή</th>
@@ -176,11 +176,11 @@ export default function OfferPreviewSheet({
                     </tr></thead>
                     <tbody>
                       {offer.items.map((it) => (
-                        <tr key={it.id} className="border-t border-zinc-100 align-top">
-                          <td className="px-2.5 py-2 text-zinc-800 break-words">{it.description}</td>
-                          <td className="px-1 py-2 text-right tabular-nums text-zinc-600">{it.quantity}</td>
-                          <td className="px-1 py-2 text-right tabular-nums text-zinc-600">{eur(it.unitPrice)}</td>
-                          <td className="px-2.5 py-2 text-right font-medium tabular-nums text-zinc-800">{eur(it.lineTotal)}</td>
+                        <tr key={it.id} className="border-t border-zinc-100 dark:border-white/10 align-top">
+                          <td className="px-2.5 py-2 text-zinc-800 dark:text-zinc-200 break-words">{it.description}</td>
+                          <td className="px-1 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-300">{it.quantity}</td>
+                          <td className="px-1 py-2 text-right tabular-nums text-zinc-600 dark:text-zinc-300">{eur(it.unitPrice)}</td>
+                          <td className="px-2.5 py-2 text-right font-medium tabular-nums text-zinc-800 dark:text-zinc-200">{eur(it.lineTotal)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -188,24 +188,24 @@ export default function OfferPreviewSheet({
                 </div>
 
                 <div className="mt-3 ml-auto w-full max-w-[16rem] space-y-1 text-sm">
-                  <div className="flex justify-between text-zinc-500"><span>Καθαρή αξία</span><span className="tabular-nums">{eur(offer.subtotal)}</span></div>
-                  <div className="flex justify-between text-zinc-500"><span>ΦΠΑ {offer.vatRate}%</span><span className="tabular-nums">{eur(offer.vatAmount)}</span></div>
-                  <div className="flex justify-between border-t border-zinc-200 pt-1.5 text-base font-bold text-zinc-900"><span>Σύνολο</span><span className="tabular-nums">{eur(offer.total)}</span></div>
+                  <div className="flex justify-between text-zinc-500 dark:text-zinc-400"><span>Καθαρή αξία</span><span className="tabular-nums">{eur(offer.subtotal)}</span></div>
+                  <div className="flex justify-between text-zinc-500 dark:text-zinc-400"><span>ΦΠΑ {offer.vatRate}%</span><span className="tabular-nums">{eur(offer.vatAmount)}</span></div>
+                  <div className="flex justify-between border-t border-zinc-200 dark:border-white/10 pt-1.5 text-base font-bold text-zinc-900 dark:text-zinc-100"><span>Σύνολο</span><span className="tabular-nums">{eur(offer.total)}</span></div>
                 </div>
 
-                {offer.notes && (<div className="mt-4"><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Σημειώσεις</p><p className="mt-1 whitespace-pre-wrap text-sm text-zinc-600">{offer.notes}</p></div>)}
-                {offer.terms && (<div className="mt-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Όροι</p><p className="mt-1 whitespace-pre-wrap text-sm text-zinc-600">{offer.terms}</p></div>)}
+                {offer.notes && (<div className="mt-4"><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Σημειώσεις</p><p className="mt-1 whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-300">{offer.notes}</p></div>)}
+                {offer.terms && (<div className="mt-3"><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Όροι</p><p className="mt-1 whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-300">{offer.terms}</p></div>)}
               </div>
 
               {/* Status control */}
-              <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
-                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Κατάσταση</p>
+              <div className="rounded-[24px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+                <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Κατάσταση</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {SETTABLE.map((s) => {
                     const active = offer.status === s.value;
                     return (
                       <button key={s.value} type="button" disabled={savingStatus || active} onClick={() => changeStatus(s.value)}
-                        className={`rounded-full px-3.5 py-2 text-sm font-medium ring-1 transition active:scale-95 disabled:opacity-60 ${active ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white text-zinc-700 ring-zinc-200 hover:bg-zinc-50'}`}>
+                        className={`rounded-full px-3.5 py-2 text-sm font-medium ring-1 transition active:scale-95 disabled:opacity-60 ${active ? 'bg-indigo-600 text-white ring-indigo-600' : 'bg-white dark:bg-[#17232f] text-zinc-700 dark:text-zinc-200 ring-zinc-200 dark:ring-white/10 hover:bg-zinc-50 dark:hover:bg-white/5'}`}>
                         {s.label}
                       </button>
                     );

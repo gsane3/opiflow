@@ -109,11 +109,11 @@ export default function AutomationsPanel() {
   return (
     <div className="space-y-4">
       {/* After-hours auto-reply */}
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <label className="flex items-start justify-between gap-3">
           <span className="min-w-0">
-            <span className="block text-sm font-semibold text-zinc-900">Αυτόματη απάντηση σε αναπάντητη</span>
-            <span className="mt-0.5 block text-xs text-zinc-400">Όταν χάνεις κλήση εκτός ωραρίου, ο πελάτης λαμβάνει αυτόματο μήνυμα (Viber → SMS).</span>
+            <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Αυτόματη απάντηση σε αναπάντητη</span>
+            <span className="mt-0.5 block text-xs text-zinc-400 dark:text-zinc-500">Όταν χάνεις κλήση εκτός ωραρίου, ο πελάτης λαμβάνει αυτόματο μήνυμα (Viber → SMS).</span>
           </span>
           <input type="checkbox" checked={autoReplyEnabled} onChange={(e) => setAutoReplyEnabled(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-indigo-600" />
         </label>
@@ -123,17 +123,17 @@ export default function AutomationsPanel() {
             onChange={(e) => setAutoReplyText(e.target.value)}
             rows={3}
             maxLength={600}
-            className="mt-3 w-full resize-none rounded-xl bg-zinc-100 px-3.5 py-2.5 text-sm text-zinc-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200"
+            className="mt-3 w-full resize-none rounded-xl bg-zinc-100 dark:bg-[#1e2b38] px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:bg-white dark:focus:bg-[#0f1923] focus:ring-2 focus:ring-indigo-200"
           />
         )}
       </div>
 
       {/* Business hours */}
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <label className="flex items-start justify-between gap-3">
           <span className="min-w-0">
-            <span className="block text-sm font-semibold text-zinc-900">Ωράριο λειτουργίας</span>
-            <span className="mt-0.5 block text-xs text-zinc-400">Καθορίζει πότε θεωρείται «εκτός ωραρίου» για την αυτόματη απάντηση. Χωρίς ωράριο, η απάντηση στέλνεται σε κάθε αναπάντητη.</span>
+            <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Ωράριο λειτουργίας</span>
+            <span className="mt-0.5 block text-xs text-zinc-400 dark:text-zinc-500">Καθορίζει πότε θεωρείται «εκτός ωραρίου» για την αυτόματη απάντηση. Χωρίς ωράριο, η απάντηση στέλνεται σε κάθε αναπάντητη.</span>
           </span>
           <input type="checkbox" checked={hoursEnabled} onChange={(e) => setHoursEnabled(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-indigo-600" />
         </label>
@@ -145,27 +145,27 @@ export default function AutomationsPanel() {
                   key={d.n}
                   type="button"
                   onClick={() => toggleDay(d.n)}
-                  className={`h-9 w-9 rounded-full text-xs font-semibold transition ${days.includes(d.n) ? 'bg-indigo-600 text-white' : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200'}`}
+                  className={`h-9 w-9 rounded-full text-xs font-semibold transition ${days.includes(d.n) ? 'bg-indigo-600 text-white' : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-white/5'}`}
                 >
                   {d.label}
                 </button>
               ))}
             </div>
             <div className="flex items-center gap-2">
-              <input type="time" value={open} onChange={(e) => setOpen(e.target.value)} className="rounded-xl bg-zinc-100 px-3 py-2 text-sm text-zinc-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200" />
-              <span className="text-sm text-zinc-400">έως</span>
-              <input type="time" value={close} onChange={(e) => setClose(e.target.value)} className="rounded-xl bg-zinc-100 px-3 py-2 text-sm text-zinc-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200" />
+              <input type="time" value={open} onChange={(e) => setOpen(e.target.value)} className="rounded-xl bg-zinc-100 dark:bg-[#1e2b38] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:bg-white dark:focus:bg-[#0f1923] focus:ring-2 focus:ring-indigo-200" />
+              <span className="text-sm text-zinc-400 dark:text-zinc-500">έως</span>
+              <input type="time" value={close} onChange={(e) => setClose(e.target.value)} className="rounded-xl bg-zinc-100 dark:bg-[#1e2b38] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:bg-white dark:focus:bg-[#0f1923] focus:ring-2 focus:ring-indigo-200" />
             </div>
           </div>
         )}
       </div>
 
       {/* Weekly summary */}
-      <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <label className="flex items-start justify-between gap-3">
           <span className="min-w-0">
-            <span className="block text-sm font-semibold text-zinc-900">Εβδομαδιαία σύνοψη</span>
-            <span className="mt-0.5 block text-xs text-zinc-400">Μία ειδοποίηση τη βδομάδα: κλήσεις, αναπάντητες, εκκρεμότητες.</span>
+            <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Εβδομαδιαία σύνοψη</span>
+            <span className="mt-0.5 block text-xs text-zinc-400 dark:text-zinc-500">Μία ειδοποίηση τη βδομάδα: κλήσεις, αναπάντητες, εκκρεμότητες.</span>
           </span>
           <input type="checkbox" checked={weeklyEnabled} onChange={(e) => setWeeklyEnabled(e.target.checked)} className="mt-1 h-5 w-5 shrink-0 accent-indigo-600" />
         </label>

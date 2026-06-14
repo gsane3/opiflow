@@ -218,17 +218,17 @@ export default function CustomersPage() {
     return (
       <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
         <div className="space-y-1.5">
-          <div className="h-3 w-16 rounded-full bg-zinc-200" />
-          <div className="h-7 w-56 rounded-full bg-zinc-200" />
-          <div className="h-4 w-44 rounded-full bg-zinc-200" />
+          <div className="h-3 w-16 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
+          <div className="h-7 w-56 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
+          <div className="h-4 w-44 rounded-full bg-zinc-200 dark:bg-[#1e2b38]" />
         </div>
-        <div className="h-12 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-12 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
         <div className="grid grid-cols-3 gap-3">
-          <div className="h-16 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-          <div className="h-16 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-          <div className="h-16 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+          <div className="h-16 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+          <div className="h-16 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+          <div className="h-16 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
         </div>
-        <p className="text-center text-sm text-zinc-400">Φόρτωση πελατών...</p>
+        <p className="text-center text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση πελατών...</p>
       </div>
     );
   }
@@ -238,11 +238,11 @@ export default function CustomersPage() {
     return (
       <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
         <div>
-          <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Ποιος χρειάζεται προσοχή;</h1>
+          <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Πελάτες</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Ποιος χρειάζεται προσοχή;</h1>
         </div>
-        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm font-medium text-zinc-600">Συνδέσου για να δεις τους πελάτες.</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-300">Συνδέσου για να δεις τους πελάτες.</p>
           <Link
             href="/login"
             className="mt-4 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors select-none hover:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
@@ -259,8 +259,8 @@ export default function CustomersPage() {
     return (
       <div className="mx-auto w-full max-w-md md:max-w-4xl space-y-5 px-5 pt-6 pb-28">
         <div>
-          <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Ποιος χρειάζεται προσοχή;</h1>
+          <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Πελάτες</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Ποιος χρειάζεται προσοχή;</h1>
         </div>
         <div className="rounded-[28px] bg-red-50 px-5 py-6 text-center ring-1 ring-red-200">
           <p className="text-sm font-medium text-red-700">
@@ -269,7 +269,7 @@ export default function CustomersPage() {
           <button
             type="button"
             onClick={() => setRefreshTick((t) => t + 1)}
-            className="mt-4 rounded-2xl bg-white px-5 py-2.5 text-sm font-semibold text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-50"
+            className="mt-4 rounded-2xl bg-white dark:bg-[#17232f] px-5 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-50 dark:hover:bg-white/5"
           >
             Δοκίμασε ξανά
           </button>
@@ -284,11 +284,11 @@ export default function CustomersPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">
+          <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Πελάτες</p>
+          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
             Ποιος χρειάζεται προσοχή;
           </h1>
-          <p className="mt-0.5 text-sm text-zinc-500">
+          <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
             Πελάτες και αιτήματα σε ένα απλό σημείο.
           </p>
         </div>
@@ -306,7 +306,7 @@ export default function CustomersPage() {
             type="button"
             onClick={() => setRefreshTick((t) => t + 1)}
             disabled={loading}
-            className="rounded-full bg-white p-2 shadow-sm ring-1 ring-zinc-200/60 text-zinc-400 transition hover:text-zinc-600 disabled:opacity-40"
+            className="rounded-full bg-white dark:bg-[#17232f] p-2 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 text-zinc-400 dark:text-zinc-500 transition hover:text-zinc-600 dark:hover:text-zinc-300 disabled:opacity-40"
             title="Ανανέωση"
           >
             <svg className="h-4 w-4" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
@@ -317,9 +317,9 @@ export default function CustomersPage() {
       </div>
 
       {/* Search card */}
-      <div className="rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-4 py-3 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <div className="flex items-center gap-2">
-          <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
           </svg>
           <input
@@ -327,13 +327,13 @@ export default function CustomersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Ψάξε με όνομα ή τηλέφωνο"
-            className="flex-1 rounded-lg bg-transparent py-3.5 text-base text-zinc-900 placeholder-zinc-400 outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="flex-1 rounded-lg bg-transparent py-3.5 text-base text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           {search.trim() !== '' && (
             <button
               type="button"
               onClick={() => setSearch('')}
-              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium text-zinc-400 transition hover:text-zinc-600"
+              className="shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium text-zinc-400 dark:text-zinc-500 transition hover:text-zinc-600 dark:hover:text-zinc-300"
             >
               Καθαρισμός
             </button>
@@ -341,7 +341,7 @@ export default function CustomersPage() {
         </div>
 
         {/* Filter chips — 4 primary + "Περισσότερα φίλτρα" */}
-        <div className="mt-3 flex flex-wrap gap-2.5 border-t border-zinc-100 pt-3">
+        <div className="mt-3 flex flex-wrap gap-2.5 border-t border-zinc-100 dark:border-white/10 pt-3">
           {PRIMARY_FILTERS.map((f) => (
             <button
               key={f.value}
@@ -350,7 +350,7 @@ export default function CustomersPage() {
               className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
                 quickFilter === f.value
                   ? 'bg-indigo-600 text-white'
-                  : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                  : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/10'
               }`}
             >
               {f.label}
@@ -374,7 +374,7 @@ export default function CustomersPage() {
           <button
             type="button"
             onClick={() => setMoreFiltersOpen(true)}
-            className="min-h-[40px] rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-medium text-zinc-700 transition active:scale-[0.97] hover:bg-zinc-200"
+            className="min-h-[40px] rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-4 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition active:scale-[0.97] hover:bg-zinc-200 dark:hover:bg-white/10"
           >
             Περισσότερα φίλτρα
           </button>
@@ -384,10 +384,10 @@ export default function CustomersPage() {
       {/* Results summary line */}
       {customers.length > 0 && (
         <div className="flex items-center gap-2">
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {hasFilter ? 'Αποτελέσματα αναζήτησης' : 'Όλοι οι πελάτες'}
           </p>
-          <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-500">
+          <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
             {filtered.length}
           </span>
         </div>

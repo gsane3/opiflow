@@ -64,26 +64,26 @@ export function RequireAdmin({ children }: { children: React.ReactNode }) {
   if (adminState === 'admin_ok') return <>{children}</>;
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4 py-10">
+    <main className="min-h-screen bg-zinc-50 dark:bg-[#0e1722] flex items-center justify-center px-4 py-10">
       <div className="w-full max-w-lg">
-        <div className="space-y-3 rounded-2xl bg-white p-8 shadow-sm ring-1 ring-zinc-100">
-          {adminState === 'loading' && <p className="text-sm text-zinc-500">Έλεγχος πρόσβασης...</p>}
+        <div className="space-y-3 rounded-2xl bg-white dark:bg-[#17232f] p-8 shadow-sm ring-1 ring-zinc-100 dark:ring-white/10">
+          {adminState === 'loading' && <p className="text-sm text-zinc-500 dark:text-zinc-400">Έλεγχος πρόσβασης...</p>}
           {adminState === 'no_session' && (
             <>
-              <p className="text-sm text-zinc-700">Απαιτείται σύνδεση για πρόσβαση σε αυτή τη σελίδα.</p>
+              <p className="text-sm text-zinc-700 dark:text-zinc-200">Απαιτείται σύνδεση για πρόσβαση σε αυτή τη σελίδα.</p>
               <Link href="/login/backend" className="inline-block text-sm text-indigo-600 hover:underline">
                 Σύνδεση
               </Link>
             </>
           )}
           {adminState === 'forbidden' && (
-            <p className="text-sm text-zinc-700">Δεν έχεις πρόσβαση σε αυτή τη σελίδα.</p>
+            <p className="text-sm text-zinc-700 dark:text-zinc-200">Δεν έχεις πρόσβαση σε αυτή τη σελίδα.</p>
           )}
           {adminState === 'not_configured' && (
-            <p className="text-sm text-zinc-700">Η πρόσβαση admin δεν έχει ρυθμιστεί.</p>
+            <p className="text-sm text-zinc-700 dark:text-zinc-200">Η πρόσβαση admin δεν έχει ρυθμιστεί.</p>
           )}
           {adminState === 'error' && (
-            <p className="text-sm text-zinc-700">Δεν ήταν δυνατός ο έλεγχος πρόσβασης. Δοκίμασε ξανά.</p>
+            <p className="text-sm text-zinc-700 dark:text-zinc-200">Δεν ήταν δυνατός ο έλεγχος πρόσβασης. Δοκίμασε ξανά.</p>
           )}
         </div>
       </div>

@@ -659,7 +659,7 @@ export default function BrowserPhone({
       ? 'bg-red-50 text-red-700 ring-red-200'
       : phoneState === 'connecting' || phoneState === 'calling'
       ? 'bg-amber-50 text-amber-700 ring-amber-200'
-      : 'bg-zinc-100 text-zinc-500 ring-zinc-200';
+      : 'bg-zinc-100 text-zinc-500 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-400 dark:ring-white/10';
 
   const isActive =
     phoneState === 'registered' ||
@@ -680,7 +680,7 @@ export default function BrowserPhone({
     : 'text-indigo-500';
 
   return (
-    <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+    <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
       {/* Remote audio stream. Hidden from view. */}
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
 
@@ -710,7 +710,7 @@ export default function BrowserPhone({
 
           {/* Header row: label + badge */}
           <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-zinc-500">
+            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
               Τηλέφωνο μέσα στο app
             </p>
             <span
@@ -722,7 +722,7 @@ export default function BrowserPhone({
 
           {/* not_configured */}
           {phoneState === 'not_configured' && (
-            <p className="mt-0.5 text-xs text-zinc-400">
+            <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
               {disabledReason ?? 'Η σύνδεση τηλεφώνου δεν είναι διαθέσιμη ακόμα.'}
             </p>
           )}
@@ -730,7 +730,7 @@ export default function BrowserPhone({
           {/* disconnected */}
           {phoneState === 'disconnected' && (
             <>
-              <p className="mt-0.5 text-xs text-zinc-400">
+              <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                 Σύνδεσε το app για να λαμβάνεις και να κάνεις κλήσεις.
               </p>
               <button
@@ -748,7 +748,7 @@ export default function BrowserPhone({
 
           {/* connecting */}
           {phoneState === 'connecting' && (
-            <p className="mt-0.5 text-xs text-zinc-400">
+            <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
               Σύνδεση στο τηλεφωνικό σύστημα...
             </p>
           )}
@@ -756,7 +756,7 @@ export default function BrowserPhone({
           {/* registered */}
           {phoneState === 'registered' && (
             <>
-              <p className="mt-0.5 text-xs text-zinc-400">
+              <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                 Έτοιμο. Μπορείς να δεχτείς ή να κάνεις κλήση.
               </p>
 
@@ -774,7 +774,7 @@ export default function BrowserPhone({
                     if (e.key === 'Enter' && outboundInput.trim()) handleDial();
                   }}
                   placeholder="+30..."
-                  className="min-w-0 flex-1 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-1.5 text-xs text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
+                  className="min-w-0 flex-1 rounded-full border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
                 />
                 <button
                   type="button"
@@ -794,7 +794,7 @@ export default function BrowserPhone({
               <button
                 type="button"
                 onClick={stopUa}
-                className="mt-2 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                className="mt-2 rounded-full border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Αποσύνδεση
               </button>
@@ -818,7 +818,7 @@ export default function BrowserPhone({
                 <button
                   type="button"
                   onClick={stopUa}
-                  className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  className="rounded-full border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                 >
                   Αποσύνδεση
                 </button>
@@ -829,7 +829,7 @@ export default function BrowserPhone({
           {/* incoming_call */}
           {phoneState === 'incoming_call' && (
             <>
-              <p className="mt-0.5 text-xs font-medium text-zinc-700">
+              <p className="mt-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200">
                 {callerInfo ?? 'Εισερχόμενη κλήση'}
               </p>
               <div className="mt-2 flex gap-2">
@@ -854,9 +854,9 @@ export default function BrowserPhone({
           {/* calling -- outbound ringing */}
           {phoneState === 'calling' && (
             <>
-              <p className="mt-0.5 text-xs text-zinc-400">
+              <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                 Κλήση προς{' '}
-                <span className="font-medium text-zinc-700">
+                <span className="font-medium text-zinc-700 dark:text-zinc-200">
                   {callerInfo ?? outboundInput}
                 </span>
               </p>
@@ -873,7 +873,7 @@ export default function BrowserPhone({
           {/* in_call */}
           {phoneState === 'in_call' && (
             <>
-              <p className="mt-0.5 text-xs font-medium text-zinc-700">
+              <p className="mt-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200">
                 {callerInfo ?? 'Κλήση σε εξέλιξη'}
               </p>
               {recordingEnabled && (

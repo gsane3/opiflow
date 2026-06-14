@@ -34,7 +34,7 @@ export function Card({
   return (
     <Component
       className={cn(
-        'rounded-[22px] bg-white shadow-sm shadow-indigo-950/[0.04] ring-1 ring-zinc-200/60',
+        'rounded-[22px] bg-white shadow-sm shadow-indigo-950/[0.04] ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10',
         paddingClasses[padding],
         className,
       )}

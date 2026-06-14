@@ -467,12 +467,12 @@ function CallActionSheet({
       onClick={onClose}
     >
       <div
-        className="mx-auto w-full max-w-md rounded-t-[28px] bg-white pb-8 shadow-2xl ring-1 ring-zinc-200/60"
+        className="mx-auto w-full max-w-md rounded-t-[28px] bg-white dark:bg-[#17232f] pb-8 shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle bar */}
         <div className="flex justify-center pb-2 pt-3">
-          <div className="h-1 w-10 rounded-full bg-zinc-300" />
+          <div className="h-1 w-10 rounded-full bg-zinc-300 dark:bg-white/20" />
         </div>
 
         {view === 'actions' ? (
@@ -480,11 +480,11 @@ function CallActionSheet({
             {/* Header info */}
             <div className="px-5 pb-4 pt-1 text-center">
               {call.phone ? (
-                <p className="text-xl font-bold tracking-wide text-zinc-900">{call.phone}</p>
+                <p className="text-xl font-bold tracking-wide text-zinc-900 dark:text-zinc-100">{call.phone}</p>
               ) : (
-                <p className="text-xl font-bold text-zinc-400">Αγνωστος αριθμός</p>
+                <p className="text-xl font-bold text-zinc-400 dark:text-zinc-500">Αγνωστος αριθμός</p>
               )}
-              <p className="mt-1 text-xs text-zinc-400">
+              <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
                 {contextLine}
                 {' · '}
                 {fmtDate(call.createdAt)}
@@ -498,11 +498,11 @@ function CallActionSheet({
             </div>
 
             {actionSheetBrief && (
-              <div className="mx-5 mb-3 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400">
+              <div className="mx-5 mb-3 rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3 ring-1 ring-zinc-100 dark:ring-white/10">
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
                   Περίληψη κλήσης
                 </p>
-                <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-600">{actionSheetBrief}</p>
+                <p className="whitespace-pre-wrap text-xs leading-relaxed text-zinc-600 dark:text-zinc-300">{actionSheetBrief}</p>
               </div>
             )}
 
@@ -523,7 +523,7 @@ function CallActionSheet({
                 <Link
                   href={`/customers/${call.customerId}`}
                   onClick={onClose}
-                  className="flex w-full items-center justify-center rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-indigo-600 ring-1 ring-zinc-200 transition hover:bg-indigo-50"
+                  className="flex w-full items-center justify-center rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-indigo-600 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-indigo-50"
                 >
                   Προβολή επαφής
                 </Link>
@@ -537,7 +537,7 @@ function CallActionSheet({
                   >
                     Σύνδεση με υπάρχουσα επαφή
                   </button>
-                  <p className="px-1 text-center text-xs text-zinc-400">
+                  <p className="px-1 text-center text-xs text-zinc-400 dark:text-zinc-500">
                     {phoneMatchCustomer.name}
                   </p>
                 </div>
@@ -551,7 +551,7 @@ function CallActionSheet({
                   Προσθήκη επαφής
                 </button>
               ) : (
-                <div className="w-full rounded-2xl bg-zinc-50 py-3.5 text-center text-sm font-medium text-zinc-400 ring-1 ring-zinc-200">
+                <div className="w-full rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] py-3.5 text-center text-sm font-medium text-zinc-400 dark:text-zinc-500 ring-1 ring-zinc-200 dark:ring-white/10">
                   Προσθήκη επαφής
                 </div>
               )}
@@ -561,7 +561,7 @@ function CallActionSheet({
                 type="button"
                 onClick={openTaskForm}
                 disabled={busy}
-                className="w-full rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-100 active:bg-zinc-200 disabled:opacity-50"
+                className="w-full rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 active:bg-zinc-200 dark:active:bg-white/5 disabled:opacity-50"
               >
                 Δημιουργία εργασίας
               </button>
@@ -570,7 +570,7 @@ function CallActionSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+                className="w-full rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5 active:bg-zinc-300 dark:active:bg-white/5"
               >
                 Ακύρωση
               </button>
@@ -580,16 +580,16 @@ function CallActionSheet({
           <>
             {/* Add contact form */}
             <div className="px-5 pb-3 pt-1 text-center">
-              <p className="text-base font-semibold text-zinc-900">Νέα επαφή</p>
+              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Νέα επαφή</p>
               {call.phone && (
-                <p className="mt-0.5 text-sm text-zinc-500">{call.phone}</p>
+                <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">{call.phone}</p>
               )}
             </div>
 
             <div className="space-y-3 px-4 pb-2">
               {/* Name */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Όνομα
                 </label>
                 <input
@@ -597,13 +597,13 @@ function CallActionSheet({
                   value={contactName}
                   onChange={(e) => { setContactName(e.target.value); setFormError(null); }}
                   placeholder="Γιώργης Παπαδόπουλος"
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
 
               {/* Company */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Εταιρεία
                 </label>
                 <input
@@ -611,13 +611,13 @@ function CallActionSheet({
                   value={contactCompany}
                   onChange={(e) => { setContactCompany(e.target.value); setFormError(null); }}
                   placeholder="Προαιρετικό"
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
 
               {/* Email */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Email
                 </label>
                 <input
@@ -625,7 +625,7 @@ function CallActionSheet({
                   value={contactEmail}
                   onChange={(e) => { setContactEmail(e.target.value); setFormError(null); }}
                   placeholder="Προαιρετικό"
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
 
@@ -650,7 +650,7 @@ function CallActionSheet({
                 type="button"
                 onClick={() => { setFormError(null); setView('actions'); }}
                 disabled={busy}
-                className="w-full rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-100 disabled:opacity-50"
+                className="w-full rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 disabled:opacity-50"
               >
                 Πίσω
               </button>
@@ -659,7 +659,7 @@ function CallActionSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+                className="w-full rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5 active:bg-zinc-300 dark:active:bg-white/5"
               >
                 Ακύρωση
               </button>
@@ -669,7 +669,7 @@ function CallActionSheet({
           <>
             {/* Bulk link confirmation */}
             <div className="px-5 pb-4 pt-1 text-center">
-              <p className="text-base font-semibold text-zinc-900">
+              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                 Βρέθηκαν {pendingBulkCalls.length} παλιότερες κλήσεις από τον ίδιο αριθμό. Να συνδεθούν με την ίδια επαφή;
               </p>
               {bulkCustomer?.name && (
@@ -689,7 +689,7 @@ function CallActionSheet({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+                  className="w-full rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5 active:bg-zinc-300 dark:active:bg-white/5"
                 >
                   Κλείσιμο
                 </button>
@@ -707,7 +707,7 @@ function CallActionSheet({
                     type="button"
                     onClick={onClose}
                     disabled={busy}
-                    className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+                    className="w-full rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5 active:bg-zinc-300 dark:active:bg-white/5 disabled:opacity-50"
                   >
                     Παράλειψη
                   </button>
@@ -719,9 +719,9 @@ function CallActionSheet({
           <>
             {/* Create task form */}
             <div className="px-5 pb-3 pt-1 text-center">
-              <p className="text-base font-semibold text-zinc-900">Δημιουργία εργασίας</p>
+              <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Δημιουργία εργασίας</p>
               {call.customerId && call.customer?.name && (
-                <p className="mt-0.5 text-xs text-zinc-500">
+                <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
                   Θα συνδεθεί με {call.customer.name}
                 </p>
               )}
@@ -730,7 +730,7 @@ function CallActionSheet({
             <div className="space-y-3 px-4 pb-2">
               {/* Title */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Τίτλος
                 </label>
                 <input
@@ -738,19 +738,19 @@ function CallActionSheet({
                   value={taskTitle}
                   onChange={(e) => { setTaskTitle(e.target.value); setTaskError(null); }}
                   placeholder="Κλήση πίσω"
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
 
               {/* Type */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Τύπος
                 </label>
                 <select
                   value={taskType}
                   onChange={(e) => setTaskType(e.target.value)}
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
                 >
                   <option value="call_back">Κλήση πίσω</option>
                   <option value="send_offer">Αποστολή προσφοράς</option>
@@ -765,20 +765,20 @@ function CallActionSheet({
 
               {/* Due date */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Ημερομηνία
                 </label>
                 <input
                   type="date"
                   value={taskDueDate}
                   onChange={(e) => setTaskDueDate(e.target.value)}
-                  className="w-full rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
 
               {/* Note */}
               <div>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">
+                <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">
                   Σημείωση
                 </label>
                 <textarea
@@ -786,7 +786,7 @@ function CallActionSheet({
                   value={taskNote}
                   onChange={(e) => setTaskNote(e.target.value)}
                   placeholder="Προαιρετικό"
-                  className="w-full resize-none rounded-2xl border border-zinc-200 bg-zinc-50 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full resize-none rounded-2xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none transition focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
                 />
               </div>
 
@@ -811,7 +811,7 @@ function CallActionSheet({
                 type="button"
                 onClick={() => { setTaskError(null); setView('actions'); }}
                 disabled={busy}
-                className="w-full rounded-2xl bg-zinc-50 py-3.5 text-sm font-medium text-zinc-700 ring-1 ring-zinc-200 transition hover:bg-zinc-100 disabled:opacity-50"
+                className="w-full rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 disabled:opacity-50"
               >
                 Πίσω
               </button>
@@ -820,7 +820,7 @@ function CallActionSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300"
+                className="w-full rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5 active:bg-zinc-300 dark:active:bg-white/5"
               >
                 Ακύρωση
               </button>
@@ -852,12 +852,12 @@ function RecentTab({
 
   if (sorted.length === 0) {
     return (
-      <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-indigo-50">
           <PhoneIcon className="h-6 w-6 text-indigo-400" />
         </div>
-        <p className="text-sm font-medium text-zinc-700">Δεν υπάρχουν κλήσεις ακόμα.</p>
-        <p className="mt-1.5 text-sm text-zinc-500">
+        <p className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Δεν υπάρχουν κλήσεις ακόμα.</p>
+        <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
           Όταν συνδεθεί το τηλεφωνικό σύστημα, οι κλήσεις θα εμφανίζονται εδώ.
         </p>
       </div>
@@ -904,10 +904,10 @@ function RecentTab({
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') onSelect(call);
               }}
-              className={`flex w-full cursor-pointer items-start gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 transition hover:bg-zinc-50/60 active:bg-zinc-100/60 ${
+              className={`flex w-full cursor-pointer items-start gap-3 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 transition hover:bg-zinc-50/60 dark:hover:bg-white/5 active:bg-zinc-100/60 dark:active:bg-white/5 ${
                 isMissed
                   ? 'border-l-4 border-amber-400 ring-amber-200/70'
-                  : 'ring-zinc-200/60'
+                  : 'ring-zinc-200/60 dark:ring-white/10'
               }`}
             >
               {/* Avatar */}
@@ -927,16 +927,16 @@ function RecentTab({
               <div className="min-w-0 flex-1">
                 {/* Who + when */}
                 <div className="flex items-start justify-between gap-2">
-                  <p className="truncate text-[15px] font-semibold leading-snug text-zinc-900">
+                  <p className="truncate text-[15px] font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
                     {displayName}
                   </p>
-                  <span className="shrink-0 whitespace-nowrap text-[11px] text-zinc-500">
+                  <span className="shrink-0 whitespace-nowrap text-[11px] text-zinc-500 dark:text-zinc-400">
                     {fmtDate(call.createdAt)}
                   </span>
                 </div>
 
                 {linkedCustomer?.companyName && linkedCustomer.companyName !== displayName && (
-                  <p className="truncate text-xs text-zinc-500">{linkedCustomer.companyName}</p>
+                  <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{linkedCustomer.companyName}</p>
                 )}
 
                 {/* Type: incoming / outgoing / missed */}
@@ -946,14 +946,14 @@ function RecentTab({
 
                 {/* AI call summary */}
                 {aiBrief && (
-                  <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-zinc-600">
-                    <span className="font-medium text-zinc-700">Σύνοψη κλήσης: </span>
+                  <p className="mt-1.5 line-clamp-2 text-xs leading-snug text-zinc-600 dark:text-zinc-300">
+                    <span className="font-medium text-zinc-700 dark:text-zinc-200">Σύνοψη κλήσης: </span>
                     {aiBrief}
                   </p>
                 )}
 
                 {/* Next suggested step */}
-                <p className="mt-1.5 text-[11px] text-zinc-500">{nextStep}</p>
+                <p className="mt-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">{nextStep}</p>
 
                 {/* One primary action per item */}
                 <div className="mt-2.5 flex flex-wrap items-center gap-2">
@@ -991,7 +991,7 @@ function RecentTab({
                         e.stopPropagation();
                         onSelect(call);
                       }}
-                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                     >
                       Επιλογές
                     </button>
@@ -1002,7 +1002,7 @@ function RecentTab({
                     <Link
                       href={`/customers/${call.customerId}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+                      className="inline-flex min-h-[48px] items-center justify-center rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                     >
                       Άνοιγμα πελάτη
                     </Link>
@@ -1043,8 +1043,8 @@ function CustomersTab({
   return (
     <div className="space-y-3">
       {/* Search */}
-      <div className="flex items-center gap-3 rounded-[28px] bg-white px-4 py-3 shadow-sm ring-1 ring-zinc-200/60">
-        <svg className="h-4 w-4 shrink-0 text-zinc-400" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+      <div className="flex items-center gap-3 rounded-[28px] bg-white dark:bg-[#17232f] px-4 py-3 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+        <svg className="h-4 w-4 shrink-0 text-zinc-400 dark:text-zinc-500" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
         </svg>
         <input
@@ -1052,13 +1052,13 @@ function CustomersTab({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Αναζήτηση ονόματος, τηλεφώνου, email…"
-          className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 outline-none"
+          className="min-w-0 flex-1 bg-transparent text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none"
         />
       </div>
 
       {filtered.length === 0 ? (
-        <div className="rounded-[28px] bg-white px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-500">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-8 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {search.trim() ? 'Δεν βρέθηκαν αποτελέσματα.' : 'Δεν υπάρχουν πελάτες ακόμα.'}
           </p>
           {!search.trim() && (
@@ -1077,20 +1077,20 @@ function CustomersTab({
             return (
               <li
                 key={c.id}
-                className="flex items-center gap-3 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60"
+                className="flex items-center gap-3 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10"
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-sm font-semibold text-indigo-600">
                   {initial}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-[15px] font-semibold text-zinc-900">{c.name}</p>
-                  <p className="truncate text-xs text-zinc-400">
+                  <p className="truncate text-[15px] font-semibold text-zinc-900 dark:text-zinc-100">{c.name}</p>
+                  <p className="truncate text-xs text-zinc-400 dark:text-zinc-500">
                     {[c.companyName, c.phone].filter(Boolean).join(' · ') || 'Χωρίς στοιχεία'}
                   </p>
                 </div>
                 <Link
                   href={`/customers/${c.id}`}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-50 text-zinc-500 ring-1 ring-zinc-200 transition hover:bg-zinc-100"
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-50 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5"
                   title="Άνοιγμα"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
@@ -1154,25 +1154,25 @@ function NumpadPanel({
 
   if (inline) {
     return (
-      <div className="rounded-[28px] bg-white px-5 pb-6 pt-5 shadow-sm ring-1 ring-zinc-200/60">
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 pb-6 pt-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         <div className="mb-4">
-          <p className="text-base font-bold text-zinc-900">Πληκτρολόγιο</p>
-          <p className="mt-0.5 text-xs text-zinc-400">
+          <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">Πληκτρολόγιο</p>
+          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
             Πληκτρολόγησε αριθμό και πάτησε Κλήση.
           </p>
         </div>
         {/* Number display */}
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
-          <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3 ring-1 ring-zinc-200 dark:ring-white/10">
+          <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900 dark:text-zinc-100">
             {dialNumber || (
-              <span className="text-base font-normal text-zinc-400">Αριθμός</span>
+              <span className="text-base font-normal text-zinc-400 dark:text-zinc-500">Αριθμός</span>
             )}
           </span>
           {dialNumber && (
             <button
               type="button"
               onClick={backspace}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-200"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-200 dark:hover:bg-white/5"
               aria-label="Διαγραφή"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
@@ -1188,7 +1188,7 @@ function NumpadPanel({
               key={key}
               type="button"
               onClick={() => press(key)}
-              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 text-2xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 motion-safe:active:scale-95 active:bg-zinc-200"
+              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 dark:bg-[#1e2b38] text-2xl font-medium text-zinc-800 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 motion-safe:active:scale-95 active:bg-zinc-200 dark:active:bg-white/5"
             >
               {key}
             </button>
@@ -1208,7 +1208,7 @@ function NumpadPanel({
             <button
               type="button"
               onClick={() => setDialNumber('')}
-              className="w-full rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+              className="w-full rounded-[28px] border border-zinc-200 dark:border-white/10 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Καθαρισμός
             </button>
@@ -1224,21 +1224,21 @@ function NumpadPanel({
       onClick={closePanel}
     >
       <div
-        className="mx-4 w-full max-w-sm rounded-[28px] bg-white px-5 pb-6 pt-5 shadow-2xl ring-1 ring-zinc-200/60"
+        className="mx-4 w-full max-w-sm rounded-[28px] bg-white dark:bg-[#17232f] px-5 pb-6 pt-5 shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="mb-4 flex items-start justify-between gap-3">
           <div>
-            <p className="text-base font-bold text-zinc-900">Πληκτρολόγιο</p>
-            <p className="mt-0.5 text-xs text-zinc-400">
+            <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">Πληκτρολόγιο</p>
+            <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
               Πληκτρολόγησε αριθμό και πάτησε Κλήση.
             </p>
           </div>
           <button
             type="button"
             onClick={closePanel}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition hover:bg-zinc-200"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400 transition hover:bg-zinc-200 dark:hover:bg-white/5"
             aria-label="Κλείσιμο"
           >
             <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
@@ -1248,17 +1248,17 @@ function NumpadPanel({
         </div>
 
         {/* Number display */}
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-200">
-          <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900">
+        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3 ring-1 ring-zinc-200 dark:ring-white/10">
+          <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900 dark:text-zinc-100">
             {dialNumber || (
-              <span className="text-base font-normal text-zinc-400">Αριθμός</span>
+              <span className="text-base font-normal text-zinc-400 dark:text-zinc-500">Αριθμός</span>
             )}
           </span>
           {dialNumber && (
             <button
               type="button"
               onClick={backspace}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 transition hover:bg-zinc-200"
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-200 dark:hover:bg-white/5"
               aria-label="Διαγραφή"
             >
               <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
@@ -1275,7 +1275,7 @@ function NumpadPanel({
               key={key}
               type="button"
               onClick={() => press(key)}
-              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 text-2xl font-medium text-zinc-800 ring-1 ring-zinc-200 transition hover:bg-zinc-100 motion-safe:active:scale-95 active:bg-zinc-200"
+              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 dark:bg-[#1e2b38] text-2xl font-medium text-zinc-800 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 motion-safe:active:scale-95 active:bg-zinc-200 dark:active:bg-white/5"
             >
               {key}
             </button>
@@ -1297,7 +1297,7 @@ function NumpadPanel({
               <button
                 type="button"
                 onClick={() => setDialNumber('')}
-                className="flex-1 rounded-[28px] border border-zinc-200 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                className="flex-1 rounded-[28px] border border-zinc-200 dark:border-white/10 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Καθαρισμός
               </button>
@@ -1305,7 +1305,7 @@ function NumpadPanel({
             <button
               type="button"
               onClick={closePanel}
-              className="flex-1 rounded-[28px] bg-zinc-100 py-2.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200"
+              className="flex-1 rounded-[28px] bg-zinc-100 dark:bg-[#1e2b38] py-2.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5"
             >
               Κλείσιμο
             </button>
@@ -1348,21 +1348,21 @@ function CallReviewModal({
       onClick={onSkip}
     >
       <div
-        className="mx-auto w-full max-w-md rounded-t-[28px] bg-white pb-8 shadow-2xl ring-1 ring-zinc-200/60"
+        className="mx-auto w-full max-w-md rounded-t-[28px] bg-white dark:bg-[#17232f] pb-8 shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Handle bar */}
         <div className="flex justify-center pb-2 pt-3">
-          <div className="h-1 w-10 rounded-full bg-zinc-300" />
+          <div className="h-1 w-10 rounded-full bg-zinc-300 dark:bg-white/20" />
         </div>
 
         {/* Header */}
         <div className="px-5 pb-4 pt-1 text-center">
-          <p className="text-base font-semibold text-zinc-900">
+          <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             {saved ? 'Η κλήση εισήχθη στο CRM.' : 'Η κλήση ολοκληρώθηκε.'}
           </p>
-          {!saved && <p className="mt-1 text-sm text-zinc-500">Να εισαχθεί στο CRM;</p>}
-          <p className="mt-2 text-xs text-zinc-400">
+          {!saved && <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">Να εισαχθεί στο CRM;</p>}
+          <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
             {dirLabel}
             {' · '}
             {statusLabel}
@@ -1376,19 +1376,19 @@ function CallReviewModal({
         </div>
 
         {saved && transcribing && (
-          <p className="px-5 pb-2 text-center text-xs text-zinc-500">Μεταγραφή ηχογράφησης…</p>
+          <p className="px-5 pb-2 text-center text-xs text-zinc-500 dark:text-zinc-400">Μεταγραφή ηχογράφησης…</p>
         )}
         {/* AI brief draft (review-first), shown after the call is saved */}
         {saved && brief && (
           <div className="px-4 pb-4">
-            <p className="mb-1 px-1 text-xs font-medium text-zinc-500">AI brief (πρόχειρο για έλεγχο)</p>
-            <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-zinc-50 px-4 py-3 text-xs text-zinc-700 ring-1 ring-zinc-200/60">
+            <p className="mb-1 px-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">AI brief (πρόχειρο για έλεγχο)</p>
+            <div className="max-h-56 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3 text-xs text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200/60 dark:ring-white/10">
               {brief}
             </div>
           </div>
         )}
         {saved && !brief && !transcribing && (
-          <p className="px-5 pb-4 text-center text-xs text-zinc-400">
+          <p className="px-5 pb-4 text-center text-xs text-zinc-400 dark:text-zinc-500">
             Η κλήση καταγράφηκε. Δεν δημιουργήθηκε AI brief αυτή τη φορά.
           </p>
         )}
@@ -1417,7 +1417,7 @@ function CallReviewModal({
                 type="button"
                 onClick={onSkip}
                 disabled={busy}
-                className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+                className="w-full rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5 active:bg-zinc-300 dark:active:bg-white/5 disabled:opacity-50"
               >
                 Όχι
               </button>
@@ -1489,7 +1489,7 @@ function IntakeLinkPrompt({
             type="button"
             onClick={onClose}
             disabled={busy}
-            className="w-full rounded-2xl bg-zinc-100 py-3.5 text-sm font-medium text-zinc-700 transition hover:bg-zinc-200 active:bg-zinc-300 disabled:opacity-50"
+            className="w-full rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] py-3.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-200 dark:hover:bg-white/5 active:bg-zinc-300 dark:active:bg-white/5 disabled:opacity-50"
           >
             Όχι
           </button>
@@ -1900,9 +1900,9 @@ export default function CallsPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
-        <div className="flex flex-col items-center justify-center gap-2 rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+        <div className="flex flex-col items-center justify-center gap-2 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <Spinner className="text-indigo-500" />
-          <p className="text-sm text-zinc-500">Φόρτωση…</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Φόρτωση…</p>
         </div>
       </div>
     );
@@ -1935,7 +1935,7 @@ export default function CallsPage() {
 
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-zinc-900">Κλήσεις</h1>
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100">Κλήσεις</h1>
       </div>
 
       {/* Customer search — find a customer and jump to their chat */}
@@ -1943,38 +1943,38 @@ export default function CallsPage() {
 
       {/* Phone line card - hidden when browser phone is ready */}
       {!phoneToken.ready && (phoneLoading ? (
-        <div className="flex items-center gap-2 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="flex items-center gap-2 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <Spinner size="sm" className="text-indigo-500" />
-          <p className="text-sm text-zinc-500">Έλεγχος γραμμής…</p>
+          <p className="text-sm text-zinc-500 dark:text-zinc-400">Έλεγχος γραμμής…</p>
         </div>
       ) : phoneError ? (
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <p className="text-sm text-red-600">{phoneError}</p>
         </div>
       ) : phoneInfo ? (
-        <div className="rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-indigo-50">
               <PhoneIcon className="h-5 w-5 text-indigo-500" />
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-xs font-medium text-zinc-500">Ο αριθμός σου</p>
+                <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Ο αριθμός σου</p>
                 <Badge tone={phoneInfo.phoneAssigned ? 'green' : 'amber'}>
                   {phoneInfo.phoneAssigned ? 'Ενεργός' : 'Σε αναμονή'}
                 </Badge>
               </div>
               {phoneInfo.business?.business_phone_number ? (
                 <>
-                  <p className="mt-0.5 text-base font-semibold text-zinc-900">
+                  <p className="mt-0.5 text-base font-semibold text-zinc-900 dark:text-zinc-100">
                     {phoneInfo.business.business_phone_number}
                   </p>
-                  <p className="mt-0.5 text-xs text-zinc-400">
+                  <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                     Οι εισερχόμενες κλήσεις θα εμφανίζονται εδώ όταν καταγραφούν από το τηλεφωνικό σύστημα.
                   </p>
                 </>
               ) : (
-                <p className="mt-0.5 text-xs text-zinc-400">
+                <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
                   Ο αριθμός σου ετοιμάζεται. Δεν χρειάζεται να ρυθμίσεις κάτι.
                 </p>
               )}
@@ -1986,9 +1986,9 @@ export default function CallsPage() {
       {/* Browser phone */}
       <div>
         {phoneToken.loading ? (
-          <div className="flex items-center gap-2 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
+          <div className="flex items-center gap-2 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
             <Spinner size="sm" className="text-indigo-500" />
-            <p className="text-sm text-zinc-500">Φόρτωση…</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Φόρτωση…</p>
           </div>
         ) : (
           <BrowserPhone
@@ -2023,11 +2023,11 @@ export default function CallsPage() {
         type="button"
         onClick={() => setDetailsOpen((o) => !o)}
         aria-expanded={detailsOpen}
-        className="flex w-full items-center justify-center gap-2 rounded-[28px] bg-white py-2.5 text-sm font-medium text-zinc-600 shadow-sm ring-1 ring-zinc-200/60 transition hover:bg-zinc-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-safe:active:scale-[0.98]"
+        className="flex w-full items-center justify-center gap-2 rounded-[28px] bg-white dark:bg-[#17232f] py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 transition hover:bg-zinc-50 dark:hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 motion-safe:active:scale-[0.98]"
       >
         <span>{detailsOpen ? 'Απόκρυψη ιστορικού' : 'Ιστορικό και πελάτες'}</span>
         <svg
-          className={`h-4 w-4 text-zinc-400 transition-transform duration-200 ${detailsOpen ? 'rotate-180' : ''}`}
+          className={`h-4 w-4 text-zinc-400 dark:text-zinc-500 transition-transform duration-200 ${detailsOpen ? 'rotate-180' : ''}`}
           fill="none"
           strokeWidth={2}
           stroke="currentColor"
@@ -2041,7 +2041,7 @@ export default function CallsPage() {
       {/* CRM tabs - shown when detailsOpen */}
       {detailsOpen && (
       <>
-      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-zinc-100 p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-2xl bg-zinc-100 dark:bg-[#1e2b38] p-1">
         {TABS.map((t) => (
           <button
             key={t.id}
@@ -2049,8 +2049,8 @@ export default function CallsPage() {
             onClick={() => setTab(t.id)}
             className={`rounded-xl py-2 text-xs font-semibold transition ${
               tab === t.id
-                ? 'bg-white text-zinc-900 shadow-sm'
-                : 'text-zinc-500 hover:text-zinc-700'
+                ? 'bg-white dark:bg-[#17232f] text-zinc-900 dark:text-zinc-100 shadow-sm'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
             }`}
           >
             {t.label}

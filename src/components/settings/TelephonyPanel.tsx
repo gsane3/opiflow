@@ -152,15 +152,15 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
   }
 
   return (
-    <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-      <p className="text-sm font-semibold text-zinc-900">Τηλεφωνία</p>
+    <div className="mt-4 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Τηλεφωνία</p>
 
       {/* Call recording (auto-on) + microphone */}
-      <div className="mt-3 border-b border-zinc-100 pb-4">
+      <div className="mt-3 border-b border-zinc-100 dark:border-white/10 pb-4">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-zinc-900">Ηχογράφηση κλήσεων</p>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Ηχογράφηση κλήσεων</p>
+            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
               Αυτόματη μεταγραφή &amp; AI brief. Ενεργή από προεπιλογή. Ενημέρωνε τον πελάτη ότι ηχογραφείται.
             </p>
           </div>
@@ -170,7 +170,7 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             aria-checked={recordCalls}
             aria-label="Ηχογράφηση κλήσεων"
             onClick={() => setRecording(!recordCalls)}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200'}`}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200 dark:bg-white/10'}`}
           >
             <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${recordCalls ? 'translate-x-[20px]' : 'translate-x-0'}`} />
           </button>
@@ -178,8 +178,8 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
 
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-zinc-900">Μικρόφωνο</p>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Μικρόφωνο</p>
+            <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
               {micState === 'granted' ? (
                 <span className="inline-flex items-center gap-1 text-emerald-600">
                   Άδεια δόθηκε
@@ -212,8 +212,8 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
       {/* Presence */}
       <div className="mt-3">
         <div className="flex items-center gap-2">
-          <p className="text-xs font-medium text-zinc-500">Διαθεσιμότητα</p>
-          <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-200">
+          <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Διαθεσιμότητα</p>
+          <span className="rounded-full bg-amber-50 dark:bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 ring-1 ring-amber-200 dark:ring-amber-500/20">
             Σύντομα
           </span>
         </div>
@@ -226,7 +226,7 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
                 type="button"
                 onClick={() => savePresence(p.key)}
                 className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition ${
-                  active ? 'bg-indigo-50 text-indigo-700 ring-indigo-200' : 'bg-white text-zinc-600 ring-zinc-200 hover:bg-zinc-50'
+                  active ? 'bg-indigo-50 text-indigo-700 ring-indigo-200' : 'bg-white dark:bg-[#17232f] text-zinc-600 dark:text-zinc-300 ring-zinc-200 dark:ring-white/10 hover:bg-zinc-50 dark:hover:bg-white/5'
                 }`}
               >
                 <span className={`h-1.5 w-1.5 rounded-full ${p.dot}`} />
@@ -235,18 +235,18 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             );
           })}
         </div>
-        <p className="mt-1.5 text-[11px] text-zinc-500">
+        <p className="mt-1.5 text-[11px] text-zinc-500 dark:text-zinc-400">
           Η διαθεσιμότητά σου αποθηκεύεται. Η αυτόματη δρομολόγηση εισερχομένων (AI/φωνητικό &amp; επιστροφή κλήσης όταν δεν είσαι διαθέσιμος) έρχεται σύντομα.
         </p>
       </div>
 
       {/* Onboarding model A/B */}
-      <div className="mt-5 border-t border-zinc-100 pt-4">
-        <p className="text-xs font-medium text-zinc-500">Πώς θες να δέχεσαι κλήσεις;</p>
+      <div className="mt-5 border-t border-zinc-100 dark:border-white/10 pt-4">
+        <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Πώς θες να δέχεσαι κλήσεις;</p>
         {loading ? (
           <div className="mt-2 flex items-center gap-2">
             <Spinner size="sm" className="text-indigo-500" />
-            <span className="text-xs text-zinc-500">Φόρτωση…</span>
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">Φόρτωση…</span>
           </div>
         ) : (
           <div className="mt-2 space-y-2">
@@ -266,15 +266,15 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             />
 
             {mode === 'forward' && (
-              <div className="rounded-2xl bg-zinc-50 px-4 py-3">
-                <label className="block text-xs font-medium text-zinc-600">Το δικό σου νούμερο</label>
+              <div className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3">
+                <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-300">Το δικό σου νούμερο</label>
                 <div className="mt-1.5 flex gap-2">
                   <input
                     value={srcNumber}
                     onChange={(e) => setSrcNumber(e.target.value)}
                     inputMode="tel"
                     placeholder="π.χ. 69XXXXXXXX"
-                    className="w-full rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-base tabular-nums text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500"
+                    className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-2.5 text-base tabular-nums text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500"
                   />
                   <Button
                     type="button"
@@ -288,20 +288,20 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
                   </Button>
                 </div>
                 {businessPhoneNumber ? (
-                  <div className="mt-3 text-[11px] leading-relaxed text-zinc-500">
-                    <p className="font-medium text-zinc-600">Ρύθμισε προώθηση προς {businessPhoneNumber}:</p>
+                  <div className="mt-3 text-[11px] leading-relaxed text-zinc-500 dark:text-zinc-400">
+                    <p className="font-medium text-zinc-600 dark:text-zinc-300">Ρύθμισε προώθηση προς {businessPhoneNumber}:</p>
                     <p className="mt-1">
-                      • Ενεργοποίηση: κάλεσε <code className="rounded bg-white px-1 py-0.5 ring-1 ring-zinc-200">**21*{businessPhoneNumber}#</code>
+                      • Ενεργοποίηση: κάλεσε <code className="rounded bg-white dark:bg-[#17232f] px-1 py-0.5 ring-1 ring-zinc-200 dark:ring-white/10">**21*{businessPhoneNumber}#</code>
                     </p>
                     <p>
-                      • Απενεργοποίηση: κάλεσε <code className="rounded bg-white px-1 py-0.5 ring-1 ring-zinc-200">##21#</code>
+                      • Απενεργοποίηση: κάλεσε <code className="rounded bg-white dark:bg-[#17232f] px-1 py-0.5 ring-1 ring-zinc-200 dark:ring-white/10">##21#</code>
                     </p>
-                    <p className="mt-1 text-zinc-400">
+                    <p className="mt-1 text-zinc-400 dark:text-zinc-500">
                       Οι κωδικοί μπορεί να διαφέρουν ανά πάροχο (Cosmote/Vodafone/Nova) — επιβεβαίωσε με τον δικό σου.
                     </p>
                   </div>
                 ) : (
-                  <p className="mt-2 text-[11px] text-zinc-400">
+                  <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
                     Μόλις σου ανατεθεί αριθμός Opiflow θα εμφανιστούν εδώ οι οδηγίες προώθησης.
                   </p>
                 )}
@@ -344,20 +344,20 @@ function ModeCard({
       disabled={disabled}
       onClick={onClick}
       className={`block w-full rounded-2xl px-4 py-3 text-left ring-1 transition disabled:opacity-60 ${
-        active ? 'bg-indigo-50 ring-indigo-200' : 'bg-white ring-zinc-200 hover:bg-zinc-50'
+        active ? 'bg-indigo-50 ring-indigo-200' : 'bg-white dark:bg-[#17232f] ring-zinc-200 dark:ring-white/10 hover:bg-zinc-50 dark:hover:bg-white/5'
       }`}
     >
       <div className="flex items-center gap-2">
         <span
           className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full ring-1 ${
-            active ? 'bg-indigo-600 ring-indigo-600' : 'bg-white ring-zinc-300'
+            active ? 'bg-indigo-600 ring-indigo-600' : 'bg-white dark:bg-[#17232f] ring-zinc-300 dark:ring-white/10'
           }`}
         >
           {active && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
         </span>
-        <span className="text-sm font-semibold text-zinc-900">{title}</span>
+        <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</span>
       </div>
-      <p className="mt-1 pl-6 text-xs leading-relaxed text-zinc-500">{desc}</p>
+      <p className="mt-1 pl-6 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">{desc}</p>
     </button>
   );
 }

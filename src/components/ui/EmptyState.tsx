@@ -33,17 +33,17 @@ export function EmptyState({
     >
       {icon && (
         <div
-          className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400"
+          className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 dark:bg-[#1e2b38] text-zinc-400 dark:text-zinc-500"
           aria-hidden="true"
         >
           {icon}
         </div>
       )}
 
-      <h3 className="text-base font-semibold text-zinc-900">{title}</h3>
+      <h3 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
 
       {description && (
-        <p className="mt-1 max-w-sm text-sm text-zinc-500">{description}</p>
+        <p className="mt-1 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">{description}</p>
       )}
 
       {action && <div className="mt-5">{action}</div>}

@@ -337,20 +337,20 @@ function OnboardingPageContent() {
 
   return (
     <div className="flex min-h-full flex-col">
-      <header className="border-b border-zinc-100 bg-white px-4 py-4">
+      <header className="border-b border-zinc-100 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-4">
         <div className="mx-auto max-w-lg">
-          <p className="text-sm font-bold text-zinc-900">opiflow.ai</p>
+          <p className="text-sm font-bold text-zinc-900 dark:text-zinc-100">opiflow.ai</p>
           <div className="mt-3 flex gap-1.5">
             {STEPS.map((_, i) => (
               <div
                 key={i}
                 className={`h-1.5 flex-1 rounded-full transition-all duration-300 ${
-                  i <= step ? 'bg-indigo-600' : 'bg-zinc-200'
+                  i <= step ? 'bg-indigo-600' : 'bg-zinc-200 dark:bg-[#1e2b38]'
                 }`}
               />
             ))}
           </div>
-          <p className="mt-2 text-xs text-zinc-400">
+          <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">
             Βήμα {step + 1} από {STEPS.length}
           </p>
           {planKeyParam && (
@@ -359,7 +359,7 @@ function OnboardingPageContent() {
                 {PLAN_NAMES[planKeyParam] ?? planKeyParam}
               </span>
               {voucherCodeParam && (
-                <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600 ring-1 ring-zinc-200">
+                <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2.5 py-1 text-xs font-medium text-zinc-600 dark:text-zinc-300 ring-1 ring-zinc-200 dark:ring-white/10">
                   Κωδικός: {voucherCodeParam}
                 </span>
               )}
@@ -370,10 +370,10 @@ function OnboardingPageContent() {
 
       <div className="flex-1 px-4 py-6">
         <div className="mx-auto max-w-lg">
-          <h1 className="text-xl font-semibold text-zinc-900">
+          <h1 className="text-xl font-semibold text-zinc-900 dark:text-zinc-100">
             {currentStep.title}
           </h1>
-          <p className="mt-1 text-sm text-zinc-500">{currentStep.subtitle}</p>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{currentStep.subtitle}</p>
 
           <div className="mt-6">
             {step === 0 && (
@@ -396,7 +396,7 @@ function OnboardingPageContent() {
                     updateForm(update);
                   }}
                 />
-                <p className="mt-3 text-xs text-zinc-400">
+                <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
                   Το τηλέφωνο εδώ είναι κινητό επικοινωνίας. Ο επαγγελματικός αριθμός σου δίνεται αυτόματα από το Opiflow.
                 </p>
               </>
@@ -422,13 +422,13 @@ function OnboardingPageContent() {
         </div>
       </div>
 
-      <div className="sticky bottom-0 border-t border-zinc-100 bg-white px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+      <div className="sticky bottom-0 border-t border-zinc-100 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]">
         <div className="mx-auto flex max-w-lg gap-3">
           {step > 0 && (
             <button
               type="button"
               onClick={handleBack}
-              className="flex-1 rounded-xl border border-zinc-200 px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 active:bg-zinc-100"
+              className="flex-1 rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5 active:bg-zinc-100 dark:active:bg-white/5"
             >
               Πίσω
             </button>
@@ -447,7 +447,7 @@ function OnboardingPageContent() {
             <button
               type="button"
               onClick={() => setStep((s) => s + 1)}
-              className="text-sm text-zinc-400 hover:text-zinc-600"
+              className="text-sm text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300"
             >
               Παράλειψη
             </button>
@@ -463,7 +463,7 @@ export default function OnboardingPage() {
     <Suspense
       fallback={
         <div className="flex min-h-full items-center justify-center">
-          <p className="text-sm text-zinc-400">Φόρτωση...</p>
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση...</p>
         </div>
       }
     >

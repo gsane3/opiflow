@@ -99,36 +99,36 @@ export default function AppointmentPreviewSheet({
   return (
     <div className="fixed inset-0 z-[60] flex justify-end" role="dialog" aria-modal="true">
       <button type="button" aria-label="Κλείσιμο" className="absolute inset-0 bg-black/30 motion-safe:animate-[fadeIn_0.2s_ease-out]" onClick={onClose} />
-      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] shadow-2xl motion-safe:animate-[slideInRight_0.28s_cubic-bezier(0.32,0.72,0,1)]">
-        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
-          <button type="button" onClick={onClose} aria-label="Πίσω" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition active:scale-95 hover:bg-zinc-100">
+      <div className="relative flex h-full w-full max-w-md flex-col bg-[#F5F5F7] dark:bg-[#0e1722] shadow-2xl motion-safe:animate-[slideInRight_0.28s_cubic-bezier(0.32,0.72,0,1)]">
+        <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+          <button type="button" onClick={onClose} aria-label="Πίσω" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 transition active:scale-95 hover:bg-zinc-100 dark:hover:bg-white/5">
             <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
           </button>
-          <p className="flex-1 truncate text-base font-semibold text-zinc-900">Ραντεβού</p>
+          <p className="flex-1 truncate text-base font-semibold text-zinc-900 dark:text-zinc-100">Ραντεβού</p>
           <Badge tone={STATUS_TONE[appt.status] ?? 'zinc'}>{STATUS_GR[appt.status] ?? appt.status}</Badge>
         </header>
 
         <div className="flex-1 space-y-3 overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           {/* Hero date tile */}
-          <div className="rounded-[24px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+          <div className="rounded-[24px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
             <div className="flex items-center gap-4">
               <div className="flex h-20 w-20 shrink-0 flex-col items-center justify-center rounded-2xl bg-indigo-50 text-indigo-700">
                 <span className="text-3xl font-bold leading-none tabular-nums">{parts?.day ?? '–'}</span>
                 <span className="mt-1 text-[11px] font-medium uppercase tracking-wide">{parts?.month ?? ''}</span>
               </div>
               <div className="min-w-0">
-                {parts && <p className="text-sm font-medium capitalize text-zinc-500">{parts.weekday}</p>}
-                <p className="text-lg font-bold text-zinc-900">
+                {parts && <p className="text-sm font-medium capitalize text-zinc-500 dark:text-zinc-400">{parts.weekday}</p>}
+                <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">
                   {appt.dueTime ? appt.dueTime : 'Χωρίς ώρα'}
                 </p>
-                {appt.dueDate && <p className="text-xs text-zinc-400">{formatDateGr(appt.dueDate)}</p>}
+                {appt.dueDate && <p className="text-xs text-zinc-400 dark:text-zinc-500">{formatDateGr(appt.dueDate)}</p>}
               </div>
             </div>
 
             {(appt.title || appt.note) && (
-              <div className="mt-4 space-y-2 border-t border-zinc-100 pt-4">
-                {appt.title && (<div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Αιτία</p><p className="mt-0.5 text-sm font-medium text-zinc-800">{appt.title}</p></div>)}
-                {appt.note && (<div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Σημείωση</p><p className="mt-0.5 whitespace-pre-wrap text-sm text-zinc-600">{appt.note}</p></div>)}
+              <div className="mt-4 space-y-2 border-t border-zinc-100 dark:border-white/10 pt-4">
+                {appt.title && (<div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Αιτία</p><p className="mt-0.5 text-sm font-medium text-zinc-800 dark:text-zinc-200">{appt.title}</p></div>)}
+                {appt.note && (<div><p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Σημείωση</p><p className="mt-0.5 whitespace-pre-wrap text-sm text-zinc-600 dark:text-zinc-300">{appt.note}</p></div>)}
               </div>
             )}
           </div>
@@ -138,7 +138,7 @@ export default function AppointmentPreviewSheet({
             <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.27 4.82A1 1 0 0 1 4.6 3.5l15.5 7.6a1 1 0 0 1 0 1.8L4.6 20.5a1 1 0 0 1-1.33-1.32L6 12Zm0 0h7" /></svg>
             Αποστολή link ραντεβού
           </Button>
-          <p className="px-1 text-center text-xs text-zinc-400">Στέλνεται με Viber, με fallback σε SMS.</p>
+          <p className="px-1 text-center text-xs text-zinc-400 dark:text-zinc-500">Στέλνεται με Viber, με fallback σε SMS.</p>
         </div>
       </div>
 

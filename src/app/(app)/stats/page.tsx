@@ -139,10 +139,10 @@ function MetricCard({
   hint?: string;
 }) {
   return (
-    <div className="flex flex-col justify-between gap-2 rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60">
-      <span className="text-xs font-medium leading-snug text-zinc-500">{label}</span>
-      <span className="text-3xl font-bold leading-none text-zinc-900">{value}</span>
-      {hint && <span className="text-xs text-zinc-400">{hint}</span>}
+    <div className="flex flex-col justify-between gap-2 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+      <span className="text-xs font-medium leading-snug text-zinc-500 dark:text-zinc-400">{label}</span>
+      <span className="text-3xl font-bold leading-none text-zinc-900 dark:text-zinc-100">{value}</span>
+      {hint && <span className="text-xs text-zinc-400 dark:text-zinc-500">{hint}</span>}
     </div>
   );
 }
@@ -220,16 +220,16 @@ export default function StatsPage() {
     return (
       <div className="mx-auto w-full max-w-md space-y-5 px-5 py-6 md:max-w-4xl md:px-8">
         <div className="space-y-1.5">
-          <div className="h-3 w-24 rounded-full bg-zinc-200" />
-          <div className="h-7 w-36 rounded-full bg-zinc-200" />
+          <div className="h-3 w-24 rounded-full bg-zinc-200 dark:bg-white/10" />
+          <div className="h-7 w-36 rounded-full bg-zinc-200 dark:bg-white/10" />
         </div>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-          <div className="h-28 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-          <div className="h-28 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-          <div className="h-28 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+          <div className="h-28 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+          <div className="h-28 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+          <div className="h-28 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
         </div>
-        <div className="h-56 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
-        <div className="h-56 rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60" />
+        <div className="h-56 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
+        <div className="h-56 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
       </div>
     );
   }
@@ -340,16 +340,16 @@ export default function StatsPage() {
 
       {/* Header */}
       <div>
-        <p className="text-xs text-zinc-400">Επισκόπηση</p>
-        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900">Στατιστικά</h1>
-        <p className="mt-0.5 text-sm text-zinc-500">Πορεία πωλήσεων και pipeline.</p>
+        <p className="text-xs text-zinc-400 dark:text-zinc-500">Επισκόπηση</p>
+        <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Στατιστικά</h1>
+        <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">Πορεία πωλήσεων και pipeline.</p>
       </div>
 
       {!authRequired && !hasAnyData ? (
         /* Empty state */
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-base font-medium text-zinc-600">Δεν υπάρχουν ακόμα δεδομένα</p>
-          <p className="mt-1 text-sm text-zinc-400">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-base font-medium text-zinc-600 dark:text-zinc-300">Δεν υπάρχουν ακόμα δεδομένα</p>
+          <p className="mt-1 text-sm text-zinc-400 dark:text-zinc-500">
             Πρόσθεσε πελάτες και προσφορές για να εμφανιστούν στατιστικά.
           </p>
           <Link
@@ -390,15 +390,15 @@ export default function StatsPage() {
           </div>
 
           {/* Status breakdown */}
-          <div className="rounded-[28px] bg-white px-5 py-6 shadow-sm ring-1 ring-zinc-200/60">
-            <h2 className="text-sm font-semibold text-zinc-900">Πελάτες ανά κατάσταση</h2>
+          <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Πελάτες ανά κατάσταση</h2>
             <ul className="mt-4 space-y-2.5">
               {statusCounts.map((row) => (
                 <li key={row.status} className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-zinc-600">{row.label}</span>
+                  <span className="text-sm text-zinc-600 dark:text-zinc-300">{row.label}</span>
                   <span
                     className={`text-sm font-semibold tabular-nums ${
-                      row.count > 0 ? 'text-zinc-900' : 'text-zinc-300'
+                      row.count > 0 ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-300 dark:text-zinc-500'
                     }`}
                   >
                     {row.count}
@@ -409,25 +409,25 @@ export default function StatsPage() {
           </div>
 
           {/* Value per month */}
-          <div className="rounded-[28px] bg-white px-5 py-6 shadow-sm ring-1 ring-zinc-200/60">
-            <h2 className="text-sm font-semibold text-zinc-900">Αξία ανά μήνα</h2>
-            <p className="mt-0.5 text-xs text-zinc-400">Τελευταίοι 6 μήνες (σύνολο προσφορών)</p>
+          <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+            <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Αξία ανά μήνα</h2>
+            <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">Τελευταίοι 6 μήνες (σύνολο προσφορών)</p>
             {maxMonthValue > 0 ? (
               <div className="mt-5 space-y-3">
                 {months.map((m) => {
                   const pct = maxMonthValue > 0 ? Math.round((m.value / maxMonthValue) * 100) : 0;
                   return (
                     <div key={m.key} className="flex items-center gap-3">
-                      <span className="w-9 shrink-0 text-xs font-medium text-zinc-400">
+                      <span className="w-9 shrink-0 text-xs font-medium text-zinc-400 dark:text-zinc-500">
                         {m.label}
                       </span>
-                      <div className="h-6 flex-1 overflow-hidden rounded-full bg-zinc-100">
+                      <div className="h-6 flex-1 overflow-hidden rounded-full bg-zinc-100 dark:bg-[#1e2b38]">
                         <div
                           className="flex h-full items-center justify-end rounded-full bg-indigo-500 px-2"
                           style={{ width: `${Math.max(pct, m.value > 0 ? 6 : 0)}%` }}
                         />
                       </div>
-                      <span className="w-20 shrink-0 text-right text-xs font-semibold tabular-nums text-zinc-700">
+                      <span className="w-20 shrink-0 text-right text-xs font-semibold tabular-nums text-zinc-700 dark:text-zinc-200">
                         {m.value > 0 ? fmtEur(m.value) : '—'}
                       </span>
                     </div>
@@ -435,7 +435,7 @@ export default function StatsPage() {
                 })}
               </div>
             ) : (
-              <p className="mt-5 text-sm text-zinc-400">
+              <p className="mt-5 text-sm text-zinc-400 dark:text-zinc-500">
                 Δεν υπάρχουν προσφορές στους τελευταίους 6 μήνες.
               </p>
             )}

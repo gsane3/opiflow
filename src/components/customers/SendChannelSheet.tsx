@@ -113,7 +113,7 @@ export function SendChannelSheet({
   return (
     <BottomSheet open={open} onClose={onClose} title={title} description={subtitle}>
       {loading ? (
-        <div className="flex items-center gap-3 py-6 text-zinc-600">
+        <div className="flex items-center gap-3 py-6 text-zinc-600 dark:text-zinc-300">
           <Spinner size="md" className="text-indigo-600" />
           <p className="text-sm">{loadingText}</p>
         </div>
@@ -122,26 +122,26 @@ export function SendChannelSheet({
           {/* Recipient summary */}
           {(recipientPhone || recipientEmail) && (
             <div className="space-y-0.5">
-              <p className="text-xs font-medium text-zinc-500">Παραλήπτης</p>
+              <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Παραλήπτης</p>
               {recipientPhone && (
-                <p className="text-sm font-medium text-zinc-800">{recipientPhone}</p>
+                <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">{recipientPhone}</p>
               )}
               {recipientEmail && (
-                <p className="text-sm font-medium text-zinc-800 break-all">{recipientEmail}</p>
+                <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200 break-all">{recipientEmail}</p>
               )}
             </div>
           )}
 
           {/* The exact message — review-first */}
           <div className="space-y-1">
-            <p className="text-xs font-medium text-zinc-500">Μήνυμα</p>
-            <div className="whitespace-pre-wrap break-words rounded-xl bg-zinc-50 px-3.5 py-3 text-sm text-zinc-700 ring-1 ring-zinc-200/60">
+            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Μήνυμα</p>
+            <div className="whitespace-pre-wrap break-words rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3.5 py-3 text-sm text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200/60 dark:ring-white/10">
               {message}
             </div>
           </div>
 
           {/* Reassurance */}
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">
             Δεν στέλνεται τίποτα μέχρι να επιλέξεις τρόπο αποστολής.
           </p>
 

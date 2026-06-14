@@ -64,7 +64,7 @@ export default function DemoStepBanner({
         )}
         <Link
           href={backHref}
-          className="rounded-xl border border-indigo-200 bg-white px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
+          className="rounded-xl border border-indigo-200 bg-white dark:bg-[#17232f] px-3 py-1.5 text-xs font-medium text-indigo-600 transition hover:bg-indigo-50"
         >
           ← Αποστολές
         </Link>

@@ -108,7 +108,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // splash (not a blank screen) so the launch feels app-like.
   if (!authChecked) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#F5F5F7]">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#F5F5F7] dark:bg-[#0e1722]">
         <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-indigo-600 shadow-sm">
           <svg
             className="h-7 w-7 text-white"
@@ -126,7 +126,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </svg>
         </div>
         <div
-          className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500 text-indigo-500"
+          className="h-5 w-5 animate-spin rounded-full border-2 border-zinc-200 dark:border-white/10 border-t-indigo-500 text-indigo-500"
           aria-label="Φόρτωση"
           role="status"
         />
@@ -145,7 +145,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col md:pl-60">
         {/* Bottom padding clears the mobile nav + iOS home indicator (except the
             full-screen chat, which sizes itself above the nav). */}
-        <main className={`min-w-0 flex-1 overflow-x-hidden scroll-smooth bg-[#F5F5F7] ${
+        <main className={`min-w-0 flex-1 overflow-x-hidden scroll-smooth bg-[#F5F5F7] dark:bg-[#0e1722] ${
           isChatPage ? 'overflow-y-hidden' : 'pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6'
         }`}>{children}</main>
 

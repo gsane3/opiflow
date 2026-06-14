@@ -108,7 +108,7 @@ function CopyButton({
             ? 'bg-green-50 text-green-700 ring-1 ring-green-200'
             : state === 'error'
             ? 'bg-red-50 text-red-700 ring-1 ring-red-200'
-            : 'bg-zinc-50 text-zinc-700 ring-1 ring-zinc-200 hover:bg-zinc-100'
+            : 'bg-zinc-50 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 hover:bg-zinc-100 dark:hover:bg-white/5'
         }`}
       >
         {icon}
@@ -116,14 +116,14 @@ function CopyButton({
       </button>
       {state === 'error' && (
         <div className="mt-2">
-          <p className="mb-1 text-xs text-zinc-500">
+          <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">
             Επέλεξε και αντίγραψε χειροκίνητα:
           </p>
           <textarea
             readOnly
             value={errorText}
             rows={5}
-            className="w-full rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs text-zinc-700 outline-none"
+            className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 text-xs text-zinc-700 dark:text-zinc-200 outline-none"
           />
         </div>
       )}
@@ -168,7 +168,7 @@ export default function CopyDraftButtons({ offer, customerName, businessName }: 
           </svg>
         }
       />
-      <p className="text-xs text-zinc-400">
+      <p className="text-xs text-zinc-400 dark:text-zinc-500">
         Αντιγράφει κείμενο — η εφαρμογή δεν στέλνει μηνύματα.
       </p>
     </div>

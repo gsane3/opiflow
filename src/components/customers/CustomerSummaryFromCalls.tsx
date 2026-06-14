@@ -19,9 +19,9 @@ interface Suggestion {
 }
 
 const CONF: Record<string, { text: string; cls: string }> = {
-  high: { text: 'Υψηλή βεβαιότητα', cls: 'bg-green-50 text-green-700 ring-green-200' },
-  medium: { text: 'Μέτρια βεβαιότητα', cls: 'bg-amber-50 text-amber-700 ring-amber-200' },
-  low: { text: 'Χαμηλή βεβαιότητα', cls: 'bg-zinc-100 text-zinc-600 ring-zinc-200' },
+  high: { text: 'Υψηλή βεβαιότητα', cls: 'bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-300 ring-green-200 dark:ring-green-500/20' },
+  medium: { text: 'Μέτρια βεβαιότητα', cls: 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-500/20' },
+  low: { text: 'Χαμηλή βεβαιότητα', cls: 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-600 dark:text-zinc-300 ring-zinc-200 dark:ring-white/10' },
 };
 
 async function getToken(): Promise<string | null> {
@@ -136,13 +136,13 @@ export default function CustomerSummaryFromCalls({
             <span aria-hidden>✨</span>
             {loading ? 'Δημιουργία πρότασης…' : 'Πρόταση επόμενης κίνησης'}
           </button>
-          <p className="mt-1.5 text-xs text-zinc-500">
+          <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
             Με βάση τις κλήσεις (AI). Η πρόταση δεν αποθηκεύεται αν δεν την εγκρίνεις.
           </p>
         </div>
       )}
       {empty && (
-        <p className="mt-2 text-xs text-zinc-400">Δεν υπάρχουν ακόμα αρκετά στοιχεία (κλήσεις/σημειώσεις) για σύνοψη.</p>
+        <p className="mt-2 text-xs text-zinc-400 dark:text-zinc-500">Δεν υπάρχουν ακόμα αρκετά στοιχεία (κλήσεις/σημειώσεις) για σύνοψη.</p>
       )}
       {error && <p className="mt-2 text-xs text-amber-600">{error}</p>}
 
@@ -152,7 +152,7 @@ export default function CustomerSummaryFromCalls({
             <p className="text-xs font-semibold text-indigo-900">Πρόταση επόμενης κίνησης — έλεγξε πριν αποθηκεύσεις</p>
             <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-medium ring-1 ${conf.cls}`}>{conf.text}</span>
           </div>
-          <p className="mb-2 text-[11px] text-zinc-500">Πρόταση από AI. Η πρόταση δεν αποθηκεύεται αν δεν την εγκρίνεις.</p>
+          <p className="mb-2 text-[11px] text-zinc-500 dark:text-zinc-400">Πρόταση από AI. Η πρόταση δεν αποθηκεύεται αν δεν την εγκρίνεις.</p>
           <div className="space-y-2">
             {suggestion.proposedNextBestAction && (
               <Field label="Επόμενη ενέργεια" value={suggestion.proposedNextBestAction} highlight />
@@ -183,7 +183,7 @@ export default function CustomerSummaryFromCalls({
               type="button"
               onClick={() => setSuggestion(null)}
               disabled={saving}
-              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Άκυρο
             </button>
@@ -197,8 +197,8 @@ export default function CustomerSummaryFromCalls({
 function Field({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
   return (
     <div>
-      <p className="text-[11px] font-medium text-zinc-500">{label}</p>
-      <p className={`whitespace-pre-wrap text-xs ${highlight ? 'font-semibold text-indigo-900' : 'text-zinc-700'}`}>{value}</p>
+      <p className="text-[11px] font-medium text-zinc-500 dark:text-zinc-400">{label}</p>
+      <p className={`whitespace-pre-wrap text-xs ${highlight ? 'font-semibold text-indigo-900' : 'text-zinc-700 dark:text-zinc-200'}`}>{value}</p>
     </div>
   );
 }

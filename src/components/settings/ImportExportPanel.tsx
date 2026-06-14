@@ -98,9 +98,9 @@ interface ImportRow {
 type ApiCustomer = Record<string, unknown>;
 
 const cls = {
-  card: 'rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60',
+  card: 'rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10',
   primary: 'inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60',
-  secondary: 'inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60',
+  secondary: 'inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60',
 };
 
 export default function ImportExportPanel() {
@@ -263,8 +263,8 @@ export default function ImportExportPanel() {
     <div className="space-y-4">
       {/* Export */}
       <div className={cls.card}>
-        <h2 className="text-sm font-semibold text-zinc-900">Εξαγωγή πελατών</h2>
-        <p className="mt-1 text-xs text-zinc-500">
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Εξαγωγή πελατών</h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Κατέβασε όλους τους πελάτες σου σε αρχείο CSV (ανοίγει σε Excel / Google Sheets).
         </p>
         <button type="button" onClick={handleExport} disabled={busy !== null} className={`mt-3 ${cls.secondary}`}>
@@ -277,8 +277,8 @@ export default function ImportExportPanel() {
 
       {/* Import */}
       <div className={cls.card}>
-        <h2 className="text-sm font-semibold text-zinc-900">Εισαγωγή από παλιό CRM</h2>
-        <p className="mt-1 text-xs text-zinc-500">
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Εισαγωγή από παλιό CRM</h2>
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
           Ανέβασε αρχείο CSV. Αναγνωρίζονται στήλες: Όνομα, Εταιρεία, Τηλέφωνο, Κινητό, Email, Διεύθυνση, Σημειώσεις.
           Διπλά (ίδιο τηλέφωνο) παραλείπονται.
         </p>
@@ -306,13 +306,13 @@ export default function ImportExportPanel() {
 
         {progress && (
           <div className="mt-3">
-            <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100">
+            <div className="h-1.5 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-[#1e2b38]">
               <div
                 className="h-full rounded-full bg-indigo-500 transition-all"
                 style={{ width: `${Math.round((progress.done / progress.total) * 100)}%` }}
               />
             </div>
-            <p className="mt-1 text-xs text-zinc-400">{progress.done} / {progress.total}</p>
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">{progress.done} / {progress.total}</p>
           </div>
         )}
       </div>
@@ -321,10 +321,10 @@ export default function ImportExportPanel() {
         <div
           className={`rounded-2xl px-4 py-3 text-sm ring-1 ${
             message.tone === 'ok'
-              ? 'bg-green-50 text-green-700 ring-green-200'
+              ? 'bg-green-50 dark:bg-green-500/15 text-green-700 dark:text-green-300 ring-green-200 dark:ring-green-500/20'
               : message.tone === 'err'
-              ? 'bg-red-50 text-red-700 ring-red-200'
-              : 'bg-amber-50 text-amber-700 ring-amber-200'
+              ? 'bg-red-50 dark:bg-red-500/15 text-red-700 dark:text-red-300 ring-red-200 dark:ring-red-500/20'
+              : 'bg-amber-50 dark:bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-amber-200 dark:ring-amber-500/20'
           }`}
         >
           {message.text}

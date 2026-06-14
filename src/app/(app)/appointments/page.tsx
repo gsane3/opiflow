@@ -43,7 +43,7 @@ function getAppointmentResponseInfo(note: string): AppointmentResponseInfo {
 
   let kind: AppointmentResponseInfo['kind'] = null;
   let label = 'Αναμονή απάντησης';
-  let cls = 'bg-zinc-100 text-zinc-500';
+  let cls = 'bg-zinc-100 text-zinc-500 dark:bg-[#1e2b38] dark:text-zinc-400';
 
   if (isTimeChangeApproved) {
     kind = 'time_change_approved';
@@ -144,7 +144,7 @@ function tomorrowDateStr(): string {
   return d.toISOString().split('T')[0];
 }
 
-const inputCls = 'rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
+const inputCls = 'rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100';
 
 const APPT_TYPE_LABELS: Record<string, string> = {
   book_appointment: 'Ραντεβού',
@@ -680,8 +680,8 @@ export default function AppointmentsPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-400">Φόρτωση ραντεβού...</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση ραντεβού...</p>
         </div>
       </div>
     );
@@ -694,10 +694,10 @@ export default function AppointmentsPage() {
   if (noSession) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
-        <h1 className="mb-5 text-xl font-bold text-zinc-900">Ραντεβού</h1>
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τα ραντεβού.</p>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Ημερολόγιο</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900 dark:text-zinc-100">Ραντεβού</h1>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">Συνδέσου για να δεις τα ραντεβού.</p>
           <Link
             href="/login"
             className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
@@ -716,9 +716,9 @@ export default function AppointmentsPage() {
   if (fetchError) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-3xl md:px-8">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
-        <h1 className="mb-5 text-xl font-bold text-zinc-900">Ραντεβού</h1>
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Ημερολόγιο</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900 dark:text-zinc-100">Ραντεβού</h1>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           <button
             type="button"
@@ -773,14 +773,14 @@ export default function AppointmentsPage() {
           </button>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ραντεβού</p>
-              <h1 className="text-xl font-bold text-zinc-900">Στοιχεία ραντεβού</h1>
+              <p className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Ραντεβού</p>
+              <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Στοιχεία ραντεβού</h1>
             </div>
             <button
               type="button"
               disabled={refreshing}
               onClick={() => { void refreshKeepingSelection(selectedAppointment.id); }}
-              className="shrink-0 rounded-xl border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-60"
+              className="shrink-0 rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
             >
               {refreshing ? 'Ανανέωση...' : refreshSuccess ? 'Ενημερώθηκε' : 'Ανανέωση απαντήσεων'}
             </button>
@@ -789,48 +789,48 @@ export default function AppointmentsPage() {
             <p className="mt-1 text-xs text-red-600">{refreshError}</p>
           )}
         </div>
-        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
-          <p className="text-base font-semibold text-zinc-900">{selectedAppointment.title}</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 space-y-3">
+          <p className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{selectedAppointment.title}</p>
           <div className="space-y-1">
-            <p className="text-sm text-zinc-600">
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">
               {formatDate(selectedAppointment.dueDate)}
               {selectedAppointment.dueTime && <span className="ml-1.5">{selectedAppointment.dueTime}</span>}
             </p>
-            <p className="text-xs text-zinc-500">
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
               {APPT_TYPE_LABELS[selectedAppointment.type] ?? selectedAppointment.type}
             </p>
             {selCustomer && (
-              <p className="text-xs text-zinc-500">Πελάτης: {selCustomer.name}</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Πελάτης: {selCustomer.name}</p>
             )}
           </div>
         </div>
         {/* Customer response review */}
-        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 space-y-3">
           <div className="flex items-center gap-2">
-            <p className="text-sm font-semibold text-zinc-800">Απάντηση από πελάτη</p>
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Απάντηση από πελάτη</p>
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${selRespInfo.cls}`}>
               {selRespInfo.label}
             </span>
           </div>
           {selRespInfo.kind === null && (
-            <p className="text-xs text-zinc-500">Δεν έχει καταγραφεί απάντηση πελάτη για αυτό το ραντεβού.</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">Δεν έχει καταγραφεί απάντηση πελάτη για αυτό το ραντεβού.</p>
           )}
           {selRespInfo.kind === 'accepted' && (
-            <p className="text-xs text-zinc-700">Ο πελάτης αποδέχτηκε το ραντεβού.</p>
+            <p className="text-xs text-zinc-700 dark:text-zinc-200">Ο πελάτης αποδέχτηκε το ραντεβού.</p>
           )}
           {selRespInfo.kind === 'declined' && (
-            <p className="text-xs text-zinc-700">Ο πελάτης δήλωσε ότι δεν μπορεί να παρευρεθεί.</p>
+            <p className="text-xs text-zinc-700 dark:text-zinc-200">Ο πελάτης δήλωσε ότι δεν μπορεί να παρευρεθεί.</p>
           )}
           {selRespInfo.kind === 'time_change_requested' && (
             <div className="space-y-2">
-              <p className="text-xs text-zinc-700">Ο πελάτης ζήτησε αλλαγή ώρας.</p>
+              <p className="text-xs text-zinc-700 dark:text-zinc-200">Ο πελάτης ζήτησε αλλαγή ώρας.</p>
               {selRespInfo.requestedDueDate && selRespInfo.requestedDueTime && (
-                <p className="text-xs text-zinc-600">
+                <p className="text-xs text-zinc-600 dark:text-zinc-300">
                   Προτεινόμενη ώρα: {formatDate(selRespInfo.requestedDueDate)} {selRespInfo.requestedDueTime}
                 </p>
               )}
               {selRespInfo.comment && (
-                <p className="text-xs text-zinc-600">Σχόλιο πελάτη: {selRespInfo.comment}</p>
+                <p className="text-xs text-zinc-600 dark:text-zinc-300">Σχόλιο πελάτη: {selRespInfo.comment}</p>
               )}
               {selRespInfo.requestedDueDate && selRespInfo.requestedDueTime && (
                 <div className="space-y-2 pt-1">
@@ -850,7 +850,7 @@ export default function AppointmentsPage() {
                       type="button"
                       disabled={approvingTimeChangeId === selectedAppointment.id || rejectingTimeChangeId === selectedAppointment.id}
                       onClick={() => { void handleRejectTimeChange(selectedAppointment, selRespInfo); }}
-                      className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+                      className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
                     >
                       {rejectingTimeChangeId === selectedAppointment.id ? 'Αποθήκευση...' : 'Απόρριψη αλλαγής'}
                     </button>
@@ -860,24 +860,24 @@ export default function AppointmentsPage() {
             </div>
           )}
           {selRespInfo.kind === 'time_change_approved' && (
-            <p className="text-xs text-zinc-700">
+            <p className="text-xs text-zinc-700 dark:text-zinc-200">
               {approveTimeChangeSuccess ?? 'Η νέα ώρα έχει εγκριθεί και αποθηκευτεί.'}
             </p>
           )}
           {selRespInfo.kind === 'time_change_rejected' && (
-            <p className="text-xs text-zinc-700">
+            <p className="text-xs text-zinc-700 dark:text-zinc-200">
               Η αλλαγή ώρας απορρίφθηκε. Το ραντεβού παραμένει στην αρχική ώρα.
             </p>
           )}
         </div>
         {/* Customer notification draft */}
         {notificationDraft && notificationDraftTaskId === selectedAppointment.id && (
-          <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
-            <p className="text-sm font-semibold text-zinc-800">Ενημέρωση πελάτη</p>
-            <p className="text-xs text-zinc-500">
+          <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 space-y-3">
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Ενημέρωση πελάτη</p>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
               Αντιγράψτε το παρακάτω μήνυμα και στείλτε το από το κανάλι που χρησιμοποιείτε.
             </p>
-            <p className="rounded-xl bg-zinc-50 px-3 py-3 text-sm text-zinc-700 whitespace-pre-wrap">
+            <p className="rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-3 text-sm text-zinc-700 dark:text-zinc-200 whitespace-pre-wrap">
               {notificationDraft}
             </p>
             {notificationManualVisible && (
@@ -885,7 +885,7 @@ export default function AppointmentsPage() {
                 readOnly
                 rows={4}
                 value={notificationDraft}
-                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-600"
+                className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-600 dark:text-zinc-300"
               />
             )}
             <button
@@ -903,7 +903,7 @@ export default function AppointmentsPage() {
               className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
                 notificationCopied
                   ? 'bg-green-100 text-green-700'
-                  : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                  : 'border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/5'
               }`}
             >
               {notificationCopied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
@@ -911,19 +911,19 @@ export default function AppointmentsPage() {
           </div>
         )}
         {/* Delivery draft card */}
-        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
-          <p className="text-sm font-semibold text-zinc-800">Αποστολή στον πελάτη</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 space-y-3">
+          <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Αποστολή στον πελάτη</p>
           {deliveryDraftMessage ? (
             <>
-              <p className="text-xs text-zinc-500">Μήνυμα για αντιγραφή</p>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">Μήνυμα για αντιγραφή</p>
               <textarea
                 readOnly
                 rows={5}
                 value={deliveryDraftMessage}
-                className="w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700"
+                className="w-full resize-none rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-700 dark:text-zinc-200"
               />
               {deliveryDraftManualVisible && (
-                <p className="text-xs text-zinc-400">Επιλέξτε το κείμενο παραπάνω για χειροκίνητη αντιγραφή.</p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">Επιλέξτε το κείμενο παραπάνω για χειροκίνητη αντιγραφή.</p>
               )}
               <button
                 type="button"
@@ -940,7 +940,7 @@ export default function AppointmentsPage() {
                 className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
                   deliveryDraftCopied
                     ? 'bg-green-100 text-green-700'
-                    : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                    : 'border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/5'
                 }`}
               >
                 {deliveryDraftCopied ? 'Αντιγράφηκε' : 'Αντιγραφή μηνύματος'}
@@ -948,7 +948,7 @@ export default function AppointmentsPage() {
             </>
           ) : (
             <>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
                 Δημιουργεί μήνυμα για τον πελάτη. Δεν αποστέλλεται από την εφαρμογή.
               </p>
               {deliveryDraftError && (
@@ -983,8 +983,8 @@ export default function AppointmentsPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Ημερολόγιο</p>
-          <h1 className="text-xl font-bold text-zinc-900">Ραντεβού</h1>
+          <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Ημερολόγιο</p>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Ραντεβού</h1>
         </div>
         {!formOpen && (
           <button
@@ -999,27 +999,27 @@ export default function AppointmentsPage() {
 
       {/* Inline creation form */}
       {formOpen && (
-        <div className="rounded-[28px] bg-white p-5 shadow-sm ring-1 ring-indigo-200 space-y-4">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-indigo-200 space-y-4">
           <div className="flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-zinc-800">Νέο ραντεβού</p>
-            <button type="button" onClick={closeForm} className="text-xs text-zinc-400 hover:text-zinc-600 transition">
+            <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Νέο ραντεβού</p>
+            <button type="button" onClick={closeForm} className="text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition">
               Ακύρωση
             </button>
           </div>
 
           {/* Customer search */}
           <div className="space-y-1">
-            <label className="block text-xs font-medium text-zinc-600">Πελάτης</label>
+            <label className="block text-xs font-medium text-zinc-600 dark:text-zinc-300">Πελάτης</label>
             {selectedCustomer ? (
               <div className="flex items-center justify-between gap-2 rounded-xl border border-indigo-200 bg-indigo-50 px-3 py-2">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-indigo-900 truncate">{selectedCustomer.name}</p>
-                  {selectedCustomer.phone && <p className="text-xs text-zinc-500">{selectedCustomer.phone}</p>}
+                  {selectedCustomer.phone && <p className="text-xs text-zinc-500 dark:text-zinc-400">{selectedCustomer.phone}</p>}
                 </div>
                 <button
                   type="button"
                   onClick={() => { setSelectedCustomer(null); setCustomerSearch(''); }}
-                  className="shrink-0 text-xs text-zinc-400 hover:text-zinc-600 transition"
+                  className="shrink-0 text-xs text-zinc-400 dark:text-zinc-500 hover:text-zinc-600 dark:hover:text-zinc-300 transition"
                 >
                   Αλλαγή
                 </button>
@@ -1034,28 +1034,28 @@ export default function AppointmentsPage() {
                   className={`w-full ${inputCls}`}
                 />
                 {searchResults.length > 0 && (
-                  <ul className="divide-y divide-zinc-100 overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-md">
+                  <ul className="divide-y divide-zinc-100 dark:divide-white/10 overflow-hidden rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] shadow-md">
                     {searchResults.map((c) => (
                       <li key={c.id}>
                         <button
                           type="button"
                           onClick={() => { setSelectedCustomer(c); setCustomerSearch(''); }}
-                          className="flex w-full flex-col items-start px-3 py-2.5 text-left transition hover:bg-indigo-50"
+                          className="flex w-full flex-col items-start px-3 py-2.5 text-left transition hover:bg-indigo-50 dark:hover:bg-white/5"
                         >
-                          <span className="text-sm font-semibold text-zinc-900">{c.name}</span>
-                          {c.phone && <span className="text-xs text-zinc-500">{c.phone}</span>}
+                          <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{c.name}</span>
+                          {c.phone && <span className="text-xs text-zinc-500 dark:text-zinc-400">{c.phone}</span>}
                         </button>
                       </li>
                     ))}
                   </ul>
                 )}
                 {customerSearch.trim() && searchResults.length === 0 && (
-                  <p className="text-xs text-zinc-400">Δεν βρέθηκαν πελάτες.</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500">Δεν βρέθηκαν πελάτες.</p>
                 )}
               </div>
             )}
             {selectedCustomer && !selectedCustomer.email && (
-              <p className="text-xs text-zinc-400">
+              <p className="text-xs text-zinc-400 dark:text-zinc-500">
                 Ο πελάτης δεν έχει email. Η αποστολή πρότασης θα χρειαστεί χειροκίνητη επικοινωνία.
               </p>
             )}
@@ -1064,19 +1064,19 @@ export default function AppointmentsPage() {
           {/* Date + time */}
           <div className="flex flex-wrap gap-3">
             <div className="flex-1 min-w-[140px]">
-              <label className="mb-1 block text-xs font-medium text-zinc-600">Ημερομηνία</label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Ημερομηνία</label>
               <input type="date" value={apptDate} onChange={(e) => setApptDate(e.target.value)} className={`w-full ${inputCls}`} />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-zinc-600">Ώρα</label>
+              <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">Ώρα</label>
               <input type="time" value={apptTime} onChange={(e) => setApptTime(e.target.value)} className={inputCls} />
             </div>
           </div>
 
           {/* Optional note */}
           <div>
-            <label className="mb-1 block text-xs font-medium text-zinc-600">
-              Σημείωση <span className="font-normal text-zinc-400">(προαιρετικό)</span>
+            <label className="mb-1 block text-xs font-medium text-zinc-600 dark:text-zinc-300">
+              Σημείωση <span className="font-normal text-zinc-400 dark:text-zinc-500">(προαιρετικό)</span>
             </label>
             <textarea
               rows={2}
@@ -1100,9 +1100,9 @@ export default function AppointmentsPage() {
 
       {/* Creation success */}
       {justCreated && !formOpen && proposalTaskId && (
-        <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-green-200 space-y-3">
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-green-200 space-y-3">
           <p className="text-sm font-medium text-green-800">Το ραντεβού δημιουργήθηκε.</p>
-          <p className="text-xs text-zinc-500">Ο πελάτης δεν έχει ειδοποιηθεί ακόμα.</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">Ο πελάτης δεν έχει ειδοποιηθεί ακόμα.</p>
           <button
             type="button"
             onClick={() => {
@@ -1118,9 +1118,9 @@ export default function AppointmentsPage() {
 
       {/* Cancellation result */}
       {cancelResult && (
-        <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200 space-y-2">
-          <p className="text-sm font-medium text-zinc-800">Το ραντεβού ακυρώθηκε.</p>
-          <p className="text-xs text-zinc-500">Ενημερώστε τον πελάτη χειροκίνητα αν χρειάζεται.</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-200 dark:ring-white/10 space-y-2">
+          <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">Το ραντεβού ακυρώθηκε.</p>
+          <p className="text-xs text-zinc-500 dark:text-zinc-400">Ενημερώστε τον πελάτη χειροκίνητα αν χρειάζεται.</p>
         </div>
       )}
 
@@ -1140,7 +1140,7 @@ export default function AppointmentsPage() {
         if (group.length === 0) return null;
         return (
           <section key={key} className="space-y-2">
-            <h2 className={`text-xs font-semibold uppercase tracking-wide ${key === 'overdue' ? 'text-red-600' : 'text-zinc-500'}`}>
+            <h2 className={`text-xs font-semibold uppercase tracking-wide ${key === 'overdue' ? 'text-red-600' : 'text-zinc-500 dark:text-zinc-400'}`}>
               {GROUP_LABELS[key]}
             </h2>
             <ul className="space-y-2">
@@ -1151,12 +1151,12 @@ export default function AppointmentsPage() {
                 return (
                   <li
                     key={task.id}
-                    className="rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60"
+                    className="rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10"
                   >
                     {cancellingTaskId === task.id ? (
                       <div className="p-4 space-y-3">
-                        <p className="text-sm font-semibold text-zinc-800">Επιβεβαίωση ακύρωσης ραντεβού</p>
-                        <p className="text-sm text-zinc-600">
+                        <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">Επιβεβαίωση ακύρωσης ραντεβού</p>
+                        <p className="text-sm text-zinc-600 dark:text-zinc-300">
                           {formatDate(task.dueDate)}{task.dueTime ? `, ${task.dueTime}` : ''}.
                         </p>
                         <div className="flex flex-col gap-2 sm:flex-row">
@@ -1170,7 +1170,7 @@ export default function AppointmentsPage() {
                           <button
                             type="button"
                             onClick={() => setCancellingTaskId(null)}
-                            className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                            className="rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                           >
                             Πίσω
                           </button>
@@ -1186,18 +1186,18 @@ export default function AppointmentsPage() {
                           <div className="flex flex-wrap items-center gap-2">
                             <p className={`text-xs font-semibold ${key === 'overdue' ? 'text-red-700' : 'text-indigo-700'}`}>
                               {formatDate(task.dueDate)}
-                              {task.dueTime && <span className="ml-1.5 font-normal text-zinc-500">{task.dueTime}</span>}
+                              {task.dueTime && <span className="ml-1.5 font-normal text-zinc-500 dark:text-zinc-400">{task.dueTime}</span>}
                             </p>
                             <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${status.cls}`}>
                               {status.label}
                             </span>
                           </div>
-                          <p className="text-sm font-semibold text-zinc-900 truncate">{task.title}</p>
+                          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{task.title}</p>
                           {customerName && (
-                            <p className="text-xs text-zinc-500 truncate">{customerName}</p>
+                            <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">{customerName}</p>
                           )}
                         </button>
-                        <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 px-4 py-2">
+                        <div className="flex flex-wrap items-center gap-2 border-t border-zinc-100 dark:border-white/10 px-4 py-2">
                           <button
                             type="button"
                             onClick={() => { clearDeliveryDraftState(); setSelectedAppointment(task); }}
@@ -1206,12 +1206,12 @@ export default function AppointmentsPage() {
                             Προβολή ραντεβού
                           </button>
                           {task.customerId && (
-                            <Link href={`/customers/${task.customerId}`} className="text-xs font-medium text-zinc-500 hover:text-zinc-700 transition">
+                            <Link href={`/customers/${task.customerId}`} className="text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition">
                               Πελάτης
                             </Link>
                           )}
                           {task.offerId && (
-                            <Link href={`/offers/${task.offerId}`} className="text-xs font-medium text-zinc-500 hover:text-zinc-700 transition">
+                            <Link href={`/offers/${task.offerId}`} className="text-xs font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 transition">
                               Προσφορά →
                             </Link>
                           )}

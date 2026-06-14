@@ -90,23 +90,23 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 p-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Σύνδεση</h1>
-        <p className="text-sm text-zinc-500 mb-6">
+    <main className="min-h-screen bg-zinc-50 dark:bg-[#0e1722] flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white dark:bg-[#17232f] rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 p-8">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">Σύνδεση</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">
           Συνδέσου με email και κωδικό.
         </p>
 
         <OAuthButtons />
         <div className="my-5 flex items-center gap-3">
-          <span className="h-px flex-1 bg-zinc-200" />
-          <span className="text-xs text-zinc-400">ή με email</span>
-          <span className="h-px flex-1 bg-zinc-200" />
+          <span className="h-px flex-1 bg-zinc-200 dark:bg-white/10" />
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">ή με email</span>
+          <span className="h-px flex-1 bg-zinc-200 dark:bg-white/10" />
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="email" className="block text-sm font-medium text-zinc-700 mb-1">
+            <label htmlFor="email" className="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
               Email
             </label>
             <input
@@ -117,12 +117,12 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => { setEmail(e.target.value); setError(null); }}
               placeholder="you@example.com"
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
           <div>
-            <label htmlFor="password" className="block text-sm font-medium text-zinc-700 mb-1">
+            <label htmlFor="password" className="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">
               Κωδικός
             </label>
             <input
@@ -133,7 +133,7 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(null); }}
               placeholder="Κωδικός"
-              className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
 
@@ -158,7 +158,7 @@ export default function LoginPage() {
           </Link>
         </p>
 
-        <p className="mt-2 text-center text-sm text-zinc-500">
+        <p className="mt-2 text-center text-sm text-zinc-500 dark:text-zinc-400">
           Δεν έχεις λογαριασμό;{' '}
           <Link
             href="/register"

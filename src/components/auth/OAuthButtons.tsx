@@ -35,7 +35,7 @@ export default function OAuthButtons() {
         type="button"
         onClick={() => signIn('google')}
         disabled={loading !== null}
-        className="flex w-full items-center justify-center gap-3 rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50 disabled:opacity-60"
+        className="flex w-full items-center justify-center gap-3 rounded-2xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5 disabled:opacity-60"
       >
         <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
           <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.76h3.56c2.08-1.92 3.28-4.74 3.28-8.09z" />

@@ -139,14 +139,14 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
       ? 'bg-red-50 ring-red-200'
       : effective === 'due_today'
       ? 'bg-amber-50 ring-amber-200'
-      : 'bg-white ring-zinc-100 shadow-sm';
+      : 'bg-white dark:bg-[#17232f] ring-zinc-100 dark:ring-white/10 shadow-sm';
 
   const titleColor =
     effective === 'overdue'
       ? 'text-red-900'
       : effective === 'due_today'
       ? 'text-amber-900'
-      : 'text-zinc-900';
+      : 'text-zinc-900 dark:text-zinc-100';
 
   function closeSheet() {
     setShowMore(false);
@@ -178,15 +178,15 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
           </div>
 
           {/* What / for whom / when */}
-          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-zinc-500">
-            {customerName && <span className="font-medium text-zinc-700">{customerName}</span>}
+          <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+            {customerName && <span className="font-medium text-zinc-700 dark:text-zinc-200">{customerName}</span>}
             <span>{TASK_TYPE_LABELS[task.type]}</span>
             <span>{TASK_PRIORITY_LABELS[task.priority]}</span>
             <span className="font-medium">{formatDueDate(task.dueDate, task.dueTime)}</span>
           </div>
 
           {task.note && (
-            <p className="mt-1.5 line-clamp-2 text-xs text-zinc-500">{task.note}</p>
+            <p className="mt-1.5 line-clamp-2 text-xs text-zinc-500 dark:text-zinc-400">{task.note}</p>
           )}
         </div>
       </div>
@@ -223,7 +223,7 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
           <button
             type="button"
             onClick={() => setShowMore(true)}
-            className="ml-auto inline-flex min-h-[48px] items-center gap-1 rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+            className="ml-auto inline-flex min-h-[48px] items-center gap-1 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             aria-haspopup="dialog"
           >
             Περισσότερα
@@ -232,7 +232,7 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
       )}
 
       {effective === 'completed' && (
-        <p className="mt-2 text-xs text-zinc-500">
+        <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
           Ολοκληρώθηκε
           {task.completedAt
             ? ' ' +
@@ -267,7 +267,7 @@ export default function TaskCard({ task, customerName, onComplete, onEdit, onDel
             <button
               type="button"
               onClick={() => setConfirmingDelete(false)}
-              className="flex min-h-[48px] w-full items-center justify-center rounded-xl border border-zinc-200 bg-white px-4 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
+              className="flex min-h-[48px] w-full items-center justify-center rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Πίσω
             </button>

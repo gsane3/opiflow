@@ -164,30 +164,30 @@ export function SendViaViberModal({
       onClick={onClose}
     >
       <div
-        className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white p-5 shadow-2xl ring-1 ring-zinc-200/60"
+        className="mx-4 my-4 max-h-[90vh] w-full max-w-md overflow-y-auto rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-2xl ring-1 ring-zinc-200/60 dark:ring-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className={`${subtitle ? 'mb-1' : 'mb-4'} flex items-center justify-between gap-2`}>
-          <h2 className="text-base font-semibold text-zinc-900">{title}</h2>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">{title}</h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Κλείσιμο"
-            className="rounded-full p-1.5 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600"
+            className="rounded-full p-1.5 text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
             <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
-        {subtitle && <p className="mb-4 text-xs text-zinc-400">{subtitle}</p>}
+        {subtitle && <p className="mb-4 text-xs text-zinc-400 dark:text-zinc-500">{subtitle}</p>}
 
         {/* Loading state */}
         {loading && (
           <div className="flex items-center gap-3 py-4">
-            <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 border-t-indigo-500" />
-            <p className="text-sm text-zinc-600">{loadingText}</p>
+            <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-zinc-200 dark:border-white/10 border-t-indigo-500" />
+            <p className="text-sm text-zinc-600 dark:text-zinc-300">{loadingText}</p>
           </div>
         )}
 
@@ -199,7 +199,7 @@ export function SendViaViberModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50"
+                className="rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-4 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Κλείσιμο
               </button>
@@ -211,16 +211,16 @@ export function SendViaViberModal({
         {!loading && message && (
           <>
             {recipient && (
-              <p className="mb-2 text-xs text-zinc-500">
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
                 {'Παραλήπτης Viber: '}
-                <span className="font-medium text-zinc-700">{recipient}</span>
+                <span className="font-medium text-zinc-700 dark:text-zinc-200">{recipient}</span>
               </p>
             )}
 
             {warning}
 
-            <p className="mb-1 text-xs text-zinc-500">Μήνυμα:</p>
-            <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 px-3 py-2.5 text-xs text-zinc-700">
+            <p className="mb-1 text-xs text-zinc-500 dark:text-zinc-400">Μήνυμα:</p>
+            <div className="mb-4 break-words whitespace-pre-wrap rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2.5 text-xs text-zinc-700 dark:text-zinc-200">
               {message}
             </div>
 
@@ -238,7 +238,7 @@ export function SendViaViberModal({
 
             {/* Reassurance: nothing is sent until the operator presses send. */}
             {!sent && (
-              <p className="mb-2 text-xs text-zinc-500">
+              <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400">
                 Δεν στέλνεται τίποτα πριν πατήσεις αποστολή.
               </p>
             )}
@@ -260,7 +260,7 @@ export function SendViaViberModal({
               <button
                 type="button"
                 onClick={onCopy}
-                className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                className="flex-1 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 {copied ? 'Αντιγράφηκε!' : 'Αντιγραφή μηνύματος'}
               </button>
@@ -268,7 +268,7 @@ export function SendViaViberModal({
                 <button
                   type="button"
                   onClick={() => window.open(responseUrl, '_blank', 'noopener,noreferrer')}
-                  className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                  className="flex-1 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
                 >
                   {openLabel}
                 </button>
@@ -276,7 +276,7 @@ export function SendViaViberModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="flex-1 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-600 transition hover:bg-zinc-50"
+                className="flex-1 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Κλείσιμο
               </button>

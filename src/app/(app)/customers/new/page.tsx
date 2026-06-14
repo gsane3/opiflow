@@ -83,15 +83,15 @@ export default function NewCustomerPage() {
         <Link
           href="/customers"
           aria-label="Πίσω"
-          className="rounded-full bg-white p-2 text-zinc-500 shadow-sm ring-1 ring-zinc-200/60 transition hover:text-zinc-700"
+          className="rounded-full bg-white dark:bg-[#17232f] p-2 text-zinc-500 dark:text-zinc-400 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 transition hover:text-zinc-700 dark:hover:text-zinc-200"
         >
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
           </svg>
         </Link>
         <div>
-          <p className="text-xs font-medium text-zinc-400">Πελάτες</p>
-          <h1 className="text-2xl font-bold tracking-tight text-zinc-900">Νέος πελάτης</h1>
+          <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Πελάτες</p>
+          <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Νέος πελάτης</h1>
         </div>
       </div>
 

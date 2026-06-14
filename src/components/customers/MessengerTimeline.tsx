@@ -372,33 +372,33 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   return (
     <div className="mx-auto flex h-[calc(100dvh-4.25rem-env(safe-area-inset-bottom))] w-full max-w-2xl flex-col md:h-[100dvh]">
       {/* Header */}
-      <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 bg-white/90 px-4 py-3 backdrop-blur">
-        <Link href={`/customers/${customerId}`} aria-label="Πίσω" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition active:bg-zinc-50 hover:bg-zinc-100">
+      <header className="flex shrink-0 items-center gap-3 border-b border-zinc-200 dark:border-white/10 bg-white/90 dark:bg-[#17232f] px-4 py-3 backdrop-blur">
+        <Link href={`/customers/${customerId}`} aria-label="Πίσω" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 transition active:bg-zinc-50 dark:active:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/5">
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
         </Link>
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 ring-1 ring-indigo-200/60">
           {name.slice(0, 1).toUpperCase()}
         </div>
-        <p className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-tight text-zinc-900">{name}</p>
+        <p className="min-w-0 flex-1 truncate text-[15px] font-semibold leading-tight text-zinc-900 dark:text-zinc-100">{name}</p>
         {dialNumber && (
-          <a href={`tel:${dialNumber}`} aria-label="Κλήση" className="flex h-10 w-10 items-center justify-center rounded-full text-indigo-600 transition active:bg-zinc-50 hover:bg-indigo-50">
+          <a href={`tel:${dialNumber}`} aria-label="Κλήση" className="flex h-10 w-10 items-center justify-center rounded-full text-indigo-600 transition active:bg-zinc-50 dark:active:bg-white/5 hover:bg-indigo-50">
             <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
           </a>
         )}
-        <button type="button" onClick={() => void togglePin()} aria-label={customer?.pinned ? 'Ξεκαρφίτσωμα' : 'Καρφίτσωμα'} className={`flex h-10 w-10 items-center justify-center rounded-full transition active:bg-zinc-50 ${customer?.pinned ? 'text-indigo-600 hover:bg-indigo-50' : 'text-zinc-400 hover:bg-zinc-100'}`}>
+        <button type="button" onClick={() => void togglePin()} aria-label={customer?.pinned ? 'Ξεκαρφίτσωμα' : 'Καρφίτσωμα'} className={`flex h-10 w-10 items-center justify-center rounded-full transition active:bg-zinc-50 dark:active:bg-white/5 ${customer?.pinned ? 'text-indigo-600 hover:bg-indigo-50' : 'text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-white/5'}`}>
           <svg className="h-5 w-5" fill={customer?.pinned ? 'currentColor' : 'none'} strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0 1 11.186 0Z" /></svg>
         </button>
-        <button type="button" onClick={() => openInfo(null)} aria-label="Στοιχεία" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 transition active:bg-zinc-50 hover:bg-zinc-100">
+        <button type="button" onClick={() => openInfo(null)} aria-label="Στοιχεία" className="flex h-10 w-10 items-center justify-center rounded-full text-zinc-500 dark:text-zinc-400 transition active:bg-zinc-50 dark:active:bg-white/5 hover:bg-zinc-100 dark:hover:bg-white/5">
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
         </button>
       </header>
 
       {/* Chat body (the only scroll area) */}
-      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F5F5F7] px-3 py-4">
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F5F5F7] dark:bg-[#0e1722] px-3 py-4">
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
             <Spinner className="text-indigo-500" />
-            <p className="text-sm text-zinc-500">Φόρτωση συνομιλίας…</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Φόρτωση συνομιλίας…</p>
           </div>
         ) : error ? (
           <p className="py-10 text-center text-sm text-red-500">{error}</p>
@@ -419,21 +419,21 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
               <div key={it.id} className={`flex ${mine ? 'justify-end' : 'justify-start'} motion-safe:animate-[sheetUp_0.2s_ease-out]`}>
                 <div
                   className={`max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm shadow-sm ring-1 sm:max-w-[70%] ${
-                    mine ? 'rounded-br-md bg-indigo-600 text-white ring-indigo-600/10' : 'rounded-bl-md bg-white text-zinc-900 ring-zinc-200/70'
+                    mine ? 'rounded-br-md bg-indigo-600 text-white ring-indigo-600/10' : 'rounded-bl-md bg-white dark:bg-[#17232f] text-zinc-900 dark:text-zinc-100 ring-zinc-200/70 dark:ring-white/10'
                   } ${tappable ? 'cursor-pointer' : ''}`}
                   onClick={() => tappable && onBubbleTap(it)}
                 >
-                  <p className={`flex items-center gap-1.5 font-medium ${mine ? 'text-white' : 'text-zinc-900'}`}>
+                  <p className={`flex items-center gap-1.5 font-medium ${mine ? 'text-white' : 'text-zinc-900 dark:text-zinc-100'}`}>
                     <Icon aria-hidden className={`h-5 w-5 shrink-0 ${mine ? 'text-white' : 'text-indigo-600'}`} strokeWidth={1.7} />
                     <span>{it.title}</span>
                   </p>
                   {!isCall && it.body ? (
-                    <p className={`mt-1 whitespace-pre-wrap text-[13px] leading-relaxed ${mine ? 'text-indigo-50' : 'text-zinc-600'}`}>{it.body}</p>
+                    <p className={`mt-1 whitespace-pre-wrap text-[13px] leading-relaxed ${mine ? 'text-indigo-50' : 'text-zinc-600 dark:text-zinc-300'}`}>{it.body}</p>
                   ) : null}
                   {tappable && (
                     <p className={`mt-0.5 text-[12px] ${mine ? 'text-white/80' : 'text-indigo-600'}`}>{hint}</p>
                   )}
-                  <p className={`mt-1 text-[11px] tabular-nums ${mine ? 'text-white/70' : 'text-zinc-400'}`}>{fmtTime(it.occurredAt)}</p>
+                  <p className={`mt-1 text-[11px] tabular-nums ${mine ? 'text-white/70' : 'text-zinc-400 dark:text-zinc-500'}`}>{fmtTime(it.occurredAt)}</p>
                 </div>
               </div>
             );
@@ -444,7 +444,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
 
       {/* AI suggested-action chips (server-driven, heuristic fallback) */}
       {chips.length > 0 && (
-        <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-zinc-200/60 bg-white px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex shrink-0 gap-2 overflow-x-auto border-t border-zinc-200/60 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {chips.map((c) => (
             <button
               key={c.key}
@@ -461,12 +461,12 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
 
       {/* Snippet picker (opens above the composer) */}
       {snippetsOpen && (
-        <div className="shrink-0 border-t border-zinc-200/60 bg-white px-3 py-2">
-          <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Πρότυπα μηνυμάτων</p>
+        <div className="shrink-0 border-t border-zinc-200/60 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2">
+          <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Πρότυπα μηνυμάτων</p>
           {snippets === null ? (
             <div className="flex justify-center py-3"><Spinner className="text-indigo-500" /></div>
           ) : snippets.length === 0 ? (
-            <p className="px-1 py-2 text-xs text-zinc-400">Δεν υπάρχουν πρότυπα. Πρόσθεσέ τα από τις Ρυθμίσεις.</p>
+            <p className="px-1 py-2 text-xs text-zinc-400 dark:text-zinc-500">Δεν υπάρχουν πρότυπα. Πρόσθεσέ τα από τις Ρυθμίσεις.</p>
           ) : (
             <div className="flex max-h-44 flex-col gap-1 overflow-y-auto">
               {snippets.map((s) => (
@@ -474,10 +474,10 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
                   key={s.id}
                   type="button"
                   onClick={() => pickSnippet(s)}
-                  className="rounded-xl bg-zinc-50 px-3 py-2 text-left transition active:scale-[0.99] hover:bg-indigo-50"
+                  className="rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2 text-left transition active:scale-[0.99] hover:bg-indigo-50"
                 >
-                  <p className="text-[13px] font-semibold text-zinc-800">{s.title}</p>
-                  <p className="truncate text-[12px] text-zinc-500">{fillTokens(s.body)}</p>
+                  <p className="text-[13px] font-semibold text-zinc-800 dark:text-zinc-200">{s.title}</p>
+                  <p className="truncate text-[12px] text-zinc-500 dark:text-zinc-400">{fillTokens(s.body)}</p>
                 </button>
               ))}
             </div>
@@ -489,13 +489,13 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       {scheduleOpen && (
         <>
         {pendingScheduled.length > 0 && (
-          <div className="shrink-0 space-y-1 border-t border-zinc-200/60 bg-white px-3 py-2">
-            <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400">Προγραμματισμένα ({pendingScheduled.length})</p>
+          <div className="shrink-0 space-y-1 border-t border-zinc-200/60 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2">
+            <p className="px-1 text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Προγραμματισμένα ({pendingScheduled.length})</p>
             {pendingScheduled.map((p) => (
-              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-zinc-50 px-3 py-2">
+              <div key={p.id} className="flex items-center gap-2 rounded-xl bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2">
                 <div className="min-w-0 flex-1">
-                  <p className="text-[11px] tabular-nums text-zinc-400">{fmtTime(p.scheduledFor)}</p>
-                  <p className="truncate text-[13px] text-zinc-700">{p.body}</p>
+                  <p className="text-[11px] tabular-nums text-zinc-400 dark:text-zinc-500">{fmtTime(p.scheduledFor)}</p>
+                  <p className="truncate text-[13px] text-zinc-700 dark:text-zinc-200">{p.body}</p>
                 </div>
                 <button type="button" onClick={() => void cancelScheduled(p.id)} aria-label="Ακύρωση" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-red-500 transition hover:bg-red-50">
                   <svg className="h-4 w-4" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
@@ -504,13 +504,13 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
             ))}
           </div>
         )}
-        <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200/60 bg-white px-3 py-2">
-          <span className="text-xs font-semibold text-zinc-500">Αποστολή στις:</span>
+        <div className="flex shrink-0 items-center gap-2 border-t border-zinc-200/60 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2">
+          <span className="text-xs font-semibold text-zinc-500 dark:text-zinc-400">Αποστολή στις:</span>
           <input
             type="datetime-local"
             value={scheduleAt}
             onChange={(e) => setScheduleAt(e.target.value)}
-            className="flex-1 rounded-xl bg-zinc-100 px-3 py-2 text-sm text-zinc-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200"
+            className="flex-1 rounded-xl bg-zinc-100 dark:bg-[#0f1923] px-3 py-2 text-sm text-zinc-900 dark:text-zinc-100 outline-none focus:bg-white dark:focus:bg-[#0f1923] focus:ring-2 focus:ring-indigo-200"
           />
           <button type="button" onClick={() => void scheduleMessage()} disabled={!messageText.trim() || !scheduleAt || sending} className="rounded-full bg-indigo-600 px-3.5 py-2 text-xs font-semibold text-white transition active:scale-95 enabled:hover:bg-indigo-700 disabled:opacity-40">
             Προγραμμάτισε
@@ -520,7 +520,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       )}
 
       {/* Composer */}
-      <div className="flex shrink-0 items-end gap-2 border-t border-zinc-200/60 bg-white px-3 py-2.5">
+      <div className="flex shrink-0 items-end gap-2 border-t border-zinc-200/60 dark:border-white/10 bg-white dark:bg-[#17232f] px-3 py-2.5">
         <button type="button" onClick={() => openComposer('menu')} aria-label="Ενέργειες" className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 transition active:scale-95 hover:bg-indigo-100">
           <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg>
         </button>
@@ -541,7 +541,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
           onChange={(e) => setMessageText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void sendMessage(); } }}
           placeholder="Γράψε μήνυμα στον πελάτη…"
-          className="max-h-28 min-h-[2.5rem] flex-1 resize-none rounded-2xl bg-zinc-100 px-4 py-2.5 text-sm text-zinc-900 outline-none transition focus:bg-white focus:ring-2 focus:ring-indigo-200"
+          className="max-h-28 min-h-[2.5rem] flex-1 resize-none rounded-2xl bg-zinc-100 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 outline-none transition focus:bg-white dark:focus:bg-[#0f1923] focus:ring-2 focus:ring-indigo-200"
         />
         <button
           type="button"
@@ -580,18 +580,18 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       {callPopup && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
           <button type="button" aria-label="Κλείσιμο" className="absolute inset-0 bg-black/30 motion-safe:animate-[fadeIn_0.2s]" onClick={() => setCallPopup(null)} />
-          <div className="relative w-full max-w-md rounded-[24px] bg-white p-5 shadow-2xl motion-safe:animate-[fadeIn_0.2s]">
+          <div className="relative w-full max-w-md rounded-[24px] bg-white dark:bg-[#17232f] p-5 shadow-2xl motion-safe:animate-[fadeIn_0.2s]">
             <div className="flex items-center justify-between gap-2">
-              <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900">
+              <p className="flex items-center gap-1.5 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                 <IconPhone aria-hidden className="h-5 w-5 shrink-0 text-indigo-600" strokeWidth={1.7} />
                 <span>{callPopup.title}</span>
               </p>
-              <button type="button" onClick={() => setCallPopup(null)} aria-label="Κλείσιμο" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-zinc-500 transition active:scale-95 hover:bg-zinc-200">
+              <button type="button" onClick={() => setCallPopup(null)} aria-label="Κλείσιμο" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-100 dark:bg-[#1e2b38] text-zinc-500 dark:text-zinc-400 transition active:scale-95 hover:bg-zinc-200 dark:hover:bg-white/5">
                 <svg className="h-4 w-4" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
               </button>
             </div>
-            <p className="mt-1 text-[11px] tabular-nums text-zinc-400">{fmtTime(callPopup.at)}</p>
-            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{callPopup.body || 'Δεν βρέθηκε περίληψη κλήσης.'}</p>
+            <p className="mt-1 text-[11px] tabular-nums text-zinc-400 dark:text-zinc-500">{fmtTime(callPopup.at)}</p>
+            <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700 dark:text-zinc-200">{callPopup.body || 'Δεν βρέθηκε περίληψη κλήσης.'}</p>
           </div>
         </div>
       )}

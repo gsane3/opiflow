@@ -51,21 +51,21 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 flex items-center justify-center px-4">
-      <div className="w-full max-w-md bg-white rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 p-8">
-        <h1 className="text-2xl font-bold text-zinc-900 mb-1">Νέος κωδικός</h1>
-        <p className="text-sm text-zinc-500 mb-6">Όρισε έναν νέο κωδικό για τον λογαριασμό σου.</p>
+    <main className="min-h-screen bg-zinc-50 dark:bg-[#0e1722] flex items-center justify-center px-4">
+      <div className="w-full max-w-md bg-white dark:bg-[#17232f] rounded-[28px] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 p-8">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 mb-1">Νέος κωδικός</h1>
+        <p className="text-sm text-zinc-500 dark:text-zinc-400 mb-6">Όρισε έναν νέο κωδικό για τον λογαριασμό σου.</p>
 
         {done ? (
           <div className="rounded-xl bg-green-50 border border-green-200 p-4 text-sm text-green-700">
             Ο κωδικός άλλαξε. Σε συνδέουμε...
           </div>
         ) : !ready ? (
-          <p className="text-sm text-zinc-400">Φόρτωση...</p>
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση...</p>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="pw" className="block text-sm font-medium text-zinc-700 mb-1">Νέος κωδικός</label>
+              <label htmlFor="pw" className="block text-sm font-medium text-zinc-700 dark:text-zinc-200 mb-1">Νέος κωδικός</label>
               <input
                 id="pw"
                 type="password"
@@ -74,7 +74,7 @@ export default function ResetPasswordPage() {
                 value={password}
                 onChange={(e) => { setPassword(e.target.value); setError(null); }}
                 placeholder="Τουλάχιστον 6 χαρακτήρες"
-                className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-4 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
               />
             </div>
             {error && (

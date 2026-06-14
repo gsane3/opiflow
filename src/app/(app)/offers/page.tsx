@@ -32,7 +32,7 @@ const STATUS_GROUP_TABS: { key: StatusGroup; label: string; statuses: OfferStatu
 ];
 
 const selCls =
-  'rounded-xl border border-zinc-200 bg-white px-2.5 py-2 text-sm text-zinc-700 outline-none focus:border-indigo-400';
+  'rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-2.5 py-2 text-sm text-zinc-700 dark:text-zinc-200 outline-none focus:border-indigo-400';
 
 // Map backend offer response to the local Offer type.
 // Backend may return null for nullable fields; local type uses non-null strings.
@@ -318,8 +318,8 @@ export default function OffersPage() {
   if (!hydrated) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-sm text-zinc-400">Φόρτωση προσφορών...</p>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση προσφορών...</p>
         </div>
       </div>
     );
@@ -332,10 +332,10 @@ export default function OffersPage() {
   if (noSession) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
-        <h1 className="mb-5 text-xl font-bold text-zinc-900">Προσφορές</h1>
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
-          <p className="mb-4 text-sm text-zinc-600">Συνδέσου για να δεις τις προσφορές.</p>
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Εμπορικές</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900 dark:text-zinc-100">Προσφορές</h1>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+          <p className="mb-4 text-sm text-zinc-600 dark:text-zinc-300">Συνδέσου για να δεις τις προσφορές.</p>
           <Link
             href="/login"
             className="inline-block rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700"
@@ -354,9 +354,9 @@ export default function OffersPage() {
   if (fetchError) {
     return (
       <div className="mx-auto w-full max-w-md px-5 pt-6 pb-28 md:max-w-4xl md:px-8">
-        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
-        <h1 className="mb-5 text-xl font-bold text-zinc-900">Προσφορές</h1>
-        <div className="rounded-[28px] bg-white px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60">
+        <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Εμπορικές</p>
+        <h1 className="mb-5 text-xl font-bold text-zinc-900 dark:text-zinc-100">Προσφορές</h1>
+        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-10 text-center shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
           <p className="mb-4 text-sm text-red-600">{fetchError}</p>
           <button
             type="button"
@@ -385,9 +385,9 @@ export default function OffersPage() {
       {/* Header */}
       <div className="mb-5 flex items-center justify-between gap-3">
         <div>
-          <p className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-zinc-400">Εμπορικές</p>
-          <h1 className="text-xl font-bold text-zinc-900">
-            Προσφορές{offers.length > 0 && <span className="ml-2 text-sm font-normal text-zinc-400">{offers.length}</span>}
+          <p className="mb-0.5 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Εμπορικές</p>
+          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">
+            Προσφορές{offers.length > 0 && <span className="ml-2 text-sm font-normal text-zinc-400 dark:text-zinc-500">{offers.length}</span>}
           </h1>
         </div>
         <button
@@ -402,7 +402,7 @@ export default function OffersPage() {
           }
           className={`rounded-xl px-3 py-2 text-sm font-semibold transition ${
             showForm && !editingOffer
-              ? 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+              ? 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/5'
               : 'bg-indigo-600 text-white hover:bg-indigo-700'
           }`}
         >
@@ -412,8 +412,8 @@ export default function OffersPage() {
 
       {/* Action error banner */}
       {actionError && (
-        <div className="mb-4 rounded-xl bg-red-50 px-4 py-2.5 ring-1 ring-red-200">
-          <p className="text-sm text-red-700">{actionError}</p>
+        <div className="mb-4 rounded-xl bg-red-50 dark:bg-red-500/15 px-4 py-2.5 ring-1 ring-red-200 dark:ring-red-500/20">
+          <p className="text-sm text-red-700 dark:text-red-300">{actionError}</p>
         </div>
       )}
 
@@ -450,13 +450,13 @@ export default function OffersPage() {
               className={`flex h-12 shrink-0 items-center gap-2 rounded-xl px-4 text-sm font-semibold transition ${
                 active
                   ? 'bg-indigo-600 text-white'
-                  : 'border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50'
+                  : 'border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-white/5'
               }`}
             >
               <span>{tab.label}</span>
               <span
                 className={`rounded-full px-1.5 py-0.5 text-xs font-semibold ${
-                  active ? 'bg-white/20 text-white' : 'bg-zinc-100 text-zinc-600'
+                  active ? 'bg-white/20 text-white' : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-600 dark:text-zinc-300'
                 }`}
               >
                 {count}
@@ -467,16 +467,16 @@ export default function OffersPage() {
       </div>
 
       {/* Search + sort */}
-      <div className="mb-5 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-3">
+      <div className="mb-5 rounded-[28px] bg-white dark:bg-[#17232f] p-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 space-y-3">
         <input
           type="search"
           value={offerSearch}
           onChange={(e) => setOfferSearch(e.target.value)}
           placeholder="Αναζήτηση αριθμού, πελάτη, σημειώσεων, όρων..."
-          className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
+          className="w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-3 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100"
         />
         <div className="flex flex-wrap items-center gap-2">
-          <label className="text-xs font-medium text-zinc-500" htmlFor="offers-sort">
+          <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400" htmlFor="offers-sort">
             Ταξινόμηση
           </label>
           <select
@@ -493,7 +493,7 @@ export default function OffersPage() {
             <button
               type="button"
               onClick={clearFilters}
-              className="rounded-xl border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-500 transition hover:bg-zinc-50"
+              className="rounded-xl border border-zinc-200 dark:border-white/10 px-3 py-2 text-xs font-medium text-zinc-500 dark:text-zinc-400 transition hover:bg-zinc-50 dark:hover:bg-white/5"
             >
               Καθαρισμός
             </button>
@@ -530,7 +530,7 @@ export default function OffersPage() {
               <button
                 type="button"
                 onClick={clearFilters}
-                className="h-12 rounded-xl border border-zinc-200 bg-white px-5 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+                className="h-12 rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#17232f] px-5 text-sm font-semibold text-zinc-700 dark:text-zinc-200 transition hover:bg-zinc-50 dark:hover:bg-white/5"
               >
                 Καθαρισμός
               </button>

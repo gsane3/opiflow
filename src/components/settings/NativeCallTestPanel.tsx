@@ -68,15 +68,15 @@ export default function NativeCallTestPanel() {
   const inCall = call === 'dialing' || call === 'ringing' || call === 'connected';
 
   return (
-    <div className="mt-4 rounded-[28px] bg-white px-5 py-4 shadow-sm ring-1 ring-zinc-200/60">
-      <p className="text-sm font-semibold text-zinc-900">Δοκιμή κλήσης (beta)</p>
-      <p className="mt-0.5 text-xs text-zinc-500">
+    <div className="mt-4 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+      <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Δοκιμή κλήσης (beta)</p>
+      <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
         Δοκιμαστική εξερχόμενη κλήση μέσα από την εφαρμογή, με τον αριθμό σου ως αναγνώριση.
       </p>
 
       <p className="mt-2 text-xs">
         Κατάσταση:{' '}
-        {reg === 'registering' && <span className="text-zinc-500">σύνδεση…</span>}
+        {reg === 'registering' && <span className="text-zinc-500 dark:text-zinc-400">σύνδεση…</span>}
         {reg === 'registered' && <span className="font-semibold text-green-700">Συνδεδεμένο ✓</span>}
         {reg === 'failed' && <span className="font-semibold text-red-600">Αποτυχία σύνδεσης</span>}
         {reg === 'no_token' && <span className="font-semibold text-amber-600">Το Twilio δεν είναι ρυθμισμένο ακόμα</span>}
@@ -91,7 +91,7 @@ export default function NativeCallTestPanel() {
             onChange={(e) => setNumber(e.target.value)}
             placeholder="+306900000000"
             disabled={inCall}
-            className="w-full rounded-xl border border-zinc-200 px-3.5 py-2.5 text-sm text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-zinc-50"
+            className="w-full rounded-xl border border-zinc-200 dark:border-white/10 dark:bg-[#0f1923] px-3.5 py-2.5 text-sm text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-zinc-50 dark:disabled:bg-white/5"
           />
           {!inCall ? (
             <button
@@ -111,7 +111,7 @@ export default function NativeCallTestPanel() {
             </button>
           )}
           {call === 'connected' && <p className="text-xs text-green-700">Σε κλήση ✓</p>}
-          {call === 'ended' && <p className="text-xs text-zinc-500">Η κλήση τερματίστηκε.</p>}
+          {call === 'ended' && <p className="text-xs text-zinc-500 dark:text-zinc-400">Η κλήση τερματίστηκε.</p>}
         </div>
       )}
 
