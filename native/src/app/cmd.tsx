@@ -7,7 +7,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -67,6 +67,7 @@ function addDays(n: number): string {
 
 export default function CmdScreen() {
   const router = useRouter();
+  const inputRef = useRef<TextInput>(null);
   const [input, setInput] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState('');
@@ -305,14 +306,25 @@ export default function CmdScreen() {
       <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
         {/* Input */}
         <View style={styles.inputCard}>
-          <TextInput
-            value={input}
-            onChangeText={setInput}
-            placeholder="Π.χ. Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10"
-            placeholderTextColor="#9AA4B2"
-            multiline
-            style={styles.input}
-          />
+          <View style={styles.inputRow}>
+            <TextInput
+              ref={inputRef}
+              value={input}
+              onChangeText={setInput}
+              placeholder="Π.χ. Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10"
+              placeholderTextColor="#9AA4B2"
+              multiline
+              style={[styles.input, styles.inputFlex]}
+            />
+            {/* Dictation: focus the field so the keyboard mic appears. */}
+            <Pressable
+              accessibilityLabel="Υπαγόρευση"
+              onPress={() => inputRef.current?.focus()}
+              style={({ pressed }) => [styles.micBtn, pressed && { opacity: 0.85 }]}
+            >
+              <Ionicons name="mic" size={22} color="#FFFFFF" />
+            </Pressable>
+          </View>
           <PrimaryButton
             label={analyzing ? 'Ανάλυση…' : 'Ανάλυση εντολής'}
             busy={analyzing}
@@ -480,6 +492,21 @@ const styles = StyleSheet.create({
   body: { padding: Spacing.four, paddingBottom: BottomTabInset + Spacing.six, gap: Spacing.three },
   inputCard: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: Spacing.three, gap: Spacing.three, borderWidth: 1, borderColor: '#EEF1F5' },
   input: { minHeight: 60, fontSize: 16, color: '#11273B', textAlignVertical: 'top' },
+  inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.two },
+  inputFlex: { flex: 1 },
+  micBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Brand.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: Brand.primary,
+    shadowOpacity: 0.4,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
   examples: { gap: Spacing.one },
   exChip: { backgroundColor: '#F4F6F9', borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 8 },
   exText: { color: '#33404F' },
