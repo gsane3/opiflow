@@ -20,7 +20,7 @@ export interface CardProps extends HTMLAttributes<HTMLElement> {
 
 /**
  * Soft white surface — the app's standard container.
- * `rounded-[28px]`, hairline zinc ring, subtle shadow.
+ * `rounded-[22px]` (native card radius), hairline zinc ring, subtle shadow.
  */
 export function Card({
   as,
@@ -34,7 +34,7 @@ export function Card({
   return (
     <Component
       className={cn(
-        'rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60',
+        'rounded-[22px] bg-white shadow-sm shadow-indigo-950/[0.04] ring-1 ring-zinc-200/60',
         paddingClasses[padding],
         className,
       )}

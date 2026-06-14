@@ -39,7 +39,7 @@ export const metadata: Metadata = {
 // Mobile-first viewport: device width, no forced zoom lock (a11y), and
 // viewport-fit=cover so we can pad around the iOS notch / home indicator.
 export const viewport: Viewport = {
-  themeColor: '#00c499',
+  themeColor: '#2a86c5',
   colorScheme: 'light',
   width: 'device-width',
   initialScale: 1,

@@ -16,14 +16,14 @@ export function OpiflowMark({ className = 'h-8 w-8' }: { className?: string }) {
         cy="16"
         r="9"
         fill="none"
-        stroke="#00C499"
+        stroke="#2A86C5"
         strokeWidth="2.4"
         strokeLinecap="round"
         strokeDasharray="44 13"
         transform="rotate(-90 16 16)"
       />
-      <circle cx="16" cy="6.8" r="1.7" fill="#00C499" />
-      <circle cx="16" cy="16" r="2" fill="#00C499" />
+      <circle cx="16" cy="6.8" r="1.7" fill="#2A86C5" />
+      <circle cx="16" cy="16" r="2" fill="#2A86C5" />
     </svg>
   );
 }

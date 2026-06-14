@@ -9,25 +9,37 @@
 
 /* ── Opiflow brand palette ────────────────────────────────────────────────
    The app standardised on Tailwind's `indigo-*` scale as its single accent.
-   Opiflow's brand accent is emerald #00C499 (brand deck "CAM."), so we remap
-   the whole `indigo` ramp to an accessible emerald scale. Every existing
-   `bg-indigo-600`, `text-indigo-700`, `ring-indigo-500`, … instantly becomes
-   Opiflow emerald with zero churn across the 70+ component files.
-     • 500 = #00C499 is the exact brand emerald (accents, rings, active dots, logo).
+   Opiflow's brand accent is the native app's water→navy blue (#2A86C5 → #1A3550),
+   so we remap the whole `indigo` ramp to that accessible blue scale. Every
+   existing `bg-indigo-600`, `text-indigo-700`, `ring-indigo-500`, … instantly
+   becomes Opiflow water-blue with zero churn across the 70+ component files —
+   matching the redesigned iOS/Android app.
+     • 500 = #2A86C5 is the exact brand water-blue (accents, rings, active dots, logo).
      • 600/700 are deepened so white text on filled buttons stays legible.
-   The secondary brand blue (#3361FF) lives on Tailwind's own `blue-*` scale. */
+     • 900/950 = the navy/ink (#1A3550 / #11273B) used for gradients + headings.
+   The native gradient stops are exposed as --brand-water / --brand-navy below. */
 @theme {
-  --color-indigo-50: #ecfdf7;
-  --color-indigo-100: #cff8ec;
-  --color-indigo-200: #9fefd8;
-  --color-indigo-300: #5fe2c2;
-  --color-indigo-400: #1fd0a6;
-  --color-indigo-500: #00c499;
-  --color-indigo-600: #00a07c;
-  --color-indigo-700: #00805f;
-  --color-indigo-800: #00664b;
-  --color-indigo-900: #064e3b;
-  --color-indigo-950: #032f24;
+  --color-indigo-50: #e7f0f8;
+  --color-indigo-100: #cfe1f1;
+  --color-indigo-200: #a6c8e5;
+  --color-indigo-300: #76a9d4;
+  --color-indigo-400: #4e94c9;
+  --color-indigo-500: #2a86c5;
+  --color-indigo-600: #226c9e;
+  --color-indigo-700: #1c557a;
+  --color-indigo-800: #1a3d5c;
+  --color-indigo-900: #1a3550;
+  --color-indigo-950: #11273b;
+
+  /* Native brand tokens for gradients / glass (water → navy). */
+  --brand-water: #2a86c5;
+  --brand-navy: #1a3550;
+  --brand-ink: #11273b;
+}
+
+/* Water→navy gradient helper (matches native buttons/FABs/tiles/bubbles). */
+.bg-brand-gradient {
+  background-image: linear-gradient(135deg, var(--brand-water), var(--brand-navy));
 }
 
 /* Mobile-app baseline. */

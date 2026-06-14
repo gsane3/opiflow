@@ -17,14 +17,16 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-xl font-semibold ' +
-  'transition-colors select-none ' +
+  'inline-flex items-center justify-center gap-2 rounded-2xl font-semibold ' +
+  'transition select-none ' +
   'focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-white ' +
   'disabled:cursor-not-allowed disabled:opacity-60';
 
+// `primary` uses the native water→navy gradient (see .bg-brand-gradient in
+// globals.css) so web buttons match the redesigned app.
 const variantClasses: Record<ButtonVariant, string> = {
   primary:
-    'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 focus-visible:ring-indigo-500',
+    'bg-brand-gradient text-white shadow-sm shadow-indigo-900/15 hover:opacity-95 active:opacity-90 focus-visible:ring-indigo-500',
   secondary:
     'bg-white text-zinc-800 ring-1 ring-zinc-200/80 hover:bg-zinc-50 active:bg-zinc-100 focus-visible:ring-indigo-500',
   ghost:
