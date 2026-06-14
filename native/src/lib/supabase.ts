@@ -30,5 +30,8 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY || 'anon-ke
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,
+    // PKCE so the OAuth redirect returns a ?code= we exchange for a session
+    // (see lib/social-auth.ts). The code_verifier is kept in AsyncStorage.
+    flowType: 'pkce',
   },
 });

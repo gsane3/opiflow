@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,6 +7,7 @@ import { ThemedText } from './themed-text';
 import { ThemedView } from './themed-view';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
+import { signInWithProvider, type SocialProvider } from '@/lib/social-auth';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
 
 export function LoginScreen() {
@@ -18,6 +20,23 @@ export function LoginScreen() {
   const [info, setInfo] = useState<string | null>(null);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !busy;
+
+  const [socialBusy, setSocialBusy] = useState<SocialProvider | null>(null);
+
+  async function social(provider: SocialProvider) {
+    if (!isSupabaseConfigured) {
+      setError('Λείπει το EXPO_PUBLIC_SUPABASE_ANON_KEY (native/.env).');
+      return;
+    }
+    setError(null);
+    setInfo(null);
+    setSocialBusy(provider);
+    const res = await signInWithProvider(provider);
+    setSocialBusy(null);
+    // Success → AuthProvider.onAuthStateChange picks up the session and the app
+    // navigates itself; only surface real (non-cancel) failures.
+    if (!res.ok && !res.cancelled) setError(res.error ?? 'Η σύνδεση δεν ολοκληρώθηκε.');
+  }
 
   async function forgotPassword() {
     const e = email.trim();
@@ -124,6 +143,42 @@ export function LoginScreen() {
               <ThemedText type="small" themeColor="textSecondary">Δεν έχεις λογαριασμό; </ThemedText>
               <ThemedText type="small" style={styles.link}>Εγγραφή</ThemedText>
             </Pressable>
+
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <ThemedText type="small" themeColor="textSecondary">ή</ThemedText>
+              <View style={styles.dividerLine} />
+            </View>
+
+            <Pressable
+              onPress={() => void social('google')}
+              disabled={!!socialBusy}
+              style={({ pressed }) => [styles.social, pressed && styles.buttonPressed]}>
+              {socialBusy === 'google' ? (
+                <ActivityIndicator color={c.text} />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={18} color="#EA4335" />
+                  <ThemedText style={styles.socialText}>Συνέχεια με Google</ThemedText>
+                </>
+              )}
+            </Pressable>
+
+            {Platform.OS === 'ios' ? (
+              <Pressable
+                onPress={() => void social('apple')}
+                disabled={!!socialBusy}
+                style={({ pressed }) => [styles.social, styles.socialApple, pressed && styles.buttonPressed]}>
+                {socialBusy === 'apple' ? (
+                  <ActivityIndicator color="#FFFFFF" />
+                ) : (
+                  <>
+                    <Ionicons name="logo-apple" size={18} color="#FFFFFF" />
+                    <ThemedText style={styles.socialTextApple}>Συνέχεια με Apple</ThemedText>
+                  </>
+                )}
+              </Pressable>
+            ) : null}
           </View>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -158,7 +213,23 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   linkRow: { alignItems: 'center', paddingVertical: Spacing.one },
   registerRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.one },
   button: { height: 52, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
-  buttonPressed: { backgroundColor: Brand.primaryPressed },
+  buttonPressed: { opacity: 0.85 },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: Brand.onPrimary, fontSize: 16, fontWeight: '700' },
+  divider: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginVertical: Spacing.one },
+  dividerLine: { flex: 1, height: 1, backgroundColor: c.border },
+  social: {
+    height: 52,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: c.border,
+    backgroundColor: c.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.two,
+  },
+  socialApple: { backgroundColor: '#000000', borderColor: '#000000' },
+  socialText: { color: c.text, fontSize: 15, fontWeight: '700' },
+  socialTextApple: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 });
