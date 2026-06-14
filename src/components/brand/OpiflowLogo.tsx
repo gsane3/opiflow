@@ -39,7 +39,7 @@ export function OpiflowWordmark({
     <div className="flex items-center gap-2">
       <OpiflowMark className={markClassName} />
       <span className={textClassName}>
-        <span className="text-zinc-900">opiflow</span>
+        <span className="text-zinc-900 dark:text-zinc-100">opiflow</span>
         <span className="text-indigo-600">.ai</span>
       </span>
     </div>
