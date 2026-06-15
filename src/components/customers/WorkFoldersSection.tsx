@@ -110,6 +110,13 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
   const [editError, setEditError] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // public folder link (WF-2)
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkError, setLinkError] = useState('');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -168,6 +175,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
     setSelectedId(f.id);
     setEditing(false);
     setTitleError(''); setEditError('');
+    setLinkUrl(''); setLinkSent(false); setLinkCopied(false); setLinkError('');
     setETitle(f.title); setENotes(f.notes ?? ''); setEStatus(f.status);
   }
 
@@ -204,6 +212,52 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
     setEditError('');
     const updated = await patchSelected({ status: 'archived' });
     if (!updated) setEditError('Η αρχειοθέτηση απέτυχε. Δοκίμασε ξανά.');
+  }
+
+  // WF-2: create (draft) the public folder link, then copy or send it.
+  async function draftLink() {
+    if (!selectedId) return;
+    setLinkBusy(true); setLinkError(''); setLinkSent(false); setLinkCopied(false);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setLinkError('Λήξη σύνδεσης. Δοκίμασε ξανά.'); return; }
+      const res = await fetch(`/api/folders/${selectedId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'draft' }) });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; responseUrl?: string };
+      if (res.ok && json?.ok && json.responseUrl) setLinkUrl(json.responseUrl);
+      else setLinkError('Δεν δημιουργήθηκε ο σύνδεσμος. Δοκίμασε ξανά.');
+    } catch {
+      setLinkError('Δεν δημιουργήθηκε ο σύνδεσμος. Δοκίμασε ξανά.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  async function copyLink() {
+    if (!linkUrl) return;
+    try {
+      await navigator.clipboard.writeText(linkUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch {
+      setLinkError('Δεν έγινε αντιγραφή. Αντίγραψε χειροκίνητα.');
+    }
+  }
+
+  async function sendLink() {
+    if (!selectedId || !linkUrl) return;
+    setLinkBusy(true); setLinkError('');
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setLinkError('Λήξη σύνδεσης. Δοκίμασε ξανά.'); return; }
+      const res = await fetch(`/api/folders/${selectedId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'send', responseUrl: linkUrl }) });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean; fallbackReason?: string };
+      if (res.ok && json?.ok && json.sent) setLinkSent(true);
+      else setLinkError(json?.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.');
+    } catch {
+      setLinkError('Δεν στάλθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setLinkBusy(false);
+    }
   }
 
   // Auto-dismiss the create-success banner (cleared on unmount, no stray timer).
@@ -298,6 +352,23 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
                           <div className="rounded-lg bg-zinc-100 p-3 text-xs text-zinc-500 dark:bg-[#17232f] dark:text-zinc-400">
                             <p>Οι προσφορές, τα ραντεβού και οι φωτογραφίες θα εμφανίζονται εδώ.</p>
                             <p className="mt-1">Σύντομα θα μπορείς να συνδέεις προσφορές και ραντεβού εδώ.</p>
+                          </div>
+                          {/* Public folder link — copy/send to the customer (WF-2) */}
+                          <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
+                            <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Σύνδεσμος για τον πελάτη</p>
+                            {linkError && <p className="text-xs text-red-600">{linkError}</p>}
+                            {!linkUrl ? (
+                              <Button variant="secondary" size="sm" loading={linkBusy} onClick={draftLink}>Δημιουργία συνδέσμου</Button>
+                            ) : (
+                              <>
+                                <input readOnly value={linkUrl} onFocus={(e) => e.target.select()} className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-700 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-300" />
+                                <div className="flex flex-wrap gap-2">
+                                  <Button variant="secondary" size="sm" onClick={copyLink}>{linkCopied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή'}</Button>
+                                  <Button size="sm" loading={linkBusy} onClick={sendLink}>Αποστολή (Viber/SMS)</Button>
+                                </div>
+                                {linkSent && <p className="text-xs font-medium text-green-700">Ο σύνδεσμος στάλθηκε.</p>}
+                              </>
+                            )}
                           </div>
                           <div className="flex flex-wrap gap-2">
                             <Button variant="secondary" size="sm" onClick={() => { setETitle(selected.title); setENotes(selected.notes ?? ''); setEStatus(selected.status); setEditError(''); setEditing(true); }}>
