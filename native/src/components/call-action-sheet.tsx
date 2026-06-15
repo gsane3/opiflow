@@ -151,7 +151,7 @@ export function CallActionSheet({
   // Fetch (and, for a just-ended call, poll) the AI brief + suggested chips.
   // One immediate fetch always runs (so chips show when opened from history);
   // when `polling`, it retries every 2.5 s until the transcript brief is ready
-  // or ~30 s elapse.
+  // or ~60 s elapse.
   useEffect(() => {
     setLiveSummary(null);
     setActions([]);
@@ -168,7 +168,10 @@ export function CallActionSheet({
     const doPoll = polling || retryNonce > 0;
     let cancelled = false;
     let attempts = 0;
-    const maxAttempts = 12;
+    // ~60 s window (24 × 2.5 s). A longer call's transcript can legitimately take
+    // 30–60 s, so we don't flip to the "δεν ολοκληρώθηκε" state too eagerly; a
+    // server-confirmed failure (processing_failed_at) still shows immediately.
+    const maxAttempts = 24;
     let timer: ReturnType<typeof setTimeout> | null = null;
     setLoadingBrief(true);
 
