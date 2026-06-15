@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button, Card, EmptyState, BottomSheet, SheetRow } from '@/components/ui';
+import { Skeleton } from '@/components/ui/Skeleton';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
 import { norm } from '@/lib/search';
 import CustomerCard from '@/components/customers/CustomerCard';
@@ -228,7 +229,12 @@ export default function CustomersPage() {
           <div className="h-16 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
           <div className="h-16 rounded-[28px] bg-white dark:bg-[#17232f] shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10" />
         </div>
-        <p className="text-center text-sm text-zinc-400 dark:text-zinc-500">Φόρτωση πελατών...</p>
+        {/* Card placeholders so the list feels instant (no blank-then-pop). */}
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2" role="status" aria-label="Φόρτωση πελατών">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-[28px]" />
+          ))}
+        </div>
       </div>
     );
   }
