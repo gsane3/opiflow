@@ -48,7 +48,7 @@ interface CmdResult {
 
 const EXAMPLES = [
   'Ποια ραντεβού έχω σήμερα;',
-  'Φτιάξε task να καλέσω τον Δημητρίου αύριο',
+  'Φτιάξε εργασία να καλέσω τον Δημητρίου αύριο',
   'Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10',
   'Προσφορά για τον Αλεξάνδρου: υλικά 3500, εργατικά 500',
   'Ακύρωσε το ραντεβού με τον Καραγιάννη αύριο',
@@ -204,7 +204,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
       const isAppt = result.intent === 'create_appointment';
       const r = await apiPost<{ ok?: boolean }>('/api/tasks', {
         customerId: matched?.id ?? null,
-        title: result.params.title?.trim() || (isAppt ? (matched ? `Ραντεβού με ${matched.name}` : 'Νέο ραντεβού') : 'Νέο task'),
+        title: result.params.title?.trim() || (isAppt ? (matched ? `Ραντεβού με ${matched.name}` : 'Νέο ραντεβού') : 'Νέα εργασία'),
         type: isAppt ? result.params.appointmentType ?? 'book_appointment' : 'other',
         status: 'open',
         priority: result.params.priority ?? 'normal',
@@ -338,10 +338,15 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
           />
           {!result && !analyzing ? (
             <View style={styles.examples}>
+              <ThemedText type="smallBold" style={styles.examplesLabel}>Παραδείγματα εντολών</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.examplesHelp}>
+                Γράψε ή υπαγόρευσε κάτι σαν τα παρακάτω.
+              </ThemedText>
+              {/* Static examples — not tappable (display only). */}
               {EXAMPLES.map((ex) => (
-                <Pressable key={ex} onPress={() => setInput(ex)} style={({ pressed }) => [styles.exChip, pressed && styles.pressed]}>
+                <View key={ex} style={styles.exChip}>
                   <ThemedText type="small" style={styles.exText}>{ex}</ThemedText>
-                </Pressable>
+                </View>
               ))}
             </View>
           ) : null}
@@ -411,7 +416,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                 <ThemedText type="small" themeColor="textSecondary" style={styles.label}>
                   {result.intent === 'create_appointment' ? 'Νέο ραντεβού (προεπισκόπηση)' : 'Νέο task (προεπισκόπηση)'}
                 </ThemedText>
-                <Row k="Τίτλος" v={result.params.title?.trim() || (result.intent === 'create_appointment' ? (matched ? `Ραντεβού με ${matched.name}` : 'Νέο ραντεβού') : 'Νέο task')} />
+                <Row k="Τίτλος" v={result.params.title?.trim() || (result.intent === 'create_appointment' ? (matched ? `Ραντεβού με ${matched.name}` : 'Νέο ραντεβού') : 'Νέα εργασία')} />
                 {matched ? <Row k="Πελάτης" v={matched.name ?? ''} /> : <Row k="Πελάτης" v="— (χωρίς σύνδεση)" />}
                 <Row k="Ημερομηνία" v={result.params.dueDate ? `${result.params.dueDate}${result.params.dueTime ? ` ${result.params.dueTime}` : ''}` : 'Σήμερα'} />
                 {result.params.note ? <Row k="Σημείωση" v={result.params.note} /> : null}
@@ -439,8 +444,8 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                       <Row k={`ΦΠΑ ${vatRate}%`} v={formatEuro(offerTotals.vat)} />
                       <Row k="Σύνολο" v={formatEuro(offerTotals.total)} bold />
                     </View>
-                    <ThemedText type="small" themeColor="textSecondary">Θα δημιουργηθεί draft. Δεν στέλνεται στον πελάτη.</ThemedText>
-                    <PrimaryButton label="Δημιουργία draft προσφοράς" busy={busy} onPress={() => void saveOffer()} />
+                    <ThemedText type="small" themeColor="textSecondary">Θα δημιουργηθεί πρόχειρο. Δεν στέλνεται στον πελάτη.</ThemedText>
+                    <PrimaryButton label="Δημιουργία πρόχειρης προσφοράς" busy={busy} onPress={() => void saveOffer()} />
                   </>
                 )}
               </View>
@@ -520,6 +525,8 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
     elevation: 4,
   },
   examples: { gap: Spacing.one },
+  examplesLabel: { color: c.text },
+  examplesHelp: { marginBottom: Spacing.one },
   exChip: { backgroundColor: c.surface, borderRadius: 12, paddingHorizontal: Spacing.three, paddingVertical: 8 },
   exText: { color: c.textSecondary },
   err: { color: '#D14343' },

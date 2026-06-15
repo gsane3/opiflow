@@ -46,6 +46,7 @@ export default function AppointmentsScreen() {
   const [appts, setAppts] = useState<Task[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   // Send-link sheet state.
@@ -73,8 +74,10 @@ export default function AppointmentsScreen() {
       const map: Record<string, string> = {};
       for (const cu of c?.customers ?? []) map[cu.id] = cu.name ?? 'Πελάτης';
       setNames(map);
+      setError(false);
     } catch {
-      // keep last; pull-to-refresh retries
+      // Distinguish a network error from a genuinely empty agenda.
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -189,6 +192,11 @@ export default function AppointmentsScreen() {
         <View style={styles.center}>
           <ActivityIndicator color={Brand.primary} />
         </View>
+      ) : error && rows.length === 0 ? (
+        <View style={styles.center}>
+          <ThemedText themeColor="textSecondary" style={styles.errorText}>Δεν φορτώθηκαν τα στοιχεία.</ThemedText>
+          <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => { setLoading(true); void load(); }} />
+        </View>
       ) : rows.length === 0 ? (
         <View style={styles.center}>
           <ThemedText themeColor="textSecondary">Δεν υπάρχουν ραντεβού.</ThemedText>
@@ -245,13 +253,13 @@ export default function AppointmentsScreen() {
                 </Pressable>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Αποστολή link ραντεβού"
+                  accessibilityLabel="Αποστολή συνδέσμου ραντεβού"
                   onPress={() => openLink(task)}
                   hitSlop={8}
                   style={({ pressed }) => [styles.linkBtn, pressed && styles.pressed]}>
                   <Ionicons name="paper-plane-outline" size={16} color={Brand.primary} />
                   <ThemedText type="small" style={styles.linkBtnText}>
-                    Αποστολή link
+                    Αποστολή συνδέσμου
                   </ThemedText>
                 </Pressable>
               </View>
@@ -260,11 +268,11 @@ export default function AppointmentsScreen() {
         />
       )}
 
-      <SheetModal visible={!!linkTask} title="Αποστολή link ραντεβού" onClose={closeLink}>
+      <SheetModal visible={!!linkTask} title="Αποστολή συνδέσμου ραντεβού" onClose={closeLink}>
         {sent ? (
           <>
             <ThemedText type="smallBold" style={styles.dark}>
-              Το link στάλθηκε στον πελάτη.
+              Ο σύνδεσμος στάλθηκε στον πελάτη.
             </ThemedText>
             <PrimaryButton label="Κλείσιμο" onPress={closeLink} />
           </>
@@ -316,6 +324,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   back: { padding: 4 },
   title: { fontSize: 22 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
+  errorText: { marginBottom: Spacing.three },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
   groupHeader: { color: c.textSecondary, letterSpacing: 0.6, marginTop: Spacing.three, marginBottom: Spacing.one },
   groupHeaderOverdue: { color: '#D14343' },

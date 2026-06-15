@@ -30,6 +30,8 @@ interface CommRow {
   phone: string | null;
   summary: string | null;
   brief_created_at: string | null;
+  processing_failed_at: string | null;
+  processing_error_code: string | null;
 }
 
 interface BriefRow {
@@ -53,7 +55,7 @@ export async function GET(
     let comm: CommRow | null = null;
     const withBriefCol = await supabase
       .from('communications')
-      .select('id, customer_id, channel, direction, status, phone, summary, brief_created_at')
+      .select('id, customer_id, channel, direction, status, phone, summary, brief_created_at, processing_failed_at, processing_error_code')
       .eq('id', id)
       .eq('business_id', businessId)
       .eq('channel', 'call')
@@ -70,7 +72,9 @@ export async function GET(
       if (base.error) {
         return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
       }
-      comm = base.data ? ({ ...(base.data as object), brief_created_at: null } as CommRow) : null;
+      comm = base.data
+        ? ({ ...(base.data as object), brief_created_at: null, processing_failed_at: null, processing_error_code: null } as CommRow)
+        : null;
     } else {
       comm = (withBriefCol.data as unknown as CommRow | null) ?? null;
     }
@@ -100,6 +104,10 @@ export async function GET(
 
     const summary = briefText ?? comm.summary ?? null;
     const ready = briefKind === 'transcript' || Boolean(comm.brief_created_at);
+    // The recording→transcript pipeline writes processing_failed_at on a terminal
+    // failure. The client uses `failed` to show a "δεν ολοκληρώθηκε" + retry state
+    // instead of waiting silently. A transcript that arrived (ready) wins.
+    const failed = !ready && Boolean(comm.processing_failed_at);
 
     // Customer name (if the call is linked) — lets the card branch saved/unsaved.
     let customerName: string | null = null;
@@ -123,6 +131,8 @@ export async function GET(
       ok: true,
       id: comm.id,
       ready,
+      failed,
+      errorCode: comm.processing_error_code ?? null,
       briefKind,
       summary,
       status: comm.status,

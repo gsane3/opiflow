@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
-import { SheetModal } from '@/components/ui';
+import { PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
@@ -50,6 +50,7 @@ export function NotificationsSheet({
   const styles = useMemo(() => makeStyles(c), [c]);
   const [items, setItems] = useState<NotificationItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [resolved, setResolved] = useState<Record<string, 'accepted' | 'rejected'>>({});
 
@@ -58,8 +59,10 @@ export function NotificationsSheet({
     try {
       const res = await apiGet<{ ok?: boolean; notifications?: NotificationItem[] }>('/api/notifications');
       setItems(res?.notifications ?? []);
+      setError(false);
     } catch {
-      setItems([]);
+      // Distinguish a network error from a genuinely empty inbox.
+      setError(true);
     } finally {
       setLoading(false);
     }
@@ -97,6 +100,13 @@ export function NotificationsSheet({
     <SheetModal visible={visible} title="Ειδοποιήσεις" onClose={onClose}>
       {loading ? (
         <ActivityIndicator color={Brand.primary} style={{ marginVertical: Spacing.four }} />
+      ) : error && items.length === 0 ? (
+        <View style={styles.errorWrap}>
+          <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
+            Δεν φορτώθηκαν τα στοιχεία.
+          </ThemedText>
+          <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => void load()} />
+        </View>
       ) : items.length === 0 ? (
         <ThemedText type="small" themeColor="textSecondary" style={styles.empty}>
           Καμία νέα ειδοποίηση.
@@ -148,6 +158,7 @@ export function NotificationsSheet({
 const makeStyles = (c: ThemePalette) =>
   StyleSheet.create({
     empty: { paddingVertical: Spacing.four, textAlign: 'center' },
+    errorWrap: { paddingVertical: Spacing.two, gap: Spacing.two },
     list: { maxHeight: 460 },
     dark: { color: c.text },
     item: { borderBottomWidth: 1, borderBottomColor: c.border, paddingVertical: Spacing.two },

@@ -2,7 +2,7 @@
 // full AI brief + actions (call, view/link/add contact, create task, delete).
 
 import { Ionicons } from '@expo/vector-icons';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -35,8 +35,25 @@ const ACTION_TASK_TYPE: Record<string, string> = {
 interface BriefStatus {
   ok?: boolean;
   ready?: boolean;
+  failed?: boolean;
   summary?: string | null;
   suggestedActions?: Array<{ actionType: string; label: string }>;
+}
+
+// Map the backend's intake/upload-send fallbackReason code to plain Greek.
+function fallbackReasonText(reason?: string | null): string {
+  switch (reason) {
+    case 'missing_mobile':
+      return 'Δεν στάλθηκε: λείπει κινητό τηλέφωνο.';
+    case 'provider_unavailable':
+      return 'Δεν στάλθηκε: η υπηρεσία μηνυμάτων δεν είναι διαθέσιμη.';
+    case 'provider_failed':
+      return 'Δεν στάλθηκε: υπήρξε πρόβλημα στην αποστολή. Δοκίμασε ξανά.';
+    case 'missing_email':
+      return 'Δεν στάλθηκε: λείπει email.';
+    default:
+      return 'Δεν στάλθηκε. Δοκίμασε ξανά.';
+  }
 }
 
 /** Strip log markers, keep the human/AI text of the summary. */
@@ -87,6 +104,12 @@ export function CallActionSheet({
   const [actions, setActions] = useState<Array<{ actionType: string; label: string }>>([]);
   const [briefReady, setBriefReady] = useState(false);
   const [loadingBrief, setLoadingBrief] = useState(false);
+  // Brief just landed (false→true) → show a one-shot success line; or the
+  // transcript failed / timed out → show a failure state with a retry.
+  const [briefJustReady, setBriefJustReady] = useState(false);
+  const [briefFailed, setBriefFailed] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
+  const readyFiredRef = useRef(false);
 
   // add-contact form
   const [cName, setCName] = useState('');
@@ -105,7 +128,7 @@ export function CallActionSheet({
     setCName('');
     setCCompany('');
     setCEmail('');
-    setTTitle(call.direction === 'inbound' && call.status !== 'completed' ? 'Κλήση πίσω' : 'Follow-up κλήσης');
+    setTTitle(call.direction === 'inbound' && call.status !== 'completed' ? 'Κλήση πίσω' : 'Παρακολούθηση κλήσης');
     setTType('call_back');
     setTNote('');
     // Find an existing customer with the same phone (for «Σύνδεση με υπάρχουσα»).
@@ -133,11 +156,16 @@ export function CallActionSheet({
     setLiveSummary(null);
     setActions([]);
     setBriefReady(false);
+    setBriefJustReady(false);
+    setBriefFailed(false);
+    readyFiredRef.current = false;
     const callId = call?.id;
     if (!callId) {
       setLoadingBrief(false);
       return;
     }
+    // Poll when this is a just-ended call (polling) OR the user tapped retry.
+    const doPoll = polling || retryNonce > 0;
     let cancelled = false;
     let attempts = 0;
     const maxAttempts = 12;
@@ -147,19 +175,35 @@ export function CallActionSheet({
     const poll = async () => {
       attempts += 1;
       let ready = false;
+      let failed = false;
       try {
         const r = await apiGet<BriefStatus>(`/api/calls/${callId}/brief`);
         if (cancelled) return;
         if (r?.summary) setLiveSummary(r.summary);
         if (Array.isArray(r?.suggestedActions)) setActions(r.suggestedActions);
         ready = Boolean(r?.ready);
-        if (ready) setBriefReady(true);
+        failed = Boolean(r?.failed);
+        if (ready) {
+          setBriefReady(true);
+          // Fire the success haptic + message exactly once on false→true — but
+          // only for a live just-ended call (or retry), not when browsing an
+          // old call from history (where it would always read as "just ready").
+          if (doPoll && !readyFiredRef.current) {
+            readyFiredRef.current = true;
+            setBriefJustReady(true);
+            void hapticSuccess();
+          }
+        }
+        if (failed) setBriefFailed(true);
       } catch {
         // transient — retry until maxAttempts
       }
       if (cancelled) return;
-      if (ready || !polling || attempts >= maxAttempts) {
+      const timedOut = attempts >= maxAttempts;
+      if (ready || failed || !doPoll || timedOut) {
         setLoadingBrief(false);
+        // Polling exhausted without a transcript brief → treat as "not completed".
+        if (doPoll && timedOut && !ready && !failed) setBriefFailed(true);
         return;
       }
       timer = setTimeout(() => void poll(), 2500);
@@ -170,12 +214,22 @@ export function CallActionSheet({
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [call, polling]);
+  }, [call, polling, retryNonce]);
 
   if (!call) return null;
 
   const brief = fullBrief(liveSummary ?? call.summary);
   const name = call.customer?.name ?? null;
+
+  // Re-poll the brief endpoint after a failure/timeout (no re-transcription —
+  // just check again whether the transcript landed in the meantime).
+  function retryBrief() {
+    setBriefFailed(false);
+    setBriefReady(false);
+    setBriefJustReady(false);
+    setLoadingBrief(true);
+    setRetryNonce((n) => n + 1);
+  }
 
   // One-tap: turn an AI-suggested action into a task for this call's customer.
   async function runAction(a: { actionType: string; label: string }) {
@@ -240,8 +294,14 @@ export function CallActionSheet({
             text: 'Αποστολή αιτήματος',
             onPress: async () => {
               try {
-                const r = await apiPost<{ sent?: boolean; error?: string }>(`/api/customers/${newId}/intake-link`, { mode: 'send' });
-                Alert.alert(r?.sent ? '✓' : 'Αποστολή', r?.sent ? 'Στάλθηκε αίτημα στοιχείων.' : 'Δεν στάλθηκε (λείπει κινητό;).');
+                const r = await apiPost<{ sent?: boolean; fallbackReason?: string | null; error?: string }>(
+                  `/api/customers/${newId}/intake-link`,
+                  { mode: 'send' },
+                );
+                Alert.alert(
+                  r?.sent ? '✓' : 'Αποστολή',
+                  r?.sent ? 'Στάλθηκε αίτημα στοιχείων.' : fallbackReasonText(r?.fallbackReason),
+                );
               } catch {
                 Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε.');
               } finally {
@@ -314,13 +374,35 @@ export function CallActionSheet({
             {call.phone && name ? ` · ${call.phone}` : ''}
           </ThemedText>
 
-          {loadingBrief && !brief ? (
+          {loadingBrief && !brief && !briefFailed ? (
             <View style={styles.briefLoading}>
               <ActivityIndicator color={Brand.primary} />
               <ThemedText type="small" themeColor="textSecondary">
                 Ετοιμάζεται η περίληψη…
               </ThemedText>
             </View>
+          ) : briefFailed ? (
+            <>
+              {brief ? (
+                <View style={styles.briefBox}>
+                  <ThemedText type="smallBold" style={styles.briefTitle}>
+                    Περίληψη κλήσης
+                  </ThemedText>
+                  <ThemedText type="small" style={styles.briefText}>
+                    {brief}
+                  </ThemedText>
+                </View>
+              ) : null}
+              <View style={styles.failBox}>
+                <ThemedText type="smallBold" style={styles.failTitle}>
+                  Η περίληψη δεν ολοκληρώθηκε
+                </ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Μπορείς να ξαναδοκιμάσεις ή να ζητήσεις στοιχεία από τον πελάτη.
+                </ThemedText>
+                <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={retryBrief} busy={loadingBrief} />
+              </View>
+            </>
           ) : brief ? (
             <View style={styles.briefBox}>
               <View style={styles.briefTitleRow}>
@@ -329,6 +411,14 @@ export function CallActionSheet({
                 </ThemedText>
                 {polling && !briefReady ? <ActivityIndicator size="small" color={Brand.primary} /> : null}
               </View>
+              {briefJustReady ? (
+                <View style={styles.readyRow}>
+                  <Ionicons name="checkmark-circle" size={14} color="#1B8A4C" />
+                  <ThemedText type="small" style={styles.readyText}>
+                    Η περίληψη είναι έτοιμη
+                  </ThemedText>
+                </View>
+              ) : null}
               <ThemedText type="small" style={styles.briefText}>
                 {brief}
               </ThemedText>
@@ -427,6 +517,10 @@ const makeStyles = (c: ThemePalette) =>
     briefTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.two },
     briefTitle: { color: c.text },
     briefText: { color: c.text },
+    readyRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    readyText: { color: '#1B8A4C', fontWeight: '700' },
+    failBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, gap: Spacing.two },
+    failTitle: { color: c.text },
     briefLoading: {
       flexDirection: 'row',
       alignItems: 'center',
