@@ -82,3 +82,40 @@ export function deriveSuggestedActions(ai: LooseAiResult | null | undefined): De
 
   return out.slice(0, 5);
 }
+
+/** Accent- and case-insensitive Greek text for keyword matching. */
+function foldGreek(s: string): string {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+// Keyword → action, evaluated in this order so the most "forward" actions
+// (offer, appointment) surface before the catch-all call-back. Roots are stem
+// fragments (no final-sigma / accent variance) matched on the folded text.
+const BRIEF_KEYWORD_RULES: Array<{ type: SuggestedActionType; re: RegExp }> = [
+  { type: 'send_offer', re: /προσφορ|προσφ\.|quote|κοστολογ/ },
+  { type: 'book_appointment', re: /ραντεβ|επισκεψ|επισκεφ|αυτοψ|appointment/ },
+  { type: 'request_photos', re: /φωτογραφ|φωτο |εικον|βιντεο/ },
+  { type: 'request_details', re: /διευθυνσ|στοιχει|τιμολογ|αφμ|email|@/ },
+  { type: 'call_back', re: /καλεσ|κλησ|τηλεφ|παρε τηλ|επικοινων|call ?back|follow ?up|επομεν/ },
+];
+
+/**
+ * Derive up to 4 de-duplicated suggested actions purely from the TEXT of a call
+ * brief — works without a structured AI result, so it covers calls to UNSAVED
+ * numbers (no customer, no persisted suggested_actions). Used by the post-call
+ * card to show one-tap "next task" chips.
+ */
+export function deriveActionsFromBriefText(text: string | null | undefined): DerivedAction[] {
+  if (!text || !text.trim()) return [];
+  const folded = foldGreek(text);
+  const out: DerivedAction[] = [];
+  const seen = new Set<SuggestedActionType>();
+  for (const rule of BRIEF_KEYWORD_RULES) {
+    if (seen.has(rule.type)) continue;
+    if (rule.re.test(folded)) {
+      seen.add(rule.type);
+      out.push({ actionType: rule.type, label: SUGGESTED_ACTION_LABELS[rule.type], params: null });
+    }
+  }
+  return out.slice(0, 4);
+}

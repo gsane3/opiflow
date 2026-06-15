@@ -77,6 +77,19 @@ const IconCalendarCheck = svg('M9 12.75 11.25 15 15 9.75M21 11.25v7.5A2.25 2.25 
 const IconClipboard = svg('M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z');
 const IconPaperclip = svg('m18.375 12.739-7.693 7.693a4.5 4.5 0 0 1-6.364-6.364l10.94-10.94A3 3 0 1 1 19.5 7.372L8.552 18.32m.009-.01-.01.01m5.699-9.941-7.81 7.81a1.5 1.5 0 0 0 2.112 2.13');
 const IconDot = svg('M12 12.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5Z');
+const IconClock = svg('M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z');
+
+/** Gist ("Σύνοψη") of an AI call brief: the text between the «AI brief …:»
+ *  prefix and the first «Λεπτομέρειες:» / «Επόμενα βήματα:» heading. Drives the
+ *  "what the customer is waiting for" banner at the top of the chat. */
+function extractBriefGist(text: string | null | undefined): string | null {
+  if (!text) return null;
+  let t = text.trim().replace(/^AI brief[^\n:]*:?\s*/i, '');
+  const stop = t.search(/\n\s*(Λεπτομέρειες|Επόμενα βήματα)\s*:/);
+  if (stop >= 0) t = t.slice(0, stop);
+  t = t.split(/\n-{3,}\n/)[0].trim();
+  return t.length > 0 ? t : null;
+}
 
 const TYPE_ICON: Record<string, ComponentType<IconProps>> = {
   call: IconPhone, sms: IconChat, viber: IconChat, email: IconMail,
@@ -150,6 +163,15 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
   const callBriefs: BriefEntry[] = items
     .filter((i) => i.type === 'call' && Boolean(i.body))
     .map((i) => ({ id: i.id, title: i.title, body: i.body as string, occurredAt: i.occurredAt }));
+
+  // "Τι περιμένει ο πελάτης": gist of the most recent call brief (items are
+  // oldest→newest, so scan from the end). Tapping opens the full brief popup.
+  let latestCallBrief: TimelineItem | null = null;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const it = items[i];
+    if (it.type === 'call' && it.body && Boolean(it.payload?.hasBrief)) { latestCallBrief = it; break; }
+  }
+  const waiting = extractBriefGist(latestCallBrief?.body);
 
   // AI suggested-action chips. Server-driven (the suggested_actions table, written
   // by the AI review apply) when present, otherwise a heuristic from what's missing
@@ -392,6 +414,21 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
           <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
         </button>
       </header>
+
+      {/* What the customer is waiting for — gist of the latest AI call brief */}
+      {!loading && waiting && (
+        <button
+          type="button"
+          onClick={() => latestCallBrief && setCallPopup({ title: latestCallBrief.title, body: latestCallBrief.body, at: latestCallBrief.occurredAt })}
+          className="shrink-0 border-b border-indigo-100 dark:border-white/10 bg-indigo-50/70 dark:bg-indigo-500/10 px-4 py-2.5 text-left transition hover:bg-indigo-50 dark:hover:bg-indigo-500/15"
+        >
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+            <IconClock aria-hidden className="h-4 w-4 shrink-0" strokeWidth={1.7} />
+            Τι περιμένει ο πελάτης
+          </p>
+          <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-200">{waiting}</p>
+        </button>
+      )}
 
       {/* Chat body (the only scroll area) */}
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F5F5F7] dark:bg-[#0e1722] px-3 py-4">
