@@ -13,10 +13,39 @@ export interface IntakeCustomer {
   intakeStatus: string;
 }
 
+export interface IntakeBusiness {
+  name: string;
+  logoUrl: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+}
+
 interface IntakeApiResponse {
   ok: boolean;
   customer?: IntakeCustomer;
+  business?: IntakeBusiness | null;
   error?: string;
+}
+
+/** Build + download a .vcf so the customer can save the business as a contact —
+ *  future calls from the business then show up branded on their phone. */
+function downloadVCard(b: IntakeBusiness) {
+  const esc = (s: string) => s.replace(/[,;\\]/g, (m) => `\\${m}`);
+  const lines = ['BEGIN:VCARD', 'VERSION:3.0', `FN:${esc(b.name)}`, `ORG:${esc(b.name)}`];
+  if (b.phone) lines.push(`TEL;TYPE=CELL:${b.phone}`);
+  if (b.email) lines.push(`EMAIL:${b.email}`);
+  if (b.website) lines.push(`URL:${b.website}`);
+  lines.push('END:VCARD');
+  const blob = new Blob([lines.join('\r\n')], { type: 'text/vcard;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${b.name.replace(/[^\p{L}\p{N} _-]/gu, '').trim() || 'contact'}.vcf`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 type PreferredContactMethod = 'viber' | 'sms' | 'email';
@@ -30,6 +59,7 @@ const CONTACT_METHOD_OPTIONS: { value: PreferredContactMethod; label: string }[]
 interface IntakeFormClientProps {
   token: string;
   initialCustomer?: IntakeCustomer | null;
+  initialBusiness?: IntakeBusiness | null;
   initialError?: string | null;
   initialSubmitted?: boolean;
 }
@@ -37,10 +67,12 @@ interface IntakeFormClientProps {
 export default function IntakeFormClient({
   token,
   initialCustomer = null,
+  initialBusiness = null,
   initialError = null,
   initialSubmitted = false,
 }: IntakeFormClientProps) {
   const [customer, setCustomer] = useState<IntakeCustomer | null>(initialCustomer);
+  const [business, setBusiness] = useState<IntakeBusiness | null>(initialBusiness);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState(initialCustomer?.email ?? '');
@@ -82,6 +114,7 @@ export default function IntakeFormClient({
         }
 
         setCustomer(json.customer);
+        if (json.business) setBusiness(json.business);
         setEmail(json.customer.email ?? '');
         setAddress(json.customer.address ?? '');
         setMessage('Συμπληρώστε τα στοιχεία σας για να ολοκληρώσουμε την καρτέλα.');
@@ -148,16 +181,35 @@ export default function IntakeFormClient({
     <main className="min-h-screen bg-zinc-50 dark:bg-[#0e1722] px-4 py-10">
       <div className="mx-auto max-w-lg">
         <header className="px-1 text-center">
+          {business && (
+            <div className="mb-4 flex flex-col items-center gap-2">
+              {business.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={business.logoUrl}
+                  alt={business.name}
+                  className="h-14 w-auto max-w-[12rem] object-contain"
+                />
+              ) : (
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-2xl font-bold text-white">
+                  {business.name.slice(0, 1).toUpperCase()}
+                </div>
+              )}
+              <p className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{business.name}</p>
+            </div>
+          )}
           <h1 className="text-2xl font-bold text-[#0B1120] dark:text-zinc-100">
             Συμπλήρωση στοιχείων
           </h1>
           <p className="mt-2 text-base leading-7 text-zinc-600 dark:text-zinc-300">
-            Συμπληρώστε τα βασικά στοιχεία σας για να σας εξυπηρετήσουμε σωστά.
+            {business
+              ? `Συμπλήρωσε μερικά στοιχεία ώστε ${business.name} να σε εξυπηρετήσει σωστά.`
+              : 'Συμπληρώστε τα βασικά στοιχεία σας για να σας εξυπηρετήσουμε σωστά.'}
           </p>
         </header>
 
         <section className="mt-6 rounded-[28px] bg-white dark:bg-[#17232f] p-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
-          {customer ? (
+          {customer && !submitted ? (
             <div className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] p-4 text-sm text-zinc-700 dark:text-zinc-200">
               <p>
                 <span className="font-semibold text-zinc-900 dark:text-zinc-100">Καρτέλα:</span>{' '}
@@ -174,7 +226,7 @@ export default function IntakeFormClient({
             <p className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] p-4 text-sm text-zinc-700 dark:text-zinc-200">Φόρτωση...</p>
           ) : null}
 
-          {message ? (
+          {message && !submitted ? (
             <p className="mt-4 rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
               {message}
             </p>
@@ -285,8 +337,32 @@ export default function IntakeFormClient({
           ) : null}
 
           {submitted ? (
-            <div className="mt-5 rounded-2xl bg-green-50 p-4 text-center text-sm font-medium text-green-700">
-              Τα στοιχεία σας στάλθηκαν. Η επιχείρηση θα ενημερωθεί.
+            <div className="mt-5 flex flex-col items-center gap-3 rounded-2xl bg-green-50 p-6 text-center">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
+                <svg className="h-6 w-6 text-green-600" fill="none" strokeWidth={2.5} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                </svg>
+              </span>
+              <div>
+                <p className="text-lg font-bold text-green-700">Ευχαριστούμε!</p>
+                <p className="mt-1 text-sm text-green-700">
+                  {business
+                    ? `Τα στοιχεία σου στάλθηκαν. Ο/Η ${business.name} θα επικοινωνήσει σύντομα μαζί σου.`
+                    : 'Τα στοιχεία σου στάλθηκαν. Η επιχείρηση θα επικοινωνήσει σύντομα μαζί σου.'}
+                </p>
+              </div>
+              {business?.phone ? (
+                <button
+                  type="button"
+                  onClick={() => downloadVCard(business)}
+                  className="mt-1 inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-green-700 ring-1 ring-green-200 transition hover:bg-green-50"
+                >
+                  <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
+                  </svg>
+                  Αποθήκευση επαφής
+                </button>
+              ) : null}
             </div>
           ) : null}
 
