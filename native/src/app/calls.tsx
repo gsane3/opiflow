@@ -22,7 +22,6 @@ import { BottomTabInset, Brand, Shadow, Spacing, type ThemePalette } from '@/con
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
 import { briefExcerpt, formatWhen } from '@/lib/format';
-import { startRingback, stopRingback } from '@/lib/ringback';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
 import type { Communication } from '@/lib/types';
 
@@ -69,9 +68,6 @@ export default function CallsScreen() {
   // When the sheet is the just-ended call, it polls for the AI brief.
   const [sheetPolling, setSheetPolling] = useState(false);
 
-  // Stop ringback if the screen unmounts mid-call (e.g. user navigates away).
-  useEffect(() => () => stopRingback(), []);
-
   // Prefill from the customer workspace («Κλήση» button).
   useEffect(() => {
     if (typeof prefill === 'string' && prefill.trim()) {
@@ -109,7 +105,6 @@ export default function CallsScreen() {
       if (target) setNum(target);
       setDebug('');
       setStatus('connecting');
-      void startRingback();
       try {
         // Load the voice SDK on-demand (never at startup — see _layout.tsx).
         const { placeCall } = await import('@/lib/twilio');
@@ -117,9 +112,6 @@ export default function CallsScreen() {
           number,
           (s) => {
             setStatus(s);
-            // Local ringback while the line rings; stop the moment it connects/ends.
-            if (s === 'connecting' || s === 'ringing') void startRingback();
-            else stopRingback();
             if (s === 'disconnected' || s === 'failed') {
               setCall(null);
               setMuted(false);
@@ -157,7 +149,6 @@ export default function CallsScreen() {
         );
         setCall(handle);
       } catch (e) {
-        stopRingback();
         setStatus(null);
         const msg = e instanceof Error ? e.message : 'Άγνωστο σφάλμα.';
         setDebug('ERROR: ' + msg);
@@ -168,7 +159,6 @@ export default function CallsScreen() {
   );
 
   function hangup() {
-    stopRingback();
     call?.disconnect();
     setCall(null);
     setStatus(null);
