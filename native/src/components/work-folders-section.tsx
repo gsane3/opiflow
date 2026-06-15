@@ -12,7 +12,7 @@ import { ChipSelect, Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
-import { formatDate, todayYMD } from '@/lib/format';
+import { dmyToYmd, formatDate, todayYMD } from '@/lib/format';
 import type { WorkFolder, WorkFolderCounts } from '@/lib/types';
 
 // ---------------------------------------------------------------------------
@@ -301,6 +301,11 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     if (!titleVal) { setQaError('Γράψε τίτλο.'); return; }
     const customerId2 = fdetail?.customer?.id;
     if (!customerId2) { setQaError('Δεν βρέθηκε ο πελάτης.'); return; }
+    // Accept the field in either YYYY-MM-DD (default) or the app's DD-MM-YYYY
+    // display convention; the API only accepts YYYY-MM-DD.
+    const raw = qaDate.trim() || todayYMD();
+    const ymd = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : dmyToYmd(raw);
+    if (!ymd) { setQaError('Γράψε ημερομηνία ΕΕΕΕ-ΜΜ-ΗΗ.'); return; }
     setQaBusy(true);
     try {
       const r = await apiPost<{ ok?: boolean }>('/api/tasks', {
@@ -308,7 +313,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
         workFolderId: folderId,
         title: titleVal,
         type: qaType,
-        dueDate: qaDate || todayYMD(),
+        dueDate: ymd,
       });
       if (r?.ok) {
         setNewApptOpen(false);
@@ -656,7 +661,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                         <FdRow
                           key={a.id}
                           primary={a.title}
-                          secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}`}
+                          secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}${a.dueTime ? ` ${a.dueTime}` : ''}`}
                           busy={busyKey === `task:${a.id}`}
                           detachLabel="Αφαίρεση από φάκελο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'task', a.id, false)}
