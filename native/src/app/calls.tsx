@@ -22,6 +22,7 @@ import { BottomTabInset, Brand, Shadow, Spacing, type ThemePalette } from '@/con
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
 import { briefExcerpt, formatWhen } from '@/lib/format';
+import { startRingback, stopRingback } from '@/lib/ringback';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
 import type { Communication } from '@/lib/types';
 
@@ -65,6 +66,11 @@ export default function CallsScreen() {
   const [recentLoading, setRecentLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetCall, setSheetCall] = useState<Communication | null>(null);
+  // When the sheet is the just-ended call, it polls for the AI brief.
+  const [sheetPolling, setSheetPolling] = useState(false);
+
+  // Stop ringback if the screen unmounts mid-call (e.g. user navigates away).
+  useEffect(() => () => stopRingback(), []);
 
   // Prefill from the customer workspace («Κλήση» button).
   useEffect(() => {
@@ -103,25 +109,55 @@ export default function CallsScreen() {
       if (target) setNum(target);
       setDebug('');
       setStatus('connecting');
+      void startRingback();
       try {
         // Load the voice SDK on-demand (never at startup — see _layout.tsx).
         const { placeCall } = await import('@/lib/twilio');
-        const handle = await placeCall(number, (s) => {
-          setStatus(s);
-          if (s === 'disconnected' || s === 'failed') {
-            setCall(null);
-            setMuted(false);
-            setSpeaker(false);
-            setShowDtmf(false);
-            setDtmfSent('');
-            setTimeout(() => setStatus(null), 1200);
-            // The call was logged server-side at dial time and the AI brief
-            // follows shortly — refresh «Πρόσφατες» so it appears without a pull.
-            setTimeout(() => void loadRecent(), 1500);
-          }
-        });
+        const handle = await placeCall(
+          number,
+          (s) => {
+            setStatus(s);
+            // Local ringback while the line rings; stop the moment it connects/ends.
+            if (s === 'connecting' || s === 'ringing') void startRingback();
+            else stopRingback();
+            if (s === 'disconnected' || s === 'failed') {
+              setCall(null);
+              setMuted(false);
+              setSpeaker(false);
+              setShowDtmf(false);
+              setDtmfSent('');
+              setTimeout(() => setStatus(null), 1200);
+              // Background refresh of «Πρόσφατες»; the post-call card (opened
+              // from onLogged below) polls for the brief directly.
+              setTimeout(() => void loadRecent(), 1500);
+            }
+          },
+          undefined,
+          (r) => {
+            // Auto-present the post-call card for the just-ended call. Completed
+            // calls have a recording → poll for the transcript brief; a failed/
+            // no-answer call has none → show actions immediately (no polling).
+            if (!r.communicationId) {
+              void loadRecent();
+              return;
+            }
+            setSheetPolling(r.status === 'completed');
+            setSheetCall({
+              id: r.communicationId,
+              customerId: null,
+              channel: 'call',
+              direction: 'outbound',
+              status: r.status,
+              phone: number,
+              summary: null,
+              createdAt: new Date().toISOString(),
+              customer: null,
+            });
+          },
+        );
         setCall(handle);
       } catch (e) {
+        stopRingback();
         setStatus(null);
         const msg = e instanceof Error ? e.message : 'Άγνωστο σφάλμα.';
         setDebug('ERROR: ' + msg);
@@ -132,6 +168,7 @@ export default function CallsScreen() {
   );
 
   function hangup() {
+    stopRingback();
     call?.disconnect();
     setCall(null);
     setStatus(null);
@@ -271,7 +308,10 @@ export default function CallsScreen() {
               const name = item.customer?.name ?? item.phone ?? 'Άγνωστος';
               return (
                 <Pressable
-                  onPress={() => setSheetCall(item)}
+                  onPress={() => {
+                    setSheetPolling(false);
+                    setSheetCall(item);
+                  }}
                   style={({ pressed }) => [styles.recentRow, pressed && styles.pressed]}>
                   <Ionicons
                     name={item.direction === 'inbound' ? 'arrow-down-circle' : 'arrow-up-circle'}
@@ -309,7 +349,11 @@ export default function CallsScreen() {
 
       <CallActionSheet
         call={sheetCall}
-        onClose={() => setSheetCall(null)}
+        polling={sheetPolling}
+        onClose={() => {
+          setSheetCall(null);
+          setSheetPolling(false);
+        }}
         onChanged={() => void loadRecent()}
         onOpenCustomer={(cid) => router.push({ pathname: '/customers/[id]', params: { id: cid } })}
         onDial={(phone) => {

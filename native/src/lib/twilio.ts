@@ -26,11 +26,19 @@ async function fetchVoiceToken(onLog?: (s: string) => void): Promise<string> {
   return res.token;
 }
 
+/** Outcome of the post-hangup CRM call-log, surfaced so the UI can open the
+ *  post-call card and poll for the AI brief on the right communication row. */
+export interface CallLogResult {
+  communicationId?: string;
+  status: 'completed' | 'failed';
+}
+
 /** Place an outgoing call: app → Twilio → TwiML App → Asterisk → InterTelecom. */
 export async function placeCall(
   to: string,
   onStatus: (s: CallStatus) => void,
   onLog?: (s: string) => void,
+  onLogged?: (r: CallLogResult) => void,
 ): Promise<ActiveCall> {
   onLog?.(`κλήση προς ${to}…`);
   const token = await fetchVoiceToken(onLog);
@@ -40,18 +48,25 @@ export async function placeCall(
 
   // Log the call to the CRM exactly once when it ends. The Twilio CallSid lets
   // the recording webhook attach the Deepgram transcript + AI brief to this row.
+  // The /api/calls/log response carries the communicationId — surface it via
+  // onLogged so the calls screen can open the post-call card + poll for the brief.
   let connected = false;
   let logged = false;
   const logCall = (status: 'completed' | 'failed') => {
     if (logged) return;
     logged = true;
     const sid = (() => { try { return call.getSid(); } catch { return undefined; } })();
-    apiPost('/api/calls/log', {
+    apiPost<{ communicationId?: string }>('/api/calls/log', {
       direction: 'outbound',
       status,
       phone: to,
       ...(sid ? { providerCallId: sid } : {}),
-    }).catch((e) => console.log('[twilio] call log failed', e));
+    })
+      .then((r) => onLogged?.({ communicationId: r?.communicationId, status }))
+      .catch((e) => {
+        console.log('[twilio] call log failed', e);
+        onLogged?.({ status });
+      });
   };
 
   call.on(Call.Event.Ringing, () => { onLog?.('ringing'); onStatus('ringing'); });

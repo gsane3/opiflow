@@ -31,6 +31,19 @@ import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
 import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
 import { pickAndUploadPhotos } from '@/lib/upload';
 
+/** Pull the gist ("Σύνοψη") out of an AI call brief — the lines between the
+ *  «AI brief …:» prefix and the first «Λεπτομέρειες:» / «Επόμενα βήματα:»
+ *  heading (or the metadata-brief body). Used for the "what the customer is
+ *  waiting for" banner at the top of the chat. */
+function extractBriefGist(text: string | null | undefined): string | null {
+  if (!text) return null;
+  let t = text.trim().replace(/^AI brief[^\n:]*:?\s*/i, '');
+  const stop = t.search(/\n\s*(Λεπτομέρειες|Επόμενα βήματα)\s*:/);
+  if (stop >= 0) t = t.slice(0, stop);
+  t = t.split(/\n-{3,}\n/)[0].trim();
+  return t.length > 0 ? t : null;
+}
+
 export default function CustomerWorkspaceScreen() {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -91,6 +104,22 @@ export default function CustomerWorkspaceScreen() {
   }, [load]);
 
   const callPhone = customer?.mobilePhone || customer?.phone || customer?.landlinePhone || '';
+
+  // "Τι περιμένει ο πελάτης": prefer the gist of the most recent call brief,
+  // otherwise the AI memory fields on the customer. items are newest-first.
+  const latestBriefItem = useMemo(
+    () => items.find((it) => it.type === 'call' && it.payload?.hasBrief && !!it.body) ?? null,
+    [items],
+  );
+  const waiting = useMemo(
+    () =>
+      extractBriefGist(latestBriefItem?.body) ||
+      customer?.nextBestAction ||
+      customer?.statusSummary ||
+      customer?.needsSummary ||
+      null,
+    [latestBriefItem, customer],
+  );
 
   /** Direct-send (web parity): intake-link or upload-link with mode:'send'. */
   function sendRequest(kind: 'intake' | 'upload') {
@@ -242,6 +271,29 @@ export default function CustomerWorkspaceScreen() {
           </Pressable>
         </View>
       </SafeAreaView>
+
+      {/* What the customer is waiting for — from the latest AI call brief */}
+      {waiting ? (
+        <Pressable
+          onPress={() => latestBriefItem && setBriefItem(latestBriefItem)}
+          disabled={!latestBriefItem}
+          style={({ pressed }) => [styles.waitingCard, pressed && !!latestBriefItem && styles.pressed]}>
+          <View style={styles.waitingHead}>
+            <Ionicons name="hourglass-outline" size={14} color={Brand.primary} />
+            <ThemedText type="smallBold" style={styles.waitingTitle}>
+              Τι περιμένει ο πελάτης
+            </ThemedText>
+          </View>
+          <ThemedText type="small" style={styles.waitingText} numberOfLines={3}>
+            {waiting}
+          </ThemedText>
+          {latestBriefItem ? (
+            <ThemedText type="small" style={styles.waitingHint}>
+              Προβολή περίληψης ›
+            </ThemedText>
+          ) : null}
+        </Pressable>
+      ) : null}
 
       {/* Timeline (chat) */}
       {items.length === 0 ? (
@@ -1114,6 +1166,19 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   onBlue: { color: '#FFFFFF' },
   onBlueMuted: { color: 'rgba(255,255,255,0.75)' },
   tapHintOnBlue: { color: '#FFFFFF', fontWeight: '700', textDecorationLine: 'underline' },
+
+  waitingCard: {
+    marginHorizontal: Spacing.four,
+    marginTop: Spacing.three,
+    backgroundColor: Brand.primarySoft,
+    borderRadius: 14,
+    padding: Spacing.three,
+    gap: 4,
+  },
+  waitingHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  waitingTitle: { color: Brand.primary },
+  waitingText: { color: c.text },
+  waitingHint: { color: Brand.primary, fontWeight: '700' },
 
   feed: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.three, gap: Spacing.two },
   bubbleRow: { flexDirection: 'row', marginVertical: 3 },

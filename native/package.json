@@ -10,6 +10,7 @@
     "@twilio/voice-react-native-sdk": "2.0.0-preview.2",
     "base64-arraybuffer": "^1.0.2",
     "expo": "~54.0.0",
+    "expo-audio": "~1.1.1",
     "expo-blur": "~15.0.8",
     "expo-build-properties": "~1.0.10",
     "expo-constants": "~18.0.13",
