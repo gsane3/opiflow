@@ -12,6 +12,7 @@ import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { formatDateTimeGr } from '@/lib/date';
 import { Spinner } from '@/components/ui/Spinner';
+import { ChatSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import CustomerInfoPanel, { type BriefEntry, type InfoSection } from './CustomerInfoPanel';
 import ChatComposerSheet from './ChatComposerSheet';
@@ -312,6 +313,19 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
     if (!text || sending) return;
     const headers = await authHeaders();
     if (!headers) { setError('Συνδέσου ξανά.'); return; }
+
+    // Optimistic: show the bubble instantly with a "sending…" state and clear the
+    // input — like a real messenger. On success the reload swaps in the real row;
+    // on failure we drop the bubble and put the text back so the user can retry.
+    const tempId = `pending-${Date.now()}`;
+    const optimistic: TimelineItem = {
+      id: tempId, type: 'sms', side: 'us', interactive: false,
+      title: 'Μήνυμα', body: text, status: 'sending',
+      occurredAt: new Date().toISOString(), refTable: null, refId: null,
+    };
+    setItems((prev) => [...prev, optimistic]);
+    setMessageText('');
+    setError(null);
     setSending(true);
     try {
       const res = await fetch(`/api/customers/${customerId}/message`, {
@@ -321,12 +335,15 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       });
       const json = await res.json().catch(() => ({}));
       if (json?.ok) {
-        setMessageText('');
-        void load();
+        void load(); // replaces the optimistic bubble with the real timeline row
       } else {
+        setItems((prev) => prev.filter((it) => it.id !== tempId));
+        setMessageText(text);
         setError(json?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Το μήνυμα δεν στάλθηκε.');
       }
     } catch {
+      setItems((prev) => prev.filter((it) => it.id !== tempId));
+      setMessageText(text);
       setError('Το μήνυμα δεν στάλθηκε.');
     } finally {
       setSending(false);
@@ -433,10 +450,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       {/* Chat body (the only scroll area) */}
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[#F5F5F7] dark:bg-[#0e1722] px-3 py-4">
         {loading ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-center">
-            <Spinner className="text-indigo-500" />
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Φόρτωση συνομιλίας…</p>
-          </div>
+          <ChatSkeleton />
         ) : error ? (
           <p className="py-10 text-center text-sm text-red-500">{error}</p>
         ) : items.length === 0 ? (
@@ -470,7 +484,7 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
                   {tappable && (
                     <p className={`mt-0.5 text-[12px] ${mine ? 'text-white/80' : 'text-indigo-600'}`}>{hint}</p>
                   )}
-                  <p className={`mt-1 text-[11px] tabular-nums ${mine ? 'text-white/70' : 'text-zinc-400 dark:text-zinc-500'}`}>{fmtTime(it.occurredAt)}</p>
+                  <p className={`mt-1 text-[11px] tabular-nums ${mine ? 'text-white/70' : 'text-zinc-400 dark:text-zinc-500'}`}>{it.status === 'sending' ? 'Αποστολή…' : fmtTime(it.occurredAt)}</p>
                 </div>
               </div>
             );
