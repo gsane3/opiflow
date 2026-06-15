@@ -97,6 +97,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
   const [notes, setNotes] = useState('');
   const [status, setStatus] = useState('open');
   const [titleError, setTitleError] = useState('');
+  const [submitError, setSubmitError] = useState('');
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(false);
 
@@ -106,6 +107,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
   const [eTitle, setETitle] = useState('');
   const [eNotes, setENotes] = useState('');
   const [eStatus, setEStatus] = useState('open');
+  const [editError, setEditError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -131,29 +133,32 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
   useEffect(() => { void load(); }, [load]);
 
   function openCreate() {
-    setTitle(''); setNotes(''); setStatus('open'); setTitleError(''); setCreated(false); setCreating(true);
+    setTitle(''); setNotes(''); setStatus('open'); setTitleError(''); setSubmitError(''); setCreated(false); setCreating(true);
   }
 
   async function createFolder() {
     const t = title.trim();
     if (!t) { setTitleError('Γράψε τίτλο εργασίας.'); return; }
+    setSubmitError('');
     setSaving(true);
     try {
       const headers = await authHeaders();
-      if (!headers) return;
+      if (!headers) { setSubmitError('Λήξη σύνδεσης. Δοκίμασε ξανά.'); return; }
       const res = await fetch(`/api/customers/${customerId}/folders`, {
         method: 'POST',
         headers,
         body: JSON.stringify({ title: t, notes: notes.trim() || null, status }),
       });
-      if (res.ok) {
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && json?.ok) {
         setCreating(false);
         setCreated(true);
-        setTimeout(() => setCreated(false), 2500);
         void load();
+      } else {
+        setSubmitError(json?.error === 'title_too_long' ? 'Ο τίτλος είναι πολύ μεγάλος (έως 120).' : 'Ο φάκελος δεν δημιουργήθηκε. Δοκίμασε ξανά.');
       }
     } catch {
-      /* non-fatal */
+      setSubmitError('Ο φάκελος δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } finally {
       setSaving(false);
     }
@@ -162,6 +167,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
   function openDetail(f: WorkFolder) {
     setSelectedId(f.id);
     setEditing(false);
+    setTitleError(''); setEditError('');
     setETitle(f.title); setENotes(f.notes ?? ''); setEStatus(f.status);
   }
 
@@ -187,15 +193,25 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
 
   async function saveEdit() {
     const t = eTitle.trim();
-    if (!t) { setTitleError('Γράψε τίτλο εργασίας.'); return; }
+    if (!t) { setEditError('Γράψε τίτλο εργασίας.'); return; }
+    setEditError('');
     const updated = await patchSelected({ title: t, notes: eNotes.trim() || null, status: eStatus });
     if (updated) { setEditing(false); setETitle(updated.title); setENotes(updated.notes ?? ''); setEStatus(updated.status); }
+    else setEditError('Η αποθήκευση απέτυχε. Δοκίμασε ξανά.');
   }
 
   async function archive() {
+    setEditError('');
     const updated = await patchSelected({ status: 'archived' });
-    if (updated) setEStatus('archived');
+    if (!updated) setEditError('Η αρχειοθέτηση απέτυχε. Δοκίμασε ξανά.');
   }
+
+  // Auto-dismiss the create-success banner (cleared on unmount, no stray timer).
+  useEffect(() => {
+    if (!created) return;
+    const t = window.setTimeout(() => setCreated(false), 2500);
+    return () => window.clearTimeout(t);
+  }, [created]);
 
   const selected = folders.find((f) => f.id === selectedId) ?? null;
 
@@ -259,10 +275,10 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
                   {/* Inline detail / edit */}
                   {isSelected && selected && (
                     <div className="space-y-3 border-t border-zinc-200/70 px-3 py-3 dark:border-white/10">
+                      {editError && <p className="text-xs text-red-600">{editError}</p>}
                       {editing ? (
                         <>
-                          <Input label="Τίτλος εργασίας" value={eTitle} onChange={(e) => { setETitle(e.target.value); if (titleError) setTitleError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
-                          {titleError && <p className="text-xs text-red-600">{titleError}</p>}
+                          <Input label="Τίτλος εργασίας" value={eTitle} maxLength={120} onChange={(e) => { setETitle(e.target.value); if (editError) setEditError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
                           <Textarea label="Σημειώσεις" value={eNotes} onChange={(e) => setENotes(e.target.value)} rows={2} placeholder="προαιρετικά" />
                           <div>
                             <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Κατάσταση</label>
@@ -284,7 +300,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
                             <p className="mt-1">Σύντομα θα μπορείς να συνδέεις προσφορές και ραντεβού εδώ.</p>
                           </div>
                           <div className="flex flex-wrap gap-2">
-                            <Button variant="secondary" size="sm" onClick={() => { setETitle(selected.title); setENotes(selected.notes ?? ''); setEStatus(selected.status); setTitleError(''); setEditing(true); }}>
+                            <Button variant="secondary" size="sm" onClick={() => { setETitle(selected.title); setENotes(selected.notes ?? ''); setEStatus(selected.status); setEditError(''); setEditing(true); }}>
                               Επεξεργασία
                             </Button>
                             {selected.status !== 'archived' && (
@@ -302,8 +318,9 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
             {/* Inline create form */}
             {creating && (
               <div className="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
-                <Input label="Τίτλος εργασίας" value={title} onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+                <Input label="Τίτλος εργασίας" value={title} maxLength={120} onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); if (submitError) setSubmitError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
                 {titleError && <p className="text-xs text-red-600">{titleError}</p>}
+                {submitError && <p className="text-xs text-red-600">{submitError}</p>}
                 <Textarea label="Σημειώσεις" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="προαιρετικά" />
                 <div>
                   <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Κατάσταση</label>

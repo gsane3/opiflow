@@ -11,7 +11,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ChipSelect, Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatDate } from '@/lib/format';
 import type { WorkFolder, WorkFolderCounts } from '@/lib/types';
 
@@ -95,6 +95,10 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       setTitleError('Γράψε τίτλο εργασίας.');
       return;
     }
+    if (t.length > 120) {
+      setTitleError('Έως 120 χαρακτήρες.');
+      return;
+    }
     setSaving(true);
     try {
       const r = await apiPost<{ ok?: boolean; folder?: WorkFolder }>(`/api/customers/${customerId}/folders`, {
@@ -109,8 +113,8 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       } else {
         Alert.alert('Σφάλμα', 'Ο φάκελος δεν δημιουργήθηκε.');
       }
-    } catch {
-      Alert.alert('Σφάλμα', 'Ο φάκελος δεν δημιουργήθηκε.');
+    } catch (e) {
+      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Ο φάκελος δεν δημιουργήθηκε.');
     } finally {
       setSaving(false);
     }
@@ -141,8 +145,8 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       }
       Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
       return false;
-    } catch {
-      Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
+    } catch (e) {
+      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Η αποθήκευση απέτυχε.');
       return false;
     } finally {
       setEBusy(false);
@@ -155,13 +159,16 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       Alert.alert('Σφάλμα', 'Γράψε τίτλο εργασίας.');
       return;
     }
+    if (t.length > 120) {
+      Alert.alert('Σφάλμα', 'Ο τίτλος είναι πολύ μεγάλος (έως 120).');
+      return;
+    }
     const ok = await patchFolder({ title: t, notes: eNotes.trim() || null, status: eStatus });
     if (ok) setEditMode(false);
   }
 
   async function archive() {
-    const ok = await patchFolder({ status: 'archived' });
-    if (ok) setEStatus('archived');
+    await patchFolder({ status: 'archived' });
   }
 
   return (
@@ -259,7 +266,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
               </ThemedText>
               <ChipSelect options={STATUS_OPTIONS} value={eStatus} onChange={setEStatus} />
               <PrimaryButton label="Αποθήκευση" busy={eBusy} onPress={() => void saveEdit()} />
-              <PrimaryButton label="Πίσω" tone="outline" onPress={() => setEditMode(false)} />
+              <PrimaryButton label="Ακύρωση" tone="outline" onPress={() => setEditMode(false)} />
             </>
           ) : (
             <>
