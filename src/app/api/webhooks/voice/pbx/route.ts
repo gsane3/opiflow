@@ -47,6 +47,20 @@ function normalizePhone(raw: string | null): string | null {
   return s;
 }
 
+/**
+ * `biz_<32hex>` endpoint identity → business UUID. The PBX dials a per-tenant
+ * app endpoint (biz_<hex>) for each business, so this is the most reliable
+ * multi-tenant business identifier — no dependency on business_phone_numbers
+ * data being populated. Mirrors the inbound Twilio webhook's hex→UUID mapping.
+ */
+function businessIdFromBizEndpoint(value: string | null): string | null {
+  if (!value) return null;
+  const m = value.match(/biz_([a-f0-9]{32})/i);
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
 
 async function getNextCrmNumber(
@@ -214,9 +228,14 @@ export async function POST(request: NextRequest) {
 
   const callerNumber = getString(parsed['caller_number']);
   const calledNumberRaw = getString(parsed['called_number']);
+  // The PBX rang a known per-tenant app endpoint (biz_<hex>) — the most reliable
+  // business identifier. Falls back to the dialed-DID lookup, then the env var.
+  const bizEndpointId = businessIdFromBizEndpoint(
+    getString(parsed['endpoint']) ?? getString(parsed['biz_id']) ?? getString(parsed['opiflow_ep'])
+  );
   const pbxBusinessIdFromEnv = getString(process.env.PBX_BUSINESS_ID);
   // Require at least one source for business resolution before touching Supabase.
-  if (!calledNumberRaw && !pbxBusinessIdFromEnv) {
+  if (!bizEndpointId && !calledNumberRaw && !pbxBusinessIdFromEnv) {
     return NextResponse.json({ ok: false, error: 'missing_pbx_business_id' }, { status: 503 });
   }
 
@@ -242,7 +261,19 @@ export async function POST(request: NextRequest) {
   // fall back to PBX_BUSINESS_ID env var (single-tenant / local PBX tests).
   let businessId: string | null = null;
 
-  if (calledNumberRaw) {
+  // 1) Trust the biz_<hex> endpoint the PBX rang — verified to exist so a bogus
+  //    identity can't write rows for a non-business.
+  if (bizEndpointId) {
+    const { data: bizExists } = await supabase
+      .from('businesses')
+      .select('id')
+      .eq('id', bizEndpointId)
+      .maybeSingle();
+    if (bizExists) businessId = bizEndpointId;
+  }
+
+  // 2) Otherwise resolve by the dialed DID against business_phone_numbers.
+  if (!businessId && calledNumberRaw) {
     // The PBX delivers the dialed DID in whatever form the trunk sends (e.g.
     // '302104400811' from the INVITE R-URI), while business_phone_numbers stores
     // the full E.164 form ('+302104400811'). Match against every plausible form

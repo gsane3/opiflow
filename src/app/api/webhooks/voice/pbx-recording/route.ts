@@ -27,6 +27,15 @@ function getString(value: FormDataEntryValue | null): string | null {
   return null;
 }
 
+/** `biz_<32hex>` endpoint identity → business UUID (multi-tenant resolution). */
+function businessIdFromBizEndpoint(value: string | null): string | null {
+  if (!value) return null;
+  const m = value.match(/biz_([a-f0-9]{32})/i);
+  if (!m) return null;
+  const h = m[1].toLowerCase();
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/webhooks/voice/pbx-recording
 // ---------------------------------------------------------------------------
@@ -47,10 +56,9 @@ export async function POST(request: NextRequest) {
     console.warn('[pbx-recording webhook] PBX_WEBHOOK_SECRET is not set — endpoint is UNAUTHENTICATED.');
   }
 
-  const businessId = process.env.PBX_BUSINESS_ID?.trim() ?? '';
-  if (!businessId) {
-    return NextResponse.json({ ok: false, error: 'missing_pbx_business_id' }, { status: 503 });
-  }
+  // Single-tenant fallback only; the real business is resolved per-call below
+  // (from the communication_id row, then the biz_<hex> endpoint, then this env).
+  const pbxBusinessIdFromEnv = process.env.PBX_BUSINESS_ID?.trim() || null;
 
   // Parse multipart form data.
   let formData: FormData;
@@ -91,6 +99,9 @@ export async function POST(request: NextRequest) {
   const communicationIdParam = getString(formData.get('communication_id'));
   const callerNumber = getString(formData.get('caller_number'));
   const dialStatus = getString(formData.get('dialstatus'));
+  const bizEndpointId = businessIdFromBizEndpoint(
+    getString(formData.get('endpoint')) ?? getString(formData.get('biz_id'))
+  );
 
   if (!uniqueid && !communicationIdParam) {
     return NextResponse.json(
@@ -111,10 +122,13 @@ export async function POST(request: NextRequest) {
   }
 
   // ---------------------------------------------------------------------------
-  // Find the matching communications row.
-  // Prefer the explicit communication_id if provided.
-  // Fall back to searching by uniqueid in the summary text.
+  // Resolve the business + the matching communications row.
+  // The communication_id is a global UUID created by the JSON webhook: look it up
+  // directly (no business scope) and read its business_id — the multi-tenant path.
+  // Otherwise resolve the business from the biz_<hex> endpoint or the single-tenant
+  // env, then match by uniqueid within that business.
   // ---------------------------------------------------------------------------
+  let businessId: string | null = null;
   let communicationId: string | null = null;
   let existingSummary: string | null = null;
   let communicationCustomerId: string | null = null;
@@ -122,9 +136,8 @@ export async function POST(request: NextRequest) {
   if (communicationIdParam) {
     const { data, error } = await supabase
       .from('communications')
-      .select('id, summary, customer_id')
+      .select('id, summary, customer_id, business_id')
       .eq('id', communicationIdParam)
-      .eq('business_id', businessId)
       .eq('channel', 'call')
       .maybeSingle();
 
@@ -133,11 +146,19 @@ export async function POST(request: NextRequest) {
     }
 
     if (data) {
-      const row = data as unknown as { id: string; summary: string | null; customer_id: string | null };
+      const row = data as unknown as { id: string; summary: string | null; customer_id: string | null; business_id: string | null };
       communicationId = row.id;
       existingSummary = row.summary;
       communicationCustomerId = row.customer_id ?? null;
+      businessId = row.business_id ?? null;
     }
+  }
+
+  if (!businessId) businessId = bizEndpointId ?? pbxBusinessIdFromEnv;
+
+  if (!businessId) {
+    // No business could be resolved — nothing to attach the brief to.
+    return NextResponse.json({ ok: false, received: true, error: 'business_unresolved' });
   }
 
   if (!communicationId && uniqueid) {
