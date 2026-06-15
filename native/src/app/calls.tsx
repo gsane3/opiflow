@@ -21,6 +21,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
+import { hapticTap } from '@/lib/haptics';
 import { briefExcerpt, formatWhen } from '@/lib/format';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
 import type { Communication } from '@/lib/types';
@@ -103,6 +104,7 @@ export default function CallsScreen() {
       const number = (target ?? num).trim();
       if (!number) return;
       if (target) setNum(target);
+      void hapticTap();
       setDebug('');
       setStatus('connecting');
       try {
