@@ -58,7 +58,8 @@ export function folderStatusMessage(status: string): string {
 export interface FolderRowForPublic {
   title: string;
   status: string;
-  notes: string | null;
+  // folder.notes is INTENTIONALLY excluded — it is internal business notes and
+  // is never selected or exposed on the public page.
 }
 export interface BusinessRowForPublic {
   name: string | null;
@@ -106,7 +107,6 @@ export interface PublicFolderView {
   title: string;
   statusLabel: string;
   statusMessage: string;
-  notes: string | null;
   offers: PublicFolderOffer[];
   appointments: PublicFolderAppointment[];
 }
@@ -139,7 +139,6 @@ export function toPublicFolderView(
     title: folder.title,
     statusLabel: folderStatusLabel(folder.status),
     statusMessage: folderStatusMessage(folder.status),
-    notes: folder.notes,
     offers: offers.map((o) => ({
       offerNumber: o.offer_number ?? '—',
       statusLabel: OFFER_STATUS_LABELS[o.status] ?? o.status,
@@ -167,7 +166,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     // Folder, scoped by the token's business_id (defense in depth).
     const { data: folderData, error: folderError } = await supabase
       .from('work_folders')
-      .select('title, status, notes')
+      .select('title, status') // NB: notes intentionally not selected (internal-only)
       .eq('id', token.work_folder_id)
       .eq('business_id', token.business_id)
       .maybeSingle();

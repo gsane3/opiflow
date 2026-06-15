@@ -63,13 +63,12 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
 
         {/* Folder */}
         <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ο φάκελος εργασίας</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ο φάκελός σας</p>
           <h1 className="mt-1 text-xl font-bold text-zinc-900">{view.title}</h1>
           <div className="mt-2 flex items-center gap-2">
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{view.statusLabel}</span>
             {view.statusMessage && <span className="text-sm text-zinc-500">{view.statusMessage}</span>}
           </div>
-          {view.notes && <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-zinc-700">{view.notes}</p>}
         </section>
 
         {/* Offers */}

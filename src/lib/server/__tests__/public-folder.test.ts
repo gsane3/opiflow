@@ -9,7 +9,7 @@ import {
   type TaskRowForPublic,
 } from '../public-folder';
 
-const folder: FolderRowForPublic = { title: 'Τοποθέτηση κλιματιστικού', status: 'in_progress', notes: 'Σημείωση' };
+const folder: FolderRowForPublic = { title: 'Τοποθέτηση κλιματιστικού', status: 'in_progress' };
 const business: BusinessRowForPublic = {
   name: 'Acme', legal_name: 'Acme AE', trade_name: 'Acme Service',
   logo_url: 'https://x/logo.png', phone: '2101234567', email: 'a@b.gr', website: 'https://acme.gr',
@@ -38,7 +38,6 @@ describe('public-folder', () => {
       expect(view.title).toBe('Τοποθέτηση κλιματιστικού');
       expect(view.statusLabel).toBe('Σε εξέλιξη');
       expect(view.statusMessage).toBe('Η εργασία είναι σε εξέλιξη.');
-      expect(view.notes).toBe('Σημείωση');
       expect(view.business).toEqual({
         name: 'Acme Service', // trade_name wins
         logoUrl: 'https://x/logo.png',
@@ -59,14 +58,16 @@ describe('public-folder', () => {
       expect(view.appointments).toEqual([{ date: '2026-07-01', time: '10:00', typeLabel: 'Ραντεβού' }]);
     });
 
-    it('NEVER leaks internal ids or business-only fields (security)', () => {
+    it('NEVER leaks internal ids, internal notes, or business-only fields (security)', () => {
       const serialized = JSON.stringify(view);
-      for (const banned of ['business_id', 'customer_id', 'work_folder_id', 'token', 'owner_id', '"id"']) {
+      for (const banned of ['business_id', 'customer_id', 'work_folder_id', 'token', 'owner_id', '"id"', '"notes"']) {
         expect(serialized).not.toContain(banned);
       }
+      // internal business notes are never part of the public view
+      expect(view).not.toHaveProperty('notes');
       // the public view's top-level keys are an explicit allow-list
       expect(Object.keys(view).sort()).toEqual(
-        ['appointments', 'business', 'notes', 'offers', 'statusLabel', 'statusMessage', 'title'],
+        ['appointments', 'business', 'offers', 'statusLabel', 'statusMessage', 'title'],
       );
     });
 
