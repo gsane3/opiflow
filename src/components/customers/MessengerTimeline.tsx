@@ -159,6 +159,49 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
     bottomRef.current?.scrollIntoView({ block: 'end' });
   }, [items]);
 
+  // Feel-alive #1 (always works, no config): refetch when the tab regains focus,
+  // so a reply / offer-accept / upload that happened elsewhere shows on return.
+  useEffect(() => {
+    const onFocus = () => { if (document.visibilityState === 'visible') void load(); };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+    return () => {
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+    };
+  }, [load]);
+
+  // Feel-alive #2 (best-effort): Supabase Realtime — when any of this customer's
+  // rows change (inbound call/message, offer accept→audit row, intake, upload),
+  // the bubble pops in live. Silent no-op until Realtime is enabled on the tables
+  // (ALTER PUBLICATION supabase_realtime ADD TABLE ...); RLS scopes events to the
+  // owner. Debounced so a burst of changes triggers one refetch.
+  useEffect(() => {
+    let supabase: ReturnType<typeof createBrowserSupabaseClient>;
+    try { supabase = createBrowserSupabaseClient(); } catch { return; }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ping = () => { clearTimeout(timer); timer = setTimeout(() => { void load(); }, 600); };
+    const tables = ['communications', 'offers', 'tasks', 'customer_intake_tokens', 'customer_upload_sessions'];
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    try {
+      channel = supabase.channel(`cust-timeline-${customerId}`);
+      for (const table of tables) {
+        channel.on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table, filter: `customer_id=eq.${customerId}` },
+          ping,
+        );
+      }
+      channel.subscribe();
+    } catch {
+      channel = null;
+    }
+    return () => {
+      clearTimeout(timer);
+      if (channel) { try { supabase.removeChannel(channel); } catch { /* noop */ } }
+    };
+  }, [customerId, load]);
+
   const name = customer?.name ?? 'Πελάτης';
   const dialNumber = customer?.mobilePhone || customer?.phone || customer?.landlinePhone || null;
   const callBriefs: BriefEntry[] = items
