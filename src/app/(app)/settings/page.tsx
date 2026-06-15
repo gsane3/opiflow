@@ -190,8 +190,12 @@ export default function SettingsPage() {
               postalCode:     biz.postal_code      !== undefined ? (biz.postal_code      ?? '')                                               : current.postalCode,
               region:         biz.region           !== undefined ? (biz.region           ?? '')                                               : current.region,
               website:        biz.website          !== undefined ? (biz.website          ?? '')                                               : current.website,
+              // Logo is now persisted to businesses.logo_url — the DB is the
+              // source of truth (shown on the public offer/intake/appointment pages).
+              logoDataUrl: (biz as { logo_url?: string | null }).logo_url !== undefined
+                ? ((biz as { logo_url?: string | null }).logo_url ?? '')
+                : current.logoDataUrl,
               // ownerName: kept from localStorage (no DB column).
-              // logoDataUrl: kept from localStorage (logo storage deferred).
             }));
           }
         } else {
@@ -263,6 +267,7 @@ export default function SettingsPage() {
           postal_code:              profile.postalCode       || null,
           region:                   profile.region           || null,
           website:                  profile.website          || null,
+          logoDataUrl:              profile.logoDataUrl      || null,
         }),
       });
 
