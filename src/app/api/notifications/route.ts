@@ -107,6 +107,7 @@ interface CommunicationRow {
   channel: string;
   direction: string;
   status: string;
+  summary: string | null;
   created_at: string;
 }
 
@@ -120,7 +121,8 @@ type NotificationKind =
   | 'intake'
   | 'upload'
   | 'call'
-  | 'sms';
+  | 'sms'
+  | 'message';
 
 interface Notification {
   id: string;
@@ -204,10 +206,10 @@ export async function GET(request: NextRequest) {
           .limit(30),
         supabase
           .from('communications')
-          .select('id, customer_id, channel, direction, status, created_at')
+          .select('id, customer_id, channel, direction, status, summary, created_at')
           .eq('business_id', businessId)
           .eq('direction', 'inbound')
-          .in('channel', ['call', 'sms'])
+          .in('channel', ['call', 'sms', 'viber', 'email'])
           .gte('created_at', recentSince)
           .order('created_at', { ascending: false })
           .limit(30),
@@ -472,52 +474,92 @@ export async function GET(request: NextRequest) {
     });
 
     // -------------------------------------------------------------------------
-    // 13. Build inbound communication notifications (call / sms)
+    // 13. Build inbound communication notifications (call / sms / message)
     // -------------------------------------------------------------------------
-    const commNotifs: Notification[] = comms.map((c) => {
-      const customerId = c.customer_id ?? null;
-      const name = nameFor(customerId);
-      const isMissed = c.status === 'missed' || c.status === 'failed';
+    // Offer/appointment responses ALSO write an inbound communications row for
+    // the timeline audit trail, and those events are already surfaced above via
+    // the token queries. So we must not double-count them as generic "messages".
+    // Build a per-customer set of response timestamps and drop any inbound
+    // viber/email comm that coincides with one (same customer, within ~15s).
+    const responseTimes = new Map<string, number[]>();
+    for (const n of [...offerNotifs, ...apptNotifs]) {
+      if (!n.customerId) continue;
+      const t = Date.parse(n.eventAt);
+      if (Number.isNaN(t)) continue;
+      const arr = responseTimes.get(n.customerId);
+      if (arr) arr.push(t);
+      else responseTimes.set(n.customerId, [t]);
+    }
+    const isOfferApptAuditRow = (c: CommunicationRow): boolean => {
+      if (!c.customer_id) return false;
+      const times = responseTimes.get(c.customer_id);
+      if (!times) return false;
+      const t = Date.parse(c.created_at);
+      if (Number.isNaN(t)) return false;
+      return times.some((rt) => Math.abs(rt - t) < 15_000);
+    };
 
-      let kind: NotificationKind;
-      let title: string;
-      let description: string;
-      let href: string;
+    const commNotifs: Notification[] = comms
+      // call/sms keep their existing behavior; viber/email are the newly-included
+      // customer messages — exclude offer/appointment audit-row duplicates.
+      .filter((c) =>
+        c.channel === 'viber' || c.channel === 'email' ? !isOfferApptAuditRow(c) : true,
+      )
+      .map((c) => {
+        const customerId = c.customer_id ?? null;
+        const name = nameFor(customerId);
+        const isMissed = c.status === 'missed' || c.status === 'failed';
 
-      if (c.channel === 'sms') {
-        kind = 'sms';
-        title = 'Εισερχόμενο SMS';
-        description = `Ο πελάτης ${name} έστειλε SMS.`;
-        href = customerHref(customerId, '/communications');
-      } else {
-        kind = 'call';
-        if (isMissed) {
-          title = 'Χαμένη κλήση';
-          description = `Χαμένη κλήση από ${name}.`;
+        let kind: NotificationKind;
+        let title: string;
+        let description: string;
+        let href: string;
+
+        if (c.channel === 'viber' || c.channel === 'email') {
+          // Customer free-text message from a public link (intake/upload comment).
+          kind = 'message';
+          title = 'Νέο μήνυμα από πελάτη';
+          const text = c.summary?.trim();
+          description = text
+            ? text.length > 160
+              ? `${text.slice(0, 159)}…`
+              : text
+            : `Ο πελάτης ${name} έστειλε μήνυμα.`;
+          href = customerHref(customerId, '/customers');
+        } else if (c.channel === 'sms') {
+          kind = 'sms';
+          title = 'Εισερχόμενο SMS';
+          description = `Ο πελάτης ${name} έστειλε SMS.`;
+          href = customerHref(customerId, '/communications');
         } else {
-          title = 'Εισερχόμενη κλήση';
-          description = `Εισερχόμενη κλήση από ${name}.`;
+          kind = 'call';
+          if (isMissed) {
+            title = 'Χαμένη κλήση';
+            description = `Χαμένη κλήση από ${name}.`;
+          } else {
+            title = 'Εισερχόμενη κλήση';
+            description = `Εισερχόμενη κλήση από ${name}.`;
+          }
+          href = customerHref(customerId, '/calls');
         }
-        href = customerHref(customerId, '/calls');
-      }
 
-      return {
-        id: `comm:${c.id}`,
-        kind,
-        response: c.status,
-        title,
-        description,
-        customerId,
-        customerName: name,
-        href,
-        eventAt: c.created_at,
-        respondedAt: c.created_at,
-        isNew: isWithin24h(c.created_at),
-        taskId: null,
-        requestedDueDate: null,
-        requestedDueTime: null,
-      };
-    });
+        return {
+          id: `comm:${c.id}`,
+          kind,
+          response: c.status,
+          title,
+          description,
+          customerId,
+          customerName: name,
+          href,
+          eventAt: c.created_at,
+          respondedAt: c.created_at,
+          isNew: isWithin24h(c.created_at),
+          taskId: null,
+          requestedDueDate: null,
+          requestedDueTime: null,
+        };
+      });
 
     // -------------------------------------------------------------------------
     // 14. Merge ALL kinds, sort newest-first by event time, cap.
