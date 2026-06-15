@@ -83,6 +83,47 @@ function publicCustomer(row: CustomerRow) {
   };
 }
 
+// Public business header (logo + name + contact) so the customer sees WHO is
+// asking for their details — the brand touchpoint. Mirrors the offer page.
+const BUSINESS_COLUMNS = ['name', 'legal_name', 'trade_name', 'logo_url', 'phone', 'email', 'website'].join(', ');
+
+interface BusinessRow {
+  name: string | null;
+  legal_name: string | null;
+  trade_name: string | null;
+  logo_url: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+}
+
+export function publicBusiness(row: BusinessRow | null) {
+  if (!row) return null;
+  const name = row.trade_name?.trim() || row.legal_name?.trim() || row.name?.trim() || null;
+  if (!name && !row.logo_url) return null;
+  return {
+    name: name ?? 'Η επιχείρηση',
+    logoUrl: row.logo_url,
+    phone: row.phone,
+    email: row.email,
+    website: row.website,
+  };
+}
+
+export async function loadPublicBusiness(businessId: string) {
+  try {
+    const supabase = createServiceSupabaseClient();
+    const { data } = await supabase
+      .from('businesses')
+      .select(BUSINESS_COLUMNS)
+      .eq('id', businessId)
+      .maybeSingle();
+    return publicBusiness((data as unknown as BusinessRow | null) ?? null);
+  } catch {
+    return null;
+  }
+}
+
 function asCustomerRow(value: unknown): CustomerRow {
   return value as CustomerRow;
 }
@@ -146,6 +187,7 @@ export async function GET(
     return NextResponse.json({
       ok: true,
       customer: publicCustomer(customer),
+      business: await loadPublicBusiness(tokenRow.business_id),
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'intake_load_failed' }, { status: 500 });

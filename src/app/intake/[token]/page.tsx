@@ -3,7 +3,7 @@ import {
   findValidIntakeToken,
   markIntakeTokenOpened,
 } from '@/lib/server/intake-tokens';
-import IntakeFormClient, { IntakeCustomer } from './IntakeFormClient';
+import IntakeFormClient, { IntakeBusiness, IntakeCustomer } from './IntakeFormClient';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -63,8 +63,35 @@ function publicCustomer(row: CustomerRow): IntakeCustomer {
   };
 }
 
+// Public business header (logo + name + contact) — the brand the customer sees.
+const BUSINESS_COLUMNS = ['name', 'legal_name', 'trade_name', 'logo_url', 'phone', 'email', 'website'].join(', ');
+
+interface BusinessRow {
+  name: string | null;
+  legal_name: string | null;
+  trade_name: string | null;
+  logo_url: string | null;
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+}
+
+function publicBusiness(row: BusinessRow | null): IntakeBusiness | null {
+  if (!row) return null;
+  const name = row.trade_name?.trim() || row.legal_name?.trim() || row.name?.trim() || null;
+  if (!name && !row.logo_url) return null;
+  return {
+    name: name ?? 'Η επιχείρηση',
+    logoUrl: row.logo_url,
+    phone: row.phone,
+    email: row.email,
+    website: row.website,
+  };
+}
+
 async function getInitialCustomer(token: string): Promise<{
   customer: IntakeCustomer | null;
+  business: IntakeBusiness | null;
   error: string | null;
 }> {
   try {
@@ -73,21 +100,30 @@ async function getInitialCustomer(token: string): Promise<{
     if (!tokenRow) {
       return {
         customer: null,
+        business: null,
         error: 'Ο σύνδεσμος δεν είναι διαθέσιμος ή έχει λήξει.',
       };
     }
 
     const supabase = createServiceSupabaseClient();
-    const { data, error } = await supabase
-      .from('customers')
-      .select(CUSTOMER_COLUMNS)
-      .eq('id', tokenRow.customer_id)
-      .eq('business_id', tokenRow.business_id)
-      .maybeSingle();
+    const [{ data, error }, { data: bizData }] = await Promise.all([
+      supabase
+        .from('customers')
+        .select(CUSTOMER_COLUMNS)
+        .eq('id', tokenRow.customer_id)
+        .eq('business_id', tokenRow.business_id)
+        .maybeSingle(),
+      supabase
+        .from('businesses')
+        .select(BUSINESS_COLUMNS)
+        .eq('id', tokenRow.business_id)
+        .maybeSingle(),
+    ]);
 
     if (error || !data) {
       return {
         customer: null,
+        business: null,
         error: 'Δεν μπορέσαμε να φορτώσουμε τη φόρμα. Δοκιμάστε ξανά.',
       };
     }
@@ -96,11 +132,13 @@ async function getInitialCustomer(token: string): Promise<{
 
     return {
       customer: publicCustomer(asCustomerRow(data)),
+      business: publicBusiness((bizData as unknown as BusinessRow | null) ?? null),
       error: null,
     };
   } catch {
     return {
       customer: null,
+      business: null,
       error: 'Δεν μπορέσαμε να φορτώσουμε τη φόρμα. Δοκιμάστε ξανά.',
     };
   }
@@ -134,6 +172,7 @@ export default async function IntakePage({
     <IntakeFormClient
       token={token}
       initialCustomer={initial.customer}
+      initialBusiness={initial.business}
       initialError={initial.error}
     />
   );
