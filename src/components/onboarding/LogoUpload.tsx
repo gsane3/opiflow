@@ -15,9 +15,38 @@ export default function LogoUpload({ value, onChange }: Props) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onChange(reader.result);
+      const dataUrl = reader.result;
+      if (typeof dataUrl !== 'string') return;
+      // SVGs are already tiny vector text — keep as-is. Raster images are
+      // downscaled to ≤320px PNG so the persisted data URL stays light (it's
+      // stored in businesses.logo_url and read by the public pages).
+      if (file.type === 'image/svg+xml') {
+        onChange(dataUrl);
+        return;
       }
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 320;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          const scale = MAX / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          onChange(dataUrl);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        const out = canvas.toDataURL('image/png');
+        onChange(out.length < dataUrl.length ? out : dataUrl);
+      };
+      img.onerror = () => onChange(dataUrl);
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   }
@@ -25,10 +54,8 @@ export default function LogoUpload({ value, onChange }: Props) {
   return (
     <div className="flex flex-col gap-4">
       <p className="text-sm text-zinc-500 dark:text-zinc-400">
-        Θα εμφανίζεται στο preview της προσφοράς.{' '}
-        <span className="text-zinc-400 dark:text-zinc-500">
-          Στο MVP αποθηκεύεται μόνο τοπικά στον browser.
-        </span>
+        Εμφανίζεται στις προσφορές και στους συνδέσμους που λαμβάνουν οι πελάτες σου
+        (φόρμα στοιχείων, αποδοχή προσφοράς).
       </p>
 
       <div

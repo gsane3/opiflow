@@ -217,6 +217,25 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'invalid_website' }, { status: 400 });
     }
 
+    // Logo: a small data:image/* URL persisted to logo_url and shown on the public
+    // offer / intake / appointment pages. '' or null clears it. Capped (~225 KB of
+    // base64) so the public-page queries that SELECT logo_url stay light.
+    // undefined = field omitted → leave the existing logo untouched.
+    let logoUpdate: string | null | undefined;
+    if (raw.logoDataUrl !== undefined) {
+      const lv = raw.logoDataUrl;
+      if (lv === null || lv === '') {
+        logoUpdate = null;
+      } else if (typeof lv === 'string' && /^data:image\/(png|jpe?g|webp|svg\+xml);base64,/.test(lv)) {
+        if (lv.length > 300_000) {
+          return NextResponse.json({ ok: false, error: 'logo_too_large' }, { status: 400 });
+        }
+        logoUpdate = lv;
+      } else {
+        return NextResponse.json({ ok: false, error: 'invalid_logo' }, { status: 400 });
+      }
+    }
+
     // Verify the business exists and belongs to this user.
     const { data: existing } = await supabase
       .from('businesses')
@@ -229,8 +248,9 @@ export async function PATCH(request: NextRequest) {
     }
 
     // Build the update payload. Only editable profile fields are accepted.
-    // Sensitive and system fields (owner_id, business_phone_number, logo_url,
-    // subscription fields, etc.) are never included.
+    // Sensitive and system fields (owner_id, business_phone_number, subscription
+    // fields, etc.) are never included. logo_url is added below when a valid
+    // logoDataUrl was provided.
     const updates: Record<string, unknown> = {
       name,
       type,
@@ -256,6 +276,9 @@ export async function PATCH(request: NextRequest) {
     };
     if (defaultVatRate !== undefined) {
       updates.default_vat_rate = defaultVatRate;
+    }
+    if (logoUpdate !== undefined) {
+      updates.logo_url = logoUpdate;
     }
 
     const { data: updatedBusiness, error: updateError } = await supabase
