@@ -4,6 +4,7 @@
 // "link unavailable" message. Only safe, customer-facing data is rendered.
 
 import { loadPublicFolder, type PublicFolderView } from '@/lib/server/public-folder';
+import QuestionForm from './QuestionForm';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -115,6 +116,9 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
             <p className="text-sm text-zinc-500">Δεν υπάρχει κάτι ακόμα. Θα ενημερωθείτε για κάθε νεότερο.</p>
           </section>
         )}
+
+        {/* Ask a question about this job */}
+        <QuestionForm token={token} />
 
         <p className="px-2 pt-2 text-center text-xs text-zinc-400">Επικοινωνήστε μαζί μας αν χρειάζεστε βοήθεια.</p>
       </div>
