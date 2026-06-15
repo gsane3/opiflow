@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { resolveWorkFolderForCreate } from '@/lib/server/folder-link';
 
 export const runtime = 'nodejs';
 
@@ -269,6 +270,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // workFolderId (WF-4) - optional. When present, the folder must belong to
+    // this business AND the same customer as the task. Unchanged when absent.
+    const folderLink = await resolveWorkFolderForCreate(supabase, businessId, raw.workFolderId, customerId);
+    if (!folderLink.ok) {
+      return NextResponse.json({ ok: false, error: folderLink.error }, { status: folderLink.status });
+    }
+
     const status = isValidEnum(raw.status, VALID_STATUSES_WRITE) ? raw.status : 'open';
     const completedAt = status === 'completed' ? new Date().toISOString() : null;
 
@@ -289,6 +297,8 @@ export async function POST(request: NextRequest) {
         note: str(raw.note),
         created_from_ai: false,
         completed_at: completedAt,
+        // Only set when filing into a folder — keeps existing inserts untouched.
+        ...(folderLink.workFolderId ? { work_folder_id: folderLink.workFolderId } : {}),
       })
       .select(TASK_COLUMNS)
       .single();

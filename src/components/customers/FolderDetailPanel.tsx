@@ -1,0 +1,472 @@
+'use client';
+
+// Φάκελος εργασίας — detail body (WF-4, web). Shows the real folder sections
+// (Προσφορές / Ραντεβού / Μηνύματα / Φωτογραφίες / Στοιχεία πελάτη) with counts +
+// latest items, plus: connect an existing offer/appointment («Σύνδεση υπάρχοντος»),
+// remove one («Αφαίρεση από φάκελο»), and a quick create that files the new
+// offer/appointment straight into the folder. Authenticated WF-1A/WF-4 APIs only.
+
+import { useCallback, useEffect, useState } from 'react';
+import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import { formatDateGr } from '@/lib/date';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+
+const OFFER_STATUS_GR: Record<string, string> = {
+  draft: 'Πρόχειρη', ready_to_send: 'Έτοιμη', sent_manually: 'Στάλθηκε', sent_provider: 'Στάλθηκε',
+  accepted: 'Αποδεκτή', rejected: 'Απορρίφθηκε', expired: 'Έληξε', cancelled: 'Ακυρώθηκε',
+};
+const APPT_TYPE_GR: Record<string, string> = { book_appointment: 'Ραντεβού', visit_customer: 'Επίσκεψη' };
+
+interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
+interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
+interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string }
+interface FolderDetail {
+  folder: { id: string; title: string; status: string };
+  customer: { id: string; name: string | null; phone: string | null; email: string | null } | null;
+  sections: {
+    offers: { count: number; items: DetailOffer[] };
+    appointments: { count: number; items: DetailAppt[] };
+    messages: { count: number; items: DetailMsg[] };
+    photos: { count: number };
+    intake: { count: number };
+  };
+}
+interface AttachOffer { id: string; offerNumber: string | null; status: string; total: number | null }
+interface AttachAppt { id: string; title: string; type: string; status: string; dueDate: string | null }
+
+async function authHeaders(): Promise<Record<string, string> | null> {
+  try {
+    const supabase = createBrowserSupabaseClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return null;
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
+  } catch {
+    return null;
+  }
+}
+
+function money(n: number | null): string {
+  return typeof n === 'number' ? `€${n.toLocaleString('el-GR')}` : '';
+}
+
+function todayStr(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export default function FolderDetailPanel({
+  folderId,
+  onChanged,
+}: {
+  folderId: string;
+  onChanged?: () => void;
+}) {
+  const [detail, setDetail] = useState<FolderDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  // attach sheet
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [attachError, setAttachError] = useState(false);
+  const [attOffers, setAttOffers] = useState<AttachOffer[]>([]);
+  const [attAppts, setAttAppts] = useState<AttachAppt[]>([]);
+
+  // quick create
+  const [qcMode, setQcMode] = useState<'offer' | 'appointment' | null>(null);
+  const [qcDesc, setQcDesc] = useState('');
+  const [qcAmount, setQcAmount] = useState('');
+  const [qcTitle, setQcTitle] = useState('');
+  const [qcType, setQcType] = useState('book_appointment');
+  const [qcDate, setQcDate] = useState(todayStr());
+  const [qcBusy, setQcBusy] = useState(false);
+  const [qcError, setQcError] = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setError(true); setLoading(false); return; }
+      const res = await fetch(`/api/folders/${folderId}`, { headers });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean } & Partial<FolderDetail>;
+      if (res.ok && json?.ok && json.sections) {
+        setDetail(json as FolderDetail);
+        setError(false);
+      } else {
+        setError(true);
+      }
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, [folderId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  // Auto-dismiss the action toast.
+  useEffect(() => {
+    if (!toast) return;
+    const t = window.setTimeout(() => setToast(null), 2500);
+    return () => window.clearTimeout(t);
+  }, [toast]);
+
+  async function refreshAll() {
+    await load();
+    onChanged?.();
+  }
+
+  async function openAttach() {
+    setAttachOpen(true);
+    setAttachLoading(true);
+    setAttachError(false);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setAttachError(true); setAttachLoading(false); return; }
+      const res = await fetch(`/api/folders/${folderId}/attachable`, { headers });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; offers?: AttachOffer[]; appointments?: AttachAppt[] };
+      if (res.ok && json?.ok) {
+        setAttOffers(json.offers ?? []);
+        setAttAppts(json.appointments ?? []);
+      } else {
+        setAttachError(true);
+      }
+    } catch {
+      setAttachError(true);
+    } finally {
+      setAttachLoading(false);
+    }
+  }
+
+  async function setFolderLink(entityType: 'offer' | 'task' | 'communication', entityId: string, attach: boolean) {
+    setBusyKey(`${entityType}:${entityId}:${attach}`);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.'); return; }
+      const res = await fetch(`/api/folders/${folderId}/attach`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ entityType, entityId, attach }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
+      if (res.ok && json?.ok) {
+        setToast(attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
+        if (attach && attachOpen) {
+          // refresh the pick lists so the just-attached item drops off
+          setAttOffers((p) => p.filter((o) => o.id !== entityId));
+          setAttAppts((p) => p.filter((a) => a.id !== entityId));
+        }
+        await refreshAll();
+      } else {
+        setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  function openQuickCreate(mode: 'offer' | 'appointment') {
+    setQcMode(mode);
+    setQcDesc(''); setQcAmount(''); setQcTitle(''); setQcType('book_appointment'); setQcDate(todayStr()); setQcError('');
+  }
+
+  async function submitQuickCreate() {
+    if (!qcMode) return;
+    setQcError('');
+    setQcBusy(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setQcError('Λήξη σύνδεσης. Δοκίμασε ξανά.'); return; }
+      const customerId = detail?.customer?.id;
+      if (!customerId) { setQcError('Δεν βρέθηκε ο πελάτης.'); return; }
+
+      let res: Response;
+      if (qcMode === 'offer') {
+        const desc = qcDesc.trim();
+        const amount = Number(qcAmount.replace(',', '.'));
+        if (!desc) { setQcError('Γράψε περιγραφή.'); setQcBusy(false); return; }
+        if (!isFinite(amount) || amount < 0) { setQcError('Γράψε ποσό.'); setQcBusy(false); return; }
+        res = await fetch('/api/offers', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            customerId,
+            workFolderId: folderId,
+            items: [{ description: desc, quantity: 1, unitPrice: amount }],
+          }),
+        });
+      } else {
+        const title = qcTitle.trim();
+        if (!title) { setQcError('Γράψε τίτλο.'); setQcBusy(false); return; }
+        res = await fetch('/api/tasks', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            customerId,
+            workFolderId: folderId,
+            title,
+            type: qcType,
+            dueDate: qcDate || todayStr(),
+          }),
+        });
+      }
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
+      if (res.ok && json?.ok) {
+        setQcMode(null);
+        setToast('Συνδέθηκε με τον φάκελο');
+        await refreshAll();
+      } else {
+        setQcError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setQcError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setQcBusy(false);
+    }
+  }
+
+  if (loading) {
+    return <p className="py-3 text-sm text-zinc-400 dark:text-zinc-500">Φορτώνει...</p>;
+  }
+  if (error || !detail) {
+    return (
+      <div className="space-y-2 py-2">
+        <p className="text-sm text-zinc-500 dark:text-zinc-400">Δεν φορτώθηκαν τα στοιχεία.</p>
+        <Button variant="secondary" size="sm" onClick={() => void load()}>Δοκίμασε ξανά</Button>
+      </div>
+    );
+  }
+
+  const s = detail.sections;
+
+  return (
+    <div className="space-y-3">
+      {toast && <p className="text-xs font-medium text-green-700">{toast}</p>}
+
+      {/* Quick actions */}
+      <div className="flex flex-wrap gap-2">
+        <Button variant="secondary" size="sm" onClick={openAttach}>Σύνδεση υπάρχοντος</Button>
+        <Button variant="secondary" size="sm" onClick={() => openQuickCreate('offer')}>Νέα προσφορά</Button>
+        <Button variant="secondary" size="sm" onClick={() => openQuickCreate('appointment')}>Νέο ραντεβού</Button>
+      </div>
+
+      {/* Προσφορές */}
+      <Section title="Προσφορές" count={s.offers.count}>
+        {s.offers.items.length === 0 ? (
+          <Empty />
+        ) : (
+          s.offers.items.map((o) => (
+            <Row
+              key={o.id}
+              primary={o.offerNumber ?? '—'}
+              secondary={`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
+              busy={busyKey === `offer:${o.id}:false`}
+              onDetach={() => void setFolderLink('offer', o.id, false)}
+            />
+          ))
+        )}
+      </Section>
+
+      {/* Ραντεβού */}
+      <Section title="Ραντεβού" count={s.appointments.count}>
+        {s.appointments.items.length === 0 ? (
+          <Empty />
+        ) : (
+          s.appointments.items.map((a) => (
+            <Row
+              key={a.id}
+              primary={a.title}
+              secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDateGr(a.dueDate)}` : ''}${a.dueTime ? ` ${a.dueTime}` : ''}`}
+              busy={busyKey === `task:${a.id}:false`}
+              onDetach={() => void setFolderLink('task', a.id, false)}
+            />
+          ))
+        )}
+      </Section>
+
+      {/* Μηνύματα */}
+      <Section title="Μηνύματα" count={s.messages.count}>
+        {s.messages.items.length === 0 ? (
+          <Empty />
+        ) : (
+          s.messages.items.map((m) => (
+            <Row
+              key={m.id}
+              primary={m.summary ?? '—'}
+              secondary={formatDateGr(m.createdAt)}
+              busy={busyKey === `communication:${m.id}:false`}
+              onDetach={() => void setFolderLink('communication', m.id, false)}
+            />
+          ))
+        )}
+      </Section>
+
+      {/* Φωτογραφίες */}
+      <Section title="Φωτογραφίες" count={s.photos.count}>
+        {s.photos.count === 0 ? <Empty /> : <p className="px-1 text-xs text-zinc-500 dark:text-zinc-400">{s.photos.count} αιτήματα φωτογραφιών</p>}
+      </Section>
+
+      {/* Στοιχεία πελάτη */}
+      <Section title="Στοιχεία πελάτη">
+        {detail.customer ? (
+          <div className="px-1 text-xs text-zinc-600 dark:text-zinc-300">
+            <p className="font-medium text-zinc-800 dark:text-zinc-100">{detail.customer.name ?? 'Πελάτης'}</p>
+            {detail.customer.phone && <p>{detail.customer.phone}</p>}
+            {detail.customer.email && <p>{detail.customer.email}</p>}
+            {s.intake.count > 0 && <p className="mt-1 text-zinc-500">{s.intake.count} αιτήματα στοιχείων</p>}
+          </div>
+        ) : (
+          <Empty />
+        )}
+      </Section>
+
+      {/* Attach sheet */}
+      {attachOpen && (
+        <Overlay onClose={() => setAttachOpen(false)} title="Σύνδεση με φάκελο">
+          {attachLoading ? (
+            <p className="py-3 text-sm text-zinc-400">Φορτώνει...</p>
+          ) : attachError ? (
+            <div className="space-y-2 py-2">
+              <p className="text-sm text-zinc-500">Δεν φορτώθηκαν τα στοιχεία.</p>
+              <Button variant="secondary" size="sm" onClick={() => void openAttach()}>Δοκίμασε ξανά</Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <p className="mb-1 text-xs font-semibold text-zinc-500">Προσφορές</p>
+                {attOffers.length === 0 ? <Empty /> : attOffers.map((o) => (
+                  <PickRow
+                    key={o.id}
+                    primary={o.offerNumber ?? '—'}
+                    secondary={`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
+                    busy={busyKey === `offer:${o.id}:true`}
+                    onAttach={() => void setFolderLink('offer', o.id, true)}
+                  />
+                ))}
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-zinc-500">Ραντεβού</p>
+                {attAppts.length === 0 ? <Empty /> : attAppts.map((a) => (
+                  <PickRow
+                    key={a.id}
+                    primary={a.title}
+                    secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDateGr(a.dueDate)}` : ''}`}
+                    busy={busyKey === `task:${a.id}:true`}
+                    onAttach={() => void setFolderLink('task', a.id, true)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+        </Overlay>
+      )}
+
+      {/* Quick create sheet */}
+      {qcMode && (
+        <Overlay onClose={() => setQcMode(null)} title={qcMode === 'offer' ? 'Νέα προσφορά' : 'Νέο ραντεβού'}>
+          <div className="space-y-3">
+            {qcError && <p className="text-xs text-red-600">{qcError}</p>}
+            {qcMode === 'offer' ? (
+              <>
+                <Input label="Περιγραφή" value={qcDesc} onChange={(e) => setQcDesc(e.target.value)} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+                <Input label="Ποσό (€)" value={qcAmount} inputMode="decimal" onChange={(e) => setQcAmount(e.target.value)} placeholder="0" />
+              </>
+            ) : (
+              <>
+                <Input label="Τίτλος" value={qcTitle} onChange={(e) => setQcTitle(e.target.value)} placeholder="π.χ. Επίσκεψη για μέτρηση" />
+                <div className="flex gap-1.5">
+                  {[{ v: 'book_appointment', l: 'Ραντεβού' }, { v: 'visit_customer', l: 'Επίσκεψη' }].map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => setQcType(o.v)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${qcType === o.v ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-zinc-200 text-zinc-600 dark:border-white/10 dark:text-zinc-300'}`}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+                <Input label="Ημερομηνία" type="date" value={qcDate} onChange={(e) => setQcDate(e.target.value)} />
+              </>
+            )}
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setQcMode(null)}>Ακύρωση</Button>
+              <Button size="sm" loading={qcBusy} onClick={submitQuickCreate}>Δημιουργία</Button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Small presentational helpers
+// ---------------------------------------------------------------------------
+
+function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+  return (
+    <div className="rounded-xl bg-white p-3 ring-1 ring-zinc-200/70 dark:bg-[#17232f] dark:ring-white/10">
+      <p className="mb-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+        {title}{typeof count === 'number' && count > 0 ? ` · ${count}` : ''}
+      </p>
+      <div className="space-y-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Empty() {
+  return <p className="px-1 text-xs text-zinc-400 dark:text-zinc-500">Δεν υπάρχει κάτι ακόμα.</p>;
+}
+
+function Row({ primary, secondary, busy, onDetach }: { primary: string; secondary: string; busy: boolean; onDetach: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-[#1e2b38]">
+      <div className="min-w-0">
+        <p className="truncate text-sm text-zinc-800 dark:text-zinc-100">{primary}</p>
+        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{secondary}</p>
+      </div>
+      <button
+        type="button"
+        onClick={onDetach}
+        disabled={busy}
+        className="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-zinc-400 transition hover:text-red-600 disabled:opacity-40"
+      >
+        {busy ? '...' : 'Αφαίρεση από φάκελο'}
+      </button>
+    </div>
+  );
+}
+
+function PickRow({ primary, secondary, busy, onAttach }: { primary: string; secondary: string; busy: boolean; onAttach: () => void }) {
+  return (
+    <div className="flex items-center justify-between gap-2 rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-[#1e2b38]">
+      <div className="min-w-0">
+        <p className="truncate text-sm text-zinc-800 dark:text-zinc-100">{primary}</p>
+        <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{secondary}</p>
+      </div>
+      <Button size="sm" loading={busy} onClick={onAttach}>Σύνδεση</Button>
+    </div>
+  );
+}
+
+function Overlay({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={onClose}>
+      <div
+        className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl bg-white p-4 shadow-xl dark:bg-[#17232f] sm:rounded-3xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</p>
+          <button type="button" onClick={onClose} className="rounded-full px-2 py-1 text-xs text-zinc-400 hover:text-zinc-700">Κλείσιμο</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
