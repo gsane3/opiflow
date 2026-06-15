@@ -10,8 +10,14 @@ import {
   getUploadKind,
   MAX_FILES_PER_SESSION,
 } from '@/lib/server/upload-tokens';
+import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
 
 export const runtime = 'nodejs';
+
+// Public endpoint — rate-limit by IP (one call per finished upload session).
+const publicLimiter = makePublicLimiter(30, 60_000, {
+  message: 'Πολλά αιτήματα. Δοκιμάστε ξανά σε λίγο.',
+});
 
 function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
@@ -23,6 +29,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const limited = await publicLimiter(request);
+  if (limited) return limited;
+
   const contentType = request.headers.get('content-type') ?? '';
   if (!contentType.includes('application/json')) {
     return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });

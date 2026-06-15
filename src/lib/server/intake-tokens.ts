@@ -1,13 +1,15 @@
-import crypto from 'node:crypto';
-import { createClient } from '@supabase/supabase-js';
+import {
+  buildPublicTokenUrl,
+  createServiceSupabaseClient,
+  generateRawToken,
+  getPublicAppUrl,
+  hashToken,
+} from './public-tokens';
 
-const TOKEN_BYTES = 32;
+// Re-exported so existing importers of these names from this module keep working.
+export { createServiceSupabaseClient, getPublicAppUrl };
+
 const DEFAULT_EXPIRY_HOURS = 72;
-
-interface ServerEnv {
-  NEXT_PUBLIC_SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-}
 
 export interface IntakeTokenRow {
   id: string;
@@ -32,52 +34,16 @@ export interface CreateIntakeTokenResult {
   row: IntakeTokenRow;
 }
 
-function requireServerEnv(): ServerEnv {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase server env');
-  }
-
-  return {
-    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
-    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
-  };
-}
-
-export function createServiceSupabaseClient() {
-  const env = requireServerEnv();
-
-  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 export function generateRawIntakeToken(): string {
-  return crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+  return generateRawToken();
 }
 
 export function hashIntakeToken(rawToken: string): string {
-  return crypto.createHash('sha256').update(rawToken, 'utf8').digest('hex');
-}
-
-export function getPublicAppUrl(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-
-  if (appUrl) {
-    return appUrl.replace(/\/$/, '');
-  }
-
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-
-  return 'http://localhost:3000';
+  return hashToken(rawToken);
 }
 
 export function buildIntakeUrl(rawToken: string): string {
-  return `${getPublicAppUrl()}/intake/${encodeURIComponent(rawToken)}`;
+  return buildPublicTokenUrl('intake', rawToken);
 }
 
 export async function createCustomerIntakeToken(params: {

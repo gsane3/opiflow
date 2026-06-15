@@ -1,11 +1,17 @@
-import crypto from 'node:crypto';
-import { createClient } from '@supabase/supabase-js';
-
 // Raw public token is never stored. Only the SHA-256 hex hash is written to DB.
 // Public upload pages must call server API routes; they must not query
 // Supabase directly with the anon key.
 
-const TOKEN_BYTES = 32;
+import {
+  buildPublicTokenUrl,
+  createServiceSupabaseClient,
+  generateRawToken,
+  hashToken,
+} from './public-tokens';
+
+// Re-exported so existing importers of this name from this module keep working.
+export { createServiceSupabaseClient };
+
 export const UPLOAD_TOKEN_EXPIRY_HOURS = 72;
 export const UPLOAD_BUCKET = 'customer-uploads';
 export const MAX_FILES_PER_SESSION = 10;
@@ -20,11 +26,6 @@ export const ALLOWED_MIME_TYPES = [
   'video/mp4',
   'video/quicktime',
 ] as const;
-
-interface ServerEnv {
-  NEXT_PUBLIC_SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,59 +63,19 @@ export interface CreateUploadTokenResult {
 }
 
 // ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function requireServerEnv(): ServerEnv {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase server env');
-  }
-
-  return {
-    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
-    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
-  };
-}
-
-export function createServiceSupabaseClient() {
-  const env = requireServerEnv();
-
-  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
-function getPublicAppUrl(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-
-  if (appUrl) {
-    return appUrl.replace(/\/$/, '');
-  }
-
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-
-  return 'http://localhost:3000';
-}
-
-// ---------------------------------------------------------------------------
 // Exported helpers
 // ---------------------------------------------------------------------------
 
 export function generateRawUploadToken(): string {
-  return crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+  return generateRawToken();
 }
 
 export function hashUploadToken(rawToken: string): string {
-  return crypto.createHash('sha256').update(rawToken, 'utf8').digest('hex');
+  return hashToken(rawToken);
 }
 
 export function buildUploadUrl(rawToken: string): string {
-  return `${getPublicAppUrl()}/upload/${encodeURIComponent(rawToken)}`;
+  return buildPublicTokenUrl('upload', rawToken);
 }
 
 export async function createCustomerUploadToken(params: {

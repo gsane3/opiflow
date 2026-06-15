@@ -1,17 +1,19 @@
-import crypto from 'node:crypto';
-import { createClient } from '@supabase/supabase-js';
-
 // Raw public token is never stored. Only the SHA-256 hex hash is written to DB.
 // Public appointment-response pages must call server API routes; they must not query
 // Supabase directly with the anon key.
 
-const TOKEN_BYTES = 32;
-const DEFAULT_EXPIRY_HOURS = 72; // 3 days
+import {
+  buildPublicTokenUrl,
+  createServiceSupabaseClient,
+  generateRawToken,
+  getPublicAppUrl,
+  hashToken,
+} from './public-tokens';
 
-interface ServerEnv {
-  NEXT_PUBLIC_SUPABASE_URL: string;
-  SUPABASE_SERVICE_ROLE_KEY: string;
-}
+// Re-exported so existing importers of these names from this module keep working.
+export { createServiceSupabaseClient, getPublicAppUrl };
+
+const DEFAULT_EXPIRY_HOURS = 72; // 3 days
 
 // ---------------------------------------------------------------------------
 // Types
@@ -60,59 +62,19 @@ export interface CreateAppointmentResponseTokenResult {
 }
 
 // ---------------------------------------------------------------------------
-// Internal helpers
-// ---------------------------------------------------------------------------
-
-function requireServerEnv(): ServerEnv {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    throw new Error('Missing Supabase server env (NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)');
-  }
-
-  return {
-    NEXT_PUBLIC_SUPABASE_URL: supabaseUrl,
-    SUPABASE_SERVICE_ROLE_KEY: serviceRoleKey,
-  };
-}
-
-// ---------------------------------------------------------------------------
 // Exported helpers
 // ---------------------------------------------------------------------------
 
-export function createServiceSupabaseClient() {
-  const env = requireServerEnv();
-
-  return createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-}
-
 export function generateRawAppointmentResponseToken(): string {
-  return crypto.randomBytes(TOKEN_BYTES).toString('base64url');
+  return generateRawToken();
 }
 
 export function hashAppointmentResponseToken(rawToken: string): string {
-  return crypto.createHash('sha256').update(rawToken, 'utf8').digest('hex');
-}
-
-export function getPublicAppUrl(): string {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-
-  if (appUrl) {
-    return appUrl.replace(/\/$/, '');
-  }
-
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
-  }
-
-  return 'http://localhost:3000';
+  return hashToken(rawToken);
 }
 
 export function buildAppointmentResponseUrl(rawToken: string): string {
-  return `${getPublicAppUrl()}/appointment-response/${encodeURIComponent(rawToken)}`;
+  return buildPublicTokenUrl('appointment-response', rawToken);
 }
 
 // ---------------------------------------------------------------------------
