@@ -27,6 +27,7 @@ import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, BrandGradient, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { hapticSelect, hapticSuccess } from '@/lib/haptics';
 import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
 import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
 import { pickAndUploadPhotos } from '@/lib/upload';
@@ -135,7 +136,7 @@ export default function CustomerWorkspaceScreen() {
               `/api/customers/${id}/${kind === 'intake' ? 'intake-link' : 'upload-link'}`,
               { mode: 'send' },
             );
-            if (r?.sent) Alert.alert('✓', `Στάλθηκε αίτημα ${label}.`);
+            if (r?.sent) { void hapticSuccess(); Alert.alert('✓', `Στάλθηκε αίτημα ${label}.`); }
             else Alert.alert('Αποστολή', r?.fallbackReason ?? r?.error ?? 'Δεν στάλθηκε (λείπει κινητό;).');
             void load();
           } catch {
@@ -190,6 +191,7 @@ export default function CustomerWorkspaceScreen() {
   }
 
   function onSuggestionTap(a: { id: string; actionType: string }) {
+    void hapticSelect();
     if (a.actionType === 'send_offer') setOfferOpen(true);
     else if (a.actionType === 'book_appointment') setApptOpen(true);
     void dismissSuggestion(a.id);
@@ -639,7 +641,7 @@ function MessageModal({
     setBusy(true);
     try {
       const res = await apiPost<{ ok?: boolean; error?: string }>(`/api/customers/${customerId}/message`, { text: t });
-      if (res?.ok) onDone();
+      if (res?.ok) { void hapticSuccess(); onDone(); }
       else Alert.alert('Σφάλμα', res?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Το μήνυμα δεν στάλθηκε.');
     } catch {
       Alert.alert('Σφάλμα', 'Το μήνυμα δεν στάλθηκε.');

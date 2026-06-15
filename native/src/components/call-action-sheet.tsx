@@ -10,6 +10,7 @@ import { ChipSelect, Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { hapticSuccess } from '@/lib/haptics';
 import { formatWhen, todayYMD } from '@/lib/format';
 import type { Communication, Customer } from '@/lib/types';
 
@@ -190,6 +191,7 @@ export function CallActionSheet({
       });
       setActions((prev) => prev.filter((x) => x.actionType !== a.actionType));
       onChanged();
+      void hapticSuccess();
       Alert.alert('✓', `Προστέθηκε εργασία: ${a.label}`);
     } catch {
       Alert.alert('Σφάλμα', 'Η εργασία δεν δημιουργήθηκε.');

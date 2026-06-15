@@ -24,6 +24,7 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, SuccessGradient, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch } from '@/lib/api';
+import { hapticSuccess } from '@/lib/haptics';
 import { briefExcerpt, formatWhen, todayYMD } from '@/lib/format';
 import { getIncomingState, subscribeIncomingState } from '@/lib/twilio-state';
 import type { Communication, Customer, Offer, Task } from '@/lib/types';
@@ -139,6 +140,7 @@ export default function HomeScreen() {
   );
 
   async function completeTask(id: string) {
+    void hapticSuccess();
     setTasks((ts) => ts.filter((t) => t.id !== id));
     try {
       await apiPatch(`/api/tasks/${id}`, { status: 'completed' });
