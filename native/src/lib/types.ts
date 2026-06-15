@@ -146,6 +146,28 @@ export interface GalleryFile {
   kind: 'image' | 'video' | 'file';
 }
 
+/** Φάκελος εργασίας counts (GET /api/customers/[id]/folders). */
+export interface WorkFolderCounts {
+  offers: number;
+  appointments: number;
+  messages: number;
+  uploadRequests: number;
+  intakeRequests: number;
+}
+
+/** Φάκελος εργασίας — a per-job grouping under a customer (WF-1A APIs). */
+export interface WorkFolder {
+  id: string;
+  businessId: string;
+  customerId: string;
+  title: string;
+  status: string; // open | in_progress | done | archived
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  counts?: WorkFolderCounts;
+}
+
 /** Draft/send response of the link endpoints (intake / appointment / offer notify). */
 export interface LinkDraft {
   ok?: boolean;
