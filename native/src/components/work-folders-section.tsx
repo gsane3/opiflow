@@ -131,6 +131,11 @@ function money(n: number | null): string {
   return typeof n === 'number' ? `€${n.toLocaleString('el-GR')}` : '';
 }
 
+/** Today in the app's display format ΗΗ-ΜΜ-ΕΕΕΕ (consistent with the chat flows). */
+function todayDMY(): string {
+  return formatDate(new Date().toISOString());
+}
+
 const STATUS_LABELS: Record<string, string> = {
   open: 'Νέο',
   in_progress: 'Σε εξέλιξη',
@@ -211,7 +216,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   const [newApptOpen, setNewApptOpen] = useState(false);
   const [qaTitle, setQaTitle] = useState('');
   const [qaType, setQaType] = useState('book_appointment');
-  const [qaDate, setQaDate] = useState(todayYMD());
+  const [qaDate, setQaDate] = useState(todayDMY());
   const [qaError, setQaError] = useState('');
   const [qaBusy, setQaBusy] = useState(false);
 
@@ -392,9 +397,9 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     if (!customerId2) { setQaError('Δεν βρέθηκε ο πελάτης.'); return; }
     // Accept the field in either YYYY-MM-DD (default) or the app's DD-MM-YYYY
     // display convention; the API only accepts YYYY-MM-DD.
-    const raw = qaDate.trim() || todayYMD();
-    const ymd = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : dmyToYmd(raw);
-    if (!ymd) { setQaError('Γράψε ημερομηνία ΕΕΕΕ-ΜΜ-ΗΗ.'); return; }
+    const raw = qaDate.trim();
+    const ymd = raw === '' ? todayYMD() : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : dmyToYmd(raw);
+    if (!ymd) { setQaError('Γράψε ημερομηνία ΗΗ-ΜΜ-ΕΕΕΕ.'); return; }
     setQaBusy(true);
     try {
       const r = await apiPost<{ ok?: boolean }>('/api/tasks', {
@@ -696,7 +701,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                     </View>
                     <View style={styles.actionBtn}>
                       <PrimaryButton
-                        label="Νέα προσφορά"
+                        label="Γρήγορη προσφορά"
                         tone="outline"
                         onPress={() => {
                           setQoDesc('');
@@ -708,12 +713,12 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                     </View>
                     <View style={styles.actionBtn}>
                       <PrimaryButton
-                        label="Νέο ραντεβού"
+                        label="Γρήγορο ραντεβού"
                         tone="outline"
                         onPress={() => {
                           setQaTitle('');
                           setQaType('book_appointment');
-                          setQaDate(todayYMD());
+                          setQaDate(todayDMY());
                           setQaError('');
                           setNewApptOpen(true);
                         }}
@@ -871,19 +876,29 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                 )}
               </View>
 
-              <PrimaryButton
-                label="Επεξεργασία"
-                tone="outline"
-                onPress={() => {
-                  setETitle(detail.title);
-                  setENotes(detail.notes ?? '');
-                  setEStatus(detail.status);
-                  setEditMode(true);
-                }}
-              />
-              {detail.status !== 'archived' ? (
-                <PrimaryButton label="Αρχειοθέτηση" tone="outline" busy={eBusy} onPress={() => void archive()} />
-              ) : null}
+              {/* Secondary footer — subdued so «Αρχειοθέτηση» doesn't read as the main next step */}
+              <View style={styles.footerActions}>
+                <Pressable
+                  onPress={() => {
+                    setETitle(detail.title);
+                    setENotes(detail.notes ?? '');
+                    setEStatus(detail.status);
+                    setEditMode(true);
+                  }}
+                  hitSlop={6}
+                  style={({ pressed }) => [styles.footerBtn, pressed && styles.pressed]}>
+                  <ThemedText type="small" style={styles.footerEdit}>Επεξεργασία</ThemedText>
+                </Pressable>
+                {detail.status !== 'archived' ? (
+                  <Pressable
+                    onPress={() => void archive()}
+                    disabled={eBusy}
+                    hitSlop={6}
+                    style={({ pressed }) => [styles.footerBtn, pressed && styles.pressed]}>
+                    <ThemedText type="small" style={styles.footerArchive}>{eBusy ? '...' : 'Αρχειοθέτηση'}</ThemedText>
+                  </Pressable>
+                ) : null}
+              </View>
             </>
           )
         ) : null}
@@ -902,108 +917,121 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
               onPress={() => detail && void openAttachSheet(detail.id)}
             />
           </>
+        ) : attOffers.length + attAppts.length + attMsgs.length + attIntake.length + attUpload.length === 0 ? (
+          <>
+            <ThemedText type="small" themeColor="textSecondary">Δεν υπάρχει κάτι διαθέσιμο για σύνδεση.</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>
+              Θα εμφανιστούν εδώ προσφορές, ραντεβού ή αιτήματα που δεν ανήκουν ήδη σε φάκελο.
+            </ThemedText>
+          </>
         ) : (
           <>
-            <ThemedText type="smallBold" style={styles.ink}>Προσφορές</ThemedText>
-            {attOffers.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
-            ) : (
-              attOffers.map((o) => (
-                <View key={o.id} style={styles.pickRow}>
-                  <View style={styles.pickRowBody}>
-                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{o.offerNumber ?? '—'}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                      {`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
-                    </ThemedText>
+            <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>
+              Σύνδεσε κάτι που υπάρχει ήδη στον πελάτη.
+            </ThemedText>
+            {attOffers.length > 0 ? (
+              <>
+                <ThemedText type="smallBold" style={styles.ink}>Προσφορές</ThemedText>
+                {attOffers.map((o) => (
+                  <View key={o.id} style={styles.pickRow}>
+                    <View style={styles.pickRowBody}>
+                      <ThemedText type="small" style={styles.ink} numberOfLines={1}>{o.offerNumber ?? '—'}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                        {`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
+                      </ThemedText>
+                    </View>
+                    <PrimaryButton
+                      label="Σύνδεση"
+                      busy={busyKey === `offer:${o.id}`}
+                      onPress={() => detail && void setFolderLink(detail.id, 'offer', o.id, true)}
+                    />
                   </View>
-                  <PrimaryButton
-                    label="Σύνδεση"
-                    busy={busyKey === `offer:${o.id}`}
-                    onPress={() => detail && void setFolderLink(detail.id, 'offer', o.id, true)}
-                  />
-                </View>
-              ))
-            )}
-            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Ραντεβού</ThemedText>
-            {attAppts.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
-            ) : (
-              attAppts.map((a) => (
-                <View key={a.id} style={styles.pickRow}>
-                  <View style={styles.pickRowBody}>
-                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{a.title}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                      {`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}`}
-                    </ThemedText>
+                ))}
+              </>
+            ) : null}
+            {attAppts.length > 0 ? (
+              <>
+                <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Ραντεβού</ThemedText>
+                {attAppts.map((a) => (
+                  <View key={a.id} style={styles.pickRow}>
+                    <View style={styles.pickRowBody}>
+                      <ThemedText type="small" style={styles.ink} numberOfLines={1}>{a.title}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                        {`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}`}
+                      </ThemedText>
+                    </View>
+                    <PrimaryButton
+                      label="Σύνδεση"
+                      busy={busyKey === `task:${a.id}`}
+                      onPress={() => detail && void setFolderLink(detail.id, 'task', a.id, true)}
+                    />
                   </View>
-                  <PrimaryButton
-                    label="Σύνδεση"
-                    busy={busyKey === `task:${a.id}`}
-                    onPress={() => detail && void setFolderLink(detail.id, 'task', a.id, true)}
-                  />
-                </View>
-              ))
-            )}
-            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Μηνύματα</ThemedText>
-            {attMsgs.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
-            ) : (
-              attMsgs.map((m) => (
-                <View key={m.id} style={styles.pickRow}>
-                  <View style={styles.pickRowBody}>
-                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{m.summary ?? '—'}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{formatDate(m.createdAt)}</ThemedText>
+                ))}
+              </>
+            ) : null}
+            {attMsgs.length > 0 ? (
+              <>
+                <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Μηνύματα</ThemedText>
+                {attMsgs.map((m) => (
+                  <View key={m.id} style={styles.pickRow}>
+                    <View style={styles.pickRowBody}>
+                      <ThemedText type="small" style={styles.ink} numberOfLines={1}>{m.summary ?? '—'}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{formatDate(m.createdAt)}</ThemedText>
+                    </View>
+                    <PrimaryButton
+                      label="Σύνδεση"
+                      busy={busyKey === `communication:${m.id}`}
+                      onPress={() => detail && void setFolderLink(detail.id, 'communication', m.id, true)}
+                    />
                   </View>
-                  <PrimaryButton
-                    label="Σύνδεση"
-                    busy={busyKey === `communication:${m.id}`}
-                    onPress={() => detail && void setFolderLink(detail.id, 'communication', m.id, true)}
-                  />
-                </View>
-              ))
-            )}
-            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Στοιχεία</ThemedText>
-            {attIntake.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
-            ) : (
-              attIntake.map((i) => (
-                <View key={i.id} style={styles.pickRow}>
-                  <View style={styles.pickRowBody}>
-                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{REQ_STATUS_GR[i.status] ?? i.status}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{`Αίτημα στοιχείων · ${formatDate(i.createdAt)}`}</ThemedText>
+                ))}
+              </>
+            ) : null}
+            {attIntake.length > 0 ? (
+              <>
+                <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Στοιχεία</ThemedText>
+                {attIntake.map((i) => (
+                  <View key={i.id} style={styles.pickRow}>
+                    <View style={styles.pickRowBody}>
+                      <ThemedText type="small" style={styles.ink} numberOfLines={1}>{REQ_STATUS_GR[i.status] ?? i.status}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{`Αίτημα στοιχείων · ${formatDate(i.createdAt)}`}</ThemedText>
+                    </View>
+                    <PrimaryButton
+                      label="Σύνδεση"
+                      busy={busyKey === `intake_token:${i.id}`}
+                      onPress={() => detail && void setFolderLink(detail.id, 'intake_token', i.id, true)}
+                    />
                   </View>
-                  <PrimaryButton
-                    label="Σύνδεση"
-                    busy={busyKey === `intake_token:${i.id}`}
-                    onPress={() => detail && void setFolderLink(detail.id, 'intake_token', i.id, true)}
-                  />
-                </View>
-              ))
-            )}
-            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Φωτογραφίες</ThemedText>
-            {attUpload.length === 0 ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
-            ) : (
-              attUpload.map((u) => (
-                <View key={u.id} style={styles.pickRow}>
-                  <View style={styles.pickRowBody}>
-                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{REQ_STATUS_GR[u.status] ?? u.status}</ThemedText>
-                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{`Αίτημα φωτογραφιών · ${formatDate(u.createdAt)}`}</ThemedText>
+                ))}
+              </>
+            ) : null}
+            {attUpload.length > 0 ? (
+              <>
+                <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Φωτογραφίες</ThemedText>
+                {attUpload.map((u) => (
+                  <View key={u.id} style={styles.pickRow}>
+                    <View style={styles.pickRowBody}>
+                      <ThemedText type="small" style={styles.ink} numberOfLines={1}>{REQ_STATUS_GR[u.status] ?? u.status}</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{`Αίτημα φωτογραφιών · ${formatDate(u.createdAt)}`}</ThemedText>
+                    </View>
+                    <PrimaryButton
+                      label="Σύνδεση"
+                      busy={busyKey === `upload_token:${u.id}`}
+                      onPress={() => detail && void setFolderLink(detail.id, 'upload_token', u.id, true)}
+                    />
                   </View>
-                  <PrimaryButton
-                    label="Σύνδεση"
-                    busy={busyKey === `upload_token:${u.id}`}
-                    onPress={() => detail && void setFolderLink(detail.id, 'upload_token', u.id, true)}
-                  />
-                </View>
-              ))
-            )}
+                ))}
+              </>
+            ) : null}
           </>
         )}
       </SheetModal>
 
       {/* WF-4: Quick-create offer sheet */}
-      <SheetModal visible={newOfferOpen} title="Νέα προσφορά" onClose={() => setNewOfferOpen(false)}>
+      <SheetModal visible={newOfferOpen} title="Γρήγορη προσφορά" onClose={() => setNewOfferOpen(false)}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Για πλήρη αποστολή με μήνυμα, χρησιμοποίησε την κύρια συνομιλία πελάτη.
+        </ThemedText>
         <Input
           label="Περιγραφή"
           value={qoDesc}
@@ -1027,7 +1055,10 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       </SheetModal>
 
       {/* WF-4: Quick-create appointment sheet */}
-      <SheetModal visible={newApptOpen} title="Νέο ραντεβού" onClose={() => setNewApptOpen(false)}>
+      <SheetModal visible={newApptOpen} title="Γρήγορο ραντεβού" onClose={() => setNewApptOpen(false)}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Για πλήρη αποστολή με μήνυμα, χρησιμοποίησε την κύρια συνομιλία πελάτη.
+        </ThemedText>
         <Input
           label="Τίτλος"
           value={qaTitle}
@@ -1037,10 +1068,10 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
         <ThemedText type="small" themeColor="textSecondary">Τύπος</ThemedText>
         <ChipSelect options={APPT_TYPE_OPTIONS} value={qaType} onChange={setQaType} />
         <Input
-          label="Ημερομηνία (ΕΕΕΕ-ΜΜ-ΗΗ)"
+          label="Ημερομηνία (ΗΗ-ΜΜ-ΕΕΕΕ)"
           value={qaDate}
           onChangeText={setQaDate}
-          placeholder={todayYMD()}
+          placeholder={todayDMY()}
         />
         {qaError ? <ThemedText type="small" style={styles.err}>{qaError}</ThemedText> : null}
         <PrimaryButton
@@ -1086,6 +1117,10 @@ const makeStyles = (c: ThemePalette) =>
     pickRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, backgroundColor: c.card, borderRadius: 10, padding: Spacing.two },
     pickRowBody: { flex: 1, gap: 2 },
     pickGroupLabel: { marginTop: Spacing.two },
+    footerActions: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: Spacing.two, paddingTop: Spacing.two, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: c.border },
+    footerBtn: { paddingVertical: 8, paddingHorizontal: 4 },
+    footerEdit: { color: Brand.primary, fontWeight: '700' },
+    footerArchive: { color: c.textFaint },
   });
 
 // ---------------------------------------------------------------------------
