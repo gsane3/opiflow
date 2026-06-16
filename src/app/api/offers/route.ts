@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { parseOfferItems, calculateOfferTotals } from '@/lib/offer-totals';
+import { resolveWorkFolderForCreate } from '@/lib/server/folder-link';
 
 export const runtime = 'nodejs';
 
@@ -362,6 +363,13 @@ export async function POST(request: NextRequest) {
     // relatedCallId - bare uuid, no FK validation yet
     const relatedCallId = raw.relatedCallId != null ? str(raw.relatedCallId) : null;
 
+    // workFolderId (WF-4) - optional. When present, the folder must belong to
+    // this business AND the same customer as the offer. Unchanged when absent.
+    const folderLink = await resolveWorkFolderForCreate(supabase, businessId, raw.workFolderId, customerId);
+    if (!folderLink.ok) {
+      return NextResponse.json({ ok: false, error: folderLink.error }, { status: folderLink.status });
+    }
+
     // offer number: use provided or generate
     const offerNumber =
       str(raw.offerNumber) ?? (await generateOfferNumber(supabase, businessId));
@@ -392,6 +400,8 @@ export async function POST(request: NextRequest) {
         email_subject: str(raw.emailSubject),
         email_body: str(raw.emailBody),
         created_from_ai: raw.createdFromAi === true,
+        // Only set when filing into a folder — keeps existing inserts untouched.
+        ...(folderLink.workFolderId ? { work_folder_id: folderLink.workFolderId } : {}),
       })
       .select(OFFER_COLUMNS)
       .single();

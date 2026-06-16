@@ -11,6 +11,7 @@ import { formatDateGr } from '@/lib/date';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import FolderDetailPanel from '@/components/customers/FolderDetailPanel';
 
 interface WorkFolderCounts {
   offers: number;
@@ -346,13 +347,10 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
                       ) : (
                         <>
                           {selected.notes && <p className="text-sm text-zinc-700 dark:text-zinc-200">{selected.notes}</p>}
-                          {countsSummary(selected.counts) && (
-                            <p className="text-xs text-zinc-500 dark:text-zinc-400">{countsSummary(selected.counts)}</p>
-                          )}
-                          <div className="rounded-lg bg-zinc-100 p-3 text-xs text-zinc-500 dark:bg-[#17232f] dark:text-zinc-400">
-                            <p>Οι προσφορές, τα ραντεβού και οι φωτογραφίες θα εμφανίζονται εδώ.</p>
-                            <p className="mt-1">Σύντομα θα μπορείς να συνδέεις προσφορές και ραντεβού εδώ.</p>
-                          </div>
+
+                          {/* WF-4: real folder sections + attach / detach / quick-create */}
+                          <FolderDetailPanel folderId={selected.id} onChanged={load} />
+
                           {/* Public folder link — copy/send to the customer (WF-2) */}
                           <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
                             <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Σύνδεσμος για τον πελάτη</p>

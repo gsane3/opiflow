@@ -1,10 +1,10 @@
-// «Φάκελοι εργασίας» — per-job grouping under a customer (WF-1B, native).
-// Self-contained: lists the customer's folders, creates one, and opens a minimal
-// detail/edit sheet. Uses the WF-1A authenticated APIs. No public link / token /
-// attach picker here — those are later phases.
+// «Φάκελοι εργασίας» — per-job grouping under a customer (WF-1B + WF-4, native).
+// Self-contained: lists the customer's folders, creates one, opens detail/edit sheet
+// with real sections (WF-4): Προσφορές / Ραντεβού / Μηνύματα / Φωτογραφίες /
+// Στοιχεία πελάτη, plus: attach existing, detach, quick-create filed into folder.
 
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -12,8 +12,86 @@ import { ChipSelect, Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
-import { formatDate } from '@/lib/format';
+import { dmyToYmd, formatDate, todayYMD } from '@/lib/format';
 import type { WorkFolder, WorkFolderCounts } from '@/lib/types';
+
+// ---------------------------------------------------------------------------
+// WF-4 inline types (folder detail API shapes)
+// ---------------------------------------------------------------------------
+
+interface DetailOffer {
+  id: string;
+  offerNumber: string | null;
+  status: string;
+  total: number | null;
+  createdAt: string;
+}
+interface DetailAppt {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  dueDate: string | null;
+  dueTime: string | null;
+}
+interface DetailMsg {
+  id: string;
+  summary: string | null;
+  direction: string;
+  channel: string;
+  createdAt: string;
+}
+interface FolderDetail {
+  folder: { id: string; title: string; status: string };
+  customer: { id: string; name: string | null; phone: string | null; email: string | null } | null;
+  sections: {
+    offers: { count: number; items: DetailOffer[] };
+    appointments: { count: number; items: DetailAppt[] };
+    messages: { count: number; items: DetailMsg[] };
+    photos: { count: number };
+    intake: { count: number };
+  };
+}
+interface AttachOffer {
+  id: string;
+  offerNumber: string | null;
+  status: string;
+  total: number | null;
+}
+interface AttachAppt {
+  id: string;
+  title: string;
+  type: string;
+  status: string;
+  dueDate: string | null;
+}
+
+// ---------------------------------------------------------------------------
+// Greek label maps
+// ---------------------------------------------------------------------------
+
+const OFFER_STATUS_GR: Record<string, string> = {
+  draft: 'Πρόχειρη',
+  ready_to_send: 'Έτοιμη',
+  sent_manually: 'Στάλθηκε',
+  sent_provider: 'Στάλθηκε',
+  accepted: 'Αποδεκτή',
+  rejected: 'Απορρίφθηκε',
+  expired: 'Έληξε',
+  cancelled: 'Ακυρώθηκε',
+};
+const APPT_TYPE_GR: Record<string, string> = {
+  book_appointment: 'Ραντεβού',
+  visit_customer: 'Επίσκεψη',
+};
+const APPT_TYPE_OPTIONS = [
+  { key: 'book_appointment', label: 'Ραντεβού' },
+  { key: 'visit_customer', label: 'Επίσκεψη' },
+];
+
+function money(n: number | null): string {
+  return typeof n === 'number' ? `€${n.toLocaleString('el-GR')}` : '';
+}
 
 const STATUS_LABELS: Record<string, string> = {
   open: 'Νέο',
@@ -69,6 +147,36 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   const [linkBusy, setLinkBusy] = useState(false);
   const [linkSent, setLinkSent] = useState(false);
 
+  // WF-4: folder detail sections
+  const [fdetail, setFdetail] = useState<FolderDetail | null>(null);
+  const [fdLoading, setFdLoading] = useState(false);
+  const [fdError, setFdError] = useState(false);
+
+  // WF-4: attach existing sheet
+  const [attachOpen, setAttachOpen] = useState(false);
+  const [attachLoading, setAttachLoading] = useState(false);
+  const [attachError, setAttachError] = useState(false);
+  const [attOffers, setAttOffers] = useState<AttachOffer[]>([]);
+  const [attAppts, setAttAppts] = useState<AttachAppt[]>([]);
+
+  // WF-4: quick-create offer sheet
+  const [newOfferOpen, setNewOfferOpen] = useState(false);
+  const [qoDesc, setQoDesc] = useState('');
+  const [qoAmount, setQoAmount] = useState('');
+  const [qoError, setQoError] = useState('');
+  const [qoBusy, setQoBusy] = useState(false);
+
+  // WF-4: quick-create appointment sheet
+  const [newApptOpen, setNewApptOpen] = useState(false);
+  const [qaTitle, setQaTitle] = useState('');
+  const [qaType, setQaType] = useState('book_appointment');
+  const [qaDate, setQaDate] = useState(todayYMD());
+  const [qaError, setQaError] = useState('');
+  const [qaBusy, setQaBusy] = useState(false);
+
+  // WF-4: tracks which detach/attach button is in-flight (entityType:id)
+  const [busyKey, setBusyKey] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -85,6 +193,142 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // WF-4: fetch folder detail sections
+  const loadFolderDetail = useCallback(async (folderId: string) => {
+    setFdLoading(true);
+    setFdError(false);
+    try {
+      const r = await apiGet<{ ok?: boolean } & Partial<FolderDetail>>(`/api/folders/${folderId}`);
+      if (r?.ok && r.sections) {
+        setFdetail(r as FolderDetail);
+      } else {
+        setFdError(true);
+      }
+    } catch {
+      setFdError(true);
+    } finally {
+      setFdLoading(false);
+    }
+  }, []);
+
+  // WF-4: open attach-existing sheet for the given folder
+  const openAttachSheet = useCallback(async (folderId: string) => {
+    setAttachOpen(true);
+    setAttachLoading(true);
+    setAttachError(false);
+    setAttOffers([]);
+    setAttAppts([]);
+    try {
+      const r = await apiGet<{ ok?: boolean; offers?: AttachOffer[]; appointments?: AttachAppt[] }>(`/api/folders/${folderId}/attachable`);
+      if (r?.ok) {
+        setAttOffers(r.offers ?? []);
+        setAttAppts(r.appointments ?? []);
+      } else {
+        setAttachError(true);
+      }
+    } catch {
+      setAttachError(true);
+    } finally {
+      setAttachLoading(false);
+    }
+  }, []);
+
+  // WF-4: attach or detach an entity from a folder
+  async function setFolderLink(
+    folderId: string,
+    entityType: 'offer' | 'task' | 'communication',
+    entityId: string,
+    attach: boolean,
+  ) {
+    const key = `${entityType}:${entityId}`;
+    setBusyKey(key);
+    try {
+      const r = await apiPost<{ ok?: boolean }>(`/api/folders/${folderId}/attach`, { entityType, entityId, attach });
+      if (r?.ok) {
+        Alert.alert('', attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
+        if (attach && attachOpen) {
+          // drop the just-attached item from the pick list
+          setAttOffers((p) => p.filter((o) => o.id !== entityId));
+          setAttAppts((p) => p.filter((a) => a.id !== entityId));
+        }
+        void loadFolderDetail(folderId);
+        void load();
+      } else {
+        Alert.alert('Σφάλμα', attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      const isNet = e instanceof ApiError && e.isNetwork;
+      Alert.alert('Σφάλμα', isNet ? 'Έλεγξε τη σύνδεση.' : attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  // WF-4: quick-create offer filed into folder
+  async function submitNewOffer(folderId: string) {
+    const desc = qoDesc.trim();
+    const amount = Number(qoAmount.replace(',', '.'));
+    if (!desc) { setQoError('Γράψε περιγραφή.'); return; }
+    if (!isFinite(amount) || amount < 0) { setQoError('Γράψε ποσό.'); return; }
+    const customerId2 = fdetail?.customer?.id;
+    if (!customerId2) { setQoError('Δεν βρέθηκε ο πελάτης.'); return; }
+    setQoBusy(true);
+    try {
+      const r = await apiPost<{ ok?: boolean }>('/api/offers', {
+        customerId: customerId2,
+        workFolderId: folderId,
+        items: [{ description: desc, quantity: 1, unitPrice: amount }],
+      });
+      if (r?.ok) {
+        setNewOfferOpen(false);
+        Alert.alert('', 'Συνδέθηκε με τον φάκελο');
+        void loadFolderDetail(folderId);
+        void load();
+      } else {
+        setQoError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      setQoError(e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setQoBusy(false);
+    }
+  }
+
+  // WF-4: quick-create appointment filed into folder
+  async function submitNewAppt(folderId: string) {
+    const titleVal = qaTitle.trim();
+    if (!titleVal) { setQaError('Γράψε τίτλο.'); return; }
+    const customerId2 = fdetail?.customer?.id;
+    if (!customerId2) { setQaError('Δεν βρέθηκε ο πελάτης.'); return; }
+    // Accept the field in either YYYY-MM-DD (default) or the app's DD-MM-YYYY
+    // display convention; the API only accepts YYYY-MM-DD.
+    const raw = qaDate.trim() || todayYMD();
+    const ymd = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : dmyToYmd(raw);
+    if (!ymd) { setQaError('Γράψε ημερομηνία ΕΕΕΕ-ΜΜ-ΗΗ.'); return; }
+    setQaBusy(true);
+    try {
+      const r = await apiPost<{ ok?: boolean }>('/api/tasks', {
+        customerId: customerId2,
+        workFolderId: folderId,
+        title: titleVal,
+        type: qaType,
+        dueDate: ymd,
+      });
+      if (r?.ok) {
+        setNewApptOpen(false);
+        Alert.alert('', 'Συνδέθηκε με τον φάκελο');
+        void loadFolderDetail(folderId);
+        void load();
+      } else {
+        setQaError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      setQaError(e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setQaBusy(false);
+    }
+  }
 
   function openCreate() {
     setTitle('');
@@ -133,6 +377,9 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     setETitle(f.title);
     setENotes(f.notes ?? '');
     setEStatus(f.status);
+    // WF-4: fetch real sections
+    setFdetail(null);
+    void loadFolderDetail(f.id);
   }
 
   // WF-2: create (draft) the public folder link, then send or share it.
@@ -180,6 +427,11 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   function closeDetail() {
     setDetail(null);
     setEditMode(false);
+    setFdetail(null);
+    setFdError(false);
+    setAttachOpen(false);
+    setNewOfferOpen(false);
+    setNewApptOpen(false);
   }
 
   async function patchFolder(updates: Record<string, unknown>): Promise<boolean> {
@@ -332,14 +584,142 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                   {countsSummary(detail.counts)}
                 </ThemedText>
               ) : null}
-              <View style={styles.placeholderBox}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Οι προσφορές, τα ραντεβού και οι φωτογραφίες θα εμφανίζονται εδώ.
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Σύντομα θα μπορείς να συνδέεις προσφορές και ραντεβού εδώ.
-                </ThemedText>
-              </View>
+              {/* WF-4: real folder sections */}
+              {fdLoading ? (
+                <View style={styles.fdCenter}>
+                  <ThemedText type="small" themeColor="textSecondary">Φορτώνει...</ThemedText>
+                </View>
+              ) : fdError ? (
+                <View style={styles.fdCenter}>
+                  <ThemedText type="small" themeColor="textSecondary">Δεν φορτώθηκαν τα στοιχεία.</ThemedText>
+                  <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => detail && void loadFolderDetail(detail.id)} />
+                </View>
+              ) : fdetail ? (
+                <>
+                  {/* Action buttons row */}
+                  <View style={styles.actionRow}>
+                    <View style={styles.actionBtn}>
+                      <PrimaryButton
+                        label="Σύνδεση υπάρχοντος"
+                        tone="outline"
+                        onPress={() => void openAttachSheet(fdetail.folder.id)}
+                      />
+                    </View>
+                    <View style={styles.actionBtn}>
+                      <PrimaryButton
+                        label="Νέα προσφορά"
+                        tone="outline"
+                        onPress={() => {
+                          setQoDesc('');
+                          setQoAmount('');
+                          setQoError('');
+                          setNewOfferOpen(true);
+                        }}
+                      />
+                    </View>
+                    <View style={styles.actionBtn}>
+                      <PrimaryButton
+                        label="Νέο ραντεβού"
+                        tone="outline"
+                        onPress={() => {
+                          setQaTitle('');
+                          setQaType('book_appointment');
+                          setQaDate(todayYMD());
+                          setQaError('');
+                          setNewApptOpen(true);
+                        }}
+                      />
+                    </View>
+                  </View>
+
+                  {/* Section: Προσφορές */}
+                  <FdSection title="Προσφορές" count={fdetail.sections.offers.count} c={c} styles={styles}>
+                    {fdetail.sections.offers.items.length === 0 ? (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+                    ) : (
+                      fdetail.sections.offers.items.map((o) => (
+                        <FdRow
+                          key={o.id}
+                          primary={o.offerNumber ?? '—'}
+                          secondary={`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
+                          busy={busyKey === `offer:${o.id}`}
+                          detachLabel="Αφαίρεση από φάκελο"
+                          onDetach={() => void setFolderLink(fdetail.folder.id, 'offer', o.id, false)}
+                          styles={styles}
+                          c={c}
+                        />
+                      ))
+                    )}
+                  </FdSection>
+
+                  {/* Section: Ραντεβού */}
+                  <FdSection title="Ραντεβού" count={fdetail.sections.appointments.count} c={c} styles={styles}>
+                    {fdetail.sections.appointments.items.length === 0 ? (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+                    ) : (
+                      fdetail.sections.appointments.items.map((a) => (
+                        <FdRow
+                          key={a.id}
+                          primary={a.title}
+                          secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}${a.dueTime ? ` ${a.dueTime}` : ''}`}
+                          busy={busyKey === `task:${a.id}`}
+                          detachLabel="Αφαίρεση από φάκελο"
+                          onDetach={() => void setFolderLink(fdetail.folder.id, 'task', a.id, false)}
+                          styles={styles}
+                          c={c}
+                        />
+                      ))
+                    )}
+                  </FdSection>
+
+                  {/* Section: Μηνύματα */}
+                  <FdSection title="Μηνύματα" count={fdetail.sections.messages.count} c={c} styles={styles}>
+                    {fdetail.sections.messages.items.length === 0 ? (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+                    ) : (
+                      fdetail.sections.messages.items.map((m) => (
+                        <FdRow
+                          key={m.id}
+                          primary={m.summary ?? '—'}
+                          secondary={formatDate(m.createdAt)}
+                          busy={busyKey === `communication:${m.id}`}
+                          detachLabel="Αφαίρεση από φάκελο"
+                          onDetach={() => void setFolderLink(fdetail.folder.id, 'communication', m.id, false)}
+                          styles={styles}
+                          c={c}
+                        />
+                      ))
+                    )}
+                  </FdSection>
+
+                  {/* Section: Φωτογραφίες */}
+                  <FdSection title="Φωτογραφίες" count={fdetail.sections.photos.count} c={c} styles={styles}>
+                    {fdetail.sections.photos.count === 0 ? (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+                    ) : (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>
+                        {fdetail.sections.photos.count} αιτήματα φωτογραφιών
+                      </ThemedText>
+                    )}
+                  </FdSection>
+
+                  {/* Section: Στοιχεία πελάτη */}
+                  <FdSection title="Στοιχεία πελάτη" c={c} styles={styles}>
+                    {!fdetail.customer ? (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+                    ) : (
+                      <View style={styles.customerBlock}>
+                        <ThemedText type="smallBold" style={styles.ink}>{fdetail.customer.name ?? 'Πελάτης'}</ThemedText>
+                        {fdetail.customer.phone ? <ThemedText type="small" themeColor="textSecondary">{fdetail.customer.phone}</ThemedText> : null}
+                        {fdetail.customer.email ? <ThemedText type="small" themeColor="textSecondary">{fdetail.customer.email}</ThemedText> : null}
+                        {fdetail.sections.intake.count > 0 ? (
+                          <ThemedText type="small" themeColor="textSecondary">{fdetail.sections.intake.count} αιτήματα στοιχείων</ThemedText>
+                        ) : null}
+                      </View>
+                    )}
+                  </FdSection>
+                </>
+              ) : null}
 
               {/* Public folder link — send/share to the customer (WF-2) */}
               <View style={styles.linkBox}>
@@ -381,6 +761,114 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
           )
         ) : null}
       </SheetModal>
+
+      {/* WF-4: Attach existing sheet */}
+      <SheetModal visible={attachOpen} title="Σύνδεση με φάκελο" onClose={() => setAttachOpen(false)}>
+        {attachLoading ? (
+          <ThemedText type="small" themeColor="textSecondary">Φορτώνει...</ThemedText>
+        ) : attachError ? (
+          <>
+            <ThemedText type="small" themeColor="textSecondary">Δεν φορτώθηκαν τα στοιχεία.</ThemedText>
+            <PrimaryButton
+              label="Δοκίμασε ξανά"
+              tone="outline"
+              onPress={() => detail && void openAttachSheet(detail.id)}
+            />
+          </>
+        ) : (
+          <>
+            <ThemedText type="smallBold" style={styles.ink}>Προσφορές</ThemedText>
+            {attOffers.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+            ) : (
+              attOffers.map((o) => (
+                <View key={o.id} style={styles.pickRow}>
+                  <View style={styles.pickRowBody}>
+                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{o.offerNumber ?? '—'}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                      {`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
+                    </ThemedText>
+                  </View>
+                  <PrimaryButton
+                    label="Σύνδεση"
+                    busy={busyKey === `offer:${o.id}`}
+                    onPress={() => detail && void setFolderLink(detail.id, 'offer', o.id, true)}
+                  />
+                </View>
+              ))
+            )}
+            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Ραντεβού</ThemedText>
+            {attAppts.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+            ) : (
+              attAppts.map((a) => (
+                <View key={a.id} style={styles.pickRow}>
+                  <View style={styles.pickRowBody}>
+                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{a.title}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                      {`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}`}
+                    </ThemedText>
+                  </View>
+                  <PrimaryButton
+                    label="Σύνδεση"
+                    busy={busyKey === `task:${a.id}`}
+                    onPress={() => detail && void setFolderLink(detail.id, 'task', a.id, true)}
+                  />
+                </View>
+              ))
+            )}
+          </>
+        )}
+      </SheetModal>
+
+      {/* WF-4: Quick-create offer sheet */}
+      <SheetModal visible={newOfferOpen} title="Νέα προσφορά" onClose={() => setNewOfferOpen(false)}>
+        <Input
+          label="Περιγραφή"
+          value={qoDesc}
+          onChangeText={setQoDesc}
+          placeholder="π.χ. Τοποθέτηση κλιματιστικού"
+        />
+        <Input
+          label="Ποσό (€)"
+          value={qoAmount}
+          onChangeText={setQoAmount}
+          placeholder="0"
+          keyboardType="decimal-pad"
+        />
+        {qoError ? <ThemedText type="small" style={styles.err}>{qoError}</ThemedText> : null}
+        <PrimaryButton
+          label="Δημιουργία"
+          busy={qoBusy}
+          onPress={() => detail && void submitNewOffer(detail.id)}
+        />
+        <PrimaryButton label="Ακύρωση" tone="outline" onPress={() => setNewOfferOpen(false)} />
+      </SheetModal>
+
+      {/* WF-4: Quick-create appointment sheet */}
+      <SheetModal visible={newApptOpen} title="Νέο ραντεβού" onClose={() => setNewApptOpen(false)}>
+        <Input
+          label="Τίτλος"
+          value={qaTitle}
+          onChangeText={setQaTitle}
+          placeholder="π.χ. Επίσκεψη για μέτρηση"
+        />
+        <ThemedText type="small" themeColor="textSecondary">Τύπος</ThemedText>
+        <ChipSelect options={APPT_TYPE_OPTIONS} value={qaType} onChange={setQaType} />
+        <Input
+          label="Ημερομηνία (ΕΕΕΕ-ΜΜ-ΗΗ)"
+          value={qaDate}
+          onChangeText={setQaDate}
+          placeholder={todayYMD()}
+        />
+        {qaError ? <ThemedText type="small" style={styles.err}>{qaError}</ThemedText> : null}
+        <PrimaryButton
+          label="Δημιουργία"
+          busy={qaBusy}
+          onPress={() => detail && void submitNewAppt(detail.id)}
+        />
+        <PrimaryButton label="Ακύρωση" tone="outline" onPress={() => setNewApptOpen(false)} />
+      </SheetModal>
     </View>
   );
 }
@@ -402,4 +890,84 @@ const makeStyles = (c: ThemePalette) =>
     linkBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
     sentText: { color: '#1B8A4C', fontWeight: '700' },
     pressed: { opacity: 0.7 },
+    // WF-4 styles
+    fdCenter: { alignItems: 'flex-start', gap: Spacing.two, paddingVertical: Spacing.two },
+    actionRow: { gap: Spacing.two },
+    actionBtn: { flex: 1 },
+    fdSectionBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
+    fdSectionTitle: { color: c.text, fontWeight: '700' },
+    fdRowBox: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, backgroundColor: c.card, borderRadius: 10, padding: Spacing.two },
+    fdRowBody: { flex: 1, gap: 2 },
+    fdDetachBtn: { paddingHorizontal: Spacing.two, paddingVertical: 4 },
+    fdDetachText: { color: c.textFaint, fontSize: 11 },
+    emptySection: { paddingHorizontal: 2 },
+    customerBlock: { gap: 2 },
+    pickRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, backgroundColor: c.card, borderRadius: 10, padding: Spacing.two },
+    pickRowBody: { flex: 1, gap: 2 },
+    pickGroupLabel: { marginTop: Spacing.two },
   });
+
+// ---------------------------------------------------------------------------
+// WF-4 local presentational helpers (receive styles + c to avoid hook calls)
+// ---------------------------------------------------------------------------
+
+type Styles = ReturnType<typeof makeStyles>;
+
+function FdSection({
+  title,
+  count,
+  children,
+  c,
+  styles,
+}: {
+  title: string;
+  count?: number;
+  children: ReactNode;
+  c: ThemePalette;
+  styles: Styles;
+}) {
+  return (
+    <View style={styles.fdSectionBox}>
+      <ThemedText type="small" style={styles.fdSectionTitle}>
+        {title}{typeof count === 'number' && count > 0 ? ` · ${count}` : ''}
+      </ThemedText>
+      {children}
+    </View>
+  );
+}
+
+function FdRow({
+  primary,
+  secondary,
+  busy,
+  detachLabel,
+  onDetach,
+  styles,
+  c,
+}: {
+  primary: string;
+  secondary: string;
+  busy: boolean;
+  detachLabel: string;
+  onDetach: () => void;
+  styles: Styles;
+  c: ThemePalette;
+}) {
+  return (
+    <View style={styles.fdRowBox}>
+      <View style={styles.fdRowBody}>
+        <ThemedText type="small" numberOfLines={1} style={{ color: c.text, fontWeight: '600' }}>
+          {primary}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+          {secondary}
+        </ThemedText>
+      </View>
+      <Pressable onPress={onDetach} disabled={busy} style={styles.fdDetachBtn}>
+        <ThemedText style={[styles.fdDetachText, busy && { opacity: 0.4 }]}>
+          {busy ? '...' : detachLabel}
+        </ThemedText>
+      </Pressable>
+    </View>
+  );
+}
