@@ -29,7 +29,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { hapticSelect, hapticSuccess } from '@/lib/haptics';
 import { dmyToYmd, formatEuro, formatWhen } from '@/lib/format';
-import type { CatalogItem, Customer, LinkDraft, TimelineItem } from '@/lib/types';
+import type { CatalogItem, Customer, LinkDraft, TimelineItem, WorkFolder } from '@/lib/types';
 import { pickAndUploadPhotos } from '@/lib/upload';
 
 /** Pull the gist ("Σύνοψη") out of an AI call brief — the lines between the
@@ -43,6 +43,13 @@ function extractBriefGist(text: string | null | undefined): string | null {
   if (stop >= 0) t = t.slice(0, stop);
   t = t.split(/\n-{3,}\n/)[0].trim();
   return t.length > 0 ? t : null;
+}
+
+// Process-step caption for the chat-first folder strip (mirrors WORK_FOLDER_STEPS).
+const ERGO_STEP_LABELS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'];
+function ergoStepCaption(step: number | undefined): string {
+  const i = typeof step === 'number' && Number.isFinite(step) ? Math.max(0, Math.min(Math.trunc(step), 4)) : 0;
+  return `Βήμα ${i + 1}/5 · ${ERGO_STEP_LABELS[i]}`;
 }
 
 export default function CustomerWorkspaceScreen() {
@@ -63,6 +70,25 @@ export default function CustomerWorkspaceScreen() {
   const [briefItem, setBriefItem] = useState<TimelineItem | null>(null);
   const [previewOfferId, setPreviewOfferId] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [folders, setFolders] = useState<WorkFolder[]>([]);
+  const activeFolders = useMemo(
+    () => folders.filter((f) => f.status === 'open' || f.status === 'in_progress'),
+    [folders],
+  );
+
+  // Chat-first folder strip: load the customer's Έργα (best-effort; never blocks chat).
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    void apiGet<{ ok?: boolean; folders?: WorkFolder[] }>(`/api/customers/${id}/folders`)
+      .then((r) => {
+        if (alive) setFolders(r?.folders ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [id]);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -295,6 +321,36 @@ export default function CustomerWorkspaceScreen() {
             </ThemedText>
           ) : null}
         </Pressable>
+      ) : null}
+
+      {/* Chat-first: active Έργα for this customer (tap → folder section in info) */}
+      {activeFolders.length > 0 ? (
+        <View style={{ paddingHorizontal: Spacing.three, paddingTop: Spacing.two }}>
+          <ThemedText type="small" themeColor="textSecondary" style={{ marginBottom: Spacing.one, fontWeight: '600' }}>
+            Ανοιχτά έργα · {activeFolders.length}
+          </ThemedText>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: Spacing.two, paddingRight: Spacing.three }}>
+            {activeFolders.map((f) => (
+              <Pressable
+                key={f.id}
+                onPress={() => router.push({ pathname: '/customers/[id]/info', params: { id: String(id) } } as never)}
+                style={({ pressed }) => [
+                  { width: 184, borderRadius: 14, padding: Spacing.three, backgroundColor: c.surface, borderWidth: 1, borderColor: c.borderFaint },
+                  pressed && { opacity: 0.7 },
+                ]}>
+                <ThemedText numberOfLines={1} style={{ color: c.textFaint, fontSize: 10, fontWeight: '700', letterSpacing: 0.4 }}>
+                  ΕΡΓΟ
+                </ThemedText>
+                <ThemedText type="smallBold" numberOfLines={1} style={{ color: c.text }}>
+                  {f.title}
+                </ThemedText>
+                <ThemedText type="small" numberOfLines={1} style={{ color: Brand.primary, fontWeight: '600' }}>
+                  {ergoStepCaption(f.step)}
+                </ThemedText>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
       ) : null}
 
       {/* Timeline (chat) */}
