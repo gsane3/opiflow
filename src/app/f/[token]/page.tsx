@@ -1,4 +1,4 @@
-// Public customer view of a Φάκελος εργασίας (work folder) — /f/[token].
+// Public customer view of a Έργο (work folder) — /f/[token].
 // No login. Server-rendered, mobile-first, read-only. The token is validated
 // server-side (service-role); an invalid/expired/revoked token shows a neutral
 // "link unavailable" message. Only safe, customer-facing data is rendered.
@@ -64,7 +64,7 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
 
         {/* Folder */}
         <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ο φάκελός σας</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Το έργο σας</p>
           <h1 className="mt-1 text-xl font-bold text-zinc-900">{view.title}</h1>
           <div className="mt-2 flex items-center gap-2">
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{view.statusLabel}</span>

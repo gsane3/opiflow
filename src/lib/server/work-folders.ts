@@ -1,4 +1,4 @@
-// Shared types, validation, and mapping for the Φάκελος εργασίας (work folder)
+// Shared types, validation, and mapping for the Έργο (work folder)
 // business APIs (WF-1A). PURE helpers only — no DB access — so they are unit-
 // testable and reused across the folders / folders-[id] / attach routes.
 //

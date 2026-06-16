@@ -1,9 +1,9 @@
 'use client';
 
-// Φάκελος εργασίας — detail body (WF-4, web). Shows the real folder sections
+// Έργο (work folder) — detail body (WF-4, web). Shows the real folder sections
 // (Προσφορές / Ραντεβού / Μηνύματα / Φωτογραφίες / Στοιχεία πελάτη) with counts +
 // latest items, plus: connect an existing offer/appointment («Σύνδεση υπάρχοντος»),
-// remove one («Αφαίρεση από φάκελο»), and a quick create that files the new
+// remove one («Αφαίρεση από έργο»), and a quick create that files the new
 // offer/appointment straight into the folder. Authenticated WF-1A/WF-4 APIs only.
 
 import { useCallback, useEffect, useState } from 'react';
@@ -203,7 +203,7 @@ export default function FolderDetailPanel({
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (res.ok && json?.ok) {
-        notify(attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
+        notify(attach ? 'Συνδέθηκε με το έργο' : 'Αφαιρέθηκε από το έργο');
         if (attach && attachOpen) {
           // refresh the pick lists so the just-attached item drops off
           setAttOffers((p) => p.filter((o) => o.id !== entityId));
@@ -300,7 +300,7 @@ export default function FolderDetailPanel({
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (res.ok && json?.ok) {
         setQcMode(null);
-        notify('Συνδέθηκε με τον φάκελο');
+        notify('Συνδέθηκε με το έργο');
         await refreshAll();
       } else {
         setQcError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
@@ -383,7 +383,7 @@ export default function FolderDetailPanel({
   }
   async function saveEdit() {
     const t = eTitle.trim();
-    if (!t) { setEditErr('Γράψε τίτλο εργασίας.'); return; }
+    if (!t) { setEditErr('Γράψε τίτλο έργου.'); return; }
     const ok = await patchFolder({ title: t, notes: eNotes.trim() || null, status: eStatus });
     if (ok) setEditing(false);
   }
@@ -542,7 +542,7 @@ export default function FolderDetailPanel({
           {editing ? (
             <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
               {editErr && <p className="text-xs text-red-600">{editErr}</p>}
-              <Input label="Τίτλος εργασίας" value={eTitle} maxLength={120} onChange={(e) => { setETitle(e.target.value); if (editErr) setEditErr(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+              <Input label="Τίτλος έργου" value={eTitle} maxLength={120} onChange={(e) => { setETitle(e.target.value); if (editErr) setEditErr(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
               <Textarea label="Σημειώσεις" value={eNotes} onChange={(e) => setENotes(e.target.value)} rows={2} placeholder="προαιρετικά" />
               <div>
                 <p className="mb-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Κατάσταση</p>
@@ -579,7 +579,7 @@ export default function FolderDetailPanel({
 
       {/* Attach sheet */}
       {attachOpen && (
-        <Overlay onClose={() => setAttachOpen(false)} title="Σύνδεση με φάκελο">
+        <Overlay onClose={() => setAttachOpen(false)} title="Σύνδεση με έργο">
           {attachLoading ? (
             <p className="py-3 text-sm text-zinc-400">Φορτώνει...</p>
           ) : attachError ? (
@@ -741,7 +741,7 @@ function Row({ primary, secondary, busy, onDetach }: { primary: string; secondar
         disabled={busy}
         className="shrink-0 rounded-full px-2 py-1 text-xs font-medium text-zinc-400 transition hover:text-red-600 disabled:opacity-40"
       >
-        {busy ? '...' : 'Αφαίρεση από φάκελο'}
+        {busy ? '...' : 'Αφαίρεση από έργο'}
       </button>
     </div>
   );

@@ -453,7 +453,7 @@ export default function CustomerProfileScreen() {
             ) : null}
           </GroupCard>
 
-          {/* Φάκελοι εργασίας — per-job grouping under this customer */}
+          {/* Έργα — per-job grouping under this customer */}
           <WorkFoldersSection customerId={customerId} />
 
           {/* Δραστηριότητα — Messenger-style rows that expand */}

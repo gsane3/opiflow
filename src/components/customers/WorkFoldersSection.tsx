@@ -1,6 +1,6 @@
 'use client';
 
-// «Φάκελοι εργασίας» — per-job grouping under a customer (WF-1B, web). Rendered
+// «Έργα» — per-job grouping under a customer (WF-1B, web). Rendered
 // inside the customer info panel. Self-contained: lists the customer's folders,
 // creates one (inline form), and opens an inline detail/edit view. Uses the
 // WF-1A authenticated APIs. No public link / token / attach picker here.
@@ -146,7 +146,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
 
   async function createFolder() {
     const t = title.trim();
-    if (!t) { setTitleError('Γράψε τίτλο εργασίας.'); return; }
+    if (!t) { setTitleError('Γράψε τίτλο έργου.'); return; }
     setSubmitError('');
     setSaving(true);
     try {
@@ -163,10 +163,10 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
         setCreated(true);
         void load();
       } else {
-        setSubmitError(json?.error === 'title_too_long' ? 'Ο τίτλος είναι πολύ μεγάλος (έως 120).' : 'Ο φάκελος δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+        setSubmitError(json?.error === 'title_too_long' ? 'Ο τίτλος είναι πολύ μεγάλος (έως 120).' : 'Το έργο δεν δημιουργήθηκε. Δοκίμασε ξανά.');
       }
     } catch {
-      setSubmitError('Ο φάκελος δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      setSubmitError('Το έργο δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } finally {
       setSaving(false);
     }
@@ -202,7 +202,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
 
   async function saveEdit() {
     const t = eTitle.trim();
-    if (!t) { setEditError('Γράψε τίτλο εργασίας.'); return; }
+    if (!t) { setEditError('Γράψε τίτλο έργου.'); return; }
     setEditError('');
     const updated = await patchSelected({ title: t, notes: eNotes.trim() || null, status: eStatus });
     if (updated) { setEditing(false); setETitle(updated.title); setENotes(updated.notes ?? ''); setEStatus(updated.status); }
@@ -273,34 +273,34 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
   return (
     <div className="rounded-[24px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Φάκελοι εργασίας</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Έργα</p>
         {!loading && !error && !creating && folders.length > 0 && (
           <button
             type="button"
             onClick={openCreate}
             className="rounded-full px-3 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 active:scale-95"
           >
-            Νέος φάκελος
+            Νέο έργο
           </button>
         )}
       </div>
 
       <div className="mt-2 space-y-2">
         {created && (
-          <p className="text-xs font-medium text-green-700">Ο φάκελος δημιουργήθηκε</p>
+          <p className="text-xs font-medium text-green-700">Το έργο δημιουργήθηκε</p>
         )}
 
         {loading ? (
-          <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">Φορτώνουν οι φάκελοι...</p>
+          <p className="py-4 text-sm text-zinc-400 dark:text-zinc-500">Φορτώνουν τα έργα...</p>
         ) : error ? (
           <div className="space-y-2 py-2">
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">Δεν φορτώθηκαν οι φάκελοι.</p>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">Δεν φορτώθηκαν τα έργα.</p>
             <Button variant="secondary" size="sm" onClick={() => void load()}>Δοκίμασε ξανά</Button>
           </div>
         ) : folders.length === 0 && !creating ? (
           <div className="space-y-3 py-2">
-            <p className="text-sm text-zinc-400 dark:text-zinc-500">Δεν υπάρχει φάκελος ακόμα.</p>
-            <Button size="md" onClick={openCreate}>Νέος φάκελος</Button>
+            <p className="text-sm text-zinc-400 dark:text-zinc-500">Δεν υπάρχει έργο ακόμα.</p>
+            <Button size="md" onClick={openCreate}>Νέο έργο</Button>
           </div>
         ) : (
           <>
@@ -333,7 +333,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
                       {editError && <p className="text-xs text-red-600">{editError}</p>}
                       {editing ? (
                         <>
-                          <Input label="Τίτλος εργασίας" value={eTitle} maxLength={120} onChange={(e) => { setETitle(e.target.value); if (editError) setEditError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+                          <Input label="Τίτλος έργου" value={eTitle} maxLength={120} onChange={(e) => { setETitle(e.target.value); if (editError) setEditError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
                           <Textarea label="Σημειώσεις" value={eNotes} onChange={(e) => setENotes(e.target.value)} rows={2} placeholder="προαιρετικά" />
                           <div>
                             <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Κατάσταση</label>
@@ -389,7 +389,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
             {/* Inline create form */}
             {creating && (
               <div className="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
-                <Input label="Τίτλος εργασίας" value={title} maxLength={120} onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); if (submitError) setSubmitError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+                <Input label="Τίτλος έργου" value={title} maxLength={120} onChange={(e) => { setTitle(e.target.value); if (titleError) setTitleError(''); if (submitError) setSubmitError(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
                 {titleError && <p className="text-xs text-red-600">{titleError}</p>}
                 {submitError && <p className="text-xs text-red-600">{submitError}</p>}
                 <Textarea label="Σημειώσεις" value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} placeholder="προαιρετικά" />
@@ -399,7 +399,7 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
                 </div>
                 <div className="flex justify-end gap-2">
                   <Button variant="secondary" size="sm" onClick={() => setCreating(false)}>Ακύρωση</Button>
-                  <Button size="sm" loading={saving} onClick={createFolder}>Δημιουργία φακέλου</Button>
+                  <Button size="sm" loading={saving} onClick={createFolder}>Δημιουργία έργου</Button>
                 </div>
               </div>
             )}

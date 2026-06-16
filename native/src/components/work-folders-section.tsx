@@ -1,4 +1,4 @@
-// «Φάκελοι εργασίας» — per-job grouping under a customer (WF-1B + WF-4, native).
+// «Έργα» — per-job grouping under a customer (WF-1B + WF-4, native).
 // Self-contained: lists the customer's folders, creates one, opens detail/edit sheet
 // with real sections (WF-4): Προσφορές / Ραντεβού / Μηνύματα / Φωτογραφίες /
 // Στοιχεία πελάτη, plus: attach existing, detach, quick-create filed into folder.
@@ -300,7 +300,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     try {
       const r = await apiPost<{ ok?: boolean }>(`/api/folders/${folderId}/attach`, { entityType, entityId, attach });
       if (r?.ok) {
-        Alert.alert('', attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
+        Alert.alert('', attach ? 'Συνδέθηκε με το έργο' : 'Αφαιρέθηκε από το έργο');
         if (attach && attachOpen) {
           // drop the just-attached item from the pick lists
           setAttOffers((p) => p.filter((o) => o.id !== entityId));
@@ -371,7 +371,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       });
       if (r?.ok) {
         setNewOfferOpen(false);
-        Alert.alert('', 'Συνδέθηκε με τον φάκελο');
+        Alert.alert('', 'Συνδέθηκε με το έργο');
         void loadFolderDetail(folderId);
         void load();
       } else {
@@ -406,7 +406,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       });
       if (r?.ok) {
         setNewApptOpen(false);
-        Alert.alert('', 'Συνδέθηκε με τον φάκελο');
+        Alert.alert('', 'Συνδέθηκε με το έργο');
         void loadFolderDetail(folderId);
         void load();
       } else {
@@ -430,7 +430,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   async function createFolder() {
     const t = title.trim();
     if (!t) {
-      setTitleError('Γράψε τίτλο εργασίας.');
+      setTitleError('Γράψε τίτλο έργου.');
       return;
     }
     if (t.length > 120) {
@@ -446,13 +446,13 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       });
       if (r?.ok) {
         setCreateOpen(false);
-        Alert.alert('✓', 'Ο φάκελος δημιουργήθηκε');
+        Alert.alert('✓', 'Το έργο δημιουργήθηκε');
         void load();
       } else {
-        Alert.alert('Σφάλμα', 'Ο φάκελος δεν δημιουργήθηκε.');
+        Alert.alert('Σφάλμα', 'Το έργο δεν δημιουργήθηκε.');
       }
     } catch (e) {
-      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Ο φάκελος δεν δημιουργήθηκε.');
+      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Το έργο δεν δημιουργήθηκε.');
     } finally {
       setSaving(false);
     }
@@ -546,7 +546,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   async function saveEdit() {
     const t = eTitle.trim();
     if (!t) {
-      Alert.alert('Σφάλμα', 'Γράψε τίτλο εργασίας.');
+      Alert.alert('Σφάλμα', 'Γράψε τίτλο έργου.');
       return;
     }
     if (t.length > 120) {
@@ -564,29 +564,29 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   return (
     <View style={styles.group}>
       <ThemedText type="small" themeColor="textSecondary" style={styles.groupTitle}>
-        Φάκελοι εργασίας
+        Έργα
       </ThemedText>
       <View style={styles.card}>
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={Brand.primary} />
             <ThemedText type="small" themeColor="textSecondary">
-              Φορτώνουν οι φάκελοι...
+              Φορτώνουν τα έργα...
             </ThemedText>
           </View>
         ) : error ? (
           <View style={styles.center}>
             <ThemedText type="small" themeColor="textSecondary">
-              Δεν φορτώθηκαν οι φάκελοι.
+              Δεν φορτώθηκαν τα έργα.
             </ThemedText>
             <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => void load()} />
           </View>
         ) : folders.length === 0 ? (
           <>
             <ThemedText type="small" themeColor="textSecondary" style={styles.emptyRow}>
-              Δεν υπάρχει φάκελος ακόμα.
+              Δεν υπάρχει έργο ακόμα.
             </ThemedText>
-            <PrimaryButton label="Νέος φάκελος" onPress={openCreate} />
+            <PrimaryButton label="Νέο έργο" onPress={openCreate} />
           </>
         ) : (
           <>
@@ -615,15 +615,15 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                 </Pressable>
               );
             })}
-            <PrimaryButton label="Νέος φάκελος" tone="outline" onPress={openCreate} />
+            <PrimaryButton label="Νέο έργο" tone="outline" onPress={openCreate} />
           </>
         )}
       </View>
 
       {/* Create sheet */}
-      <SheetModal visible={createOpen} title="Νέος φάκελος" onClose={() => setCreateOpen(false)}>
+      <SheetModal visible={createOpen} title="Νέο έργο" onClose={() => setCreateOpen(false)}>
         <Input
-          label="Τίτλος εργασίας"
+          label="Τίτλος έργου"
           value={title}
           onChangeText={(v) => {
             setTitle(v);
@@ -641,15 +641,15 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
           Κατάσταση
         </ThemedText>
         <ChipSelect options={STATUS_OPTIONS} value={status} onChange={setStatus} />
-        <PrimaryButton label="Δημιουργία φακέλου" busy={saving} onPress={() => void createFolder()} />
+        <PrimaryButton label="Δημιουργία έργου" busy={saving} onPress={() => void createFolder()} />
       </SheetModal>
 
       {/* Detail / edit sheet */}
-      <SheetModal visible={!!detail} title={detail?.title ?? 'Φάκελος'} onClose={closeDetail}>
+      <SheetModal visible={!!detail} title={detail?.title ?? 'Έργο'} onClose={closeDetail}>
         {detail ? (
           editMode ? (
             <>
-              <Input label="Τίτλος εργασίας" value={eTitle} onChangeText={setETitle} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+              <Input label="Τίτλος έργου" value={eTitle} onChangeText={setETitle} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
               <Input label="Σημειώσεις" value={eNotes} onChangeText={setENotes} placeholder="προαιρετικά" multiline />
               <ThemedText type="small" themeColor="textSecondary">
                 Κατάσταση
@@ -732,7 +732,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={o.offerNumber ?? '—'}
                           secondary={`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
                           busy={busyKey === `offer:${o.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'offer', o.id, false)}
                           styles={styles}
                           c={c}
@@ -752,7 +752,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={a.title}
                           secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}${a.dueTime ? ` ${a.dueTime}` : ''}`}
                           busy={busyKey === `task:${a.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'task', a.id, false)}
                           styles={styles}
                           c={c}
@@ -772,7 +772,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={m.summary ?? '—'}
                           secondary={formatDate(m.createdAt)}
                           busy={busyKey === `communication:${m.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'communication', m.id, false)}
                           styles={styles}
                           c={c}
@@ -801,7 +801,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={REQ_STATUS_GR[u.status] ?? u.status}
                           secondary={`Αίτημα φωτογραφιών · ${formatDate(u.createdAt)}`}
                           busy={busyKey === `upload_token:${u.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'upload_token', u.id, false)}
                           styles={styles}
                           c={c}
@@ -837,7 +837,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={REQ_STATUS_GR[i.status] ?? i.status}
                           secondary={`Αίτημα στοιχείων · ${formatDate(i.createdAt)}`}
                           busy={busyKey === `intake_token:${i.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'intake_token', i.id, false)}
                           styles={styles}
                           c={c}
@@ -890,7 +890,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       </SheetModal>
 
       {/* WF-4: Attach existing sheet */}
-      <SheetModal visible={attachOpen} title="Σύνδεση με φάκελο" onClose={() => setAttachOpen(false)}>
+      <SheetModal visible={attachOpen} title="Σύνδεση με έργο" onClose={() => setAttachOpen(false)}>
         {attachLoading ? (
           <ThemedText type="small" themeColor="textSecondary">Φορτώνει...</ThemedText>
         ) : attachError ? (
