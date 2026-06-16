@@ -1,7 +1,7 @@
 'use client';
 
 // Chat-first Work Folders strip (web prototype, ux-web-chat-first-folders).
-// Renders ACTIVE «Φάκελοι εργασίας» as cards pinned near the top of the customer
+// Renders ACTIVE «Έργα» as cards pinned near the top of the customer
 // conversation, plus a simple quick-action row — so the user manages the job
 // WITHOUT digging into the profile/info panel. Opening a card shows the existing
 // FolderDetailPanel from the chat context. Read-only over the merged WF APIs
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import FolderDetailPanel from '@/components/customers/FolderDetailPanel';
+import { ergoStepCaption } from '@/components/customers/Stepper';
 
 interface FolderCounts {
   offers: number;
@@ -28,6 +29,7 @@ interface Folder {
   id: string;
   title: string;
   status: string;
+  step?: number;
   createdAt: string;
   updatedAt: string;
   counts?: FolderCounts;
@@ -81,7 +83,7 @@ export default function CustomerFoldersStrip({
   const [error, setError] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  // Νέος φάκελος (create) — minimal, must work.
+  // Νέο έργο (create) — minimal, must work.
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
   const [createBusy, setCreateBusy] = useState(false);
@@ -112,7 +114,7 @@ export default function CustomerFoldersStrip({
 
   async function createFolder() {
     const t = title.trim();
-    if (!t) { setCreateErr('Γράψε τίτλο εργασίας.'); return; }
+    if (!t) { setCreateErr('Γράψε τίτλο έργου.'); return; }
     setCreateErr('');
     setCreateBusy(true);
     try {
@@ -130,10 +132,10 @@ export default function CustomerFoldersStrip({
         await refreshAll();
         if (json.folder?.id) setOpenId(json.folder.id); // open the new folder straight away
       } else {
-        setCreateErr('Ο φάκελος δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+        setCreateErr('Το έργο δεν δημιουργήθηκε. Δοκίμασε ξανά.');
       }
     } catch {
-      setCreateErr('Ο φάκελος δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      setCreateErr('Το έργο δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } finally {
       setCreateBusy(false);
     }
@@ -147,14 +149,14 @@ export default function CustomerFoldersStrip({
       {/* Header */}
       <div className="mb-2 flex items-center justify-between gap-2">
         <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
-          Ανοιχτές εργασίες{active.length ? ` · ${active.length}` : ''}
+          Ανοιχτά έργα{active.length ? ` · ${active.length}` : ''}
         </p>
         <button
           type="button"
           onClick={() => { setTitle(''); setCreateErr(''); setCreating(true); }}
           className="rounded-full px-2.5 py-1 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 active:scale-95"
         >
-          Νέος φάκελος
+          Νέο έργο
         </button>
       </div>
 
@@ -163,11 +165,11 @@ export default function CustomerFoldersStrip({
         <div className="flex justify-center py-2"><Spinner className="text-indigo-500" /></div>
       ) : error ? (
         <div className="flex items-center gap-2 py-1">
-          <p className="text-xs text-zinc-500">Δεν φορτώθηκαν οι φάκελοι.</p>
+          <p className="text-xs text-zinc-500">Δεν φορτώθηκαν τα έργα.</p>
           <button type="button" onClick={() => void load()} className="text-xs font-semibold text-indigo-600">Δοκίμασε ξανά</button>
         </div>
       ) : active.length === 0 ? (
-        <p className="px-1 py-1 text-xs text-zinc-400 dark:text-zinc-500">Δεν υπάρχει ανοιχτή εργασία ακόμα.</p>
+        <p className="px-1 py-1 text-xs text-zinc-400 dark:text-zinc-500">Δεν υπάρχει ανοιχτό έργο ακόμα.</p>
       ) : (
         <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {active.map((f) => (
@@ -177,7 +179,7 @@ export default function CustomerFoldersStrip({
               onClick={() => setOpenId(f.id)}
               className="w-56 shrink-0 rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] p-3 text-left ring-1 ring-zinc-200/70 dark:ring-white/10 transition hover:bg-white dark:hover:bg-white/5 active:scale-[0.99]"
             >
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Φάκελος εργασίας</p>
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">Έργο</p>
               <p className="mt-0.5 truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{f.title}</p>
               <div className="mt-1 flex items-center gap-1.5">
                 <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_TONE[f.status] ?? 'bg-zinc-100 text-zinc-600'}`}>
@@ -185,12 +187,13 @@ export default function CustomerFoldersStrip({
                 </span>
                 <span className="text-[11px] tabular-nums text-zinc-400">{formatDateGr(f.updatedAt)}</span>
               </div>
+              <p className="mt-1 text-[11px] font-medium text-indigo-600/90 dark:text-indigo-300">{ergoStepCaption(f.step ?? 0)}</p>
               {countsLine(f.counts) ? (
                 <p className="mt-1.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">{countsLine(f.counts)}</p>
               ) : (
                 <p className="mt-1.5 text-[11px] text-zinc-400">Καμία εγγραφή ακόμα</p>
               )}
-              <span className="mt-2 inline-block text-xs font-semibold text-indigo-600">Άνοιγμα φακέλου ›</span>
+              <span className="mt-2 inline-block text-xs font-semibold text-indigo-600">Άνοιγμα έργου ›</span>
             </button>
           ))}
         </div>
@@ -204,13 +207,13 @@ export default function CustomerFoldersStrip({
         <QuickBtn label="Νέο ραντεβού" onClick={onNewAppointment} />
       </div>
 
-      {/* Νέος φάκελος — create modal */}
+      {/* Νέο έργο — create modal */}
       {creating && (
-        <Overlay title="Νέος φάκελος" onClose={() => setCreating(false)}>
+        <Overlay title="Νέο έργο" onClose={() => setCreating(false)}>
           <div className="space-y-3">
             {createErr && <p className="text-xs text-red-600">{createErr}</p>}
             <Input
-              label="Τίτλος εργασίας"
+              label="Τίτλος έργου"
               value={title}
               maxLength={120}
               onChange={(e) => { setTitle(e.target.value); if (createErr) setCreateErr(''); }}
@@ -218,7 +221,7 @@ export default function CustomerFoldersStrip({
             />
             <div className="flex justify-end gap-2">
               <Button variant="secondary" size="sm" onClick={() => setCreating(false)}>Ακύρωση</Button>
-              <Button size="sm" loading={createBusy} onClick={createFolder}>Δημιουργία φακέλου</Button>
+              <Button size="sm" loading={createBusy} onClick={createFolder}>Δημιουργία έργου</Button>
             </div>
           </div>
         </Overlay>
@@ -228,7 +231,7 @@ export default function CustomerFoldersStrip({
       {openFolder && (
         <Overlay
           title={openFolder.title}
-          subtitle={`Φάκελος εργασίας · ${STATUS_LABELS[openFolder.status] ?? openFolder.status}`}
+          subtitle={`Έργο · ${STATUS_LABELS[openFolder.status] ?? openFolder.status}`}
           onClose={() => setOpenId(null)}
         >
           <FolderDetailPanel folderId={openFolder.id} onChanged={() => void refreshAll()} />

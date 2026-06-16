@@ -8,10 +8,9 @@ import {
   createServiceSupabaseClient,
   findValidOfferResponseToken,
   markOfferResponseTokenOpened,
-  markOfferResponseTokenResponded,
 } from '@/lib/server/offer-response-tokens';
 import type { OfferResponseTokenRow } from '@/lib/server/offer-response-tokens';
-import { sendPushToBusinessOwner } from '@/lib/server/push';
+import { applyOfferResponse, offerCanRespond } from '@/lib/server/offer-accept';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
 
 export const runtime = 'nodejs';
@@ -101,24 +100,10 @@ interface CustomerRow {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Pure helpers — the guards/canRespond/note+summary builders + the accept/reject
+// side effects now live in '@/lib/server/offer-accept' so this route and the
+// folder portal endpoint share one path. The map* helpers below are GET-only.
 // ---------------------------------------------------------------------------
-
-const FINAL_STATUSES = ['accepted', 'rejected', 'expired'] as const;
-
-// ---------------------------------------------------------------------------
-// Pure helpers
-// ---------------------------------------------------------------------------
-
-function isBeforeToday(dateStr: string): boolean {
-  return dateStr < new Date().toISOString().split('T')[0];
-}
-
-function computeCanRespond(offer: OfferRow): boolean {
-  if ((FINAL_STATUSES as readonly string[]).includes(offer.status)) return false;
-  if (offer.valid_until && isBeforeToday(offer.valid_until)) return false;
-  return true;
-}
 
 function mapItems(rows: OfferItemRow[]) {
   return rows.map((r) => ({
@@ -174,37 +159,6 @@ function mapCustomer(row: CustomerRow) {
     email: row.email,
     address: row.address,
   };
-}
-
-function buildNoteAppend(
-  response: 'accepted' | 'rejected',
-  isoDate: string,
-  comment: string | null
-): string {
-  const label =
-    response === 'accepted'
-      ? `Απάντηση μέσω δημόσιου link: Αποδοχή στις ${isoDate}.`
-      : `Απάντηση μέσω δημόσιου link: Απόρριψη στις ${isoDate}.`;
-  return comment ? `${label} Σχόλιο: ${comment}` : label;
-}
-
-function buildCommunicationSummary(
-  response: 'accepted' | 'rejected',
-  offerNumber: string,
-  comment: string | null
-): string {
-  const base =
-    response === 'accepted'
-      ? `Ο πελάτης αποδέχτηκε την προσφορά ${offerNumber} μέσω δημόσιου link.`
-      : `Ο πελάτης απέρριψε την προσφορά ${offerNumber} μέσω δημόσιου link.`;
-  return comment ? `${base} Σχόλιο: ${comment}` : base;
-}
-
-function resolveChannel(sentChannel: OfferResponseTokenRow['sent_channel']): string {
-  if (sentChannel === 'viber' || sentChannel === 'sms' || sentChannel === 'email') {
-    return sentChannel;
-  }
-  return 'email';
 }
 
 // ---------------------------------------------------------------------------
@@ -334,7 +288,7 @@ export async function GET(
       offer: mapOfferForPublic(offer, items),
       business,
       customer,
-      canRespond: computeCanRespond(offer),
+      canRespond: offerCanRespond(offer),
     });
   } catch {
     return NextResponse.json(
@@ -449,153 +403,27 @@ export async function POST(
     );
   }
 
-  // Guard: already in a final state
-  if ((FINAL_STATUSES as readonly string[]).includes(offer.status)) {
-    return NextResponse.json({ ok: false, error: 'offer_already_final' }, { status: 409 });
-  }
-
-  // Guard: valid_until passed
-  if (offer.valid_until && isBeforeToday(offer.valid_until)) {
-    return NextResponse.json({ ok: false, error: 'offer_expired' }, { status: 409 });
-  }
-
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const isoDate = nowIso.split('T')[0];
-
-  // Build updated notes (preserve existing notes, append tracking line)
-  const noteAppend = buildNoteAppend(response, isoDate, comment);
-  const updatedNotes = offer.notes
-    ? `${offer.notes}\n\n${noteAppend}`
-    : noteAppend;
-
-  // Update offer status and notes
-  try {
-    const { error: updateError } = await supabase
-      .from('offers')
-      .update({
-        status: response,
-        notes: updatedNotes,
-        updated_at: nowIso,
-      })
-      .eq('id', offer.id)
-      .eq('business_id', tokenRow.business_id);
-
-    if (updateError) {
-      return NextResponse.json(
-        { ok: false, error: 'offer_response_update_failed' },
-        { status: 500 }
-      );
-    }
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: 'offer_response_update_failed' },
-      { status: 500 }
-    );
-  }
-
-  // Advance the linked customer through the pipeline based on the response:
-  // accepted → 'won', rejected → 'lost'. Best-effort and non-fatal: the offer
-  // status (the primary action) was already updated above, so a failure here
-  // must not turn the customer's response into an error.
-  if (offer.customer_id) {
-    const customerStatus = response === 'accepted' ? 'won' : 'lost';
-    try {
-      await supabase
-        .from('customers')
-        .update({ status: customerStatus, updated_at: nowIso })
-        .eq('id', offer.customer_id)
-        .eq('business_id', tokenRow.business_id);
-    } catch {
-      // intentionally swallowed: the offer response was already recorded
-    }
-
-    // On acceptance, auto-create a follow-up task so a won deal doesn't go cold —
-    // core to the "Customer Action Management" promise. Best-effort & non-fatal.
-    if (response === 'accepted') {
-      try {
-        await supabase.from('tasks').insert({
-          business_id: tokenRow.business_id,
-          customer_id: offer.customer_id,
-          offer_id: offer.id,
-          title: `Επικοινωνία για προγραμματισμό — αποδεκτή προσφορά ${offer.offer_number}`,
-          type: 'call_back',
-          status: 'open',
-          priority: 'high',
-          due_date: isoDate,
-          note: 'Αυτόματη εργασία: ο πελάτης αποδέχτηκε την προσφορά μέσω δημόσιου link.',
-          created_from_ai: false,
-        });
-      } catch {
-        // non-fatal: the offer response was already recorded
-      }
-    }
-  }
-
-  // Insert communications row (CRM audit trail)
-  const commSummary = buildCommunicationSummary(response, offer.offer_number, comment);
-  const channel = resolveChannel(tokenRow.sent_channel);
-
-  try {
-    const { error: commError } = await supabase
-      .from('communications')
-      .insert({
-        business_id: tokenRow.business_id,
-        customer_id: offer.customer_id,
-        channel,
-        direction: 'inbound',
-        status: 'completed',
-        phone: null,
-        summary: commSummary,
-      });
-
-    if (commError) {
-      return NextResponse.json(
-        { ok: false, error: 'offer_response_record_failed' },
-        { status: 500 }
-      );
-    }
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: 'offer_response_record_failed' },
-      { status: 500 }
-    );
-  }
-
-  // Mark token responded (status, response value, comment, timestamp)
-  try {
-    await markOfferResponseTokenResponded({
-      tokenId: tokenRow.id,
-      response,
-      comment,
-    });
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: 'offer_response_record_failed' },
-      { status: 500 }
-    );
-  }
-
-  // Notify the business owner's native devices. Best-effort and INERT until the
-  // FCM service account is configured (sendPushToBusinessOwner returns instantly
-  // and never throws), so this cannot affect the customer's response.
-  await sendPushToBusinessOwner(tokenRow.business_id, {
-    title:
-      response === 'accepted'
-        ? `Προσφορά ${offer.offer_number}: Αποδοχή ✅`
-        : `Προσφορά ${offer.offer_number}: Απόρριψη`,
-    body: commSummary,
-    ...(offer.customer_id ? { url: `/customers/${offer.customer_id}` } : {}),
-    data: { type: 'offer_response', offerId: offer.id, response },
+  // Apply the response via the shared lib (same path the folder portal uses).
+  const result = await applyOfferResponse({
+    supabase,
+    businessId: tokenRow.business_id,
+    offer,
+    response,
+    comment,
+    sentChannel: tokenRow.sent_channel,
+    tokenId: tokenRow.id,
   });
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.httpStatus });
+  }
 
   return NextResponse.json({
     ok: true,
     response,
     offer: {
-      offerNumber: offer.offer_number,
-      status: response,
-      total: offer.total,
+      offerNumber: result.offerNumber,
+      status: result.status,
+      total: result.total,
     },
   });
 }

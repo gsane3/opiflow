@@ -22,7 +22,7 @@ export function validateQuestionMessage(raw: unknown): QuestionValidation {
 
 /** Timeline summary line for the inbound communications row. */
 export function buildFolderQuestionSummary(message: string): string {
-  return `Ερώτηση από φάκελο: ${message}`;
+  return `Ερώτηση από έργο: ${message}`;
 }
 
 export type FolderSentChannel = 'viber' | 'sms' | 'email' | 'manual' | null;

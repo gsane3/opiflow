@@ -1,4 +1,4 @@
-// Public work-folder (Φάκελος εργασίας) link tokens (WF-2).
+// Public work-folder (Έργο) link tokens (WF-2).
 //
 // Mirrors the upload/intake token pattern: the raw token is NEVER stored — only
 // its SHA-256 hex hash. The token is FOLDER-scoped (business_id + work_folder_id;

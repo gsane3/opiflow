@@ -10,6 +10,14 @@
 import { createServiceSupabaseClient } from './intake-tokens';
 import { findValidFolderToken, markFolderTokenOpened } from './folder-tokens';
 import { clampStep } from './work-folders';
+import { offerCanRespond } from './offer-status';
+import { appointmentCanRespond } from './appointment-status';
+import { mapPublicPayment, type PublicPayment, type PaymentRequestRow } from './payments';
+
+// Statuses shown on the public page. 'cancelled' is hidden; the customer only
+// ever sees a request they should act on (pending), have acted on (declared),
+// or that the owner has confirmed (confirmed).
+const PUBLIC_PAYMENT_STATUSES = ['pending', 'declared', 'confirmed'] as const;
 
 const APPOINTMENT_TASK_TYPES = ['book_appointment', 'visit_customer'] as const;
 
@@ -75,14 +83,37 @@ export interface BusinessRowForPublic {
   website: string | null;
 }
 export interface OfferRowForPublic {
+  id: string;
   offer_number: string | null;
   status: string;
   total: number | null;
+  valid_until: string | null;
 }
 export interface TaskRowForPublic {
+  id: string;
   due_date: string | null;
   due_time: string | null;
   type: string;
+  status: string;
+}
+export interface MessageRowForPublic {
+  direction: string;
+  // channel is selected ONLY so the mapper can defensively drop call rows — the
+  // query already excludes channel='call' (where AI call briefs live). It is
+  // never exposed on the public view.
+  channel: string;
+  summary: string | null;
+  created_at: string;
+}
+// Only the safe, customer-facing columns of a payment request. NEVER select pct,
+// business_id, customer_id, offer_id, or the row's internal timestamps here.
+export interface PaymentRowForPublic {
+  id: string;
+  kind: string;
+  amount: number;
+  currency: string;
+  status: string;
+  receiving_account: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -97,14 +128,25 @@ export interface PublicFolderBusiness {
   website: string | null;
 }
 export interface PublicFolderOffer {
+  id: string;
   offerNumber: string;
   statusLabel: string;
   total: number | null;
+  /** Whether the customer can still accept this offer (not final, not expired). */
+  canAccept: boolean;
 }
 export interface PublicFolderAppointment {
+  id: string;
   date: string | null;
   time: string | null;
   typeLabel: string;
+  /** Whether the customer can still confirm / request a time change. */
+  canRespond: boolean;
+}
+export interface PublicFolderMessage {
+  direction: 'in' | 'out';
+  text: string;
+  createdAt: string;
 }
 export interface PublicFolderView {
   business: PublicFolderBusiness | null;
@@ -114,6 +156,8 @@ export interface PublicFolderView {
   step: number;
   offers: PublicFolderOffer[];
   appointments: PublicFolderAppointment[];
+  messages: PublicFolderMessage[];
+  payments: PublicPayment[];
 }
 
 function mapPublicBusiness(row: BusinessRowForPublic | null): PublicFolderBusiness | null {
@@ -138,6 +182,8 @@ export function toPublicFolderView(
   business: BusinessRowForPublic | null,
   offers: OfferRowForPublic[],
   appointments: TaskRowForPublic[],
+  messages: MessageRowForPublic[] = [],
+  payments: PaymentRowForPublic[] = [],
 ): PublicFolderView {
   return {
     business: mapPublicBusiness(business),
@@ -145,16 +191,34 @@ export function toPublicFolderView(
     statusLabel: folderStatusLabel(folder.status),
     statusMessage: folderStatusMessage(folder.status),
     step: clampStep(folder.step),
+    // The customer↔business message exchange. `channel='call'` rows (which hold
+    // internal AI call briefs) are excluded by BOTH the query and this filter.
+    messages: messages
+      .filter((m) => m.channel !== 'call' && typeof m.summary === 'string' && m.summary.trim().length > 0)
+      .map((m) => ({
+        direction: m.direction === 'outbound' ? ('out' as const) : ('in' as const),
+        text: (m.summary as string).trim(),
+        createdAt: m.created_at,
+      })),
     offers: offers.map((o) => ({
+      id: o.id,
       offerNumber: o.offer_number ?? '—',
       statusLabel: OFFER_STATUS_LABELS[o.status] ?? o.status,
       total: o.total,
+      canAccept: offerCanRespond({ status: o.status, valid_until: o.valid_until }),
     })),
     appointments: appointments.map((t) => ({
+      id: t.id,
       date: t.due_date,
       time: t.due_time,
       typeLabel: APPOINTMENT_TYPE_LABELS[t.type] ?? 'Ραντεβού',
+      canRespond: appointmentCanRespond({ status: t.status, type: t.type, due_date: t.due_date }),
     })),
+    // Defensive: even though the query filters by status, drop anything not in
+    // the public allowlist before mapping to the safe shape.
+    payments: payments
+      .filter((p) => (PUBLIC_PAYMENT_STATUSES as readonly string[]).includes(p.status))
+      .map((p) => mapPublicPayment(p as unknown as PaymentRequestRow)),
   };
 }
 
@@ -179,7 +243,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     if (folderError || !folderData) return null;
     const folder = folderData as unknown as FolderRowForPublic;
 
-    const [bizRes, offersRes, apptRes] = await Promise.all([
+    const [bizRes, offersRes, apptRes, msgRes, payRes] = await Promise.all([
       supabase
         .from('businesses')
         .select('name, legal_name, trade_name, logo_url, phone, email, website')
@@ -187,27 +251,52 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .maybeSingle(),
       supabase
         .from('offers')
-        .select('offer_number, status, total')
+        .select('id, offer_number, status, total, valid_until')
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .order('created_at', { ascending: false }),
       supabase
         .from('tasks')
-        .select('due_date, due_time, type')
+        .select('id, due_date, due_time, type, status')
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .in('type', APPOINTMENT_TASK_TYPES as unknown as string[])
         .order('due_date', { ascending: true }),
+      // Q&A thread: only the customer↔business message channels. `channel='call'`
+      // is EXCLUDED here (that is where internal AI call briefs live) — the single
+      // load-bearing filter that keeps briefs off the public page. call_briefs /
+      // journey_summary are never read.
+      supabase
+        .from('communications')
+        .select('direction, channel, summary, created_at')
+        .eq('business_id', token.business_id)
+        .eq('work_folder_id', token.work_folder_id)
+        .in('channel', ['sms', 'viber', 'email'])
+        .eq('status', 'completed')
+        .order('created_at', { ascending: true })
+        .limit(50),
+      // Payment requests — same triple-scoping (business_id + work_folder_id),
+      // only the safe columns, only the public-facing statuses. Tolerant of
+      // pre-migration-048 (table absent → error → empty, never throws).
+      supabase
+        .from('payment_requests')
+        .select('id, kind, amount, currency, status, receiving_account')
+        .eq('business_id', token.business_id)
+        .eq('work_folder_id', token.work_folder_id)
+        .in('status', PUBLIC_PAYMENT_STATUSES as unknown as string[])
+        .order('created_at', { ascending: false }),
     ]);
 
     const business = (bizRes.data as unknown as BusinessRowForPublic | null) ?? null;
     const offers = ((offersRes.data ?? []) as unknown[]) as OfferRowForPublic[];
     const appointments = ((apptRes.data ?? []) as unknown[]) as TaskRowForPublic[];
+    const messages = ((msgRes.data ?? []) as unknown[]) as MessageRowForPublic[];
+    const payments = ((payRes.data ?? []) as unknown[]) as PaymentRowForPublic[];
 
     // Best-effort "opened" tracking — must not block the page.
     void markFolderTokenOpened(token.id).catch(() => {});
 
-    return toPublicFolderView(folder, business, offers, appointments);
+    return toPublicFolderView(folder, business, offers, appointments, messages, payments);
   } catch {
     return null;
   }

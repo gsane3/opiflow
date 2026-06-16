@@ -12,7 +12,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Input, ListRow, PrimaryButton, Section } from '@/components/ui';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useThemeMode } from '@/lib/theme-mode';
 import { formatEuro } from '@/lib/format';
@@ -27,6 +27,9 @@ const PHONE_LABEL: Record<string, string> = {
 };
 
 interface Snippet { id: string; title: string; body: string }
+interface Bank { beneficiary: string | null; bank: string | null; iban: string | null }
+
+const IBAN_RE = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
 
 const DEFAULT_AUTO_REPLY = 'Γεια σας! Λάβαμε την κλήση σας εκτός ωραρίου. Θα σας καλέσουμε το συντομότερο δυνατό. Ευχαριστούμε!';
 const WEEK_DAYS: Array<{ n: number; label: string }> = [
@@ -62,6 +65,11 @@ export default function SettingsScreen() {
   const [bizForm, setBizForm] = useState<Record<string, string>>({});
   const [bizBusy, setBizBusy] = useState(false);
 
+  // ----- bank details (IBAN, shown on portal payment card / offer) -----
+  const [bank, setBank] = useState<Bank | null>(null);
+  const [bankForm, setBankForm] = useState<Record<string, string>>({ beneficiary: '', bank: '', iban: '' });
+  const [bankBusy, setBankBusy] = useState(false);
+
   // ----- catalog -----
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [catName, setCatName] = useState('');
@@ -91,11 +99,12 @@ export default function SettingsScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [b, c, sn, ms] = await Promise.all([
+      const [b, c, sn, ms, bk] = await Promise.all([
         apiGet<{ ok?: boolean; business?: Business }>('/api/businesses/me'),
         apiGet<{ ok?: boolean; items?: CatalogItem[] }>('/api/catalog'),
         apiGet<{ ok?: boolean; snippets?: Snippet[] }>('/api/snippets'),
         apiGet<{ ok?: boolean; settings?: MessagingSettings }>('/api/businesses/me/messaging-settings'),
+        apiGet<{ ok?: boolean; bank?: Bank }>('/api/businesses/me/bank'),
       ]);
       setSnippets(sn?.snippets ?? []);
       if (ms?.settings) {
@@ -126,6 +135,14 @@ export default function SettingsScreen() {
         });
       }
       setCatalog(c?.items ?? []);
+      if (bk?.bank) {
+        setBank(bk.bank);
+        setBankForm({
+          beneficiary: bk.bank.beneficiary ?? '',
+          bank: bk.bank.bank ?? '',
+          iban: bk.bank.iban ?? '',
+        });
+      }
     } catch {
       // sections show empty states; pull of the screen retries on remount
     }
@@ -136,6 +153,8 @@ export default function SettingsScreen() {
   }, [load]);
 
   const setB = (k: string) => (v: string) => setBizForm((f) => ({ ...f, [k]: v }));
+  const setBk = (k: 'beneficiary' | 'bank' | 'iban') => (v: string) =>
+    setBankForm((f) => ({ ...f, [k]: k === 'iban' ? v.toUpperCase() : v }));
 
   async function saveBusiness() {
     // GUARD: if the initial load failed, the form is empty — saving it would
@@ -168,6 +187,54 @@ export default function SettingsScreen() {
       Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
     } finally {
       setBizBusy(false);
+    }
+  }
+
+  async function saveBank() {
+    // GUARD: if the initial load failed, the form is empty — saving it would
+    // wipe the real bank details on the server.
+    if (!bank) {
+      Alert.alert('Σφάλμα', 'Τα στοιχεία δεν έχουν φορτωθεί ακόμα — κάνε ανανέωση και δοκίμασε ξανά.');
+      return;
+    }
+    const normIban = (bankForm.iban ?? '').replace(/\s+/g, '').toUpperCase();
+    if (normIban.length > 0 && !IBAN_RE.test(normIban)) {
+      Alert.alert('Μη έγκυρο IBAN', 'Έλεγξε τη μορφή του IBAN (π.χ. GR16 0110 1250 0000 0001 2300 695).');
+      return;
+    }
+    setBankBusy(true);
+    try {
+      const res = await apiPatch<{ ok?: boolean; bank?: Bank }>('/api/businesses/me/bank', {
+        beneficiary: (bankForm.beneficiary ?? '').trim() || null,
+        bank: (bankForm.bank ?? '').trim() || null,
+        iban: normIban || null,
+      });
+      if (res?.ok) {
+        if (res.bank) {
+          setBank(res.bank);
+          setBankForm({
+            beneficiary: res.bank.beneficiary ?? '',
+            bank: res.bank.bank ?? '',
+            iban: res.bank.iban ?? '',
+          });
+        }
+        Alert.alert('✓', 'Αποθηκεύτηκε.');
+      } else {
+        Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
+      }
+    } catch (e) {
+      const code = e instanceof ApiError ? (e.body as { error?: string } | null)?.error : undefined;
+      if (e instanceof ApiError && (e.status === 400 || code === 'invalid_iban')) {
+        Alert.alert('Μη έγκυρο IBAN', 'Το IBAN δεν είναι έγκυρο.');
+      } else if (e instanceof ApiError && (e.status === 503 || code === 'bank_unavailable')) {
+        Alert.alert('Δεν είναι διαθέσιμο', 'Αυτή η λειτουργία δεν είναι ακόμα διαθέσιμη. Δοκίμασε ξανά σύντομα.');
+      } else if (e instanceof ApiError && e.isNetwork) {
+        Alert.alert('Σφάλμα', 'Έλεγξε τη σύνδεση και δοκίμασε ξανά.');
+      } else {
+        Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
+      }
+    } finally {
+      setBankBusy(false);
     }
   }
 
@@ -345,6 +412,17 @@ export default function SettingsScreen() {
             <Input label="ΦΠΑ % (προεπιλογή)" value={bizForm.default_vat_rate ?? ''} onChangeText={setB('default_vat_rate')} keyboardType="decimal-pad" />
             <Input label="Όροι προσφοράς (προεπιλογή)" value={bizForm.default_offer_terms ?? ''} onChangeText={setB('default_offer_terms')} multiline />
             <PrimaryButton label="Αποθήκευση" onPress={() => void saveBusiness()} busy={bizBusy} disabled={!biz} />
+          </Section>
+
+          {/* Τραπεζικά στοιχεία */}
+          <Section title="Τραπεζικά στοιχεία">
+            <ThemedText type="small" themeColor="textSecondary">
+              Εμφανίζονται στον πελάτη όταν του ζητάς κατάθεση/εξόφληση και στην προσφορά. Το Opiflow δεν διαχειρίζεται χρήματα — ο πελάτης καταθέτει απευθείας σε εσένα.
+            </ThemedText>
+            <Input label="Δικαιούχος" value={bankForm.beneficiary ?? ''} onChangeText={setBk('beneficiary')} placeholder="π.χ. Γεώργιος Παπαδόπουλος" />
+            <Input label="Τράπεζα" value={bankForm.bank ?? ''} onChangeText={setBk('bank')} placeholder="π.χ. Εθνική Τράπεζα" />
+            <Input label="IBAN" value={bankForm.iban ?? ''} onChangeText={setBk('iban')} placeholder="GR16 0110 1250 0000 0001 2300 695" />
+            <PrimaryButton label="Αποθήκευση" onPress={() => void saveBank()} busy={bankBusy} disabled={!bank} />
           </Section>
 
           {/* Κατάλογος υπηρεσιών */}

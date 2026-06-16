@@ -38,15 +38,15 @@ function str(val: unknown): string | null {
 const VALID_MODES = ['draft', 'send'] as const;
 type LinkMode = (typeof VALID_MODES)[number];
 
-const OUTBOUND_SUMMARY = 'Σύνδεσμος φακέλου εργασίας';
+const OUTBOUND_SUMMARY = 'Σύνδεσμος έργου';
 
 function buildFolderMessage(folderUrl: string, businessName: string | null, folderTitle: string | null): string {
   const name = businessName?.trim() || 'την επιχείρηση';
   const title = folderTitle?.trim();
   return [
     title
-      ? `Καλησπέρα σας. Μπορείτε να δείτε τον φάκελο εργασίας «${title}» στον παρακάτω σύνδεσμο:`
-      : 'Καλησπέρα σας. Μπορείτε να δείτε τον φάκελο εργασίας σας στον παρακάτω σύνδεσμο:',
+      ? `Καλησπέρα σας. Μπορείτε να δείτε το έργο «${title}» στον παρακάτω σύνδεσμο:`
+      : 'Καλησπέρα σας. Μπορείτε να δείτε το έργο σας στον παρακάτω σύνδεσμο:',
     folderUrl,
     '',
     'Φιλικά,',
@@ -207,7 +207,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }
       const emailResult = await sendCustomerLinkEmail({
         to: email,
-        subject: 'Φάκελος εργασίας',
+        subject: 'Έργο',
         text: messageText,
         businessName,
         businessEmail,

@@ -17,8 +17,9 @@ import SystemStatusCard from '@/components/settings/SystemStatusCard';
 import TeamPanel from '@/components/settings/TeamPanel';
 import ServiceCatalogPanel from '@/components/settings/ServiceCatalogPanel';
 import AppearancePanel from '@/components/settings/AppearancePanel';
+import BankPanel from '@/components/settings/BankPanel';
 
-type SettingsSection = 'business' | 'telephony' | 'appearance' | 'catalog' | 'snippets' | 'automations' | 'data' | 'account' | 'notifications';
+type SettingsSection = 'business' | 'telephony' | 'appearance' | 'catalog' | 'bank' | 'snippets' | 'automations' | 'data' | 'account' | 'notifications';
 
 type BusinessMeResponse = {
   ok?: boolean;
@@ -61,6 +62,7 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   telephony: 'Τηλεφωνία',
   appearance: 'Εμφάνιση',
   catalog: 'Κατάλογος υπηρεσιών',
+  bank: 'Τραπεζικά στοιχεία',
   snippets: 'Πρότυπα μηνυμάτων',
   automations: 'Ωράριο & αυτοματισμοί',
   data: 'Δεδομένα',
@@ -475,6 +477,17 @@ export default function SettingsPage() {
                 bg: 'bg-indigo-50',
               },
               {
+                id: 'bank' as SettingsSection,
+                label: 'Τραπεζικά στοιχεία',
+                subtitle: 'IBAN & δικαιούχος για καταθέσεις πελατών',
+                icon: (
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" />
+                  </svg>
+                ),
+                bg: 'bg-indigo-50',
+              },
+              {
                 id: 'snippets' as SettingsSection,
                 label: 'Πρότυπα μηνυμάτων',
                 subtitle: 'Έτοιμες απαντήσεις με ένα tap στη συνομιλία',
@@ -594,6 +607,7 @@ export default function SettingsPage() {
           {activeSection === 'telephony' && renderTelephony()}
           {activeSection === 'appearance' && <AppearancePanel />}
           {activeSection === 'catalog' && renderCatalog()}
+          {activeSection === 'bank' && <BankPanel />}
           {activeSection === 'snippets' && renderSnippets()}
           {activeSection === 'automations' && renderAutomations()}
           {activeSection === 'data' && renderData()}

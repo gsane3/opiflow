@@ -1,4 +1,4 @@
-// PATCH /api/folders/[id] — update one Φάκελος εργασίας (title / notes / status).
+// PATCH /api/folders/[id] — update one Έργο (work folder) (title / notes / status).
 //
 // Service-role client bypasses RLS, so the folder is always scoped by
 // business_id (a folder from another business resolves as not found → 404).

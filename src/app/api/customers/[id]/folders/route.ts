@@ -1,4 +1,4 @@
-// Φάκελοι εργασίας (work folders) for one customer — authenticated business API.
+// Έργα (work folders) for one customer — authenticated business API.
 //
 //   GET  /api/customers/[id]/folders  → list this customer's folders (+ counts)
 //   POST /api/customers/[id]/folders  → create a folder for this customer

@@ -146,7 +146,7 @@ export interface GalleryFile {
   kind: 'image' | 'video' | 'file';
 }
 
-/** Φάκελος εργασίας counts (GET /api/customers/[id]/folders). */
+/** Έργο (work folder) counts (GET /api/customers/[id]/folders). */
 export interface WorkFolderCounts {
   offers: number;
   appointments: number;
@@ -155,13 +155,14 @@ export interface WorkFolderCounts {
   intakeRequests: number;
 }
 
-/** Φάκελος εργασίας — a per-job grouping under a customer (WF-1A APIs). */
+/** Έργο (work folder) — a per-job grouping under a customer (WF-1A APIs). */
 export interface WorkFolder {
   id: string;
   businessId: string;
   customerId: string;
   title: string;
   status: string; // open | in_progress | done | archived
+  step: number; // 0..4 process tracker (Επαφή·Προσφορά·Πληρωμή·Ραντεβού·Τέλος)
   notes: string | null;
   createdAt: string;
   updatedAt: string;

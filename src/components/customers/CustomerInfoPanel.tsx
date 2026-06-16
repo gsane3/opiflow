@@ -391,7 +391,7 @@ export default function CustomerInfoPanel({
                 </a>
               )}
 
-              {/* Φάκελοι εργασίας — per-job grouping under this customer */}
+              {/* Έργα — per-job grouping under this customer */}
               <WorkFoldersSection customerId={customerId} />
 
               {/* Offers — clickable → preview */}

@@ -44,7 +44,7 @@ describe('folder-question', () => {
   describe('buildFolderQuestionSummary', () => {
     it('prefixes the Greek folder-question label', () => {
       expect(buildFolderQuestionSummary('Πότε θα έρθετε;')).toBe(
-        'Ερώτηση από φάκελο: Πότε θα έρθετε;',
+        'Ερώτηση από έργο: Πότε θα έρθετε;',
       );
     });
   });

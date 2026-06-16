@@ -1,9 +1,10 @@
-// «Φάκελοι εργασίας» — per-job grouping under a customer (WF-1B + WF-4, native).
+// «Έργα» — per-job grouping under a customer (WF-1B + WF-4, native).
 // Self-contained: lists the customer's folders, creates one, opens detail/edit sheet
 // with real sections (WF-4): Προσφορές / Ραντεβού / Μηνύματα / Φωτογραφίες /
 // Στοιχεία πελάτη, plus: attach existing, detach, quick-create filed into folder.
 
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, View } from 'react-native';
 
@@ -94,6 +95,18 @@ interface AttachReq {
   sentChannel: string | null;
   createdAt: string;
 }
+interface BizPayment {
+  id: string;
+  kind: string;
+  pct: number | null;
+  amount: number;
+  currency: string;
+  status: string;
+  receivingAccount: string | null;
+  declaredAt: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+}
 
 // ---------------------------------------------------------------------------
 // Greek label maps
@@ -113,6 +126,70 @@ const APPT_TYPE_GR: Record<string, string> = {
   book_appointment: 'Ραντεβού',
   visit_customer: 'Επίσκεψη',
 };
+const PAYMENT_KIND_GR: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
+const PAYMENT_STATUS_GR: Record<string, string> = {
+  pending: 'Εκκρεμεί',
+  declared: 'Δηλώθηκε κατάθεση',
+  confirmed: 'Επιβεβαιώθηκε',
+  cancelled: 'Ακυρώθηκε',
+};
+const PAYMENT_KIND_OPTIONS = [
+  { key: 'deposit', label: 'Προκαταβολή' },
+  { key: 'balance', label: 'Εξόφληση' },
+];
+
+// ---------------------------------------------------------------------------
+// Process tracker (Διαδικασία) — 5 steps, index = work_folders.step (0..4).
+// Mirrors WORK_FOLDER_STEPS on the server + the web Stepper.
+// ---------------------------------------------------------------------------
+
+const ERGO_STEPS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'] as const;
+
+function clampStep(n: number | undefined): number {
+  const i = typeof n === 'number' && Number.isFinite(n) ? Math.trunc(n) : 0;
+  return i < 0 ? 0 : i > ERGO_STEPS.length - 1 ? ERGO_STEPS.length - 1 : i;
+}
+
+function ergoStepCaption(step: number | undefined): string {
+  const cur = clampStep(step);
+  return `Βήμα ${cur + 1}/${ERGO_STEPS.length} · ${ERGO_STEPS[cur]}`;
+}
+
+function WorkFolderStepper({ step, c }: { step: number | undefined; c: ThemePalette }) {
+  const cur = clampStep(step);
+  return (
+    <View style={{ flexDirection: 'row', gap: 4, marginVertical: Spacing.two }}>
+      {ERGO_STEPS.map((label, i) => {
+        const on = i <= cur;
+        const now = i === cur;
+        return (
+          <View key={label} style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+            <View
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: on ? Brand.primary : c.surface,
+                borderWidth: now ? 2 : 0,
+                borderColor: Brand.primarySoft,
+              }}>
+              <ThemedText style={{ fontSize: 11, fontWeight: '700', color: on ? Brand.onPrimary : c.textFaint }}>
+                {i < cur ? '✓' : String(i + 1)}
+              </ThemedText>
+            </View>
+            <ThemedText
+              numberOfLines={1}
+              style={{ fontSize: 9, textAlign: 'center', color: now ? c.text : c.textFaint, fontWeight: now ? '700' : '400' }}>
+              {label}
+            </ThemedText>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 const APPT_TYPE_OPTIONS = [
   { key: 'book_appointment', label: 'Ραντεβού' },
   { key: 'visit_customer', label: 'Επίσκεψη' },
@@ -215,8 +292,18 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   const [qaError, setQaError] = useState('');
   const [qaBusy, setQaBusy] = useState(false);
 
-  // WF-4: tracks which detach/attach button is in-flight (entityType:id)
+  // WF-4: tracks which detach/attach button is in-flight (entityType:id);
+  // also keys payment confirm/cancel as `pay:<id>:<status>`.
   const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  // Stage 8f: payments (create request + owner confirm/cancel)
+  const [payments, setPayments] = useState<BizPayment[]>([]);
+  const [newPaymentOpen, setNewPaymentOpen] = useState(false);
+  const [ppOfferId, setPpOfferId] = useState<string | null>(null);
+  const [ppKind, setPpKind] = useState('deposit');
+  const [ppPct, setPpPct] = useState('30');
+  const [ppError, setPpError] = useState('');
+  const [ppBusy, setPpBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -250,6 +337,16 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       setFdError(true);
     } finally {
       setFdLoading(false);
+    }
+  }, []);
+
+  // Stage 8f: fetch the folder's payment requests (owner list)
+  const loadFolderPayments = useCallback(async (folderId: string) => {
+    try {
+      const r = await apiGet<{ ok?: boolean; payments?: BizPayment[] }>(`/api/folders/${folderId}/payment-requests`);
+      if (r?.ok) setPayments(r.payments ?? []);
+    } catch {
+      // keep prior payments on transient error
     }
   }, []);
 
@@ -300,7 +397,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     try {
       const r = await apiPost<{ ok?: boolean }>(`/api/folders/${folderId}/attach`, { entityType, entityId, attach });
       if (r?.ok) {
-        Alert.alert('', attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
+        Alert.alert('', attach ? 'Συνδέθηκε με το έργο' : 'Αφαιρέθηκε από το έργο');
         if (attach && attachOpen) {
           // drop the just-attached item from the pick lists
           setAttOffers((p) => p.filter((o) => o.id !== entityId));
@@ -371,7 +468,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       });
       if (r?.ok) {
         setNewOfferOpen(false);
-        Alert.alert('', 'Συνδέθηκε με τον φάκελο');
+        Alert.alert('', 'Συνδέθηκε με το έργο');
         void loadFolderDetail(folderId);
         void load();
       } else {
@@ -406,7 +503,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       });
       if (r?.ok) {
         setNewApptOpen(false);
-        Alert.alert('', 'Συνδέθηκε με τον φάκελο');
+        Alert.alert('', 'Συνδέθηκε με το έργο');
         void loadFolderDetail(folderId);
         void load();
       } else {
@@ -416,6 +513,69 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       setQaError(e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } finally {
       setQaBusy(false);
+    }
+  }
+
+  // Stage 8f: open the create-payment sheet, defaulting to the accepted offer.
+  function openNewPayment() {
+    const offers = fdetail?.sections.offers.items ?? [];
+    const accepted = offers.find((o) => o.status === 'accepted');
+    setPpOfferId((accepted ?? offers[0])?.id ?? null);
+    setPpKind('deposit');
+    setPpPct('30');
+    setPpError('');
+    setNewPaymentOpen(true);
+  }
+
+  // Stage 8f: create a deposit/balance payment request (amount computed server-side).
+  async function submitNewPayment(folderId: string) {
+    if (!ppOfferId) { setPpError('Διάλεξε προσφορά.'); return; }
+    const pct = Number(ppPct.replace(',', '.'));
+    if (!isFinite(pct) || pct <= 0 || pct > 100) { setPpError('Δώσε ποσοστό 1–100.'); return; }
+    setPpBusy(true);
+    try {
+      const r = await apiPost<{ ok?: boolean; error?: string }>(`/api/folders/${folderId}/payment-request`, {
+        kind: ppKind,
+        pct,
+        offerId: ppOfferId,
+      });
+      if (r?.ok) {
+        setNewPaymentOpen(false);
+        Alert.alert('', 'Δημιουργήθηκε αίτημα πληρωμής');
+        void loadFolderPayments(folderId);
+        void load();
+      } else if (r?.error === 'bank_not_configured') {
+        setPpError('Δεν έχεις IBAN. Ρυθμίσεις → Τραπεζικά στοιχεία πρώτα.');
+      } else {
+        setPpError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      setPpError(e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setPpBusy(false);
+    }
+  }
+
+  // Stage 8f: owner confirms (or cancels) a payment request. 'confirmed' is the
+  // only authoritative state — the customer's 'declared' is just a self-report.
+  async function confirmPayment(folderId: string, paymentId: string, status: 'confirmed' | 'cancelled') {
+    setBusyKey(`pay:${paymentId}:${status}`);
+    try {
+      const r = await apiPatch<{ ok?: boolean; error?: string }>(`/api/payments/${paymentId}`, { status });
+      if (r?.ok) {
+        Alert.alert('', status === 'confirmed' ? 'Η πληρωμή επιβεβαιώθηκε' : 'Το αίτημα ακυρώθηκε');
+        void loadFolderPayments(folderId);
+      } else if (r?.error === 'payment_not_actionable') {
+        Alert.alert('', 'Το αίτημα έχει ήδη διευθετηθεί.');
+        void loadFolderPayments(folderId);
+      } else {
+        Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      const isNet = e instanceof ApiError && e.isNetwork;
+      Alert.alert('Σφάλμα', isNet ? 'Έλεγξε τη σύνδεση.' : 'Δεν ολοκληρώθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setBusyKey(null);
     }
   }
 
@@ -430,7 +590,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   async function createFolder() {
     const t = title.trim();
     if (!t) {
-      setTitleError('Γράψε τίτλο εργασίας.');
+      setTitleError('Γράψε τίτλο έργου.');
       return;
     }
     if (t.length > 120) {
@@ -446,13 +606,13 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       });
       if (r?.ok) {
         setCreateOpen(false);
-        Alert.alert('✓', 'Ο φάκελος δημιουργήθηκε');
+        Alert.alert('✓', 'Το έργο δημιουργήθηκε');
         void load();
       } else {
-        Alert.alert('Σφάλμα', 'Ο φάκελος δεν δημιουργήθηκε.');
+        Alert.alert('Σφάλμα', 'Το έργο δεν δημιουργήθηκε.');
       }
     } catch (e) {
-      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Ο φάκελος δεν δημιουργήθηκε.');
+      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Το έργο δεν δημιουργήθηκε.');
     } finally {
       setSaving(false);
     }
@@ -469,6 +629,9 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     // WF-4: fetch real sections
     setFdetail(null);
     void loadFolderDetail(f.id);
+    // Stage 8f: fetch payment requests
+    setPayments([]);
+    void loadFolderPayments(f.id);
   }
 
   // WF-2: create (draft) the public folder link, then send or share it.
@@ -513,6 +676,37 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     void Share.share({ message: linkUrl }).catch(() => {});
   }
 
+  // Stage 6: «Προβολή ως πελάτης» — open the real public /f/[token] portal in an
+  // in-app browser (drafting the link first if none exists yet). Shows the
+  // customer's exact view; no native portal re-build needed.
+  async function previewAsCustomer() {
+    if (!detail) return;
+    let url = linkUrl;
+    if (!url) {
+      setLinkBusy(true);
+      try {
+        const r = await apiPost<{ ok?: boolean; responseUrl?: string }>(`/api/folders/${detail.id}/link`, { mode: 'draft' });
+        if (r?.ok && r.responseUrl) {
+          url = r.responseUrl;
+          setLinkUrl(r.responseUrl);
+        }
+      } catch (e) {
+        Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε ο σύνδεσμος.');
+      } finally {
+        setLinkBusy(false);
+      }
+    }
+    if (!url) {
+      Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.');
+      return;
+    }
+    try {
+      await WebBrowser.openBrowserAsync(url);
+    } catch {
+      // best-effort — never throws to the UI
+    }
+  }
+
   function closeDetail() {
     setDetail(null);
     setEditMode(false);
@@ -521,6 +715,8 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     setAttachOpen(false);
     setNewOfferOpen(false);
     setNewApptOpen(false);
+    setNewPaymentOpen(false);
+    setPayments([]);
   }
 
   async function patchFolder(updates: Record<string, unknown>): Promise<boolean> {
@@ -546,7 +742,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   async function saveEdit() {
     const t = eTitle.trim();
     if (!t) {
-      Alert.alert('Σφάλμα', 'Γράψε τίτλο εργασίας.');
+      Alert.alert('Σφάλμα', 'Γράψε τίτλο έργου.');
       return;
     }
     if (t.length > 120) {
@@ -561,32 +757,44 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     await patchFolder({ status: 'archived' });
   }
 
+  // Process (Διαδικασία): advance the step / complete the project.
+  async function advanceStep() {
+    if (!detail) return;
+    const cur = clampStep(detail.step);
+    const next = Math.min(cur + 1, ERGO_STEPS.length - 1);
+    if (next === cur) return;
+    await patchFolder({ step: next });
+  }
+  async function completeProject() {
+    await patchFolder({ step: ERGO_STEPS.length - 1, status: 'done' });
+  }
+
   return (
     <View style={styles.group}>
       <ThemedText type="small" themeColor="textSecondary" style={styles.groupTitle}>
-        Φάκελοι εργασίας
+        Έργα
       </ThemedText>
       <View style={styles.card}>
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={Brand.primary} />
             <ThemedText type="small" themeColor="textSecondary">
-              Φορτώνουν οι φάκελοι...
+              Φορτώνουν τα έργα...
             </ThemedText>
           </View>
         ) : error ? (
           <View style={styles.center}>
             <ThemedText type="small" themeColor="textSecondary">
-              Δεν φορτώθηκαν οι φάκελοι.
+              Δεν φορτώθηκαν τα έργα.
             </ThemedText>
             <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => void load()} />
           </View>
         ) : folders.length === 0 ? (
           <>
             <ThemedText type="small" themeColor="textSecondary" style={styles.emptyRow}>
-              Δεν υπάρχει φάκελος ακόμα.
+              Δεν υπάρχει έργο ακόμα.
             </ThemedText>
-            <PrimaryButton label="Νέος φάκελος" onPress={openCreate} />
+            <PrimaryButton label="Νέο έργο" onPress={openCreate} />
           </>
         ) : (
           <>
@@ -605,6 +813,9 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                       {STATUS_LABELS[f.status] ?? f.status}
                       {f.updatedAt ? ` · ${formatDate(f.updatedAt)}` : ''}
                     </ThemedText>
+                    <ThemedText type="small" numberOfLines={1} style={{ color: Brand.primary, fontWeight: '600' }}>
+                      {ergoStepCaption(f.step)}
+                    </ThemedText>
                     {summary ? (
                       <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
                         {summary}
@@ -615,15 +826,15 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                 </Pressable>
               );
             })}
-            <PrimaryButton label="Νέος φάκελος" tone="outline" onPress={openCreate} />
+            <PrimaryButton label="Νέο έργο" tone="outline" onPress={openCreate} />
           </>
         )}
       </View>
 
       {/* Create sheet */}
-      <SheetModal visible={createOpen} title="Νέος φάκελος" onClose={() => setCreateOpen(false)}>
+      <SheetModal visible={createOpen} title="Νέο έργο" onClose={() => setCreateOpen(false)}>
         <Input
-          label="Τίτλος εργασίας"
+          label="Τίτλος έργου"
           value={title}
           onChangeText={(v) => {
             setTitle(v);
@@ -641,15 +852,15 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
           Κατάσταση
         </ThemedText>
         <ChipSelect options={STATUS_OPTIONS} value={status} onChange={setStatus} />
-        <PrimaryButton label="Δημιουργία φακέλου" busy={saving} onPress={() => void createFolder()} />
+        <PrimaryButton label="Δημιουργία έργου" busy={saving} onPress={() => void createFolder()} />
       </SheetModal>
 
       {/* Detail / edit sheet */}
-      <SheetModal visible={!!detail} title={detail?.title ?? 'Φάκελος'} onClose={closeDetail}>
+      <SheetModal visible={!!detail} title={detail?.title ?? 'Έργο'} onClose={closeDetail}>
         {detail ? (
           editMode ? (
             <>
-              <Input label="Τίτλος εργασίας" value={eTitle} onChangeText={setETitle} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+              <Input label="Τίτλος έργου" value={eTitle} onChangeText={setETitle} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
               <Input label="Σημειώσεις" value={eNotes} onChangeText={setENotes} placeholder="προαιρετικά" multiline />
               <ThemedText type="small" themeColor="textSecondary">
                 Κατάσταση
@@ -663,6 +874,24 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
               <View style={styles.detailBadge}>
                 <ThemedText style={styles.detailBadgeText}>{STATUS_LABELS[detail.status] ?? detail.status}</ThemedText>
               </View>
+
+              {/* Διαδικασία — process stepper + step controls */}
+              <WorkFolderStepper step={detail.step} c={c} />
+              <PrimaryButton label="Προβολή ως πελάτης" tone="outline" busy={linkBusy} onPress={() => void previewAsCustomer()} />
+              {clampStep(detail.step) < ERGO_STEPS.length - 1 || (detail.status !== 'done' && detail.status !== 'archived') ? (
+                <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+                  {clampStep(detail.step) < ERGO_STEPS.length - 1 ? (
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton label="Παράλειψη βήματος" tone="outline" busy={eBusy} onPress={() => void advanceStep()} />
+                    </View>
+                  ) : null}
+                  {detail.status !== 'done' && detail.status !== 'archived' ? (
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton label="Ολοκλήρωση" tone="outline" busy={eBusy} onPress={() => void completeProject()} />
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
               {detail.notes ? (
                 <ThemedText type="small" style={styles.ink}>
                   {detail.notes}
@@ -732,7 +961,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={o.offerNumber ?? '—'}
                           secondary={`${OFFER_STATUS_GR[o.status] ?? o.status}${o.total != null ? ` · ${money(o.total)}` : ''}`}
                           busy={busyKey === `offer:${o.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'offer', o.id, false)}
                           styles={styles}
                           c={c}
@@ -752,13 +981,33 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={a.title}
                           secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDate(a.dueDate)}` : ''}${a.dueTime ? ` ${a.dueTime}` : ''}`}
                           busy={busyKey === `task:${a.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'task', a.id, false)}
                           styles={styles}
                           c={c}
                         />
                       ))
                     )}
+                  </FdSection>
+
+                  {/* Section: Πληρωμή (Stage 8f) */}
+                  <FdSection title="Πληρωμή" count={payments.length} c={c} styles={styles}>
+                    {fdetail.sections.offers.items.length > 0 ? (
+                      <PrimaryButton label="Νέο αίτημα πληρωμής" tone="outline" onPress={openNewPayment} />
+                    ) : (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Πρόσθεσε πρώτα μια προσφορά.</ThemedText>
+                    )}
+                    {payments.map((p) => (
+                      <PaymentFdRow
+                        key={p.id}
+                        p={p}
+                        busyKey={busyKey}
+                        onConfirm={() => void confirmPayment(fdetail.folder.id, p.id, 'confirmed')}
+                        onCancel={() => void confirmPayment(fdetail.folder.id, p.id, 'cancelled')}
+                        styles={styles}
+                        c={c}
+                      />
+                    ))}
                   </FdSection>
 
                   {/* Section: Μηνύματα */}
@@ -772,7 +1021,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={m.summary ?? '—'}
                           secondary={formatDate(m.createdAt)}
                           busy={busyKey === `communication:${m.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'communication', m.id, false)}
                           styles={styles}
                           c={c}
@@ -801,7 +1050,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={REQ_STATUS_GR[u.status] ?? u.status}
                           secondary={`Αίτημα φωτογραφιών · ${formatDate(u.createdAt)}`}
                           busy={busyKey === `upload_token:${u.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'upload_token', u.id, false)}
                           styles={styles}
                           c={c}
@@ -837,7 +1086,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                           primary={REQ_STATUS_GR[i.status] ?? i.status}
                           secondary={`Αίτημα στοιχείων · ${formatDate(i.createdAt)}`}
                           busy={busyKey === `intake_token:${i.id}`}
-                          detachLabel="Αφαίρεση από φάκελο"
+                          detachLabel="Αφαίρεση από έργο"
                           onDetach={() => void setFolderLink(fdetail.folder.id, 'intake_token', i.id, false)}
                           styles={styles}
                           c={c}
@@ -890,7 +1139,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       </SheetModal>
 
       {/* WF-4: Attach existing sheet */}
-      <SheetModal visible={attachOpen} title="Σύνδεση με φάκελο" onClose={() => setAttachOpen(false)}>
+      <SheetModal visible={attachOpen} title="Σύνδεση με έργο" onClose={() => setAttachOpen(false)}>
         {attachLoading ? (
           <ThemedText type="small" themeColor="textSecondary">Φορτώνει...</ThemedText>
         ) : attachError ? (
@@ -1050,6 +1299,29 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
         />
         <PrimaryButton label="Ακύρωση" tone="outline" onPress={() => setNewApptOpen(false)} />
       </SheetModal>
+
+      {/* Stage 8f: new payment request sheet */}
+      <SheetModal visible={newPaymentOpen} title="Αίτημα πληρωμής" onClose={() => setNewPaymentOpen(false)}>
+        {fdetail && fdetail.sections.offers.items.length > 0 ? (
+          <>
+            <ThemedText type="small" themeColor="textSecondary">Προσφορά</ThemedText>
+            <ChipSelect
+              options={fdetail.sections.offers.items.map((o) => ({ key: o.id, label: `${o.offerNumber ?? '—'}${o.total != null ? ` · ${money(o.total)}` : ''}` }))}
+              value={ppOfferId ?? ''}
+              onChange={(v) => setPpOfferId(v)}
+            />
+            <ThemedText type="small" themeColor="textSecondary">Τύπος</ThemedText>
+            <ChipSelect options={PAYMENT_KIND_OPTIONS} value={ppKind} onChange={setPpKind} />
+            <Input label="Ποσοστό %" value={ppPct} onChangeText={setPpPct} keyboardType="decimal-pad" />
+            <PaymentAmountPreview offers={fdetail.sections.offers.items} offerId={ppOfferId} pct={ppPct} />
+            {ppError ? <ThemedText type="small" style={styles.err}>{ppError}</ThemedText> : null}
+            <PrimaryButton label="Δημιουργία" busy={ppBusy} onPress={() => detail && void submitNewPayment(detail.id)} />
+            <PrimaryButton label="Ακύρωση" tone="outline" onPress={() => setNewPaymentOpen(false)} />
+          </>
+        ) : (
+          <ThemedText type="small" themeColor="textSecondary">Πρόσθεσε πρώτα μια προσφορά.</ThemedText>
+        )}
+      </SheetModal>
     </View>
   );
 }
@@ -1150,5 +1422,65 @@ function FdRow({
         </ThemedText>
       </Pressable>
     </View>
+  );
+}
+
+function PaymentFdRow({
+  p,
+  busyKey,
+  onConfirm,
+  onCancel,
+  styles,
+  c,
+}: {
+  p: BizPayment;
+  busyKey: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+  styles: Styles;
+  c: ThemePalette;
+}) {
+  const isFinal = p.status === 'confirmed' || p.status === 'cancelled';
+  const confirming = busyKey === `pay:${p.id}:confirmed`;
+  const cancelling = busyKey === `pay:${p.id}:cancelled`;
+  const busy = confirming || cancelling;
+  return (
+    <View style={styles.fdRowBox}>
+      <View style={styles.fdRowBody}>
+        <ThemedText type="small" numberOfLines={1} style={{ color: c.text, fontWeight: '600' }}>
+          {(PAYMENT_KIND_GR[p.kind] ?? p.kind)} · {money(p.amount)}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+          {(PAYMENT_STATUS_GR[p.status] ?? p.status)}{p.pct != null ? ` · ${p.pct}%` : ''}
+        </ThemedText>
+      </View>
+      {!isFinal ? (
+        <View style={{ flexDirection: 'row', gap: Spacing.two, alignItems: 'center' }}>
+          <Pressable onPress={onConfirm} disabled={busy} style={styles.fdDetachBtn}>
+            <ThemedText style={[{ color: '#1B8A4C', fontSize: 11, fontWeight: '700' }, busy && { opacity: 0.4 }]}>
+              {confirming ? '...' : 'Επιβεβαίωση'}
+            </ThemedText>
+          </Pressable>
+          <Pressable onPress={onCancel} disabled={busy} style={styles.fdDetachBtn}>
+            <ThemedText style={[styles.fdDetachText, busy && { opacity: 0.4 }]}>
+              {cancelling ? '...' : 'Ακύρωση'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function PaymentAmountPreview({ offers, offerId, pct }: { offers: DetailOffer[]; offerId: string | null; pct: string }) {
+  const offer = offers.find((o) => o.id === offerId);
+  const total = offer?.total ?? null;
+  const p = Number(pct.replace(',', '.'));
+  if (total == null || !isFinite(p) || p <= 0 || p > 100) return null;
+  const amount = Math.round(total * p) / 100;
+  return (
+    <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
+      Ποσό αιτήματος: €{amount.toLocaleString('el-GR')}
+    </ThemedText>
   );
 }

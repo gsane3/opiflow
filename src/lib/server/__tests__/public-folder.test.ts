@@ -7,6 +7,7 @@ import {
   type BusinessRowForPublic,
   type OfferRowForPublic,
   type TaskRowForPublic,
+  type PaymentRowForPublic,
 } from '../public-folder';
 
 const folder: FolderRowForPublic = { title: 'Τοποθέτηση κλιματιστικού', status: 'in_progress' };
@@ -15,10 +16,12 @@ const business: BusinessRowForPublic = {
   logo_url: 'https://x/logo.png', phone: '2101234567', email: 'a@b.gr', website: 'https://acme.gr',
 };
 const offers: OfferRowForPublic[] = [
-  { offer_number: 'PR-1', status: 'sent_manually', total: 1200 },
-  { offer_number: 'PR-2', status: 'draft', total: 0 },
+  { id: 'off-1', offer_number: 'PR-1', status: 'sent_manually', total: 1200, valid_until: null },
+  { id: 'off-2', offer_number: 'PR-2', status: 'draft', total: 0, valid_until: null },
 ];
-const appts: TaskRowForPublic[] = [{ due_date: '2026-07-01', due_time: '10:00', type: 'book_appointment' }];
+const appts: TaskRowForPublic[] = [
+  { id: 'task-1', due_date: '2999-12-31', due_time: '10:00', type: 'book_appointment', status: 'open' },
+];
 
 describe('public-folder', () => {
   describe('status helpers', () => {
@@ -49,26 +52,65 @@ describe('public-folder', () => {
 
     it('maps offers with customer-facing labels (draft → neutral)', () => {
       expect(view.offers).toEqual([
-        { offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200 },
-        { offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0 },
+        { id: 'off-1', offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200, canAccept: true },
+        { id: 'off-2', offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0, canAccept: true },
       ]);
     });
 
     it('maps appointments to date/time/typeLabel only', () => {
-      expect(view.appointments).toEqual([{ date: '2026-07-01', time: '10:00', typeLabel: 'Ραντεβού' }]);
+      expect(view.appointments).toEqual([
+        { id: 'task-1', date: '2999-12-31', time: '10:00', typeLabel: 'Ραντεβού', canRespond: true },
+      ]);
     });
 
     it('NEVER leaks internal ids, internal notes, or business-only fields (security)', () => {
       const serialized = JSON.stringify(view);
-      for (const banned of ['business_id', 'customer_id', 'work_folder_id', 'token', 'owner_id', '"id"', '"notes"']) {
+      // NB: offer/appointment UUIDs ARE intentionally exposed (safe selectors for
+      // the folder-scoped action endpoints — authorization is the folder token).
+      // Internal scoping ids + notes must still never appear.
+      for (const banned of ['business_id', 'customer_id', 'work_folder_id', 'token', 'owner_id', '"notes"']) {
         expect(serialized).not.toContain(banned);
       }
       // internal business notes are never part of the public view
       expect(view).not.toHaveProperty('notes');
       // the public view's top-level keys are an explicit allow-list
       expect(Object.keys(view).sort()).toEqual(
-        ['appointments', 'business', 'offers', 'statusLabel', 'statusMessage', 'step', 'title'],
+        ['appointments', 'business', 'messages', 'offers', 'payments', 'statusLabel', 'statusMessage', 'step', 'title'],
       );
+    });
+
+    it('maps payments to the 6 safe fields and hides cancelled (security)', () => {
+      const payments: PaymentRowForPublic[] = [
+        { id: 'pay-1', kind: 'deposit', amount: 360, currency: 'EUR', status: 'pending', receiving_account: 'GR1601101250000000012300695' },
+        { id: 'pay-2', kind: 'balance', amount: 840, currency: 'EUR', status: 'declared', receiving_account: 'GR1601101250000000012300695' },
+        { id: 'pay-3', kind: 'deposit', amount: 100, currency: 'EUR', status: 'cancelled', receiving_account: 'GR1601101250000000012300695' },
+      ];
+      const v = toPublicFolderView(folder, business, [], [], [], payments);
+      // cancelled is dropped; only the safe camelCase fields survive.
+      expect(v.payments).toEqual([
+        { id: 'pay-1', kind: 'deposit', amount: 360, currency: 'EUR', status: 'pending', receivingAccount: 'GR1601101250000000012300695' },
+        { id: 'pay-2', kind: 'balance', amount: 840, currency: 'EUR', status: 'declared', receivingAccount: 'GR1601101250000000012300695' },
+      ]);
+      const s = JSON.stringify(v.payments);
+      // internal-only fields never reach the public payload
+      for (const banned of ['cancelled', 'pct', 'business_id', 'customer_id', 'offer_id', 'work_folder_id', 'receiving_account']) {
+        expect(s).not.toContain(banned);
+      }
+    });
+
+    it('maps the Q&A thread and EXCLUDES call rows (AI briefs never leak)', () => {
+      const v = toPublicFolderView(folder, business, [], [], [
+        { direction: 'inbound', channel: 'viber', summary: 'Ερώτηση από έργο: Πότε;', created_at: '2026-06-01T10:00:00Z' },
+        { direction: 'outbound', channel: 'sms', summary: 'Αύριο στις 10.', created_at: '2026-06-01T10:05:00Z' },
+        { direction: 'inbound', channel: 'call', summary: 'AI ΣΥΝΟΨΗ ΚΛΗΣΗΣ — εσωτερικό', created_at: '2026-06-01T09:00:00Z' },
+        { direction: 'outbound', channel: 'email', summary: '   ', created_at: '2026-06-01T11:00:00Z' },
+      ]);
+      // call row dropped (internal brief), blank-summary row dropped; in/out mapped.
+      expect(v.messages).toEqual([
+        { direction: 'in', text: 'Ερώτηση από έργο: Πότε;', createdAt: '2026-06-01T10:00:00Z' },
+        { direction: 'out', text: 'Αύριο στις 10.', createdAt: '2026-06-01T10:05:00Z' },
+      ]);
+      expect(JSON.stringify(v.messages)).not.toContain('AI ΣΥΝΟΨΗ');
     });
 
     it('drops the business when there is no name and no logo', () => {

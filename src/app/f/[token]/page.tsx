@@ -1,10 +1,14 @@
-// Public customer view of a Φάκελος εργασίας (work folder) — /f/[token].
+// Public customer view of a Έργο (work folder) — /f/[token].
 // No login. Server-rendered, mobile-first, read-only. The token is validated
 // server-side (service-role); an invalid/expired/revoked token shows a neutral
 // "link unavailable" message. Only safe, customer-facing data is rendered.
 
 import { loadPublicFolder, type PublicFolderView } from '@/lib/server/public-folder';
 import QuestionForm from './QuestionForm';
+import Stepper from '@/components/customers/Stepper';
+import OfferAcceptButton from './OfferAcceptButton';
+import AppointmentRespond from './AppointmentRespond';
+import PaymentCard from './PaymentCard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,11 +68,14 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
 
         {/* Folder */}
         <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ο φάκελός σας</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Το έργο σας</p>
           <h1 className="mt-1 text-xl font-bold text-zinc-900">{view.title}</h1>
           <div className="mt-2 flex items-center gap-2">
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{view.statusLabel}</span>
             {view.statusMessage && <span className="text-sm text-zinc-500">{view.statusMessage}</span>}
+          </div>
+          <div className="mt-4">
+            <Stepper step={view.step} />
           </div>
         </section>
 
@@ -77,16 +84,32 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Προσφορές</p>
             <ul className="mt-2 space-y-2">
-              {view.offers.map((o, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber}</p>
-                    <p className="text-xs text-zinc-500">{o.statusLabel}</p>
+              {view.offers.map((o) => (
+                <li key={o.id} className="rounded-xl bg-zinc-50 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber}</p>
+                      <p className="text-xs text-zinc-500">{o.statusLabel}</p>
+                    </div>
+                    {typeof o.total === 'number' && (
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>
+                    )}
                   </div>
-                  {typeof o.total === 'number' && (
-                    <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>
-                  )}
+                  {o.canAccept && <OfferAcceptButton token={token} offerId={o.id} />}
                 </li>
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Payments — amount + IBAN + «Δήλωσα την κατάθεση» (self-report) */}
+        {view.payments.length > 0 && (
+          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Πληρωμές</p>
+            <p className="mt-1 text-xs text-zinc-500">Κατάθεση στον παρακάτω λογαριασμό. Μετά την κατάθεση, πατήστε «Δήλωσα την κατάθεση».</p>
+            <ul className="mt-2 space-y-2">
+              {view.payments.map((p) => (
+                <PaymentCard key={p.id} token={token} payment={p} />
               ))}
             </ul>
           </section>
@@ -97,13 +120,16 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ραντεβού</p>
             <ul className="mt-2 space-y-2">
-              {view.appointments.map((a, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5">
-                  <span className="text-sm font-medium text-zinc-900">
-                    {formatDate(a.date)}
-                    {a.time ? ` · ${a.time}` : ''}
-                  </span>
-                  <span className="shrink-0 text-xs text-zinc-500">{a.typeLabel}</span>
+              {view.appointments.map((a) => (
+                <li key={a.id} className="rounded-xl bg-zinc-50 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-zinc-900">
+                      {formatDate(a.date)}
+                      {a.time ? ` · ${a.time}` : ''}
+                    </span>
+                    <span className="shrink-0 text-xs text-zinc-500">{a.typeLabel}</span>
+                  </div>
+                  {a.canRespond && <AppointmentRespond token={token} taskId={a.id} date={a.date} time={a.time} />}
                 </li>
               ))}
             </ul>
@@ -111,9 +137,29 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
         )}
 
         {/* Empty placeholder when nothing is linked yet */}
-        {view.offers.length === 0 && view.appointments.length === 0 && (
+        {view.offers.length === 0 && view.appointments.length === 0 && view.payments.length === 0 && (
           <section className="rounded-3xl bg-white p-5 text-center shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-sm text-zinc-500">Δεν υπάρχει κάτι ακόμα. Θα ενημερωθείτε για κάθε νεότερο.</p>
+          </section>
+        )}
+
+        {/* Q&A thread — the customer↔business message exchange (no internal briefs) */}
+        {view.messages.length > 0 && (
+          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Συνομιλία</p>
+            <div className="mt-3 space-y-2">
+              {view.messages.map((m, i) => (
+                <div key={i} className={`flex ${m.direction === 'out' ? 'justify-start' : 'justify-end'}`}>
+                  <div
+                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                      m.direction === 'out' ? 'bg-zinc-100 text-zinc-800' : 'bg-indigo-600 text-white'
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+            </div>
           </section>
         )}
 
