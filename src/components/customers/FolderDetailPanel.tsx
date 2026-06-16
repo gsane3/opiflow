@@ -395,6 +395,36 @@ export default function FolderDetailPanel({
     }
   }
 
+  // Owner confirms (or cancels) a payment request. 'confirmed' is the only
+  // authoritative state — the customer's 'declared' is just a self-report.
+  async function confirmPayment(paymentId: string, status: 'confirmed' | 'cancelled') {
+    setBusyKey(`pay:${paymentId}:${status}`);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { notify('Δεν ολοκληρώθηκε. Δοκίμασε ξανά.', true); return; }
+      const res = await fetch(`/api/payments/${paymentId}`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ status }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && json?.ok) {
+        notify(status === 'confirmed' ? 'Η πληρωμή επιβεβαιώθηκε' : 'Το αίτημα ακυρώθηκε');
+        await loadPayments();
+        onChanged?.();
+      } else if (json?.error === 'payment_not_actionable') {
+        notify('Το αίτημα έχει ήδη διευθετηθεί.', true);
+        await loadPayments();
+      } else {
+        notify('Δεν ολοκληρώθηκε. Δοκίμασε ξανά.', true);
+      }
+    } catch {
+      notify('Δεν ολοκληρώθηκε. Δοκίμασε ξανά.', true);
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   // WF-2: public folder link — draft, copy, send (Viber/SMS), share.
   async function draftLink() {
     setLinkBusy(true); setLinkErr(''); setLinkSent(false); setLinkCopied(false);
@@ -553,7 +583,15 @@ export default function FolderDetailPanel({
             ? <p className="px-1 text-xs text-zinc-400 dark:text-zinc-500">Πρόσθεσε πρώτα μια προσφορά.</p>
             : <Empty />
         ) : (
-          payments.map((p) => <PaymentRow key={p.id} p={p} />)
+          payments.map((p) => (
+            <PaymentRow
+              key={p.id}
+              p={p}
+              busyKey={busyKey}
+              onConfirm={() => void confirmPayment(p.id, 'confirmed')}
+              onCancel={() => void confirmPayment(p.id, 'cancelled')}
+            />
+          ))
         )}
       </Section>
 
@@ -943,8 +981,22 @@ function PickRow({ primary, secondary, busy, onAttach }: { primary: string; seco
   );
 }
 
-function PaymentRow({ p }: { p: FolderPayment }) {
+function PaymentRow({
+  p,
+  busyKey,
+  onConfirm,
+  onCancel,
+}: {
+  p: FolderPayment;
+  busyKey: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
   const st = PAYMENT_STATUS_GR[p.status] ?? { l: p.status, cls: 'bg-zinc-100 text-zinc-500 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-400 dark:ring-white/10' };
+  const isFinal = p.status === 'confirmed' || p.status === 'cancelled';
+  const confirming = busyKey === `pay:${p.id}:confirmed`;
+  const cancelling = busyKey === `pay:${p.id}:cancelled`;
+  const busy = confirming || cancelling;
   return (
     <div className="rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-[#1e2b38]">
       <div className="flex items-center justify-between gap-2">
@@ -954,6 +1006,26 @@ function PaymentRow({ p }: { p: FolderPayment }) {
         <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${st.cls}`}>{st.l}</span>
       </div>
       {p.pct != null && <p className="text-xs text-zinc-500 dark:text-zinc-400">{p.pct}% της προσφοράς</p>}
+      {!isFinal && (
+        <div className="mt-1.5 flex gap-2">
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={busy}
+            className="rounded-full bg-green-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-green-700 disabled:opacity-40"
+          >
+            {confirming ? '...' : 'Επιβεβαίωση είσπραξης'}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={busy}
+            className="rounded-full px-2.5 py-1 text-xs font-medium text-zinc-500 transition hover:text-red-600 disabled:opacity-40 dark:text-zinc-400"
+          >
+            {cancelling ? '...' : 'Ακύρωση'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
