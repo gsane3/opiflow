@@ -11,8 +11,33 @@ export type FolderStatus = (typeof FOLDER_STATUSES)[number];
 
 export const MAX_FOLDER_TITLE = 120;
 
+// The 5-step process every Έργο (work folder) moves through. The index is the
+// `work_folders.step` smallint (0..4), shared by the technician timeline, the
+// profile cards and the public portal so all three render the same Stepper.
+export const WORK_FOLDER_STEPS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'] as const;
+export const MAX_FOLDER_STEP = WORK_FOLDER_STEPS.length - 1; // 4
+
 export function isFolderStatus(value: unknown): value is FolderStatus {
   return typeof value === 'string' && (FOLDER_STATUSES as readonly string[]).includes(value);
+}
+
+/** Coerce any DB/legacy value into a valid step (0..MAX). Tolerant of a missing
+ *  column (pre-migration-047 rows) → defaults to 0. */
+export function clampStep(value: unknown): number {
+  const n = typeof value === 'number' ? value : Number(value);
+  if (!Number.isFinite(n)) return 0;
+  const i = Math.trunc(n);
+  return i < 0 ? 0 : i > MAX_FOLDER_STEP ? MAX_FOLDER_STEP : i;
+}
+
+/** Validate a client-supplied step. Must be an integer in 0..MAX. */
+export function validateFolderStep(
+  value: unknown,
+): { ok: true; value: number } | { ok: false; error: 'invalid_step' } {
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 0 || value > MAX_FOLDER_STEP) {
+    return { ok: false, error: 'invalid_step' };
+  }
+  return { ok: true, value };
 }
 
 /** Trim + validate a folder title. Returns the cleaned value or an error code. */
@@ -37,6 +62,9 @@ export interface WorkFolderRow {
   title: string;
   status: string;
   notes: string | null;
+  // step is optional at the type level so reads stay safe before migration 047
+  // is applied (the column is absent → undefined → clampStep() yields 0).
+  step?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -55,6 +83,7 @@ export interface WorkFolder {
   customerId: string;
   title: string;
   status: string;
+  step: number;
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -72,6 +101,7 @@ export function dbToFolder(row: WorkFolderRow, counts?: FolderCounts): WorkFolde
     customerId: row.customer_id,
     title: row.title,
     status: row.status,
+    step: clampStep(row.step),
     notes: row.notes,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
