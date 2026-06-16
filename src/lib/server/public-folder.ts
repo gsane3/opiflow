@@ -234,12 +234,25 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     const supabase = createServiceSupabaseClient();
 
     // Folder, scoped by the token's business_id (defense in depth).
-    const { data: folderData, error: folderError } = await supabase
+    const fPrimary = await supabase
       .from('work_folders')
       .select('title, status, step') // NB: notes intentionally not selected (internal-only)
       .eq('id', token.work_folder_id)
       .eq('business_id', token.business_id)
       .maybeSingle();
+    let folderData: unknown = fPrimary.data;
+    let folderError = fPrimary.error;
+    if (folderError) {
+      // Pre-migration-047 fallback: retry without `step` (clampStep defaults to 0).
+      const fb = await supabase
+        .from('work_folders')
+        .select('title, status')
+        .eq('id', token.work_folder_id)
+        .eq('business_id', token.business_id)
+        .maybeSingle();
+      folderData = fb.data;
+      folderError = fb.error;
+    }
     if (folderError || !folderData) return null;
     const folder = folderData as unknown as FolderRowForPublic;
 

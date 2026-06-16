@@ -22,8 +22,11 @@ import {
 
 export const runtime = 'nodejs';
 
-// `step` requires migration 047 (apply before deploy, like 046).
+// `step` requires migration 047. We try WITH it and fall back WITHOUT it so the
+// list keeps working even when 047 hasn't been applied yet (dbToFolder defaults a
+// missing step to 0). This is the real graceful-degradation path.
 const FOLDER_COLUMNS = 'id, business_id, customer_id, title, status, step, notes, created_at, updated_at';
+const FOLDER_COLUMNS_BASE = 'id, business_id, customer_id, title, status, notes, created_at, updated_at';
 
 function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
@@ -116,18 +119,32 @@ export async function GET(
       return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
     }
 
-    const { data, error } = await supabase
+    const primary = await supabase
       .from('work_folders')
       .select(FOLDER_COLUMNS)
       .eq('business_id', businessId)
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false });
+    let rowData: unknown[] | null = primary.data as unknown[] | null;
+    let queryError = primary.error;
 
-    if (error) {
+    // Pre-migration-047 fallback: retry without `step` so the list still loads.
+    if (queryError) {
+      const fallback = await supabase
+        .from('work_folders')
+        .select(FOLDER_COLUMNS_BASE)
+        .eq('business_id', businessId)
+        .eq('customer_id', customerId)
+        .order('created_at', { ascending: false });
+      rowData = fallback.data as unknown[] | null;
+      queryError = fallback.error;
+    }
+
+    if (queryError) {
       return NextResponse.json({ ok: false, error: 'folders_query_failed' }, { status: 500 });
     }
 
-    const rows = ((data ?? []) as unknown[]) as WorkFolderRow[];
+    const rows = ((rowData ?? []) as unknown[]) as WorkFolderRow[];
     const countsByFolder = await loadFolderCounts(supabase, businessId, rows.map((r) => r.id));
     const folders = orderFolders(
       rows.map((r) => dbToFolder(r, countsByFolder.get(r.id) ?? emptyFolderCounts())),
@@ -198,7 +215,8 @@ export async function POST(
         notes: str(raw.notes),
         updated_at: now,
       })
-      .select(FOLDER_COLUMNS)
+      // BASE columns (no `step`) so create works pre-047; a new folder's step is 0.
+      .select(FOLDER_COLUMNS_BASE)
       .single();
 
     if (error || !data) {

@@ -18,9 +18,10 @@ import {
 
 export const runtime = 'nodejs';
 
-// `step` requires migration 047. Apply it before deploying (like 046); pre-apply
-// reads surface the route's normal error state, never a crash.
+// `step` requires migration 047. We try WITH it and fall back WITHOUT it so the
+// folder still loads/updates when 047 hasn't been applied (graceful degradation).
 const FOLDER_COLUMNS = 'id, business_id, customer_id, title, status, step, notes, created_at, updated_at';
+const FOLDER_COLUMNS_BASE = 'id, business_id, customer_id, title, status, notes, created_at, updated_at';
 
 function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
@@ -46,12 +47,25 @@ export async function GET(
   try {
     const { id: folderId } = await params;
 
-    const { data: folderData, error: folderErr } = await supabase
+    const fPrimary = await supabase
       .from('work_folders')
       .select(FOLDER_COLUMNS)
       .eq('id', folderId)
       .eq('business_id', businessId)
       .maybeSingle();
+    let folderData: unknown = fPrimary.data;
+    let folderErr = fPrimary.error;
+    if (folderErr) {
+      // Pre-migration-047 fallback: retry without `step`.
+      const fb = await supabase
+        .from('work_folders')
+        .select(FOLDER_COLUMNS_BASE)
+        .eq('id', folderId)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      folderData = fb.data;
+      folderErr = fb.error;
+    }
     if (folderErr) {
       return NextResponse.json({ ok: false, error: 'folder_detail_failed' }, { status: 500 });
     }
@@ -221,39 +235,69 @@ export async function PATCH(
 
     // Nothing to change → return the current folder (business-scoped).
     if (!hasUpdate) {
-      const { data, error } = await supabase
+      const curPrimary = await supabase
         .from('work_folders')
         .select(FOLDER_COLUMNS)
         .eq('id', folderId)
         .eq('business_id', businessId)
         .maybeSingle();
-      if (error) {
+      let curData: unknown = curPrimary.data;
+      let curErr = curPrimary.error;
+      if (curErr) {
+        const fb = await supabase
+          .from('work_folders')
+          .select(FOLDER_COLUMNS_BASE)
+          .eq('id', folderId)
+          .eq('business_id', businessId)
+          .maybeSingle();
+        curData = fb.data;
+        curErr = fb.error;
+      }
+      if (curErr) {
         return NextResponse.json({ ok: false, error: 'folder_update_failed' }, { status: 500 });
       }
-      if (!data) {
+      if (!curData) {
         return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
       }
-      return NextResponse.json({ ok: true, folder: dbToFolder(data as WorkFolderRow) });
+      return NextResponse.json({ ok: true, folder: dbToFolder(curData as WorkFolderRow) });
     }
 
     updateFields.updated_at = new Date().toISOString();
 
-    const { data, error } = await supabase
+    const updPrimary = await supabase
       .from('work_folders')
       .update(updateFields)
       .eq('id', folderId)
       .eq('business_id', businessId)
       .select(FOLDER_COLUMNS)
       .maybeSingle();
+    let updData: unknown = updPrimary.data;
+    let updErr = updPrimary.error;
 
-    if (error) {
+    // Pre-migration-047 fallback: drop `step` from the update + select base, so
+    // title/status/notes still save even when the column doesn't exist yet.
+    if (updErr) {
+      const fieldsNoStep: Record<string, unknown> = { ...updateFields };
+      delete fieldsNoStep.step;
+      const fb = await supabase
+        .from('work_folders')
+        .update(fieldsNoStep)
+        .eq('id', folderId)
+        .eq('business_id', businessId)
+        .select(FOLDER_COLUMNS_BASE)
+        .maybeSingle();
+      updData = fb.data;
+      updErr = fb.error;
+    }
+
+    if (updErr) {
       return NextResponse.json({ ok: false, error: 'folder_update_failed' }, { status: 500 });
     }
-    if (!data) {
+    if (!updData) {
       return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, folder: dbToFolder(data as WorkFolderRow) });
+    return NextResponse.json({ ok: true, folder: dbToFolder(updData as WorkFolderRow) });
   } catch {
     return NextResponse.json({ ok: false, error: 'folder_update_failed' }, { status: 500 });
   }
