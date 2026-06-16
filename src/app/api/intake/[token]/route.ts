@@ -6,8 +6,16 @@ import {
   markIntakeTokenSubmitted,
 } from '@/lib/server/intake-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
+import { sendPushToBusinessOwner } from '@/lib/server/push';
 
 export const runtime = 'nodejs';
+
+// The public link is delivered over viber/sms/email; the form submission itself
+// has no channel, so we reuse the delivery channel for the inbound row (default
+// viber). Matches the offer/appointment-response audit-row convention.
+function inboundChannel(sent: 'viber' | 'sms' | 'email' | 'manual' | null): 'viber' | 'sms' | 'email' {
+  return sent === 'sms' || sent === 'email' ? sent : 'viber';
+}
 
 // Public endpoint — rate-limit by IP to deter abuse/scraping.
 const publicLimiter = makePublicLimiter(40, 60_000);
@@ -323,6 +331,33 @@ export async function POST(
     }
 
     await markIntakeTokenSubmitted(tokenRow.id);
+
+    // Surface the customer's free-text comment as an INBOUND message so it
+    // threads into the customer timeline (same pattern as offer/appointment
+    // -response). Best-effort & non-fatal — the intake submission already
+    // succeeded, so a failure here must not turn it into an error.
+    if (comments) {
+      const summary = `Σχόλιο από αίτημα στοιχείων: ${comments.slice(0, 1000)}`;
+      try {
+        await supabase.from('communications').insert({
+          business_id: customer.business_id,
+          customer_id: customer.id,
+          channel: inboundChannel(tokenRow.sent_channel),
+          direction: 'inbound',
+          status: 'completed',
+          phone: null,
+          summary,
+        });
+      } catch {
+        // intentionally swallowed
+      }
+      await sendPushToBusinessOwner(customer.business_id, {
+        title: 'Νέο μήνυμα από πελάτη',
+        body: summary,
+        url: `/customers/${customer.id}`,
+        data: { type: 'customer_message', source: 'intake' },
+      });
+    }
 
     if (acceptsForm) {
       return NextResponse.redirect(buildPublicIntakeRedirect(token, request, true), 303);

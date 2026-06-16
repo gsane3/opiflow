@@ -11,6 +11,7 @@ import {
   MAX_FILES_PER_SESSION,
 } from '@/lib/server/upload-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
+import { sendPushToBusinessOwner } from '@/lib/server/push';
 
 export const runtime = 'nodejs';
 
@@ -23,6 +24,12 @@ function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
   const trimmed = val.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+// The upload link is delivered over viber/sms/email; reuse the delivery channel
+// for the inbound row (default viber), matching the offer/appointment pattern.
+function inboundChannel(sent: 'viber' | 'sms' | 'email' | 'manual' | null): 'viber' | 'sms' | 'email' {
+  return sent === 'sms' || sent === 'email' ? sent : 'viber';
 }
 
 export async function POST(
@@ -131,6 +138,32 @@ export async function POST(
       await markUploadTokenCompleted(tokenRow.id);
     } catch {
       // non-fatal: session is already recorded
+    }
+
+    // Surface the customer's free-text comment as an INBOUND message so it
+    // threads into the customer timeline (same pattern as offer/appointment
+    // -response). Best-effort & non-fatal — the upload is already recorded.
+    if (customerComment) {
+      const summary = `Σχόλιο από ανέβασμα φωτογραφιών: ${customerComment.slice(0, 1000)}`;
+      try {
+        await supabase.from('communications').insert({
+          business_id: tokenRow.business_id,
+          customer_id: tokenRow.customer_id,
+          channel: inboundChannel(tokenRow.sent_channel),
+          direction: 'inbound',
+          status: 'completed',
+          phone: null,
+          summary,
+        });
+      } catch {
+        // intentionally swallowed
+      }
+      await sendPushToBusinessOwner(tokenRow.business_id, {
+        title: 'Νέο μήνυμα από πελάτη',
+        body: summary,
+        url: `/customers/${tokenRow.customer_id}`,
+        data: { type: 'customer_message', source: 'upload' },
+      });
     }
 
     return NextResponse.json({ ok: true });
