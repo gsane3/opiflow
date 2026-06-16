@@ -88,14 +88,18 @@ export async function GET(
         .limit(3),
       supabase
         .from('customer_upload_tokens')
-        .select('id', { count: 'exact', head: true })
+        .select('id, status, sent_channel, created_at, opened_at, completed_at', { count: 'exact' })
         .eq('business_id', businessId)
-        .eq('work_folder_id', folderId),
+        .eq('work_folder_id', folderId)
+        .order('created_at', { ascending: false })
+        .limit(4),
       supabase
         .from('customer_intake_tokens')
-        .select('id', { count: 'exact', head: true })
+        .select('id, status, sent_channel, created_at, opened_at, submitted_at', { count: 'exact' })
         .eq('business_id', businessId)
-        .eq('work_folder_id', folderId),
+        .eq('work_folder_id', folderId)
+        .order('created_at', { ascending: false })
+        .limit(4),
     ]);
 
     const counts: FolderCounts = {
@@ -130,6 +134,15 @@ export async function GET(
       const m = r as { id: string; summary: string | null; direction: string; channel: string; created_at: string };
       return { id: m.id, summary: m.summary, direction: m.direction, channel: m.channel, createdAt: m.created_at };
     });
+    // NB: token_hash is never selected → never exposed.
+    const photos = ((photoRes.data ?? []) as unknown[]).map((r) => {
+      const u = r as { id: string; status: string; sent_channel: string | null; created_at: string; opened_at: string | null; completed_at: string | null };
+      return { id: u.id, status: u.status, sentChannel: u.sent_channel, createdAt: u.created_at, openedAt: u.opened_at, completedAt: u.completed_at };
+    });
+    const intake = ((intakeRes.data ?? []) as unknown[]).map((r) => {
+      const i = r as { id: string; status: string; sent_channel: string | null; created_at: string; opened_at: string | null; submitted_at: string | null };
+      return { id: i.id, status: i.status, sentChannel: i.sent_channel, createdAt: i.created_at, openedAt: i.opened_at, submittedAt: i.submitted_at };
+    });
 
     return NextResponse.json({
       ok: true,
@@ -139,8 +152,8 @@ export async function GET(
         offers: { count: counts.offers, items: offers },
         appointments: { count: counts.appointments, items: appointments },
         messages: { count: counts.messages, items: messages },
-        photos: { count: counts.uploadRequests },
-        intake: { count: counts.intakeRequests },
+        photos: { count: counts.uploadRequests, items: photos },
+        intake: { count: counts.intakeRequests, items: intake },
       },
     });
   } catch {

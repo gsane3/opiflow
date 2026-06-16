@@ -30,6 +30,7 @@ import { sendIntakeViberMessage, normalizeApifonMsisdn } from '@/lib/server/apif
 import { sendViaPreferredChannel, channelForCustomer } from '@/lib/server/send-channel';
 import { sendCustomerLinkEmail } from '@/lib/server/customer-email';
 import { recordOutboundMessage, extractProviderIds } from '@/lib/server/record-message';
+import { resolveWorkFolderForCreate } from '@/lib/server/folder-link';
 
 export const runtime = 'nodejs';
 
@@ -200,6 +201,15 @@ export async function POST(
     }
 
     const customer = customerData;
+
+    // WF-4B: optional folder context. When present, the folder must belong to
+    // this business AND this customer; otherwise unchanged (workFolderId = null).
+    const folderLink = await resolveWorkFolderForCreate(supabase, businessId, raw.workFolderId, customerId);
+    if (!folderLink.ok) {
+      return NextResponse.json({ ok: false, error: folderLink.error }, { status: folderLink.status });
+    }
+    const workFolderId = folderLink.workFolderId;
+
     const serviceClient = createServiceSupabaseClient();
     const now = new Date().toISOString();
 
@@ -226,6 +236,7 @@ export async function POST(
           businessId,
           customerId,
           sentChannel: null,
+          workFolderId,
         });
       } catch {
         return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
@@ -304,6 +315,7 @@ export async function POST(
           businessId,
           customerId,
           sentChannel: 'viber',
+          workFolderId,
         });
       } catch {
         return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });

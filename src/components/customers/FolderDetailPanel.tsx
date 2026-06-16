@@ -17,10 +17,17 @@ const OFFER_STATUS_GR: Record<string, string> = {
   accepted: 'Αποδεκτή', rejected: 'Απορρίφθηκε', expired: 'Έληξε', cancelled: 'Ακυρώθηκε',
 };
 const APPT_TYPE_GR: Record<string, string> = { book_appointment: 'Ραντεβού', visit_customer: 'Επίσκεψη' };
+// Request (intake/upload token) status, in plain Greek.
+const REQ_STATUS_GR: Record<string, string> = {
+  pending: 'Εκκρεμεί', sent: 'Στάλθηκε', opened: 'Ανοίχτηκε',
+  submitted: 'Υποβλήθηκε', completed: 'Ολοκληρώθηκε', expired: 'Έληξε', revoked: 'Ακυρώθηκε',
+};
 
 interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
 interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
 interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string }
+interface DetailUpload { id: string; status: string; sentChannel: string | null; createdAt: string; openedAt: string | null; completedAt: string | null }
+interface DetailIntake { id: string; status: string; sentChannel: string | null; createdAt: string; openedAt: string | null; submittedAt: string | null }
 interface FolderDetail {
   folder: { id: string; title: string; status: string };
   customer: { id: string; name: string | null; phone: string | null; email: string | null } | null;
@@ -28,12 +35,14 @@ interface FolderDetail {
     offers: { count: number; items: DetailOffer[] };
     appointments: { count: number; items: DetailAppt[] };
     messages: { count: number; items: DetailMsg[] };
-    photos: { count: number };
-    intake: { count: number };
+    photos: { count: number; items: DetailUpload[] };
+    intake: { count: number; items: DetailIntake[] };
   };
 }
 interface AttachOffer { id: string; offerNumber: string | null; status: string; total: number | null }
 interface AttachAppt { id: string; title: string; type: string; status: string; dueDate: string | null }
+interface AttachMsg { id: string; direction: string; channel: string; summary: string | null; createdAt: string }
+interface AttachReq { id: string; status: string; sentChannel: string | null; createdAt: string }
 
 async function authHeaders(): Promise<Record<string, string> | null> {
   try {
@@ -65,7 +74,11 @@ export default function FolderDetailPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastErr, setToastErr] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  // Panel-level toast: green for success, red for failure.
+  const notify = (msg: string, isError = false) => { setToast(msg); setToastErr(isError); };
 
   // attach sheet
   const [attachOpen, setAttachOpen] = useState(false);
@@ -73,6 +86,9 @@ export default function FolderDetailPanel({
   const [attachError, setAttachError] = useState(false);
   const [attOffers, setAttOffers] = useState<AttachOffer[]>([]);
   const [attAppts, setAttAppts] = useState<AttachAppt[]>([]);
+  const [attMsgs, setAttMsgs] = useState<AttachMsg[]>([]);
+  const [attIntake, setAttIntake] = useState<AttachReq[]>([]);
+  const [attUpload, setAttUpload] = useState<AttachReq[]>([]);
 
   // quick create
   const [qcMode, setQcMode] = useState<'offer' | 'appointment' | null>(null);
@@ -126,10 +142,16 @@ export default function FolderDetailPanel({
       const headers = await authHeaders();
       if (!headers) { setAttachError(true); setAttachLoading(false); return; }
       const res = await fetch(`/api/folders/${folderId}/attachable`, { headers });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; offers?: AttachOffer[]; appointments?: AttachAppt[] };
+      const json = (await res.json().catch(() => ({}))) as {
+        ok?: boolean; offers?: AttachOffer[]; appointments?: AttachAppt[];
+        messages?: AttachMsg[]; intake?: AttachReq[]; upload?: AttachReq[];
+      };
       if (res.ok && json?.ok) {
         setAttOffers(json.offers ?? []);
         setAttAppts(json.appointments ?? []);
+        setAttMsgs(json.messages ?? []);
+        setAttIntake(json.intake ?? []);
+        setAttUpload(json.upload ?? []);
       } else {
         setAttachError(true);
       }
@@ -140,11 +162,12 @@ export default function FolderDetailPanel({
     }
   }
 
-  async function setFolderLink(entityType: 'offer' | 'task' | 'communication', entityId: string, attach: boolean) {
+  type AttachEntity = 'offer' | 'task' | 'communication' | 'intake_token' | 'upload_token';
+  async function setFolderLink(entityType: AttachEntity, entityId: string, attach: boolean) {
     setBusyKey(`${entityType}:${entityId}:${attach}`);
     try {
       const headers = await authHeaders();
-      if (!headers) { setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.'); return; }
+      if (!headers) { notify(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.', true); return; }
       const res = await fetch(`/api/folders/${folderId}/attach`, {
         method: 'POST',
         headers,
@@ -152,18 +175,50 @@ export default function FolderDetailPanel({
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (res.ok && json?.ok) {
-        setToast(attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
+        notify(attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
         if (attach && attachOpen) {
           // refresh the pick lists so the just-attached item drops off
           setAttOffers((p) => p.filter((o) => o.id !== entityId));
           setAttAppts((p) => p.filter((a) => a.id !== entityId));
+          setAttMsgs((p) => p.filter((m) => m.id !== entityId));
+          setAttIntake((p) => p.filter((i) => i.id !== entityId));
+          setAttUpload((p) => p.filter((u) => u.id !== entityId));
         }
         await refreshAll();
       } else {
-        setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+        notify(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.', true);
       }
     } catch {
-      setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+      notify(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.', true);
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  // WF-4B: send a photo/intake request to the customer, filed into this folder.
+  async function sendRequest(kind: 'upload' | 'intake') {
+    setBusyKey(`req:${kind}`);
+    try {
+      const headers = await authHeaders();
+      const customerId = detail?.customer?.id;
+      if (!headers || !customerId) { notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true); return; }
+      const path = kind === 'upload' ? 'upload-link' : 'intake-link';
+      const res = await fetch(`/api/customers/${customerId}/${path}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ mode: 'send', workFolderId: folderId }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean; fallbackReason?: string };
+      if (res.ok && json?.ok) {
+        // The token is created (and filed) even when delivery falls back, so always refresh.
+        if (json.sent) notify(kind === 'upload' ? 'Στάλθηκε το αίτημα φωτογραφιών.' : 'Στάλθηκε το αίτημα στοιχείων.');
+        else notify(json.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.', true);
+        await refreshAll();
+      } else {
+        notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true);
+      }
+    } catch {
+      notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true);
     } finally {
       setBusyKey(null);
     }
@@ -217,7 +272,7 @@ export default function FolderDetailPanel({
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (res.ok && json?.ok) {
         setQcMode(null);
-        setToast('Συνδέθηκε με τον φάκελο');
+        notify('Συνδέθηκε με τον φάκελο');
         await refreshAll();
       } else {
         setQcError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
@@ -245,7 +300,7 @@ export default function FolderDetailPanel({
 
   return (
     <div className="space-y-3">
-      {toast && <p className="text-xs font-medium text-green-700">{toast}</p>}
+      {toast && <p className={`text-xs font-medium ${toastErr ? 'text-red-600' : 'text-green-700'}`}>{toast}</p>}
 
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2">
@@ -306,22 +361,48 @@ export default function FolderDetailPanel({
       </Section>
 
       {/* Φωτογραφίες */}
-      <Section title="Φωτογραφίες" count={s.photos.count}>
-        {s.photos.count === 0 ? <Empty /> : <p className="px-1 text-xs text-zinc-500 dark:text-zinc-400">{s.photos.count} αιτήματα φωτογραφιών</p>}
+      <Section
+        title="Φωτογραφίες"
+        count={s.photos.count}
+        action={<SmallAction busy={busyKey === 'req:upload'} onClick={() => void sendRequest('upload')}>Ζήτα φωτογραφίες</SmallAction>}
+      >
+        {s.photos.items.length === 0 ? (
+          <Empty />
+        ) : (
+          s.photos.items.map((u) => (
+            <Row
+              key={u.id}
+              primary={REQ_STATUS_GR[u.status] ?? u.status}
+              secondary={`Αίτημα φωτογραφιών · ${formatDateGr(u.createdAt)}`}
+              busy={busyKey === `upload_token:${u.id}:false`}
+              onDetach={() => void setFolderLink('upload_token', u.id, false)}
+            />
+          ))
+        )}
       </Section>
 
       {/* Στοιχεία πελάτη */}
-      <Section title="Στοιχεία πελάτη">
-        {detail.customer ? (
+      <Section
+        title="Στοιχεία πελάτη"
+        action={<SmallAction busy={busyKey === 'req:intake'} onClick={() => void sendRequest('intake')}>Ζήτα στοιχεία</SmallAction>}
+      >
+        {detail.customer && (
           <div className="px-1 text-xs text-zinc-600 dark:text-zinc-300">
             <p className="font-medium text-zinc-800 dark:text-zinc-100">{detail.customer.name ?? 'Πελάτης'}</p>
             {detail.customer.phone && <p>{detail.customer.phone}</p>}
             {detail.customer.email && <p>{detail.customer.email}</p>}
-            {s.intake.count > 0 && <p className="mt-1 text-zinc-500">{s.intake.count} αιτήματα στοιχείων</p>}
           </div>
-        ) : (
-          <Empty />
         )}
+        {s.intake.items.map((i) => (
+          <Row
+            key={i.id}
+            primary={REQ_STATUS_GR[i.status] ?? i.status}
+            secondary={`Αίτημα στοιχείων · ${formatDateGr(i.createdAt)}`}
+            busy={busyKey === `intake_token:${i.id}:false`}
+            onDetach={() => void setFolderLink('intake_token', i.id, false)}
+          />
+        ))}
+        {!detail.customer && s.intake.items.length === 0 && <Empty />}
       </Section>
 
       {/* Attach sheet */}
@@ -357,6 +438,42 @@ export default function FolderDetailPanel({
                     secondary={`${APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}${a.dueDate ? ` · ${formatDateGr(a.dueDate)}` : ''}`}
                     busy={busyKey === `task:${a.id}:true`}
                     onAttach={() => void setFolderLink('task', a.id, true)}
+                  />
+                ))}
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-zinc-500">Μηνύματα</p>
+                {attMsgs.length === 0 ? <Empty /> : attMsgs.map((m) => (
+                  <PickRow
+                    key={m.id}
+                    primary={m.summary ?? '—'}
+                    secondary={formatDateGr(m.createdAt)}
+                    busy={busyKey === `communication:${m.id}:true`}
+                    onAttach={() => void setFolderLink('communication', m.id, true)}
+                  />
+                ))}
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-zinc-500">Στοιχεία</p>
+                {attIntake.length === 0 ? <Empty /> : attIntake.map((i) => (
+                  <PickRow
+                    key={i.id}
+                    primary={REQ_STATUS_GR[i.status] ?? i.status}
+                    secondary={`Αίτημα στοιχείων · ${formatDateGr(i.createdAt)}`}
+                    busy={busyKey === `intake_token:${i.id}:true`}
+                    onAttach={() => void setFolderLink('intake_token', i.id, true)}
+                  />
+                ))}
+              </div>
+              <div>
+                <p className="mb-1 text-xs font-semibold text-zinc-500">Φωτογραφίες</p>
+                {attUpload.length === 0 ? <Empty /> : attUpload.map((u) => (
+                  <PickRow
+                    key={u.id}
+                    primary={REQ_STATUS_GR[u.status] ?? u.status}
+                    secondary={`Αίτημα φωτογραφιών · ${formatDateGr(u.createdAt)}`}
+                    busy={busyKey === `upload_token:${u.id}:true`}
+                    onAttach={() => void setFolderLink('upload_token', u.id, true)}
                   />
                 ))}
               </div>
@@ -408,14 +525,30 @@ export default function FolderDetailPanel({
 // Small presentational helpers
 // ---------------------------------------------------------------------------
 
-function Section({ title, count, children }: { title: string; count?: number; children: React.ReactNode }) {
+function Section({ title, count, action, children }: { title: string; count?: number; action?: React.ReactNode; children: React.ReactNode }) {
   return (
     <div className="rounded-xl bg-white p-3 ring-1 ring-zinc-200/70 dark:bg-[#17232f] dark:ring-white/10">
-      <p className="mb-1.5 text-xs font-semibold text-zinc-600 dark:text-zinc-300">
-        {title}{typeof count === 'number' && count > 0 ? ` · ${count}` : ''}
-      </p>
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">
+          {title}{typeof count === 'number' && count > 0 ? ` · ${count}` : ''}
+        </p>
+        {action}
+      </div>
       <div className="space-y-1.5">{children}</div>
     </div>
+  );
+}
+
+function SmallAction({ busy, onClick, children }: { busy: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={busy}
+      className="shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:opacity-40"
+    >
+      {busy ? '...' : children}
+    </button>
   );
 }
 
