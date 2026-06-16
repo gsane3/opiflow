@@ -7,6 +7,7 @@ import { loadPublicFolder, type PublicFolderView } from '@/lib/server/public-fol
 import QuestionForm from './QuestionForm';
 import Stepper from '@/components/customers/Stepper';
 import OfferAcceptButton from './OfferAcceptButton';
+import AppointmentRespond from './AppointmentRespond';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -105,13 +106,16 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ραντεβού</p>
             <ul className="mt-2 space-y-2">
-              {view.appointments.map((a, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5">
-                  <span className="text-sm font-medium text-zinc-900">
-                    {formatDate(a.date)}
-                    {a.time ? ` · ${a.time}` : ''}
-                  </span>
-                  <span className="shrink-0 text-xs text-zinc-500">{a.typeLabel}</span>
+              {view.appointments.map((a) => (
+                <li key={a.id} className="rounded-xl bg-zinc-50 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium text-zinc-900">
+                      {formatDate(a.date)}
+                      {a.time ? ` · ${a.time}` : ''}
+                    </span>
+                    <span className="shrink-0 text-xs text-zinc-500">{a.typeLabel}</span>
+                  </div>
+                  {a.canRespond && <AppointmentRespond token={token} taskId={a.id} date={a.date} time={a.time} />}
                 </li>
               ))}
             </ul>

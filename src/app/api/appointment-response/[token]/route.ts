@@ -8,10 +8,10 @@ import {
   createServiceSupabaseClient,
   findValidAppointmentResponseToken,
   markAppointmentResponseTokenOpened,
-  markAppointmentResponseTokenResponded,
 } from '@/lib/server/appointment-response-tokens';
 import type { AppointmentResponseTokenRow } from '@/lib/server/appointment-response-tokens';
-import { sendPushToBusinessOwner } from '@/lib/server/push';
+import { applyAppointmentResponse } from '@/lib/server/appointment-respond';
+import { APPOINTMENT_TYPES, appointmentCanRespond } from '@/lib/server/appointment-status';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
 
 export const runtime = 'nodejs';
@@ -83,27 +83,10 @@ interface OfferRow {
 }
 
 // ---------------------------------------------------------------------------
-// Constants
+// Pure helpers — guards/canRespond/±60-min math + note/summary builders now live
+// in '@/lib/server/appointment-status' + '@/lib/server/appointment-respond' so
+// this route and the folder portal share one path. The map* helpers are GET-only.
 // ---------------------------------------------------------------------------
-
-const APPOINTMENT_TYPES = ['book_appointment', 'visit_customer'] as const;
-const FINAL_TASK_STATUSES = ['completed', 'cancelled'] as const;
-
-// ---------------------------------------------------------------------------
-// Pure helpers
-// ---------------------------------------------------------------------------
-
-function isBeforeToday(dateStr: string): boolean {
-  return dateStr < new Date().toISOString().split('T')[0];
-}
-
-function computeCanRespond(task: TaskRow): boolean {
-  if ((FINAL_TASK_STATUSES as readonly string[]).includes(task.status)) return false;
-  if (!(APPOINTMENT_TYPES as readonly string[]).includes(task.type)) return false;
-  if (!task.due_date) return false;
-  if (isBeforeToday(task.due_date)) return false;
-  return true;
-}
 
 function mapBusiness(row: BusinessRow) {
   return {
@@ -142,95 +125,6 @@ function mapAppointmentForPublic(task: TaskRow) {
     dueTime: task.due_time,
     note: task.note,
   };
-}
-
-function buildNoteAppend(
-  response: 'accepted' | 'declined' | 'time_change_requested',
-  isoDate: string,
-  requestedDueDate: string | null,
-  requestedDueTime: string | null,
-  comment: string | null
-): string {
-  let line: string;
-  if (response === 'accepted') {
-    line = `Απάντηση μέσω δημόσιου link: Αποδοχή ραντεβού στις ${isoDate}.`;
-  } else if (response === 'declined') {
-    line = `Απάντηση μέσω δημόσιου link: Αδυναμία παρουσίας στις ${isoDate}.`;
-  } else {
-    line = `Απάντηση μέσω δημόσιου link: Αίτημα αλλαγής ώρας στις ${isoDate}.`;
-  }
-
-  if (requestedDueDate || requestedDueTime) {
-    const parts = [requestedDueDate, requestedDueTime].filter(Boolean).join(' ');
-    line += ` Νέα πρόταση: ${parts}.`;
-  }
-
-  if (comment) {
-    line += ` Σχόλιο: ${comment}`;
-  }
-
-  return line;
-}
-
-function buildCommunicationSummary(
-  response: 'accepted' | 'declined' | 'time_change_requested',
-  dueDate: string | null,
-  dueTime: string | null,
-  requestedDueDate: string | null,
-  requestedDueTime: string | null,
-  comment: string | null
-): string {
-  const when = [dueDate, dueTime].filter(Boolean).join(' ');
-
-  let base: string;
-  if (response === 'accepted') {
-    base = `Ο πελάτης αποδέχτηκε το ραντεβού ${when} μέσω δημόσιου link.`;
-  } else if (response === 'declined') {
-    base = `Ο πελάτης δήλωσε ότι δεν μπορεί για το ραντεβού ${when} μέσω δημόσιου link.`;
-  } else {
-    base = `Ο πελάτης ζήτησε αλλαγή ώρας για το ραντεβού ${when} μέσω δημόσιου link.`;
-  }
-
-  if (requestedDueDate || requestedDueTime) {
-    const parts = [requestedDueDate, requestedDueTime].filter(Boolean).join(' ');
-    base += ` Νέα πρόταση: ${parts}.`;
-  }
-
-  if (comment) {
-    base += ` Σχόλιο: ${comment}`;
-  }
-
-  return base;
-}
-
-function resolveChannel(sentChannel: AppointmentResponseTokenRow['sent_channel']): string {
-  if (sentChannel === 'viber' || sentChannel === 'sms' || sentChannel === 'email') {
-    return sentChannel;
-  }
-  return 'sms';
-}
-
-function parseTaskDateTime(date: string, time: string): Date | null {
-  const dateMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
-  const timeMatch = /^(\d{2}):(\d{2})$/.exec(time);
-  if (!dateMatch || !timeMatch) return null;
-  return new Date(Date.UTC(
-    Number(dateMatch[1]), Number(dateMatch[2]) - 1, Number(dateMatch[3]),
-    Number(timeMatch[1]), Number(timeMatch[2]), 0, 0
-  ));
-}
-
-function formatDateUTC(d: Date): string {
-  const y = d.getUTCFullYear();
-  const mo = String(d.getUTCMonth() + 1).padStart(2, '0');
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${y}-${mo}-${day}`;
-}
-
-function formatTimeUTC(d: Date): string {
-  const h = String(d.getUTCHours()).padStart(2, '0');
-  const min = String(d.getUTCMinutes()).padStart(2, '0');
-  return `${h}:${min}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -367,7 +261,7 @@ export async function GET(
       business,
       customer,
       offer,
-      canRespond: computeCanRespond(task),
+      canRespond: appointmentCanRespond(task),
     });
   } catch {
     return NextResponse.json(
@@ -520,170 +414,30 @@ export async function POST(
     );
   }
 
-  // Guard: already in a final state
-  if ((FINAL_TASK_STATUSES as readonly string[]).includes(task.status)) {
-    return NextResponse.json(
-      { ok: false, error: 'appointment_already_final' },
-      { status: 409 }
-    );
-  }
-
-  // Guard: due_date passed
-  if (task.due_date && isBeforeToday(task.due_date)) {
-    return NextResponse.json(
-      { ok: false, error: 'appointment_expired' },
-      { status: 409 }
-    );
-  }
-
-  // For non-time-change responses: discard any requestedDueDate/requestedDueTime
-  if (response !== 'time_change_requested') {
-    requestedDueDate = null;
-    requestedDueTime = null;
-  }
-
-  // For time_change_requested: require due_date + due_time and validate exact ±60 min
-  if (response === 'time_change_requested') {
-    if (!task.due_date || !task.due_time) {
-      return NextResponse.json(
-        { ok: false, error: 'invalid_requested_time_change' },
-        { status: 400 }
-      );
-    }
-    const base = parseTaskDateTime(task.due_date, task.due_time);
-    if (!base) {
-      return NextResponse.json(
-        { ok: false, error: 'invalid_requested_time_change' },
-        { status: 400 }
-      );
-    }
-    const ONE_HOUR = 60 * 60 * 1000;
-    const earlier = new Date(base.getTime() - ONE_HOUR);
-    const later = new Date(base.getTime() + ONE_HOUR);
-    const allowedPairs = [
-      { date: formatDateUTC(earlier), time: formatTimeUTC(earlier) },
-      { date: formatDateUTC(later), time: formatTimeUTC(later) },
-    ];
-    const isAllowed = allowedPairs.some(
-      (p) => p.date === requestedDueDate && p.time === requestedDueTime
-    );
-    if (!isAllowed) {
-      return NextResponse.json(
-        { ok: false, error: 'invalid_requested_time_change' },
-        { status: 400 }
-      );
-    }
-  }
-
-  const now = new Date();
-  const nowIso = now.toISOString();
-  const isoDate = nowIso.split('T')[0];
-
-  // Build updated note (preserve existing note, append tracking line)
-  const noteAppend = buildNoteAppend(response, isoDate, requestedDueDate, requestedDueTime, comment);
-  const updatedNote = task.note
-    ? `${task.note}\n\n${noteAppend}`
-    : noteAppend;
-
-  // Update task note and updated_at only
-  try {
-    const { error: updateError } = await supabase
-      .from('tasks')
-      .update({
-        note: updatedNote,
-        updated_at: nowIso,
-      })
-      .eq('id', task.id)
-      .eq('business_id', tokenRow.business_id);
-
-    if (updateError) {
-      return NextResponse.json(
-        { ok: false, error: 'appointment_response_update_failed' },
-        { status: 500 }
-      );
-    }
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: 'appointment_response_update_failed' },
-      { status: 500 }
-    );
-  }
-
-  // Insert communications row (CRM audit trail)
-  const commSummary = buildCommunicationSummary(
+  // Apply the response via the shared lib (same path the folder portal uses).
+  const result = await applyAppointmentResponse({
+    supabase,
+    businessId: tokenRow.business_id,
+    task,
     response,
-    task.due_date,
-    task.due_time,
+    comment,
     requestedDueDate,
     requestedDueTime,
-    comment
-  );
-  const channel = resolveChannel(tokenRow.sent_channel);
-
-  try {
-    const { error: commError } = await supabase
-      .from('communications')
-      .insert({
-        business_id: tokenRow.business_id,
-        customer_id: task.customer_id,
-        channel,
-        direction: 'inbound',
-        status: 'completed',
-        phone: null,
-        summary: commSummary,
-      });
-
-    if (commError) {
-      return NextResponse.json(
-        { ok: false, error: 'appointment_response_record_failed' },
-        { status: 500 }
-      );
-    }
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: 'appointment_response_record_failed' },
-      { status: 500 }
-    );
-  }
-
-  // Mark token responded (status, response value, date/time, comment, timestamp)
-  try {
-    await markAppointmentResponseTokenResponded({
-      tokenId: tokenRow.id,
-      response,
-      comment,
-      requestedDueDate,
-      requestedDueTime,
-    });
-  } catch {
-    return NextResponse.json(
-      { ok: false, error: 'appointment_response_record_failed' },
-      { status: 500 }
-    );
-  }
-
-  // Notify the business owner's native devices. Best-effort and INERT until the
-  // FCM service account is configured (returns instantly, never throws).
-  await sendPushToBusinessOwner(tokenRow.business_id, {
-    title:
-      response === 'accepted'
-        ? 'Ραντεβού: Επιβεβαίωση ✅'
-        : response === 'declined'
-          ? 'Ραντεβού: Ακύρωση'
-          : 'Ραντεβού: Αίτημα αλλαγής ώρας',
-    body: commSummary,
-    ...(task.customer_id ? { url: `/customers/${task.customer_id}` } : {}),
-    data: { type: 'appointment_response', taskId: task.id, response },
+    sentChannel: tokenRow.sent_channel,
+    tokenId: tokenRow.id,
   });
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.httpStatus });
+  }
 
   return NextResponse.json({
     ok: true,
     response,
     appointment: {
-      title: task.title,
-      status: task.status,
-      dueDate: task.due_date,
-      dueTime: task.due_time,
+      title: result.title,
+      status: result.status,
+      dueDate: result.dueDate,
+      dueTime: result.dueTime,
     },
   });
 }

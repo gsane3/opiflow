@@ -11,6 +11,7 @@ import { createServiceSupabaseClient } from './intake-tokens';
 import { findValidFolderToken, markFolderTokenOpened } from './folder-tokens';
 import { clampStep } from './work-folders';
 import { offerCanRespond } from './offer-status';
+import { appointmentCanRespond } from './appointment-status';
 
 const APPOINTMENT_TASK_TYPES = ['book_appointment', 'visit_customer'] as const;
 
@@ -83,9 +84,11 @@ export interface OfferRowForPublic {
   valid_until: string | null;
 }
 export interface TaskRowForPublic {
+  id: string;
   due_date: string | null;
   due_time: string | null;
   type: string;
+  status: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,9 +111,12 @@ export interface PublicFolderOffer {
   canAccept: boolean;
 }
 export interface PublicFolderAppointment {
+  id: string;
   date: string | null;
   time: string | null;
   typeLabel: string;
+  /** Whether the customer can still confirm / request a time change. */
+  canRespond: boolean;
 }
 export interface PublicFolderView {
   business: PublicFolderBusiness | null;
@@ -159,9 +165,11 @@ export function toPublicFolderView(
       canAccept: offerCanRespond({ status: o.status, valid_until: o.valid_until }),
     })),
     appointments: appointments.map((t) => ({
+      id: t.id,
       date: t.due_date,
       time: t.due_time,
       typeLabel: APPOINTMENT_TYPE_LABELS[t.type] ?? 'Ραντεβού',
+      canRespond: appointmentCanRespond({ status: t.status, type: t.type, due_date: t.due_date }),
     })),
   };
 }
@@ -201,7 +209,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .order('created_at', { ascending: false }),
       supabase
         .from('tasks')
-        .select('due_date, due_time, type')
+        .select('id, due_date, due_time, type, status')
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .in('type', APPOINTMENT_TASK_TYPES as unknown as string[])

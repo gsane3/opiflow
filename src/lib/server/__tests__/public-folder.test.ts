@@ -18,7 +18,9 @@ const offers: OfferRowForPublic[] = [
   { id: 'off-1', offer_number: 'PR-1', status: 'sent_manually', total: 1200, valid_until: null },
   { id: 'off-2', offer_number: 'PR-2', status: 'draft', total: 0, valid_until: null },
 ];
-const appts: TaskRowForPublic[] = [{ due_date: '2026-07-01', due_time: '10:00', type: 'book_appointment' }];
+const appts: TaskRowForPublic[] = [
+  { id: 'task-1', due_date: '2999-12-31', due_time: '10:00', type: 'book_appointment', status: 'open' },
+];
 
 describe('public-folder', () => {
   describe('status helpers', () => {
@@ -55,7 +57,9 @@ describe('public-folder', () => {
     });
 
     it('maps appointments to date/time/typeLabel only', () => {
-      expect(view.appointments).toEqual([{ date: '2026-07-01', time: '10:00', typeLabel: 'Ραντεβού' }]);
+      expect(view.appointments).toEqual([
+        { id: 'task-1', date: '2999-12-31', time: '10:00', typeLabel: 'Ραντεβού', canRespond: true },
+      ]);
     });
 
     it('NEVER leaks internal ids, internal notes, or business-only fields (security)', () => {
