@@ -24,6 +24,7 @@ import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ChipSelect, Input, ListRow, PrimaryButton, SheetModal } from '@/components/ui';
+import { WorkFoldersSection } from '@/components/work-folders-section';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
@@ -451,6 +452,9 @@ export default function CustomerProfileScreen() {
               </ThemedText>
             ) : null}
           </GroupCard>
+
+          {/* Φάκελοι εργασίας — per-job grouping under this customer */}
+          <WorkFoldersSection customerId={customerId} />
 
           {/* Δραστηριότητα — Messenger-style rows that expand */}
           <GroupCard title="Δραστηριότητα">

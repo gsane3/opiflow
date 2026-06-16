@@ -23,6 +23,7 @@ import FileGallery, { type GalleryFile } from './FileGallery';
 import OfferPreviewSheet from './OfferPreviewSheet';
 import AppointmentPreviewSheet, { type ApptLite } from './AppointmentPreviewSheet';
 import { SendChannelSheet } from './SendChannelSheet';
+import WorkFoldersSection from './WorkFoldersSection';
 import { useOverlayDismiss } from './useOverlayDismiss';
 
 export type InfoSection = 'contact' | 'offers' | 'appointments' | 'files' | 'calls';
@@ -389,6 +390,9 @@ export default function CustomerInfoPanel({
                   <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
                 </a>
               )}
+
+              {/* Φάκελοι εργασίας — per-job grouping under this customer */}
+              <WorkFoldersSection customerId={customerId} />
 
               {/* Offers — clickable → preview */}
               <div ref={refs.offers}>
