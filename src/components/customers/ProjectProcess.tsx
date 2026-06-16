@@ -1,19 +1,55 @@
 'use client';
 
-// Project «Διαδικασία» — full-screen, chat-first project screen matching the
-// Opiflow prototype (screens-project.jsx). Opens from the customer chat for a
-// work folder. Shows: header + status, the 5-step Stepper, a single chat-style
-// timeline that MERGES every folder event (messages, offers, appointments,
-// payments, photo/info requests) into prototype-style cards/bubbles, and a
-// bottom dock with the 4 quick actions (Στοιχεία · Φωτό · Ραντεβού · Προσφορά)
-// + a message composer. Wired to the real, already-live folder APIs.
+// Project «Διαδικασία» — pixel-faithful port of the Opiflow prototype
+// (screens-project.jsx). Uses the prototype's EXACT design-system CSS
+// (src/styles/opiflow-proto.css, `opf-` namespaced) and DOM/markup, wired to the
+// real, live folder APIs. Opens full-screen from the customer chat.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { formatDateGr } from '@/lib/date';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import Stepper from './Stepper';
+
+// ── Icon set (ported verbatim from the prototype icons.jsx) ──────────────────
+const ICON_PATHS: Record<string, string> = {
+  sparkles: 'M12 4.5l1.6 4.3 4.3 1.6-4.3 1.6L12 16.3l-1.6-4.3-4.3-1.6 4.3-1.6zM18.5 4v3M20 5.5h-3M6 16v2.5M7.2 17.2H4.8',
+  check: 'M5 12.5l4.5 4.5L19 7',
+  calendar: 'M5 7.5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2zM8 3.5v4M16 3.5v4M5 10.5h14',
+  file: 'M7 4.5h6l4 4V18a1.5 1.5 0 0 1-1.5 1.5h-8.5A1.5 1.5 0 0 1 5.5 18V6A1.5 1.5 0 0 1 7 4.5ZM13 4.5V8.5h4M8.5 13h7M8.5 16h5',
+  clock: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18ZM12 7.5V12l3 2',
+  message: 'M5 5.5h14a1.5 1.5 0 0 1 1.5 1.5v8a1.5 1.5 0 0 1-1.5 1.5H9l-4 3.5V16H5a1.5 1.5 0 0 1-1.5-1.5V7A1.5 1.5 0 0 1 5 5.5Z',
+  chevronL: 'M15 5l-7 7 7 7',
+  chevronD: 'M6 9l6 6 6-6',
+  plus: 'M12 5v14M5 12h14',
+  send: 'M21 4 3 11l6 2.5L12 20l3-7z M9 13.5 15 8',
+  link: 'M9.5 14.5 14.5 9.5M10 7l1.5-1.5a3.5 3.5 0 0 1 5 5L15 12M14 17l-1.5 1.5a3.5 3.5 0 0 1-5-5L9 12',
+  image: 'M4.5 6.5a2 2 0 0 1 2-2h11a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-11a2 2 0 0 1-2-2zM9 11a1.6 1.6 0 1 0 0-3.2A1.6 1.6 0 0 0 9 11ZM19 15l-4-4-8 6.5',
+  clipboard: 'M9 4.5h6a1 1 0 0 1 1 1v1H8v-1a1 1 0 0 1 1-1ZM8 6.5H6.5a1.5 1.5 0 0 0-1.5 1.5v10A1.5 1.5 0 0 0 6.5 19.5h11A1.5 1.5 0 0 0 19 18V8a1.5 1.5 0 0 0-1.5-1.5H16',
+  x: 'M6 6l12 12M18 6 6 18',
+  dots: 'M5 12h.01M12 12h.01M19 12h.01',
+  eye: 'M3 12s3.5-6.5 9-6.5S21 12 21 12s-3.5 6.5-9 6.5S3 12 3 12ZM12 14.6a2.6 2.6 0 1 0 0-5.2 2.6 2.6 0 0 0 0 5.2Z',
+  arrowR: 'M5 12h14M13 6l6 6-6 6',
+  euro: 'M16.5 7.2A5 5 0 0 0 8 11h7M8 13h6.5A5 5 0 0 1 6 16M5 11h2M5 13h2',
+  folderPlus: 'M4 7.5A1.5 1.5 0 0 1 5.5 6h3.8a1.5 1.5 0 0 1 1.1.5l1 1.1a1.5 1.5 0 0 0 1.1.5h5.5A1.5 1.5 0 0 1 19.5 9.6V17a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 17zM12 11v4M10 13h4',
+};
+function Icon({ name, size = 24, color = 'currentColor', stroke = 1.9 }: { name: string; size?: number; color?: string; stroke?: number }) {
+  const d = ICON_PATHS[name];
+  if (!d) return null;
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d={d} stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+const STEPS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'] as const;
+const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Ολοκληρώθηκε', archived: 'Αρχειοθετήθηκε' };
+const STATUS_DOT: Record<string, string> = { open: 'new', in_progress: 'progress', done: 'won', archived: 'lost' };
+const OFFER_STATUS_GR: Record<string, string> = {
+  draft: 'Σε ετοιμασία', ready_to_send: 'Σε ετοιμασία', sent_manually: 'Απεστάλη', sent_provider: 'Απεστάλη',
+  accepted: 'Αποδεκτή', rejected: 'Απορρίφθηκε', expired: 'Έληξε', cancelled: 'Ακυρώθηκε',
+};
+const APPT_TYPE_GR: Record<string, string> = { book_appointment: 'Ραντεβού', visit_customer: 'Επίσκεψη' };
+const REQ_STATUS_GR: Record<string, string> = { pending: 'Σε αναμονή πελάτη', sent: 'Απεστάλη', opened: 'Ανοίχτηκε', submitted: 'Υποβλήθηκε', completed: 'Ολοκληρώθηκε', expired: 'Έληξε', revoked: 'Ακυρώθηκε' };
+const PAY_KIND_GR: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
 
 interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
 interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
@@ -22,7 +58,7 @@ interface DetailReq { id: string; status: string; createdAt: string }
 interface FolderPayment { id: string; kind: string; pct: number | null; amount: number; status: string; createdAt: string }
 interface FolderDetail {
   folder: { id: string; title: string; status: string; step: number; notes: string | null };
-  customer: { id: string; name: string | null; phone: string | null; email: string | null } | null;
+  customer: { id: string; name: string | null } | null;
   sections: {
     offers: { items: DetailOffer[] };
     appointments: { items: DetailAppt[] };
@@ -32,20 +68,13 @@ interface FolderDetail {
   };
 }
 
-const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Ολοκληρώθηκε', archived: 'Αρχειοθετήθηκε' };
-const OFFER_STATUS_GR: Record<string, string> = {
-  draft: 'Σε ετοιμασία', ready_to_send: 'Σε ετοιμασία', sent_manually: 'Απεστάλη', sent_provider: 'Απεστάλη',
-  accepted: 'Αποδεκτή', rejected: 'Απορρίφθηκε', expired: 'Έληξε', cancelled: 'Ακυρώθηκε',
-};
-const APPT_TYPE_GR: Record<string, string> = { book_appointment: 'Ραντεβού', visit_customer: 'Επίσκεψη' };
-const REQ_STATUS_GR: Record<string, string> = {
-  pending: 'Σε αναμονή πελάτη', sent: 'Απεστάλη', opened: 'Ανοίχτηκε', submitted: 'Υποβλήθηκε', completed: 'Ολοκληρώθηκε', expired: 'Έληξε', revoked: 'Ακυρώθηκε',
-};
-const PAY_KIND_GR: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
-const PAY_STATUS_GR: Record<string, string> = { pending: 'Σε αναμονή κατάθεσης', declared: 'Ο πελάτης δήλωσε κατάθεση', confirmed: 'Πληρώθηκε — επιβεβαιωμένο', cancelled: 'Ακυρώθηκε' };
-
-function money(n: number | null): string {
+function eur(n: number | null): string {
   return typeof n === 'number' ? `${n.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €` : '';
+}
+function fmtDate(s: string | null): string {
+  if (!s) return '';
+  const [y, m, d] = s.split('T')[0].split('-');
+  return y && m && d ? `${d}-${m}-${y}` : s;
 }
 async function authHeaders(): Promise<Record<string, string> | null> {
   try {
@@ -53,9 +82,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return null;
     return { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` };
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 type Item =
@@ -63,38 +90,28 @@ type Item =
   | { kind: 'offer'; ts: number; data: DetailOffer }
   | { kind: 'appt'; ts: number; data: DetailAppt }
   | { kind: 'payment'; ts: number; data: FolderPayment }
-  | { kind: 'upload'; ts: number; data: DetailReq }
-  | { kind: 'intake'; ts: number; data: DetailReq };
+  | { kind: 'req'; ts: number; data: DetailReq; photos: boolean };
+const T = (s: string | null | undefined) => (s ? new Date(s).getTime() || 0 : 0);
 
-const ts = (s: string | null | undefined) => (s ? new Date(s).getTime() || 0 : 0);
+type SheetName = 'msg' | 'appt' | 'offer' | 'req' | 'payreq' | 'menu' | 'reject' | null;
 
-export default function ProjectProcess({
-  folderId,
-  customerId,
-  onClose,
-  onChanged,
-}: {
-  folderId: string;
-  customerId: string;
-  onClose: () => void;
-  onChanged?: () => void;
-}) {
+export default function ProjectProcess({ folderId, customerId, onClose, onChanged }: { folderId: string; customerId: string; onClose: () => void; onChanged?: () => void }) {
+  const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [detail, setDetail] = useState<FolderDetail | null>(null);
   const [payments, setPayments] = useState<FolderPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
-  const [toastErr, setToastErr] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const [sheet, setSheet] = useState<SheetName>(null);
+  const [reqPhotos, setReqPhotos] = useState(false);
   const [msg, setMsg] = useState('');
-  const [sheet, setSheet] = useState<'offer' | 'appt' | null>(null);
   const [oDesc, setODesc] = useState('');
   const [oAmount, setOAmount] = useState('');
   const [aTitle, setATitle] = useState('');
-  const [aDate, setADate] = useState(() => new Date().toISOString().split('T')[0]);
-
-  const notify = (m: string, isErr = false) => { setToast(m); setToastErr(isErr); };
+  const [aDate, setADate] = useState('');
+  const [payKind, setPayKind] = useState<'deposit' | 'balance'>('deposit');
+  const [payPct, setPayPct] = useState(30);
 
   const load = useCallback(async () => {
     try {
@@ -105,332 +122,322 @@ export default function ProjectProcess({
         fetch(`/api/folders/${folderId}/payment-requests`, { headers }),
       ]);
       const dJson = (await dRes.json().catch(() => ({}))) as { ok?: boolean } & Partial<FolderDetail>;
-      if (dRes.ok && dJson?.ok && dJson.sections) { setDetail(dJson as FolderDetail); setError(false); }
-      else setError(true);
+      if (dRes.ok && dJson?.ok && dJson.sections) { setDetail(dJson as FolderDetail); setError(false); } else setError(true);
       const pJson = (await pRes.json().catch(() => ({}))) as { ok?: boolean; payments?: FolderPayment[] };
       if (pRes.ok && pJson?.ok) setPayments(pJson.payments ?? []);
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
+    } catch { setError(true); } finally { setLoading(false); }
   }, [folderId]);
-
   useEffect(() => { void load(); }, [load]);
-  useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 2500);
-    return () => window.clearTimeout(t);
-  }, [toast]);
 
   async function refresh() { await load(); onChanged?.(); }
+
+  const offers = detail?.sections.offers.items ?? [];
+  const firstOffer = offers[0];
 
   const timeline = useMemo<Item[]>(() => {
     if (!detail) return [];
     const s = detail.sections;
     const items: Item[] = [
-      ...s.messages.items.filter((m) => m.channel !== 'call' && (m.summary ?? '').trim()).map((m): Item => ({ kind: 'msg', ts: ts(m.createdAt), data: m })),
-      ...s.offers.items.map((o): Item => ({ kind: 'offer', ts: ts(o.createdAt), data: o })),
-      ...s.appointments.items.map((a): Item => ({ kind: 'appt', ts: ts(a.dueDate) || 0, data: a })),
-      ...payments.map((p): Item => ({ kind: 'payment', ts: ts(p.createdAt), data: p })),
-      ...s.photos.items.map((u): Item => ({ kind: 'upload', ts: ts(u.createdAt), data: u })),
-      ...s.intake.items.map((i): Item => ({ kind: 'intake', ts: ts(i.createdAt), data: i })),
+      ...s.messages.items.filter((m) => m.channel !== 'call' && (m.summary ?? '').trim()).map((m): Item => ({ kind: 'msg', ts: T(m.createdAt), data: m })),
+      ...s.offers.items.map((o): Item => ({ kind: 'offer', ts: T(o.createdAt), data: o })),
+      ...s.appointments.items.map((a): Item => ({ kind: 'appt', ts: T(a.dueDate), data: a })),
+      ...payments.map((p): Item => ({ kind: 'payment', ts: T(p.createdAt), data: p })),
+      ...s.photos.items.map((u): Item => ({ kind: 'req', ts: T(u.createdAt), data: u, photos: true })),
+      ...s.intake.items.map((i): Item => ({ kind: 'req', ts: T(i.createdAt), data: i, photos: false })),
     ];
     return items.sort((a, b) => a.ts - b.ts);
   }, [detail, payments]);
 
-  // ── Actions (same endpoints FolderDetailPanel uses) ──────────────────────
+  // ── actions ──────────────────────────────────────────────────────────────
   async function patchFolder(updates: Record<string, unknown>) {
     setBusy(true);
     try {
       const headers = await authHeaders();
-      if (!headers) { notify('Λήξη σύνδεσης.', true); return; }
+      if (!headers) return;
       const res = await fetch(`/api/folders/${folderId}`, { method: 'PATCH', headers, body: JSON.stringify(updates) });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && json?.ok) await refresh();
-      else notify('Η αποθήκευση απέτυχε.', true);
-    } catch { notify('Η αποθήκευση απέτυχε.', true); } finally { setBusy(false); }
+      if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) await refresh();
+    } finally { setBusy(false); }
   }
-  async function advanceStep() {
-    if (!detail) return;
-    await patchFolder({ step: Math.min(detail.folder.step + 1, 4) });
-  }
-  async function completeProject() { await patchFolder({ step: 4, status: 'done' }); }
+  const step = detail?.folder.step ?? 0;
+  async function advanceStep() { await patchFolder({ step: Math.min(step + 1, 4) }); setSheet(null); }
+  async function completeProject() { await patchFolder({ step: 4, status: 'done' }); setSheet(null); }
 
+  async function post(path: string, body: unknown): Promise<boolean> {
+    const headers = await authHeaders();
+    if (!headers) return false;
+    const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) });
+    return ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) === true;
+  }
   async function sendMessage() {
-    const t = msg.trim();
-    if (!t) return;
+    const t = msg.trim(); if (!t) return;
+    setBusy(true);
+    try { if (await post(`/api/customers/${customerId}/message`, { text: t })) { setMsg(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
+  }
+  async function sendRequest() {
     setBusy(true);
     try {
-      const headers = await authHeaders();
-      if (!headers) { notify('Λήξη σύνδεσης.', true); return; }
-      const res = await fetch(`/api/customers/${customerId}/message`, { method: 'POST', headers, body: JSON.stringify({ text: t }) });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && json?.ok) { setMsg(''); notify('Στάλθηκε στον πελάτη'); await refresh(); }
-      else notify('Δεν στάλθηκε (λείπει τηλέφωνο;).', true);
-    } catch { notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true); } finally { setBusy(false); }
+      const path = reqPhotos ? 'upload-link' : 'intake-link';
+      if (await post(`/api/customers/${customerId}/${path}`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); }
+    } finally { setBusy(false); }
   }
-
-  async function sendRequest(kind: 'upload' | 'intake') {
-    setBusy(true);
-    try {
-      const headers = await authHeaders();
-      if (!headers) { notify('Λήξη σύνδεσης.', true); return; }
-      const path = kind === 'upload' ? 'upload-link' : 'intake-link';
-      const res = await fetch(`/api/customers/${customerId}/${path}`, { method: 'POST', headers, body: JSON.stringify({ mode: 'send', workFolderId: folderId }) });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean; fallbackReason?: string };
-      if (res.ok && json?.ok) {
-        notify(json.sent ? (kind === 'upload' ? 'Στάλθηκε αίτημα φωτογραφιών' : 'Στάλθηκε αίτημα στοιχείων') : (json.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε.'), !json.sent);
-        await refresh();
-      } else notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true);
-    } catch { notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true); } finally { setBusy(false); }
-  }
-
   async function submitOffer() {
-    const desc = oDesc.trim();
-    const amount = Number(oAmount.replace(',', '.'));
-    if (!desc) { notify('Γράψε περιγραφή.', true); return; }
-    if (!isFinite(amount) || amount < 0) { notify('Γράψε ποσό.', true); return; }
+    const desc = oDesc.trim(); const amount = Number(oAmount.replace(',', '.'));
+    if (!desc || !isFinite(amount) || amount < 0) return;
     setBusy(true);
-    try {
-      const headers = await authHeaders();
-      if (!headers) { notify('Λήξη σύνδεσης.', true); return; }
-      const res = await fetch('/api/offers', { method: 'POST', headers, body: JSON.stringify({ customerId, workFolderId: folderId, items: [{ description: desc, quantity: 1, unitPrice: amount }] }) });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && json?.ok) { setSheet(null); setODesc(''); setOAmount(''); notify('Η προσφορά δημιουργήθηκε'); await refresh(); }
-      else notify('Δεν δημιουργήθηκε. Δοκίμασε ξανά.', true);
-    } catch { notify('Δεν δημιουργήθηκε. Δοκίμασε ξανά.', true); } finally { setBusy(false); }
+    try { if (await post('/api/offers', { customerId, workFolderId: folderId, items: [{ description: desc, quantity: 1, unitPrice: amount }] })) { setODesc(''); setOAmount(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
   }
   async function submitAppt() {
-    const title = aTitle.trim();
-    if (!title) { notify('Γράψε τίτλο.', true); return; }
+    const title = aTitle.trim(); if (!title) return;
     setBusy(true);
-    try {
-      const headers = await authHeaders();
-      if (!headers) { notify('Λήξη σύνδεσης.', true); return; }
-      const res = await fetch('/api/tasks', { method: 'POST', headers, body: JSON.stringify({ customerId, workFolderId: folderId, title, type: 'book_appointment', dueDate: aDate }) });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && json?.ok) { setSheet(null); setATitle(''); notify('Το ραντεβού δημιουργήθηκε'); await refresh(); }
-      else notify('Δεν δημιουργήθηκε. Δοκίμασε ξανά.', true);
-    } catch { notify('Δεν δημιουργήθηκε. Δοκίμασε ξανά.', true); } finally { setBusy(false); }
+    try { if (await post('/api/tasks', { customerId, workFolderId: folderId, title, type: 'book_appointment', dueDate: aDate || new Date().toISOString().split('T')[0] })) { setATitle(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
   }
-
-  async function confirmPayment(paymentId: string, status: 'confirmed' | 'cancelled') {
+  async function submitPayReq() {
+    if (!firstOffer) return;
+    setBusy(true);
+    try { if (await post(`/api/folders/${folderId}/payment-request`, { kind: payKind, pct: payPct, offerId: firstOffer.id })) { setSheet(null); await refresh(); } } finally { setBusy(false); }
+  }
+  async function confirmPayment(id: string, status: 'confirmed' | 'cancelled') {
     setBusy(true);
     try {
       const headers = await authHeaders();
-      if (!headers) { notify('Λήξη σύνδεσης.', true); return; }
-      const res = await fetch(`/api/payments/${paymentId}`, { method: 'PATCH', headers, body: JSON.stringify({ status }) });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && json?.ok) { notify(status === 'confirmed' ? 'Η πληρωμή επιβεβαιώθηκε' : 'Το αίτημα ακυρώθηκε'); await refresh(); }
-      else notify('Δεν ολοκληρώθηκε.', true);
-    } catch { notify('Δεν ολοκληρώθηκε.', true); } finally { setBusy(false); }
+      if (!headers) return;
+      const res = await fetch(`/api/payments/${id}`, { method: 'PATCH', headers, body: JSON.stringify({ status }) });
+      if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) await refresh();
+    } finally { setBusy(false); }
+  }
+  async function previewPortal() {
+    setBusy(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch(`/api/folders/${folderId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'draft' }) });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; responseUrl?: string };
+      if (j?.ok && j.responseUrl) window.open(j.responseUrl, '_blank');
+    } finally { setBusy(false); }
   }
 
   const f = detail?.folder;
-  const status = f ? STATUS_LABELS[f.status] ?? f.status : '';
+  const grossOf = (pct: number) => (firstOffer?.total != null ? Math.round(firstOffer.total * pct) / 100 : 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#eef3f8] dark:bg-[#0a131e]">
-      {/* Header */}
-      <header className="flex shrink-0 items-center gap-2 border-b border-zinc-200/70 bg-white/85 px-3 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#122130]/85">
-        <button type="button" onClick={onClose} aria-label="Πίσω" className="flex h-9 w-9 items-center justify-center rounded-full text-indigo-600 transition active:scale-90 hover:bg-indigo-50 dark:hover:bg-white/5">
-          <svg className="h-6 w-6" fill="none" strokeWidth={2.4} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
-        </button>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[15px] font-bold text-zinc-900 dark:text-zinc-100">{f?.title ?? 'Έργο'}</p>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{detail?.customer?.name ?? 'Πελάτης'} · {status}</p>
-        </div>
-      </header>
-
-      {/* Stepper + controls */}
-      {f && (
-        <div className="shrink-0 border-b border-zinc-200/70 bg-white px-4 py-3 dark:border-white/10 dark:bg-[#122130]">
-          <Stepper step={f.step} />
-          {(f.step < 4 || (f.status !== 'done' && f.status !== 'archived')) && (
-            <div className="mt-2.5 flex flex-wrap gap-2">
-              {f.step < 4 && <Button variant="secondary" size="sm" loading={busy} onClick={() => void advanceStep()}>Παράλειψη βήματος ›</Button>}
-              {f.status !== 'done' && f.status !== 'archived' && <Button variant="secondary" size="sm" loading={busy} onClick={() => void completeProject()}>Ολοκλήρωση έργου</Button>}
+    <div className="opf-stage" data-theme={theme} style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'var(--bg)' }}>
+      <div className="opf-screen">
+        {/* top bar */}
+        <div className="opf-topbar opf-pj-top">
+          <button className="opf-press opf-tb-back" onClick={onClose} aria-label="Πίσω"><Icon name="chevronL" size={24} color="var(--brand)" stroke={2.4} /></button>
+          <div className="opf-pj-switch">
+            <span className={`opf-pj-dot opf-dot-${STATUS_DOT[f?.status ?? 'open'] ?? 'new'}`} />
+            <div className="opf-pj-switch-txt">
+              <div className="opf-pj-switch-title">{f?.title ?? 'Έργο'}</div>
+              <div className="opf-pj-switch-sub">{detail?.customer?.name ?? 'Πελάτης'} · {STATUS_LABELS[f?.status ?? 'open'] ?? ''}</div>
             </div>
+          </div>
+          <button className="opf-g-round opf-press" onClick={() => setSheet('menu')} aria-label="menu"><Icon name="dots" size={20} color="var(--brand)" stroke={2.6} /></button>
+          <button className="opf-g-round opf-press" onClick={() => void previewPortal()} aria-label="preview"><Icon name="eye" size={19} color="var(--brand)" stroke={2} /></button>
+        </div>
+
+        {/* stepper */}
+        <div className="opf-stepper">
+          {STEPS.map((s, i) => {
+            const state = i < step ? 'done' : i === step ? 'now' : 'todo';
+            return (
+              <span key={s} style={{ display: 'contents' }}>
+                <div className={`opf-step opf-${state}`}>
+                  <div className="opf-step-dot">{i < step ? <Icon name="check" size={13} color="#fff" stroke={2.8} /> : <span>{i + 1}</span>}</div>
+                  <span className="opf-step-label">{s}</span>
+                </div>
+                {i < STEPS.length - 1 && <div className={'opf-step-bar' + (i < step ? ' opf-done' : '')} />}
+              </span>
+            );
+          })}
+        </div>
+
+        {/* timeline */}
+        <div className="opf-pj-body">
+          {loading ? (
+            <div className="opf-pj-end">Φόρτωση…</div>
+          ) : error ? (
+            <div className="opf-pj-end">Δεν φορτώθηκαν τα στοιχεία.</div>
+          ) : (
+            <>
+              {timeline.map((it) => <Row key={`${it.kind}:${it.data.id}`} it={it} busy={busy} onConfirm={confirmPayment} onPayReq={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} />)}
+              <div className="opf-pj-end">Όλα όσα στέλνεις εδώ τα βλέπει ο πελάτης στο link του.</div>
+            </>
           )}
         </div>
-      )}
 
-      {toast && <p className={`shrink-0 px-4 py-1.5 text-center text-xs font-medium ${toastErr ? 'text-red-600' : 'text-green-700'}`}>{toast}</p>}
-
-      {/* Timeline */}
-      <div className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-3 py-4">
-        {loading ? (
-          <p className="py-8 text-center text-sm text-zinc-400">Φόρτωση…</p>
-        ) : error ? (
-          <div className="py-8 text-center">
-            <p className="text-sm text-zinc-500">Δεν φορτώθηκαν τα στοιχεία.</p>
-            <Button variant="secondary" size="sm" onClick={() => void load()}>Δοκίμασε ξανά</Button>
+        {/* dock */}
+        <div className="opf-pj-dock">
+          <div className="opf-pj-quick">
+            <button className="opf-pq opf-press" onClick={() => { setReqPhotos(false); setSheet('req'); }}><Icon name="clipboard" size={19} color="var(--brand)" stroke={2} /><span>Στοιχεία</span></button>
+            <button className="opf-pq opf-press" onClick={() => { setReqPhotos(true); setSheet('req'); }}><Icon name="image" size={19} color="var(--brand)" stroke={2} /><span>Φωτό</span></button>
+            <button className="opf-pq opf-press" onClick={() => { setATitle(f?.title ?? ''); setADate(''); setSheet('appt'); }}><Icon name="calendar" size={19} color="var(--brand)" stroke={2} /><span>Ραντεβού</span></button>
+            <button className="opf-pq opf-press" onClick={() => { setODesc(''); setOAmount(''); setSheet('offer'); }}><Icon name="file" size={19} color="var(--brand)" stroke={2} /><span>Προσφορά</span></button>
           </div>
-        ) : timeline.length === 0 ? (
-          <p className="py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">Ξεκίνα το έργο — στείλε μήνυμα, προσφορά ή ζήτα στοιχεία από κάτω.</p>
-        ) : (
-          timeline.map((it) => <TimelineRow key={`${it.kind}:${it.data.id}`} it={it} busy={busy} onConfirm={confirmPayment} />)
-        )}
-        <p className="pt-2 pb-1 text-center text-[11px] text-zinc-400 dark:text-zinc-500">Ό,τι στέλνεις εδώ το βλέπει ο πελάτης στο link του.</p>
-      </div>
-
-      {/* Dock: 4 quick actions + composer */}
-      <div className="shrink-0 border-t border-zinc-200/70 bg-white px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] dark:border-white/10 dark:bg-[#122130]">
-        <div className="mb-2 grid grid-cols-4 gap-2">
-          <DockBtn label="Στοιχεία" onClick={() => void sendRequest('intake')} busy={busy} icon="clipboard" />
-          <DockBtn label="Φωτό" onClick={() => void sendRequest('upload')} busy={busy} icon="image" />
-          <DockBtn label="Ραντεβού" onClick={() => { setATitle(f?.title ?? ''); setSheet('appt'); }} busy={busy} icon="calendar" />
-          <DockBtn label="Προσφορά" onClick={() => { setODesc(''); setOAmount(''); setSheet('offer'); }} busy={busy} icon="file" />
+          <div className="opf-pj-composer">
+            <button className="opf-pj-ai opf-press" onClick={() => setSheet('msg')} aria-label="ai"><Icon name="sparkles" size={18} color="#fff" stroke={2} /></button>
+            <input className="opf-inp" placeholder="Μήνυμα στον πελάτη…" value={msg} onChange={(e) => setMsg(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void sendMessage(); }} />
+            <button className="opf-pj-send opf-press" onClick={() => void sendMessage()} aria-label="send"><Icon name="send" size={19} color="#fff" stroke={2} /></button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            value={msg}
-            onChange={(e) => setMsg(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') void sendMessage(); }}
-            placeholder="Μήνυμα στον πελάτη…"
-            className="min-w-0 flex-1 rounded-full bg-zinc-100 px-4 py-2.5 text-sm text-zinc-900 outline-none focus:bg-white focus:ring-2 focus:ring-indigo-200 dark:bg-[#0f1d2b] dark:text-zinc-100"
-          />
-          <button type="button" onClick={() => void sendMessage()} disabled={busy || !msg.trim()} aria-label="Αποστολή" className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-white transition active:scale-90 disabled:opacity-40">
-            <svg className="h-5 w-5" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" /></svg>
-          </button>
-        </div>
-      </div>
 
-      {/* Quick offer sheet */}
-      {sheet === 'offer' && (
-        <Sheet title="Νέα προσφορά" onClose={() => setSheet(null)}>
-          <Input label="Περιγραφή" value={oDesc} onChange={(e) => setODesc(e.target.value)} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
-          <Input label="Ποσό (€)" value={oAmount} inputMode="decimal" onChange={(e) => setOAmount(e.target.value)} placeholder="0" />
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="secondary" size="sm" onClick={() => setSheet(null)}>Ακύρωση</Button>
-            <Button size="sm" loading={busy} onClick={() => void submitOffer()}>Αποστολή στο link</Button>
-          </div>
+        {/* message sheet */}
+        <Sheet open={sheet === 'msg'} title="Μήνυμα στον πελάτη" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void sendMessage()}><Icon name="send" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή στο link'}</span></button>}>
+          <textarea className="opf-ta" placeholder="Γράψε μήνυμα…" rows={4} value={msg} onChange={(e) => setMsg(e.target.value)} autoFocus />
         </Sheet>
-      )}
-      {/* Quick appointment sheet */}
-      {sheet === 'appt' && (
-        <Sheet title="Νέο ραντεβού" onClose={() => setSheet(null)}>
-          <Input label="Τίτλος" value={aTitle} onChange={(e) => setATitle(e.target.value)} placeholder="π.χ. Επίσκεψη για μέτρηση" />
-          <Input label="Ημερομηνία" type="date" value={aDate} onChange={(e) => setADate(e.target.value)} />
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="secondary" size="sm" onClick={() => setSheet(null)}>Ακύρωση</Button>
-            <Button size="sm" loading={busy} onClick={() => void submitAppt()}>Αποστολή στο link</Button>
-          </div>
+
+        {/* appointment sheet */}
+        <Sheet open={sheet === 'appt'} title="Αποστολή ραντεβού" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void submitAppt()}><Icon name="calendar" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή στο link'}</span></button>}>
+          <label className="opf-field"><span className="opf-field-label">Τίτλος</span><input className="opf-inp" value={aTitle} onChange={(e) => setATitle(e.target.value)} placeholder="π.χ. Επίσκεψη για μέτρηση" /></label>
+          <label className="opf-field"><span className="opf-field-label">Ημερομηνία</span><input className="opf-inp" type="date" value={aDate} onChange={(e) => setADate(e.target.value)} /></label>
         </Sheet>
-      )}
+
+        {/* offer sheet */}
+        <Sheet open={sheet === 'offer'} title="Αποστολή προσφοράς" onClose={() => setSheet(null)} footer={<div style={{ width: '100%' }}><div className="opf-offer-total">Ποσό: <b>{eur(Number(oAmount.replace(',', '.')) || 0)}</b></div><button className="opf-btn-primary opf-full opf-press" onClick={() => void submitOffer()}><Icon name="file" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή στο link'}</span></button></div>}>
+          <label className="opf-field"><span className="opf-field-label">Περιγραφή</span><input className="opf-inp" value={oDesc} onChange={(e) => setODesc(e.target.value)} placeholder="π.χ. Τοποθέτηση κλιματιστικού" /></label>
+          <label className="opf-field"><span className="opf-field-label">Ποσό (€)</span><input className="opf-inp" inputMode="decimal" value={oAmount} onChange={(e) => setOAmount(e.target.value)} placeholder="0" /></label>
+        </Sheet>
+
+        {/* request sheet */}
+        <Sheet open={sheet === 'req'} title={reqPhotos ? 'Αίτημα φωτογραφιών' : 'Αίτημα στοιχείων'} onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void sendRequest()}><Icon name="link" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button>}>
+          <div className="opf-req-info"><Icon name={reqPhotos ? 'image' : 'clipboard'} size={22} color="var(--brand)" stroke={2} /><span>{reqPhotos ? 'Ο πελάτης θα ανεβάσει φωτογραφίες μέσα από το link του έργου.' : 'Ο πελάτης θα συμπληρώσει τα στοιχεία του (διεύθυνση, ΑΦΜ κ.λπ.) μέσα από το link.'}</span></div>
+        </Sheet>
+
+        {/* payment request sheet (deposit/balance + %-slider) */}
+        <Sheet open={sheet === 'payreq'} title="Αίτημα πληρωμής" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void submitPayReq()}><Icon name="euro" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button>}>
+          {firstOffer ? (
+            <>
+              <div className="opf-seg opf-seg-pad" style={{ marginBottom: 18 }}>
+                <div className="opf-seg-thumb" style={{ transform: payKind === 'balance' ? 'translateX(100%)' : 'none' }} />
+                <button className={'opf-seg-btn opf-press' + (payKind === 'deposit' ? ' opf-on' : '')} onClick={() => setPayKind('deposit')}>Προκαταβολή</button>
+                <button className={'opf-seg-btn opf-press' + (payKind === 'balance' ? ' opf-on' : '')} onClick={() => setPayKind('balance')}>Εξόφληση</button>
+              </div>
+              <div className="opf-pay-pct-wrap">
+                <div className="opf-pay-pct-row"><span>Ποσοστό</span><b>{payPct}%</b></div>
+                <input className="opf-pctslider" type="range" min={5} max={100} step={5} value={payPct} onChange={(e) => setPayPct(Number(e.target.value))} />
+                <div className="opf-pay-amount-lg"><span>Ποσό αιτήματος (με ΦΠΑ)</span><span className="opf-pay-big">{eur(grossOf(payPct))}</span></div>
+              </div>
+            </>
+          ) : (
+            <div className="opf-req-info"><Icon name="file" size={22} color="var(--brand)" stroke={2} /><span>Πρόσθεσε πρώτα μια προσφορά για να ζητήσεις πληρωμή.</span></div>
+          )}
+        </Sheet>
+
+        {/* menu sheet */}
+        <Sheet open={sheet === 'menu'} title="Ενέργειες έργου" onClose={() => setSheet(null)}>
+          <button className="opf-menu-item opf-press" onClick={() => void advanceStep()}><div className="opf-menu-ic"><Icon name="arrowR" size={19} color="var(--brand)" stroke={2} /></div> Παράλειψη βήματος</button>
+          <button className="opf-menu-item opf-press" onClick={() => void completeProject()}><div className="opf-menu-ic opf-ok"><Icon name="check" size={19} color="var(--success)" stroke={2.4} /></div> Ολοκλήρωση έργου</button>
+          <button className="opf-menu-item opf-press" onClick={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }}><div className="opf-menu-ic"><Icon name="euro" size={19} color="var(--brand)" stroke={2} /></div> Αίτημα πληρωμής</button>
+        </Sheet>
+      </div>
     </div>
   );
 }
 
-// ── Timeline row ───────────────────────────────────────────────────────────
-function TimelineRow({ it, busy, onConfirm }: { it: Item; busy: boolean; onConfirm: (id: string, s: 'confirmed' | 'cancelled') => void }) {
+// ── timeline event rows (prototype DOM) ──────────────────────────────────────
+function Row({ it, busy, onConfirm, onPayReq }: { it: Item; busy: boolean; onConfirm: (id: string, s: 'confirmed' | 'cancelled') => void; onPayReq: () => void }) {
   if (it.kind === 'msg') {
-    const m = it.data;
-    const out = m.direction === 'outbound';
+    const m = it.data; const tech = m.direction === 'outbound';
     return (
-      <div className={`flex ${out ? 'justify-end' : 'justify-start'}`}>
-        <div className={`max-w-[82%] whitespace-pre-wrap rounded-2xl px-3.5 py-2 text-sm shadow-sm ${out ? 'bg-indigo-600 text-white' : 'bg-white text-zinc-800 ring-1 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-100 dark:ring-white/10'}`}>
-          {(m.summary ?? '').trim()}
-          <div className={`mt-0.5 text-[10px] ${out ? 'text-white/70' : 'text-zinc-400'}`}>{formatDateGr(m.createdAt)}</div>
+      <div className={'opf-bub ' + (tech ? 'opf-r' : 'opf-l')}>
+        <div className={'opf-bubble ' + (tech ? 'opf-role-tech' : 'opf-role-cust')}>
+          <div className="opf-bubble-text">{(m.summary ?? '').trim()}</div>
+          <div className="opf-bubble-when">{fmtDate(m.createdAt)}{tech && <Icon name="check" size={12} color="rgba(255,255,255,0.85)" stroke={2.6} />}</div>
         </div>
       </div>
     );
   }
   if (it.kind === 'offer') {
-    const o = it.data;
+    const o = it.data; const accepted = o.status === 'accepted';
     return (
-      <EventCard tone="indigo" icon="file" title="Προσφορά" sub={o.offerNumber ?? '—'} status={OFFER_STATUS_GR[o.status] ?? o.status} done={o.status === 'accepted'}>
-        {o.total != null && <Row label="Σύνολο" value={money(o.total)} bold />}
-      </EventCard>
+      <>
+        <div className="opf-ev-side opf-r">
+          <div className="opf-ev-card">
+            <div className="opf-ev-card-top">
+              <div className="opf-ev-card-ic opf-offer"><Icon name="file" size={18} color="#fff" stroke={2.1} /></div>
+              <div className="opf-ev-card-h"><div className="opf-ev-card-title">Προσφορά</div><div className="opf-ev-card-sub">{o.offerNumber ?? '—'}</div></div>
+              <div className={'opf-ev-status ' + (accepted ? 'opf-st-accepted' : 'opf-st-sent')}>{OFFER_STATUS_GR[o.status] ?? o.status}</div>
+            </div>
+            {o.total != null && <div className="opf-ev-total"><span>Σύνολο</span><b>{eur(o.total)}</b></div>}
+            <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ</div>
+          </div>
+        </div>
+        {accepted && (
+          <div className="opf-ev-accepted">
+            <div className="opf-ev-acc-l"><Icon name="check" size={18} color="#fff" stroke={2.6} /></div>
+            <div className="opf-ev-acc-main"><b>Η προσφορά έγινε αποδεκτή</b><span>Ζήτα προκαταβολή ή εξόφληση</span></div>
+            <button className="opf-ev-acc-btn opf-press" onClick={onPayReq}>Αίτημα πληρωμής</button>
+          </div>
+        )}
+      </>
     );
   }
   if (it.kind === 'appt') {
-    const a = it.data;
+    const a = it.data; const confirmed = a.status === 'completed';
     return (
-      <EventCard tone="violet" icon="calendar" title="Ραντεβού" sub={a.title} status={a.status === 'completed' ? 'Ολοκληρώθηκε' : APPT_TYPE_GR[a.type] ?? 'Ραντεβού'} done={a.status === 'completed'}>
-        {a.dueDate && <Row label="Ημερομηνία" value={`${formatDateGr(a.dueDate)}${a.dueTime ? ` · ${a.dueTime}` : ''}`} bold />}
-      </EventCard>
+      <div className="opf-ev-side opf-r">
+        <div className="opf-ev-card">
+          <div className="opf-ev-card-top">
+            <div className="opf-ev-card-ic opf-appt"><Icon name="calendar" size={18} color="#fff" stroke={2.1} /></div>
+            <div className="opf-ev-card-h"><div className="opf-ev-card-title">Ραντεβού</div><div className="opf-ev-card-sub">{a.title}</div></div>
+            <div className={'opf-ev-status ' + (confirmed ? 'opf-st-accepted' : 'opf-st-sent')}>{confirmed ? 'Ολοκληρώθηκε' : APPT_TYPE_GR[a.type] ?? 'Ραντεβού'}</div>
+          </div>
+          {a.dueDate && <div className="opf-ev-appt"><Icon name="clock" size={17} color="var(--brand)" stroke={2} /><b>{fmtDate(a.dueDate)}</b>{a.dueTime && <span>· {a.dueTime}</span>}</div>}
+          <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ</div>
+        </div>
+      </div>
     );
   }
   if (it.kind === 'payment') {
-    const p = it.data;
-    const final = p.status === 'confirmed' || p.status === 'cancelled';
+    const p = it.data; const final = p.status === 'confirmed' || p.status === 'cancelled';
     return (
-      <EventCard tone="emerald" icon="euro" title={`${PAY_KIND_GR[p.kind] ?? p.kind}${p.pct != null ? ` · ${p.pct}%` : ''}`} sub={PAY_STATUS_GR[p.status] ?? p.status} done={p.status === 'confirmed'}>
-        <Row label="Ποσό" value={money(p.amount)} bold />
-        {!final && (
-          <div className="mt-2 flex gap-2">
-            <button type="button" disabled={busy} onClick={() => onConfirm(p.id, 'confirmed')} className="rounded-full bg-green-600 px-3 py-1 text-xs font-semibold text-white transition active:scale-95 disabled:opacity-40">Επιβεβαίωση είσπραξης</button>
-            <button type="button" disabled={busy} onClick={() => onConfirm(p.id, 'cancelled')} className="rounded-full px-3 py-1 text-xs font-medium text-zinc-500 transition hover:text-red-600 disabled:opacity-40">Ακύρωση</button>
+      <div className="opf-ev-side opf-r">
+        <div className="opf-ev-card opf-slim">
+          <div className="opf-ev-card-top">
+            <div className="opf-ev-card-ic opf-pay"><Icon name="euro" size={18} color="#fff" stroke={2.1} /></div>
+            <div className="opf-ev-card-h"><div className="opf-ev-card-title">{PAY_KIND_GR[p.kind] ?? p.kind}{p.pct != null ? ` · ${p.pct}%` : ''} · {eur(p.amount)}</div><div className="opf-ev-card-sub">{p.status === 'confirmed' ? 'Πληρώθηκε — επιβεβαιωμένο' : p.status === 'declared' ? 'Ο πελάτης δήλωσε κατάθεση' : p.status === 'cancelled' ? 'Ακυρώθηκε' : 'Σε αναμονή κατάθεσης'}</div></div>
+            <div className={'opf-ev-status ' + (p.status === 'confirmed' ? 'opf-st-accepted' : 'opf-st-pending')}>{p.status === 'confirmed' ? '✓' : '…'}</div>
           </div>
-        )}
-      </EventCard>
+          {!final && (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <button className="opf-ev-acc-btn opf-press" onClick={() => onConfirm(p.id, 'confirmed')} style={{ opacity: busy ? 0.5 : 1 }}>Επιβεβαίωση είσπραξης</button>
+              <button className="opf-press" onClick={() => onConfirm(p.id, 'cancelled')} style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', padding: '9px 6px' }}>Ακύρωση</button>
+            </div>
+          )}
+        </div>
+      </div>
     );
   }
-  // upload / intake request
-  const r = it.data;
-  const isPhotos = it.kind === 'upload';
+  // request (photos / info)
+  const r = it.data; const done = r.status === 'submitted' || r.status === 'completed';
   return (
-    <EventCard tone="amber" icon={isPhotos ? 'image' : 'clipboard'} title={isPhotos ? 'Αίτημα φωτογραφιών' : 'Αίτημα στοιχείων'} sub={REQ_STATUS_GR[r.status] ?? r.status} done={r.status === 'submitted' || r.status === 'completed'} />
+    <div className="opf-ev-side opf-r">
+      <div className="opf-ev-card opf-slim">
+        <div className="opf-ev-card-top">
+          <div className="opf-ev-card-ic opf-req"><Icon name={it.photos ? 'image' : 'clipboard'} size={18} color="#fff" stroke={2.1} /></div>
+          <div className="opf-ev-card-h"><div className="opf-ev-card-title">{it.photos ? 'Αίτημα φωτογραφιών' : 'Αίτημα στοιχείων'}</div><div className="opf-ev-card-sub">{REQ_STATUS_GR[r.status] ?? r.status}</div></div>
+          <div className={'opf-ev-status ' + (done ? 'opf-st-accepted' : 'opf-st-pending')}>{done ? '✓' : '…'}</div>
+        </div>
+        <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ</div>
+      </div>
+    </div>
   );
 }
 
-// ── Prototype-style event card ───────────────────────────────────────────────
-const TONE_BG: Record<string, string> = {
-  indigo: 'bg-indigo-600', violet: 'bg-violet-600', emerald: 'bg-emerald-600', amber: 'bg-amber-500',
-};
-function EventCard({ tone, icon, title, sub, status, done, children }: { tone: string; icon: string; title: string; sub: string; status?: string; done?: boolean; children?: React.ReactNode }) {
+// ── prototype bottom sheet ───────────────────────────────────────────────────
+function Sheet({ open, title, onClose, children, footer }: { open: boolean; title: string; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode }) {
+  if (!open) return null;
   return (
-    <div className="ml-auto w-[82%] rounded-2xl bg-white p-3 shadow-sm ring-1 ring-zinc-200/70 dark:bg-[#122130] dark:ring-white/10">
-      <div className="flex items-center gap-2.5">
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white ${TONE_BG[tone] ?? 'bg-indigo-600'}`}><CardIcon name={icon} /></span>
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-bold text-zinc-900 dark:text-zinc-100">{title}</p>
-          <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{sub}</p>
+    <div className="opf-sheet-wrap opf-open" onClick={onClose}>
+      <div className="opf-sheet-backdrop" />
+      <div className="opf-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="opf-sheet-grab" />
+        <div className="opf-sheet-head">
+          <div className="opf-sheet-title">{title}</div>
+          <button className="opf-sheet-x opf-press" onClick={onClose} aria-label="close"><Icon name="x" size={20} color="var(--muted)" stroke={2.2} /></button>
         </div>
-        {status && <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${done ? 'bg-green-50 text-green-700 ring-1 ring-green-200 dark:bg-green-950/40 dark:text-green-300' : 'bg-zinc-100 text-zinc-500 ring-1 ring-zinc-200 dark:bg-white/5 dark:text-zinc-400'}`}>{status}</span>}
-      </div>
-      {children && <div className="mt-2 space-y-1">{children}</div>}
-      <p className="mt-2 text-[10px] text-zinc-400">Εσύ</p>
-    </div>
-  );
-}
-function Row({ label, value, bold }: { label: string; value: string; bold?: boolean }) {
-  return (
-    <div className="flex items-center justify-between text-xs">
-      <span className="text-zinc-500 dark:text-zinc-400">{label}</span>
-      <span className={bold ? 'font-bold text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-200'}>{value}</span>
-    </div>
-  );
-}
-function DockBtn({ label, onClick, busy, icon }: { label: string; onClick: () => void; busy: boolean; icon: string }) {
-  return (
-    <button type="button" onClick={onClick} disabled={busy} className="flex flex-col items-center gap-1 rounded-2xl bg-zinc-50 py-2 text-[11px] font-semibold text-zinc-700 ring-1 ring-zinc-200/70 transition active:scale-95 disabled:opacity-50 dark:bg-[#0f1d2b] dark:text-zinc-200 dark:ring-white/10">
-      <span className="text-indigo-600"><CardIcon name={icon} /></span>
-      {label}
-    </button>
-  );
-}
-function CardIcon({ name }: { name: string }) {
-  const common = { className: 'h-[18px] w-[18px]', fill: 'none', strokeWidth: 1.9, stroke: 'currentColor', viewBox: '0 0 24 24' } as const;
-  switch (name) {
-    case 'file': return <svg {...common}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>;
-    case 'calendar': return <svg {...common}><path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" /></svg>;
-    case 'euro': return <svg {...common}><path strokeLinecap="round" strokeLinejoin="round" d="M14.25 7.756a4.5 4.5 0 1 0 0 8.488M7.5 10.5h5.25m-5.25 3h5.25M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>;
-    case 'image': return <svg {...common}><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" /></svg>;
-    case 'clipboard': default: return <svg {...common}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" /></svg>;
-  }
-}
-function Sheet({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={onClose}>
-      <div className="w-full max-w-md space-y-3 rounded-t-3xl bg-white p-4 shadow-xl dark:bg-[#122130] sm:rounded-3xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-center justify-between">
-          <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</p>
-          <button type="button" onClick={onClose} className="rounded-full px-2 py-1 text-xs text-zinc-400 hover:text-zinc-700">Κλείσιμο</button>
-        </div>
-        {children}
+        <div className="opf-sheet-body">{children}</div>
+        {footer && <div className="opf-sheet-foot">{footer}</div>}
       </div>
     </div>
   );
