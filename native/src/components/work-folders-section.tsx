@@ -4,6 +4,7 @@
 // Στοιχεία πελάτη, plus: attach existing, detach, quick-create filed into folder.
 
 import { Ionicons } from '@expo/vector-icons';
+import * as WebBrowser from 'expo-web-browser';
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, View } from 'react-native';
 
@@ -566,6 +567,37 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     void Share.share({ message: linkUrl }).catch(() => {});
   }
 
+  // Stage 6: «Προβολή ως πελάτης» — open the real public /f/[token] portal in an
+  // in-app browser (drafting the link first if none exists yet). Shows the
+  // customer's exact view; no native portal re-build needed.
+  async function previewAsCustomer() {
+    if (!detail) return;
+    let url = linkUrl;
+    if (!url) {
+      setLinkBusy(true);
+      try {
+        const r = await apiPost<{ ok?: boolean; responseUrl?: string }>(`/api/folders/${detail.id}/link`, { mode: 'draft' });
+        if (r?.ok && r.responseUrl) {
+          url = r.responseUrl;
+          setLinkUrl(r.responseUrl);
+        }
+      } catch (e) {
+        Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε ο σύνδεσμος.');
+      } finally {
+        setLinkBusy(false);
+      }
+    }
+    if (!url) {
+      Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.');
+      return;
+    }
+    try {
+      await WebBrowser.openBrowserAsync(url);
+    } catch {
+      // best-effort — never throws to the UI
+    }
+  }
+
   function closeDetail() {
     setDetail(null);
     setEditMode(false);
@@ -734,6 +766,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
 
               {/* Διαδικασία — process stepper + step controls */}
               <WorkFolderStepper step={detail.step} c={c} />
+              <PrimaryButton label="Προβολή ως πελάτης" tone="outline" busy={linkBusy} onPress={() => void previewAsCustomer()} />
               {clampStep(detail.step) < ERGO_STEPS.length - 1 || (detail.status !== 'done' && detail.status !== 'archived') ? (
                 <View style={{ flexDirection: 'row', gap: Spacing.two }}>
                   {clampStep(detail.step) < ERGO_STEPS.length - 1 ? (
