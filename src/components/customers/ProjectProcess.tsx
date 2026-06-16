@@ -213,7 +213,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
     try {
       const headers = await authHeaders();
       if (!headers) return;
-      const res = await fetch(`/api/folders/${folderId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'draft' }) });
+      const res = await fetch(`/api/folders/${folderId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'open' }) });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; responseUrl?: string };
       if (j?.ok && j.responseUrl) window.open(j.responseUrl, '_blank');
     } finally { setBusy(false); }

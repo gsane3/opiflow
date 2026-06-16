@@ -128,7 +128,7 @@ export default function CustomerInfoPanel({
   const [galleryIndex, setGalleryIndex] = useState(0);
   // Contact
   const [editingContact, setEditingContact] = useState(false);
-  const [form, setForm] = useState({ name: '', companyName: '', mobilePhone: '', landlinePhone: '', email: '', address: '', preferredContactMethod: 'phone', source: '', needsSummary: '' });
+  const [form, setForm] = useState({ firstName: '', lastName: '', companyName: '', mobilePhone: '', landlinePhone: '', email: '', address: '', preferredContactMethod: 'phone', source: '', needsSummary: '' });
   const [savingContact, setSavingContact] = useState(false);
   const [contactSaved, setContactSaved] = useState(false);
   // Note
@@ -155,8 +155,11 @@ export default function CustomerInfoPanel({
   };
 
   const fillForm = useCallback((cust: CustomerFull) => {
+    // The DB stores a single `name`; split it into Όνομα (first token) + Επώνυμο (rest).
+    const parts = (cust.name ?? '').trim().split(/\s+/).filter(Boolean);
     setForm({
-      name: cust.name ?? '', companyName: cust.companyName ?? '', mobilePhone: cust.mobilePhone ?? '',
+      firstName: parts[0] ?? '', lastName: parts.slice(1).join(' '),
+      companyName: cust.companyName ?? '', mobilePhone: cust.mobilePhone ?? '',
       landlinePhone: cust.landlinePhone ?? '', email: cust.email ?? '', address: cust.address ?? '',
       preferredContactMethod: cust.preferredContactMethod ?? 'phone', source: cust.source ?? '', needsSummary: cust.needsSummary ?? '',
     });
@@ -258,7 +261,7 @@ export default function CustomerInfoPanel({
       const res = await fetch(`/api/customers/${customerId}`, {
         method: 'PATCH', headers,
         body: JSON.stringify({
-          name: form.name || null, companyName: form.companyName || null,
+          name: `${form.firstName} ${form.lastName}`.trim() || null, companyName: form.companyName || null,
           mobilePhone: form.mobilePhone || null, phone: form.mobilePhone || null,
           landlinePhone: form.landlinePhone || null, email: form.email || null, address: form.address || null,
           preferredContactMethod: form.preferredContactMethod || 'phone',
@@ -332,7 +335,10 @@ export default function CustomerInfoPanel({
                 >
                   {editingContact ? (
                     <div className="space-y-3">
-                      <Input label="Ονοματεπώνυμο" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+                      <div className="flex gap-2">
+                        <Input label="Όνομα" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} />
+                        <Input label="Επώνυμο" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} />
+                      </div>
                       <Input label="Εταιρεία" value={form.companyName} onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} placeholder="Προαιρετικό" />
                       <div className="flex gap-2">
                         <Input label="Κινητό" value={form.mobilePhone} onChange={(e) => setForm((f) => ({ ...f, mobilePhone: e.target.value }))} inputMode="tel" className="tabular-nums" />

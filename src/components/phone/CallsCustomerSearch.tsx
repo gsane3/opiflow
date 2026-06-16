@@ -2,9 +2,9 @@
 
 // Κλήσεις — top customer search (redesign P2/Κλήσεις spec: a centered search bar
 // to find a customer). Self-contained: loads the customer list once, filters it
-// in-memory (accent-insensitive on name + phone), and links each hit straight to
-// that customer's Messenger chat. Collapses to just the input when the query is
-// empty.
+// in-memory (accent-insensitive on name + phone), and links each hit to that
+// customer's profile (whose «Μήνυμα» action then opens the chat). Collapses to
+// just the input when the query is empty.
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
@@ -83,7 +83,7 @@ export default function CallsCustomerSearch() {
             results.map((c) => {
               const phone = c.mobilePhone || c.phone || c.landlinePhone;
               return (
-                <Link key={c.id} href={`/customers/${c.id}/chat`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-zinc-50 dark:hover:bg-white/5 active:bg-zinc-100 dark:active:bg-white/5">
+                <Link key={c.id} href={`/customers/${c.id}`} className="flex items-center gap-3 px-4 py-3 transition hover:bg-zinc-50 dark:hover:bg-white/5 active:bg-zinc-100 dark:active:bg-white/5">
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700">
                     {(c.name ?? 'Π').slice(0, 1).toUpperCase()}
                   </span>

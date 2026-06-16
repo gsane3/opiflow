@@ -25,6 +25,7 @@ import {
   hashFolderToken,
   markFolderTokenSent,
   revokePendingFolderTokens,
+  revokePreviewFolderTokens,
 } from '@/lib/server/folder-tokens';
 
 export const runtime = 'nodejs';
@@ -35,7 +36,7 @@ function str(val: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-const VALID_MODES = ['draft', 'send'] as const;
+const VALID_MODES = ['draft', 'send', 'open'] as const;
 type LinkMode = (typeof VALID_MODES)[number];
 
 const OUTBOUND_SUMMARY = 'Σύνδεσμος έργου';
@@ -134,6 +135,30 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     }
 
     const now = new Date().toISOString();
+
+    // -------------------------------------------------------------------------
+    // Open: non-destructive preview for the Project-page eye. Does NOT revoke the
+    // customer's delivered link — only clears prior UNDELIVERED preview tokens —
+    // then returns a fresh durable link (30-day rolling expiry). So previewing the
+    // portal never breaks the link the customer already received.
+    // -------------------------------------------------------------------------
+    if (mode === 'open') {
+      try {
+        await revokePreviewFolderTokens({ businessId, workFolderId: folderId });
+        const tok = await createCustomerFolderToken({ businessId, workFolderId: folderId, sentChannel: null });
+        return NextResponse.json({
+          ok: true,
+          mode: 'open',
+          sent: false,
+          responseUrl: tok.folderUrl,
+          message: buildFolderMessage(tok.folderUrl, businessName, folder.title),
+          recipient: selectViberPhone(customer),
+          fallbackReason: null,
+        });
+      } catch {
+        return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
+      }
+    }
 
     // -------------------------------------------------------------------------
     // Draft: rotate + create a token, return its URL + preview message.
