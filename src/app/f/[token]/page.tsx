@@ -8,6 +8,7 @@ import QuestionForm from './QuestionForm';
 import Stepper from '@/components/customers/Stepper';
 import OfferAcceptButton from './OfferAcceptButton';
 import AppointmentRespond from './AppointmentRespond';
+import PaymentCard from './PaymentCard';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -101,6 +102,19 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
           </section>
         )}
 
+        {/* Payments — amount + IBAN + «Δήλωσα την κατάθεση» (self-report) */}
+        {view.payments.length > 0 && (
+          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Πληρωμές</p>
+            <p className="mt-1 text-xs text-zinc-500">Κατάθεση στον παρακάτω λογαριασμό. Μετά την κατάθεση, πατήστε «Δήλωσα την κατάθεση».</p>
+            <ul className="mt-2 space-y-2">
+              {view.payments.map((p) => (
+                <PaymentCard key={p.id} token={token} payment={p} />
+              ))}
+            </ul>
+          </section>
+        )}
+
         {/* Appointments */}
         {view.appointments.length > 0 && (
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
@@ -123,7 +137,7 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
         )}
 
         {/* Empty placeholder when nothing is linked yet */}
-        {view.offers.length === 0 && view.appointments.length === 0 && (
+        {view.offers.length === 0 && view.appointments.length === 0 && view.payments.length === 0 && (
           <section className="rounded-3xl bg-white p-5 text-center shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-sm text-zinc-500">Δεν υπάρχει κάτι ακόμα. Θα ενημερωθείτε για κάθε νεότερο.</p>
           </section>

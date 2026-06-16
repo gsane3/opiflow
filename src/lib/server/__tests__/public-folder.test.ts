@@ -7,6 +7,7 @@ import {
   type BusinessRowForPublic,
   type OfferRowForPublic,
   type TaskRowForPublic,
+  type PaymentRowForPublic,
 } from '../public-folder';
 
 const folder: FolderRowForPublic = { title: 'Τοποθέτηση κλιματιστικού', status: 'in_progress' };
@@ -74,8 +75,27 @@ describe('public-folder', () => {
       expect(view).not.toHaveProperty('notes');
       // the public view's top-level keys are an explicit allow-list
       expect(Object.keys(view).sort()).toEqual(
-        ['appointments', 'business', 'messages', 'offers', 'statusLabel', 'statusMessage', 'step', 'title'],
+        ['appointments', 'business', 'messages', 'offers', 'payments', 'statusLabel', 'statusMessage', 'step', 'title'],
       );
+    });
+
+    it('maps payments to the 6 safe fields and hides cancelled (security)', () => {
+      const payments: PaymentRowForPublic[] = [
+        { id: 'pay-1', kind: 'deposit', amount: 360, currency: 'EUR', status: 'pending', receiving_account: 'GR1601101250000000012300695' },
+        { id: 'pay-2', kind: 'balance', amount: 840, currency: 'EUR', status: 'declared', receiving_account: 'GR1601101250000000012300695' },
+        { id: 'pay-3', kind: 'deposit', amount: 100, currency: 'EUR', status: 'cancelled', receiving_account: 'GR1601101250000000012300695' },
+      ];
+      const v = toPublicFolderView(folder, business, [], [], [], payments);
+      // cancelled is dropped; only the safe camelCase fields survive.
+      expect(v.payments).toEqual([
+        { id: 'pay-1', kind: 'deposit', amount: 360, currency: 'EUR', status: 'pending', receivingAccount: 'GR1601101250000000012300695' },
+        { id: 'pay-2', kind: 'balance', amount: 840, currency: 'EUR', status: 'declared', receivingAccount: 'GR1601101250000000012300695' },
+      ]);
+      const s = JSON.stringify(v.payments);
+      // internal-only fields never reach the public payload
+      for (const banned of ['cancelled', 'pct', 'business_id', 'customer_id', 'offer_id', 'work_folder_id', 'receiving_account']) {
+        expect(s).not.toContain(banned);
+      }
     });
 
     it('maps the Q&A thread and EXCLUDES call rows (AI briefs never leak)', () => {

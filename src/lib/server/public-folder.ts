@@ -12,6 +12,12 @@ import { findValidFolderToken, markFolderTokenOpened } from './folder-tokens';
 import { clampStep } from './work-folders';
 import { offerCanRespond } from './offer-status';
 import { appointmentCanRespond } from './appointment-status';
+import { mapPublicPayment, type PublicPayment, type PaymentRequestRow } from './payments';
+
+// Statuses shown on the public page. 'cancelled' is hidden; the customer only
+// ever sees a request they should act on (pending), have acted on (declared),
+// or that the owner has confirmed (confirmed).
+const PUBLIC_PAYMENT_STATUSES = ['pending', 'declared', 'confirmed'] as const;
 
 const APPOINTMENT_TASK_TYPES = ['book_appointment', 'visit_customer'] as const;
 
@@ -99,6 +105,16 @@ export interface MessageRowForPublic {
   summary: string | null;
   created_at: string;
 }
+// Only the safe, customer-facing columns of a payment request. NEVER select pct,
+// business_id, customer_id, offer_id, or the row's internal timestamps here.
+export interface PaymentRowForPublic {
+  id: string;
+  kind: string;
+  amount: number;
+  currency: string;
+  status: string;
+  receiving_account: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Public view (no internal IDs / business-only fields)
@@ -141,6 +157,7 @@ export interface PublicFolderView {
   offers: PublicFolderOffer[];
   appointments: PublicFolderAppointment[];
   messages: PublicFolderMessage[];
+  payments: PublicPayment[];
 }
 
 function mapPublicBusiness(row: BusinessRowForPublic | null): PublicFolderBusiness | null {
@@ -166,6 +183,7 @@ export function toPublicFolderView(
   offers: OfferRowForPublic[],
   appointments: TaskRowForPublic[],
   messages: MessageRowForPublic[] = [],
+  payments: PaymentRowForPublic[] = [],
 ): PublicFolderView {
   return {
     business: mapPublicBusiness(business),
@@ -196,6 +214,11 @@ export function toPublicFolderView(
       typeLabel: APPOINTMENT_TYPE_LABELS[t.type] ?? 'Ραντεβού',
       canRespond: appointmentCanRespond({ status: t.status, type: t.type, due_date: t.due_date }),
     })),
+    // Defensive: even though the query filters by status, drop anything not in
+    // the public allowlist before mapping to the safe shape.
+    payments: payments
+      .filter((p) => (PUBLIC_PAYMENT_STATUSES as readonly string[]).includes(p.status))
+      .map((p) => mapPublicPayment(p as unknown as PaymentRequestRow)),
   };
 }
 
@@ -220,7 +243,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     if (folderError || !folderData) return null;
     const folder = folderData as unknown as FolderRowForPublic;
 
-    const [bizRes, offersRes, apptRes, msgRes] = await Promise.all([
+    const [bizRes, offersRes, apptRes, msgRes, payRes] = await Promise.all([
       supabase
         .from('businesses')
         .select('name, legal_name, trade_name, logo_url, phone, email, website')
@@ -252,17 +275,28 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .eq('status', 'completed')
         .order('created_at', { ascending: true })
         .limit(50),
+      // Payment requests — same triple-scoping (business_id + work_folder_id),
+      // only the safe columns, only the public-facing statuses. Tolerant of
+      // pre-migration-048 (table absent → error → empty, never throws).
+      supabase
+        .from('payment_requests')
+        .select('id, kind, amount, currency, status, receiving_account')
+        .eq('business_id', token.business_id)
+        .eq('work_folder_id', token.work_folder_id)
+        .in('status', PUBLIC_PAYMENT_STATUSES as unknown as string[])
+        .order('created_at', { ascending: false }),
     ]);
 
     const business = (bizRes.data as unknown as BusinessRowForPublic | null) ?? null;
     const offers = ((offersRes.data ?? []) as unknown[]) as OfferRowForPublic[];
     const appointments = ((apptRes.data ?? []) as unknown[]) as TaskRowForPublic[];
     const messages = ((msgRes.data ?? []) as unknown[]) as MessageRowForPublic[];
+    const payments = ((payRes.data ?? []) as unknown[]) as PaymentRowForPublic[];
 
     // Best-effort "opened" tracking — must not block the page.
     void markFolderTokenOpened(token.id).catch(() => {});
 
-    return toPublicFolderView(folder, business, offers, appointments, messages);
+    return toPublicFolderView(folder, business, offers, appointments, messages, payments);
   } catch {
     return null;
   }
