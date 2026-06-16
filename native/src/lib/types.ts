@@ -162,6 +162,7 @@ export interface WorkFolder {
   customerId: string;
   title: string;
   status: string; // open | in_progress | done | archived
+  step: number; // 0..4 process tracker (Επαφή·Προσφορά·Πληρωμή·Ραντεβού·Τέλος)
   notes: string | null;
   createdAt: string;
   updatedAt: string;

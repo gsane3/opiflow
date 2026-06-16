@@ -113,6 +113,59 @@ const APPT_TYPE_GR: Record<string, string> = {
   book_appointment: 'Ραντεβού',
   visit_customer: 'Επίσκεψη',
 };
+
+// ---------------------------------------------------------------------------
+// Process tracker (Διαδικασία) — 5 steps, index = work_folders.step (0..4).
+// Mirrors WORK_FOLDER_STEPS on the server + the web Stepper.
+// ---------------------------------------------------------------------------
+
+const ERGO_STEPS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'] as const;
+
+function clampStep(n: number | undefined): number {
+  const i = typeof n === 'number' && Number.isFinite(n) ? Math.trunc(n) : 0;
+  return i < 0 ? 0 : i > ERGO_STEPS.length - 1 ? ERGO_STEPS.length - 1 : i;
+}
+
+function ergoStepCaption(step: number | undefined): string {
+  const cur = clampStep(step);
+  return `Βήμα ${cur + 1}/${ERGO_STEPS.length} · ${ERGO_STEPS[cur]}`;
+}
+
+function WorkFolderStepper({ step, c }: { step: number | undefined; c: ThemePalette }) {
+  const cur = clampStep(step);
+  return (
+    <View style={{ flexDirection: 'row', gap: 4, marginVertical: Spacing.two }}>
+      {ERGO_STEPS.map((label, i) => {
+        const on = i <= cur;
+        const now = i === cur;
+        return (
+          <View key={label} style={{ flex: 1, alignItems: 'center', gap: 3 }}>
+            <View
+              style={{
+                width: 24,
+                height: 24,
+                borderRadius: 12,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: on ? Brand.primary : c.surface,
+                borderWidth: now ? 2 : 0,
+                borderColor: Brand.primarySoft,
+              }}>
+              <ThemedText style={{ fontSize: 11, fontWeight: '700', color: on ? Brand.onPrimary : c.textFaint }}>
+                {i < cur ? '✓' : String(i + 1)}
+              </ThemedText>
+            </View>
+            <ThemedText
+              numberOfLines={1}
+              style={{ fontSize: 9, textAlign: 'center', color: now ? c.text : c.textFaint, fontWeight: now ? '700' : '400' }}>
+              {label}
+            </ThemedText>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 const APPT_TYPE_OPTIONS = [
   { key: 'book_appointment', label: 'Ραντεβού' },
   { key: 'visit_customer', label: 'Επίσκεψη' },
@@ -561,6 +614,18 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     await patchFolder({ status: 'archived' });
   }
 
+  // Process (Διαδικασία): advance the step / complete the project.
+  async function advanceStep() {
+    if (!detail) return;
+    const cur = clampStep(detail.step);
+    const next = Math.min(cur + 1, ERGO_STEPS.length - 1);
+    if (next === cur) return;
+    await patchFolder({ step: next });
+  }
+  async function completeProject() {
+    await patchFolder({ step: ERGO_STEPS.length - 1, status: 'done' });
+  }
+
   return (
     <View style={styles.group}>
       <ThemedText type="small" themeColor="textSecondary" style={styles.groupTitle}>
@@ -604,6 +669,9 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                     <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
                       {STATUS_LABELS[f.status] ?? f.status}
                       {f.updatedAt ? ` · ${formatDate(f.updatedAt)}` : ''}
+                    </ThemedText>
+                    <ThemedText type="small" numberOfLines={1} style={{ color: Brand.primary, fontWeight: '600' }}>
+                      {ergoStepCaption(f.step)}
                     </ThemedText>
                     {summary ? (
                       <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
@@ -663,6 +731,23 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
               <View style={styles.detailBadge}>
                 <ThemedText style={styles.detailBadgeText}>{STATUS_LABELS[detail.status] ?? detail.status}</ThemedText>
               </View>
+
+              {/* Διαδικασία — process stepper + step controls */}
+              <WorkFolderStepper step={detail.step} c={c} />
+              {clampStep(detail.step) < ERGO_STEPS.length - 1 || (detail.status !== 'done' && detail.status !== 'archived') ? (
+                <View style={{ flexDirection: 'row', gap: Spacing.two }}>
+                  {clampStep(detail.step) < ERGO_STEPS.length - 1 ? (
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton label="Παράλειψη βήματος" tone="outline" busy={eBusy} onPress={() => void advanceStep()} />
+                    </View>
+                  ) : null}
+                  {detail.status !== 'done' && detail.status !== 'archived' ? (
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton label="Ολοκλήρωση" tone="outline" busy={eBusy} onPress={() => void completeProject()} />
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
               {detail.notes ? (
                 <ThemedText type="small" style={styles.ink}>
                   {detail.notes}
