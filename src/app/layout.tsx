@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist } from 'next/font/google';
 import './globals.css';
+import '@/styles/opiflow-proto.css';
 
 const geist = Geist({
   variable: '--font-geist-sans',
