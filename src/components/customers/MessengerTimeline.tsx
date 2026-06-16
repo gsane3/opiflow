@@ -16,6 +16,7 @@ import { ChatSkeleton } from '@/components/ui/Skeleton';
 import { EmptyState } from '@/components/ui/EmptyState';
 import CustomerInfoPanel, { type BriefEntry, type InfoSection } from './CustomerInfoPanel';
 import ChatComposerSheet from './ChatComposerSheet';
+import CustomerFoldersStrip from './CustomerFoldersStrip';
 
 const TAPPABLE = new Set(['call', 'upload', 'intake_submitted', 'intake_request', 'appointment', 'appointment_response', 'offer', 'offer_response']);
 
@@ -488,6 +489,18 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
           </p>
           <p className="mt-0.5 line-clamp-2 text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-200">{waiting}</p>
         </button>
+      )}
+
+      {/* Chat-first Work Folders (prototype) — active jobs + quick actions, pinned
+          near the top of the conversation so the job is managed without digging
+          into the profile/info panel. */}
+      {!loading && !error && (
+        <CustomerFoldersStrip
+          customerId={customerId}
+          onNewOffer={() => openComposer('offer')}
+          onNewAppointment={() => openComposer('appointment')}
+          onChanged={() => void load()}
+        />
       )}
 
       {/* Chat body (the only scroll area) */}

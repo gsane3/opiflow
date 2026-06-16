@@ -11,6 +11,14 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { formatDateGr } from '@/lib/date';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+
+const FOLDER_STATUS_OPTIONS = [
+  { v: 'open', l: 'Νέο' },
+  { v: 'in_progress', l: 'Σε εξέλιξη' },
+  { v: 'done', l: 'Ολοκληρώθηκε' },
+  { v: 'archived', l: 'Αρχειοθετήθηκε' },
+];
 
 const OFFER_STATUS_GR: Record<string, string> = {
   draft: 'Πρόχειρη', ready_to_send: 'Έτοιμη', sent_manually: 'Στάλθηκε', sent_provider: 'Στάλθηκε',
@@ -29,7 +37,7 @@ interface DetailMsg { id: string; summary: string | null; direction: string; cha
 interface DetailUpload { id: string; status: string; sentChannel: string | null; createdAt: string; openedAt: string | null; completedAt: string | null }
 interface DetailIntake { id: string; status: string; sentChannel: string | null; createdAt: string; openedAt: string | null; submittedAt: string | null }
 interface FolderDetail {
-  folder: { id: string; title: string; status: string };
+  folder: { id: string; title: string; status: string; notes: string | null };
   customer: { id: string; name: string | null; phone: string | null; email: string | null } | null;
   sections: {
     offers: { count: number; items: DetailOffer[] };
@@ -66,9 +74,14 @@ function todayStr(): string {
 export default function FolderDetailPanel({
   folderId,
   onChanged,
+  showActions = true,
 }: {
   folderId: string;
   onChanged?: () => void;
+  /** When true (default), also render the public link + edit + archive actions so
+   *  this is a COMPLETE folder detail (used from the chat-first folder modal). The
+   *  info-panel WorkFoldersSection passes false to keep its own copy (no double). */
+  showActions?: boolean;
 }) {
   const [detail, setDetail] = useState<FolderDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -99,6 +112,21 @@ export default function FolderDetailPanel({
   const [qcDate, setQcDate] = useState(todayStr());
   const [qcBusy, setQcBusy] = useState(false);
   const [qcError, setQcError] = useState('');
+
+  // WF-2 public link (chat-complete actions)
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [linkErr, setLinkErr] = useState('');
+
+  // edit / archive
+  const [editing, setEditing] = useState(false);
+  const [eTitle, setETitle] = useState('');
+  const [eNotes, setENotes] = useState('');
+  const [eStatus, setEStatus] = useState('open');
+  const [editBusy, setEditBusy] = useState(false);
+  const [editErr, setEditErr] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -284,6 +312,85 @@ export default function FolderDetailPanel({
     }
   }
 
+  // WF-2: public folder link — draft, copy, send (Viber/SMS), share.
+  async function draftLink() {
+    setLinkBusy(true); setLinkErr(''); setLinkSent(false); setLinkCopied(false);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setLinkErr('Λήξη σύνδεσης. Δοκίμασε ξανά.'); return; }
+      const res = await fetch(`/api/folders/${folderId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'draft' }) });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; responseUrl?: string };
+      if (res.ok && json?.ok && json.responseUrl) setLinkUrl(json.responseUrl);
+      else setLinkErr('Δεν δημιουργήθηκε ο σύνδεσμος. Δοκίμασε ξανά.');
+    } catch {
+      setLinkErr('Δεν δημιουργήθηκε ο σύνδεσμος. Δοκίμασε ξανά.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+  async function copyLink() {
+    if (!linkUrl) return;
+    try { await navigator.clipboard.writeText(linkUrl); setLinkCopied(true); window.setTimeout(() => setLinkCopied(false), 2000); }
+    catch { setLinkErr('Δεν έγινε αντιγραφή. Αντίγραψε χειροκίνητα.'); }
+  }
+  async function sendLink() {
+    if (!linkUrl) return;
+    setLinkBusy(true); setLinkErr('');
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setLinkErr('Λήξη σύνδεσης. Δοκίμασε ξανά.'); return; }
+      const res = await fetch(`/api/folders/${folderId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'send', responseUrl: linkUrl }) });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean; fallbackReason?: string };
+      if (res.ok && json?.ok && json.sent) setLinkSent(true);
+      else setLinkErr(json?.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.');
+    } catch {
+      setLinkErr('Δεν στάλθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+  function shareLink() {
+    if (!linkUrl) return;
+    if (typeof navigator !== 'undefined' && navigator.share) void navigator.share({ url: linkUrl }).catch(() => {});
+    else void copyLink();
+  }
+
+  // edit / archive — PATCH /api/folders/[id]
+  async function patchFolder(updates: Record<string, unknown>): Promise<boolean> {
+    setEditBusy(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setEditErr('Λήξη σύνδεσης. Δοκίμασε ξανά.'); return false; }
+      const res = await fetch(`/api/folders/${folderId}`, { method: 'PATCH', headers, body: JSON.stringify(updates) });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
+      if (res.ok && json?.ok) { await refreshAll(); return true; }
+      setEditErr('Η αποθήκευση απέτυχε. Δοκίμασε ξανά.');
+      return false;
+    } catch {
+      setEditErr('Η αποθήκευση απέτυχε. Δοκίμασε ξανά.');
+      return false;
+    } finally {
+      setEditBusy(false);
+    }
+  }
+  function openEdit() {
+    if (!detail) return;
+    setETitle(detail.folder.title);
+    setENotes(detail.folder.notes ?? '');
+    setEStatus(detail.folder.status);
+    setEditErr('');
+    setEditing(true);
+  }
+  async function saveEdit() {
+    const t = eTitle.trim();
+    if (!t) { setEditErr('Γράψε τίτλο εργασίας.'); return; }
+    const ok = await patchFolder({ title: t, notes: eNotes.trim() || null, status: eStatus });
+    if (ok) setEditing(false);
+  }
+  async function archive() {
+    await patchFolder({ status: 'archived' });
+  }
+
   if (loading) {
     return <p className="py-3 text-sm text-zinc-400 dark:text-zinc-500">Φορτώνει...</p>;
   }
@@ -404,6 +511,71 @@ export default function FolderDetailPanel({
         ))}
         {!detail.customer && s.intake.items.length === 0 && <Empty />}
       </Section>
+
+      {/* WF-2 public link + edit + archive — makes this panel a COMPLETE folder
+          detail, so the chat-opened modal needs nothing from the profile/info. */}
+      {showActions && (
+        <>
+          <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
+            <p className="text-xs font-semibold text-zinc-600 dark:text-zinc-300">Σύνδεσμος για τον πελάτη</p>
+            {linkErr && <p className="text-xs text-red-600">{linkErr}</p>}
+            {!linkUrl ? (
+              <Button variant="secondary" size="sm" loading={linkBusy} onClick={draftLink}>Δημιουργία συνδέσμου</Button>
+            ) : (
+              <>
+                <input
+                  readOnly
+                  value={linkUrl}
+                  onFocus={(e) => e.target.select()}
+                  className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-2 py-1.5 text-xs text-zinc-700 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-300"
+                />
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={copyLink}>{linkCopied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή'}</Button>
+                  <Button size="sm" loading={linkBusy} onClick={sendLink}>Αποστολή (Viber/SMS)</Button>
+                  <Button variant="secondary" size="sm" onClick={shareLink}>Κοινοποίηση</Button>
+                </div>
+                {linkSent && <p className="text-xs font-medium text-green-700">Ο σύνδεσμος στάλθηκε.</p>}
+              </>
+            )}
+          </div>
+
+          {editing ? (
+            <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-white/10">
+              {editErr && <p className="text-xs text-red-600">{editErr}</p>}
+              <Input label="Τίτλος εργασίας" value={eTitle} maxLength={120} onChange={(e) => { setETitle(e.target.value); if (editErr) setEditErr(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
+              <Textarea label="Σημειώσεις" value={eNotes} onChange={(e) => setENotes(e.target.value)} rows={2} placeholder="προαιρετικά" />
+              <div>
+                <p className="mb-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Κατάσταση</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {FOLDER_STATUS_OPTIONS.map((o) => (
+                    <button
+                      key={o.v}
+                      type="button"
+                      onClick={() => setEStatus(o.v)}
+                      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${eStatus === o.v ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-zinc-200 text-zinc-600 dark:border-white/10 dark:text-zinc-300'}`}
+                    >
+                      {o.l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="secondary" size="sm" onClick={() => setEditing(false)}>Ακύρωση</Button>
+                <Button size="sm" loading={editBusy} onClick={saveEdit}>Αποθήκευση</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between gap-2 border-t border-zinc-200/70 pt-2 dark:border-white/10">
+              <button type="button" onClick={openEdit} className="rounded-full px-2.5 py-1.5 text-xs font-semibold text-indigo-600 transition hover:bg-indigo-50">Επεξεργασία</button>
+              {detail.folder.status !== 'archived' && (
+                <button type="button" onClick={() => void archive()} disabled={editBusy} className="rounded-full px-2.5 py-1.5 text-xs font-medium text-zinc-400 transition hover:text-amber-700 disabled:opacity-40">
+                  {editBusy ? '...' : 'Αρχειοθέτηση'}
+                </button>
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {/* Attach sheet */}
       {attachOpen && (
