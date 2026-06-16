@@ -129,6 +129,26 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
           </section>
         )}
 
+        {/* Q&A thread — the customer↔business message exchange (no internal briefs) */}
+        {view.messages.length > 0 && (
+          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
+            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Συνομιλία</p>
+            <div className="mt-3 space-y-2">
+              {view.messages.map((m, i) => (
+                <div key={i} className={`flex ${m.direction === 'out' ? 'justify-start' : 'justify-end'}`}>
+                  <div
+                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
+                      m.direction === 'out' ? 'bg-zinc-100 text-zinc-800' : 'bg-indigo-600 text-white'
+                    }`}
+                  >
+                    {m.text}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Ask a question about this job */}
         <QuestionForm token={token} />
 

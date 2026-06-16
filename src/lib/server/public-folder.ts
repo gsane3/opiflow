@@ -90,6 +90,15 @@ export interface TaskRowForPublic {
   type: string;
   status: string;
 }
+export interface MessageRowForPublic {
+  direction: string;
+  // channel is selected ONLY so the mapper can defensively drop call rows — the
+  // query already excludes channel='call' (where AI call briefs live). It is
+  // never exposed on the public view.
+  channel: string;
+  summary: string | null;
+  created_at: string;
+}
 
 // ---------------------------------------------------------------------------
 // Public view (no internal IDs / business-only fields)
@@ -118,6 +127,11 @@ export interface PublicFolderAppointment {
   /** Whether the customer can still confirm / request a time change. */
   canRespond: boolean;
 }
+export interface PublicFolderMessage {
+  direction: 'in' | 'out';
+  text: string;
+  createdAt: string;
+}
 export interface PublicFolderView {
   business: PublicFolderBusiness | null;
   title: string;
@@ -126,6 +140,7 @@ export interface PublicFolderView {
   step: number;
   offers: PublicFolderOffer[];
   appointments: PublicFolderAppointment[];
+  messages: PublicFolderMessage[];
 }
 
 function mapPublicBusiness(row: BusinessRowForPublic | null): PublicFolderBusiness | null {
@@ -150,6 +165,7 @@ export function toPublicFolderView(
   business: BusinessRowForPublic | null,
   offers: OfferRowForPublic[],
   appointments: TaskRowForPublic[],
+  messages: MessageRowForPublic[] = [],
 ): PublicFolderView {
   return {
     business: mapPublicBusiness(business),
@@ -157,6 +173,15 @@ export function toPublicFolderView(
     statusLabel: folderStatusLabel(folder.status),
     statusMessage: folderStatusMessage(folder.status),
     step: clampStep(folder.step),
+    // The customer↔business message exchange. `channel='call'` rows (which hold
+    // internal AI call briefs) are excluded by BOTH the query and this filter.
+    messages: messages
+      .filter((m) => m.channel !== 'call' && typeof m.summary === 'string' && m.summary.trim().length > 0)
+      .map((m) => ({
+        direction: m.direction === 'outbound' ? ('out' as const) : ('in' as const),
+        text: (m.summary as string).trim(),
+        createdAt: m.created_at,
+      })),
     offers: offers.map((o) => ({
       id: o.id,
       offerNumber: o.offer_number ?? '—',
@@ -195,7 +220,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     if (folderError || !folderData) return null;
     const folder = folderData as unknown as FolderRowForPublic;
 
-    const [bizRes, offersRes, apptRes] = await Promise.all([
+    const [bizRes, offersRes, apptRes, msgRes] = await Promise.all([
       supabase
         .from('businesses')
         .select('name, legal_name, trade_name, logo_url, phone, email, website')
@@ -214,16 +239,30 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .eq('work_folder_id', token.work_folder_id)
         .in('type', APPOINTMENT_TASK_TYPES as unknown as string[])
         .order('due_date', { ascending: true }),
+      // Q&A thread: only the customer↔business message channels. `channel='call'`
+      // is EXCLUDED here (that is where internal AI call briefs live) — the single
+      // load-bearing filter that keeps briefs off the public page. call_briefs /
+      // journey_summary are never read.
+      supabase
+        .from('communications')
+        .select('direction, channel, summary, created_at')
+        .eq('business_id', token.business_id)
+        .eq('work_folder_id', token.work_folder_id)
+        .in('channel', ['sms', 'viber', 'email'])
+        .eq('status', 'completed')
+        .order('created_at', { ascending: true })
+        .limit(50),
     ]);
 
     const business = (bizRes.data as unknown as BusinessRowForPublic | null) ?? null;
     const offers = ((offersRes.data ?? []) as unknown[]) as OfferRowForPublic[];
     const appointments = ((apptRes.data ?? []) as unknown[]) as TaskRowForPublic[];
+    const messages = ((msgRes.data ?? []) as unknown[]) as MessageRowForPublic[];
 
     // Best-effort "opened" tracking — must not block the page.
     void markFolderTokenOpened(token.id).catch(() => {});
 
-    return toPublicFolderView(folder, business, offers, appointments);
+    return toPublicFolderView(folder, business, offers, appointments, messages);
   } catch {
     return null;
   }

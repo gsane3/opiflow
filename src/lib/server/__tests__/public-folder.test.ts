@@ -74,8 +74,23 @@ describe('public-folder', () => {
       expect(view).not.toHaveProperty('notes');
       // the public view's top-level keys are an explicit allow-list
       expect(Object.keys(view).sort()).toEqual(
-        ['appointments', 'business', 'offers', 'statusLabel', 'statusMessage', 'step', 'title'],
+        ['appointments', 'business', 'messages', 'offers', 'statusLabel', 'statusMessage', 'step', 'title'],
       );
+    });
+
+    it('maps the Q&A thread and EXCLUDES call rows (AI briefs never leak)', () => {
+      const v = toPublicFolderView(folder, business, [], [], [
+        { direction: 'inbound', channel: 'viber', summary: 'Ερώτηση από έργο: Πότε;', created_at: '2026-06-01T10:00:00Z' },
+        { direction: 'outbound', channel: 'sms', summary: 'Αύριο στις 10.', created_at: '2026-06-01T10:05:00Z' },
+        { direction: 'inbound', channel: 'call', summary: 'AI ΣΥΝΟΨΗ ΚΛΗΣΗΣ — εσωτερικό', created_at: '2026-06-01T09:00:00Z' },
+        { direction: 'outbound', channel: 'email', summary: '   ', created_at: '2026-06-01T11:00:00Z' },
+      ]);
+      // call row dropped (internal brief), blank-summary row dropped; in/out mapped.
+      expect(v.messages).toEqual([
+        { direction: 'in', text: 'Ερώτηση από έργο: Πότε;', createdAt: '2026-06-01T10:00:00Z' },
+        { direction: 'out', text: 'Αύριο στις 10.', createdAt: '2026-06-01T10:05:00Z' },
+      ]);
+      expect(JSON.stringify(v.messages)).not.toContain('AI ΣΥΝΟΨΗ');
     });
 
     it('drops the business when there is no name and no logo', () => {
