@@ -1,9 +1,8 @@
-// The customer card now lives at /customers/[id]/chat — the messenger workspace
-// with the ➕ composer (message / appointment / offer), the info panel (contact
-// details, briefs, files) and AI suggested actions. The old standalone card is
-// retired, so this route just redirects to the chat: every «Άνοιγμα πελάτη» link
-// and any bookmarked /customers/[id] URL lands on the current view.
-import { redirect } from 'next/navigation';
+// The customer card = the prototype's profile screen (avatar · status · round
+// actions · AI call brief · Έργα · στοιχεία · note). The Messenger workspace
+// lives at /customers/[id]/chat and is reached from the «Μήνυμα» action or an
+// «Έργο» (the per-project «Διαδικασία»).
+import CustomerProfile from '@/components/customers/CustomerProfile';
 
 export default async function CustomerPage({
   params,
@@ -11,5 +10,5 @@ export default async function CustomerPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  redirect(`/customers/${id}/chat`);
+  return <CustomerProfile customerId={id} />;
 }

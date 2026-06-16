@@ -51,7 +51,7 @@ function countsLine(c?: FolderCounts): string {
   return parts.join(' · ');
 }
 
-export default function CustomerFoldersStrip({ customerId, onChanged }: { customerId: string; onChanged?: () => void }) {
+export default function CustomerFoldersStrip({ customerId, onChanged, openCreateSignal }: { customerId: string; onChanged?: () => void; openCreateSignal?: number }) {
   const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,6 +74,11 @@ export default function CustomerFoldersStrip({ customerId, onChanged }: { custom
     } catch { setError(true); } finally { setLoading(false); }
   }, [customerId]);
   useEffect(() => { void load(); }, [load]);
+
+  // Lets the parent (customer profile «Νέο project» action) open the create sheet.
+  useEffect(() => {
+    if (openCreateSignal && openCreateSignal > 0) { setTitle(''); setCreateErr(''); setCreating(true); }
+  }, [openCreateSignal]);
 
   async function refresh() { await load(); onChanged?.(); }
 
