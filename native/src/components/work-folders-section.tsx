@@ -5,7 +5,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { ChipSelect, Input, PrimaryButton, SheetModal } from '@/components/ui';
@@ -63,6 +63,11 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   const [eNotes, setENotes] = useState('');
   const [eStatus, setEStatus] = useState('open');
   const [eBusy, setEBusy] = useState(false);
+
+  // public folder link (WF-2)
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkBusy, setLinkBusy] = useState(false);
+  const [linkSent, setLinkSent] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,9 +128,53 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   function openDetail(f: WorkFolder) {
     setDetail(f);
     setEditMode(false);
+    setLinkUrl('');
+    setLinkSent(false);
     setETitle(f.title);
     setENotes(f.notes ?? '');
     setEStatus(f.status);
+  }
+
+  // WF-2: create (draft) the public folder link, then send or share it.
+  async function draftLink() {
+    if (!detail) return;
+    setLinkBusy(true);
+    setLinkSent(false);
+    try {
+      const r = await apiPost<{ ok?: boolean; responseUrl?: string }>(`/api/folders/${detail.id}/link`, { mode: 'draft' });
+      if (r?.ok && r.responseUrl) setLinkUrl(r.responseUrl);
+      else Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.');
+    } catch (e) {
+      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε ο σύνδεσμος.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  async function sendLink() {
+    if (!detail || !linkUrl) return;
+    setLinkBusy(true);
+    try {
+      const r = await apiPost<{ ok?: boolean; sent?: boolean; fallbackReason?: string }>(`/api/folders/${detail.id}/link`, {
+        mode: 'send',
+        responseUrl: linkUrl,
+      });
+      if (r?.ok && r.sent) {
+        setLinkSent(true);
+        Alert.alert('✓', 'Ο σύνδεσμος στάλθηκε.');
+      } else {
+        Alert.alert('Αποστολή', r?.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setLinkBusy(false);
+    }
+  }
+
+  function shareLink() {
+    if (!linkUrl) return;
+    void Share.share({ message: linkUrl }).catch(() => {});
   }
 
   function closeDetail() {
@@ -291,6 +340,30 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                   Σύντομα θα μπορείς να συνδέεις προσφορές και ραντεβού εδώ.
                 </ThemedText>
               </View>
+
+              {/* Public folder link — send/share to the customer (WF-2) */}
+              <View style={styles.linkBox}>
+                <ThemedText type="smallBold" style={styles.ink}>
+                  Σύνδεσμος για τον πελάτη
+                </ThemedText>
+                {!linkUrl ? (
+                  <PrimaryButton label="Δημιουργία συνδέσμου" tone="outline" busy={linkBusy} onPress={() => void draftLink()} />
+                ) : (
+                  <>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={2}>
+                      {linkUrl}
+                    </ThemedText>
+                    <PrimaryButton label="Αποστολή (Viber → SMS)" busy={linkBusy} onPress={() => void sendLink()} />
+                    <PrimaryButton label="Κοινοποίηση" tone="outline" onPress={shareLink} />
+                    {linkSent ? (
+                      <ThemedText type="small" style={styles.sentText}>
+                        Ο σύνδεσμος στάλθηκε.
+                      </ThemedText>
+                    ) : null}
+                  </>
+                )}
+              </View>
+
               <PrimaryButton
                 label="Επεξεργασία"
                 tone="outline"
@@ -326,5 +399,7 @@ const makeStyles = (c: ThemePalette) =>
     detailBadge: { alignSelf: 'flex-start', backgroundColor: Brand.primarySoft, paddingHorizontal: Spacing.three, paddingVertical: 4, borderRadius: 999 },
     detailBadgeText: { color: Brand.primary, fontSize: 13, fontWeight: '700' },
     placeholderBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 4 },
+    linkBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
+    sentText: { color: '#1B8A4C', fontWeight: '700' },
     pressed: { opacity: 0.7 },
   });
