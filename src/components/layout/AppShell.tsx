@@ -108,7 +108,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // splash (not a blank screen) so the launch feels app-like.
   if (!authChecked) {
     return (
-      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#eef3f8] dark:bg-[#0a131e]">
+      <div className="flex min-h-[100dvh] flex-col items-center justify-center gap-5 bg-[#F5F5F7] dark:bg-[#0e1722]">
         <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-indigo-600 shadow-sm">
           <svg
             className="h-7 w-7 text-white"
@@ -147,7 +147,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex min-w-0 flex-1 flex-col md:pl-60">
         {/* Bottom padding clears the mobile nav + iOS home indicator (except the
             full-screen chat, which sizes itself above the nav). */}
-        <main className={`min-w-0 flex-1 overflow-x-hidden scroll-smooth bg-[#eef3f8] dark:bg-[#0a131e] ${
+        <main className={`min-w-0 flex-1 overflow-x-hidden scroll-smooth bg-[#F5F5F7] dark:bg-[#0e1722] ${
           isChatPage ? 'overflow-y-hidden' : 'overflow-y-auto pb-[calc(6rem+env(safe-area-inset-bottom))] md:pb-6'
         }`}>{children}</main>
 
@@ -156,7 +156,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <Link
             href="/cmd"
             aria-label="AI βοηθός"
-            className="fixed bottom-6 right-6 z-40 hidden h-14 w-14 items-center justify-center rounded-full bg-brand-gradient text-white shadow-lg shadow-indigo-900/30 ring-4 ring-white transition hover:opacity-95 active:scale-95 md:flex"
+            className="fixed left-1/2 -translate-x-1/2 bottom-[calc(5.5rem+env(safe-area-inset-bottom))] z-40 flex h-14 w-14 items-center justify-center rounded-full bg-brand-gradient text-white shadow-lg shadow-indigo-900/30 ring-4 ring-white transition hover:opacity-95 active:scale-95 md:left-auto md:right-6 md:translate-x-0 md:bottom-6"
           >
             <svg className="h-6 w-6" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456Z" />
