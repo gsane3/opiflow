@@ -5,6 +5,7 @@
 
 import { loadPublicFolder, type PublicFolderView } from '@/lib/server/public-folder';
 import QuestionForm from './QuestionForm';
+import Stepper from '@/components/customers/Stepper';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,6 +70,9 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
           <div className="mt-2 flex items-center gap-2">
             <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{view.statusLabel}</span>
             {view.statusMessage && <span className="text-sm text-zinc-500">{view.statusMessage}</span>}
+          </div>
+          <div className="mt-4">
+            <Stepper step={view.step} />
           </div>
         </section>
 
