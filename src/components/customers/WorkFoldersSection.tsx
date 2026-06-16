@@ -349,7 +349,9 @@ export default function WorkFoldersSection({ customerId }: { customerId: string 
                           {selected.notes && <p className="text-sm text-zinc-700 dark:text-zinc-200">{selected.notes}</p>}
 
                           {/* WF-4: real folder sections + attach / detach / quick-create */}
-                          <FolderDetailPanel folderId={selected.id} onChanged={load} />
+                          {/* This panel keeps its OWN public-link + edit/archive below,
+                              so opt out of FolderDetailPanel's copy (avoid a double-render). */}
+                          <FolderDetailPanel folderId={selected.id} onChanged={load} showActions={false} />
 
                           {/* Public folder link — copy/send to the customer (WF-2) */}
                           <div className="space-y-2 rounded-xl border border-zinc-200 p-3 dark:border-white/10">

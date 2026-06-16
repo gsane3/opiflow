@@ -87,10 +87,6 @@ export default function CustomerFoldersStrip({
   const [createBusy, setCreateBusy] = useState(false);
   const [createErr, setCreateErr] = useState('');
 
-  // Ζήτα φωτογραφίες / στοιχεία — reuse the merged customer-level send flow.
-  const [reqBusy, setReqBusy] = useState<'upload' | 'intake' | null>(null);
-  const [toast, setToast] = useState<string | null>(null);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -108,12 +104,6 @@ export default function CustomerFoldersStrip({
   }, [customerId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = window.setTimeout(() => setToast(null), 2500);
-    return () => window.clearTimeout(t);
-  }, [toast]);
 
   async function refreshAll() {
     await load();
@@ -146,29 +136,6 @@ export default function CustomerFoldersStrip({
       setCreateErr('Ο φάκελος δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } finally {
       setCreateBusy(false);
-    }
-  }
-
-  async function sendRequest(kind: 'upload' | 'intake') {
-    setReqBusy(kind);
-    try {
-      const headers = await authHeaders();
-      if (!headers) { setToast('Δεν στάλθηκε. Δοκίμασε ξανά.'); return; }
-      const path = kind === 'upload' ? 'upload-link' : 'intake-link';
-      const res = await fetch(`/api/customers/${customerId}/${path}`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ mode: 'send' }),
-      });
-      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean; fallbackReason?: string };
-      if (res.ok && json?.ok && json.sent) setToast(kind === 'upload' ? 'Στάλθηκε το αίτημα φωτογραφιών.' : 'Στάλθηκε το αίτημα στοιχείων.');
-      else if (res.ok && json?.ok) setToast(json.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.');
-      else setToast('Δεν στάλθηκε. Δοκίμασε ξανά.');
-      void load();
-    } catch {
-      setToast('Δεν στάλθηκε. Δοκίμασε ξανά.');
-    } finally {
-      setReqBusy(null);
     }
   }
 
@@ -229,14 +196,13 @@ export default function CustomerFoldersStrip({
         </div>
       )}
 
-      {/* Quick actions near the conversation */}
+      {/* Quick actions near the conversation. «Ζήτα φωτογραφίες» / «Ζήτα στοιχεία»
+          are folder-bound and live INSIDE the opened folder (FolderDetailPanel),
+          where the workFolderId is known — so they are intentionally not here. */}
       <div className="mt-2 flex gap-1.5 overflow-x-auto pb-0.5 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <QuickBtn label="Νέα προσφορά" onClick={onNewOffer} />
         <QuickBtn label="Νέο ραντεβού" onClick={onNewAppointment} />
-        <QuickBtn label="Ζήτα φωτογραφίες" onClick={() => void sendRequest('upload')} busy={reqBusy === 'upload'} />
-        <QuickBtn label="Ζήτα στοιχεία" onClick={() => void sendRequest('intake')} busy={reqBusy === 'intake'} />
       </div>
-      {toast && <p className="mt-1 px-1 text-[11px] font-medium text-green-700">{toast}</p>}
 
       {/* Νέος φάκελος — create modal */}
       {creating && (
