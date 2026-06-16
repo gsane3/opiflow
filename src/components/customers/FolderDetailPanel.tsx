@@ -74,7 +74,11 @@ export default function FolderDetailPanel({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [toastErr, setToastErr] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  // Panel-level toast: green for success, red for failure.
+  const notify = (msg: string, isError = false) => { setToast(msg); setToastErr(isError); };
 
   // attach sheet
   const [attachOpen, setAttachOpen] = useState(false);
@@ -163,7 +167,7 @@ export default function FolderDetailPanel({
     setBusyKey(`${entityType}:${entityId}:${attach}`);
     try {
       const headers = await authHeaders();
-      if (!headers) { setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.'); return; }
+      if (!headers) { notify(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.', true); return; }
       const res = await fetch(`/api/folders/${folderId}/attach`, {
         method: 'POST',
         headers,
@@ -171,7 +175,7 @@ export default function FolderDetailPanel({
       });
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (res.ok && json?.ok) {
-        setToast(attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
+        notify(attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
         if (attach && attachOpen) {
           // refresh the pick lists so the just-attached item drops off
           setAttOffers((p) => p.filter((o) => o.id !== entityId));
@@ -182,10 +186,10 @@ export default function FolderDetailPanel({
         }
         await refreshAll();
       } else {
-        setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+        notify(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.', true);
       }
     } catch {
-      setToast(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+      notify(attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.', true);
     } finally {
       setBusyKey(null);
     }
@@ -197,7 +201,7 @@ export default function FolderDetailPanel({
     try {
       const headers = await authHeaders();
       const customerId = detail?.customer?.id;
-      if (!headers || !customerId) { setToast('Δεν στάλθηκε. Δοκίμασε ξανά.'); return; }
+      if (!headers || !customerId) { notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true); return; }
       const path = kind === 'upload' ? 'upload-link' : 'intake-link';
       const res = await fetch(`/api/customers/${customerId}/${path}`, {
         method: 'POST',
@@ -207,14 +211,14 @@ export default function FolderDetailPanel({
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean; fallbackReason?: string };
       if (res.ok && json?.ok) {
         // The token is created (and filed) even when delivery falls back, so always refresh.
-        if (json.sent) setToast(kind === 'upload' ? 'Στάλθηκε το αίτημα φωτογραφιών.' : 'Στάλθηκε το αίτημα στοιχείων.');
-        else setToast(json.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.');
+        if (json.sent) notify(kind === 'upload' ? 'Στάλθηκε το αίτημα φωτογραφιών.' : 'Στάλθηκε το αίτημα στοιχείων.');
+        else notify(json.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.', true);
         await refreshAll();
       } else {
-        setToast('Δεν στάλθηκε. Δοκίμασε ξανά.');
+        notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true);
       }
     } catch {
-      setToast('Δεν στάλθηκε. Δοκίμασε ξανά.');
+      notify('Δεν στάλθηκε. Δοκίμασε ξανά.', true);
     } finally {
       setBusyKey(null);
     }
@@ -268,7 +272,7 @@ export default function FolderDetailPanel({
       const json = (await res.json().catch(() => ({}))) as { ok?: boolean };
       if (res.ok && json?.ok) {
         setQcMode(null);
-        setToast('Συνδέθηκε με τον φάκελο');
+        notify('Συνδέθηκε με τον φάκελο');
         await refreshAll();
       } else {
         setQcError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
@@ -296,7 +300,7 @@ export default function FolderDetailPanel({
 
   return (
     <div className="space-y-3">
-      {toast && <p className="text-xs font-medium text-green-700">{toast}</p>}
+      {toast && <p className={`text-xs font-medium ${toastErr ? 'text-red-600' : 'text-green-700'}`}>{toast}</p>}
 
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2">
