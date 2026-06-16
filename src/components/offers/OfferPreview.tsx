@@ -132,6 +132,10 @@ export default function OfferPreview({ offerId }: Props) {
   const [offer, setOffer] = useState<Offer | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [bp, setBp] = useState<BusinessProfile | null>(null);
+  // Bank details (beneficiary / bank / IBAN) for the payment block on the offer.
+  // Loaded from the separate /api/businesses/me/bank endpoint (migration 048);
+  // null / empty pre-048 → the block simply doesn't render.
+  const [bank, setBank] = useState<{ beneficiary: string | null; bank: string | null; iban: string | null } | null>(null);
   // Backend mode: set when offer was loaded from the real API.
   const [loadedFromBackend, setLoadedFromBackend] = useState(false);
   const tokenRef = useRef<string | null>(null);
@@ -209,10 +213,20 @@ export default function OfferPreview({ offerId }: Props) {
               }
             } catch { /* non-fatal */ }
 
+            let backendBank: { beneficiary: string | null; bank: string | null; iban: string | null } | null = null;
+            try {
+              const bankResp = await fetch('/api/businesses/me/bank', { headers });
+              if (bankResp.ok) {
+                const bankData = await bankResp.json();
+                backendBank = (bankData.bank as { beneficiary: string | null; bank: string | null; iban: string | null } | undefined) ?? null;
+              }
+            } catch { /* non-fatal — pre-048 or transient; bank block just hides */ }
+
             if (!cancelled) {
               setOffer(backendOffer);
               setCustomer(backendCustomer);
               setBp(backendBp);
+              setBank(backendBank);
               setLoadedFromBackend(true);
               setHydrated(true);
             }
@@ -946,6 +960,19 @@ export default function OfferPreview({ offerId }: Props) {
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Όροι</p>
             <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300 whitespace-pre-wrap">{offer.terms}</p>
+          </div>
+        )}
+
+        {/* Payment details (bank block) — where the customer deposits. Shows only
+            when an IBAN is configured (Settings → Τραπεζικά στοιχεία). */}
+        {bank?.iban && (
+          <div className="rounded-xl bg-zinc-50 dark:bg-[#1e2b38] p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">Στοιχεία πληρωμής</p>
+            <div className="mt-1 space-y-0.5 text-sm text-zinc-700 dark:text-zinc-200">
+              {bank.beneficiary && <p>Δικαιούχος: {bank.beneficiary}</p>}
+              {bank.bank && <p>Τράπεζα: {bank.bank}</p>}
+              <p className="font-mono tracking-wide">IBAN: {bank.iban}</p>
+            </div>
           </div>
         )}
 
