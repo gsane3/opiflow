@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
 import FolderDetailPanel from '@/components/customers/FolderDetailPanel';
+import { ergoStepCaption } from '@/components/customers/Stepper';
 
 interface FolderCounts {
   offers: number;
@@ -28,6 +29,7 @@ interface Folder {
   id: string;
   title: string;
   status: string;
+  step?: number;
   createdAt: string;
   updatedAt: string;
   counts?: FolderCounts;
@@ -185,6 +187,7 @@ export default function CustomerFoldersStrip({
                 </span>
                 <span className="text-[11px] tabular-nums text-zinc-400">{formatDateGr(f.updatedAt)}</span>
               </div>
+              <p className="mt-1 text-[11px] font-medium text-indigo-600/90 dark:text-indigo-300">{ergoStepCaption(f.step ?? 0)}</p>
               {countsLine(f.counts) ? (
                 <p className="mt-1.5 truncate text-[11px] text-zinc-500 dark:text-zinc-400">{countsLine(f.counts)}</p>
               ) : (

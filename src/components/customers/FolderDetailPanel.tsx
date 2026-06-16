@@ -12,6 +12,7 @@ import { formatDateGr } from '@/lib/date';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Textarea } from '@/components/ui/Textarea';
+import Stepper from './Stepper';
 
 const FOLDER_STATUS_OPTIONS = [
   { v: 'open', l: 'Νέο' },
@@ -37,7 +38,7 @@ interface DetailMsg { id: string; summary: string | null; direction: string; cha
 interface DetailUpload { id: string; status: string; sentChannel: string | null; createdAt: string; openedAt: string | null; completedAt: string | null }
 interface DetailIntake { id: string; status: string; sentChannel: string | null; createdAt: string; openedAt: string | null; submittedAt: string | null }
 interface FolderDetail {
-  folder: { id: string; title: string; status: string; notes: string | null };
+  folder: { id: string; title: string; status: string; step: number; notes: string | null };
   customer: { id: string; name: string | null; phone: string | null; email: string | null } | null;
   sections: {
     offers: { count: number; items: DetailOffer[] };
@@ -391,6 +392,17 @@ export default function FolderDetailPanel({
     await patchFolder({ status: 'archived' });
   }
 
+  // Process (Διαδικασία): advance the step pointer / complete the project.
+  async function advanceStep() {
+    if (!detail) return;
+    const next = Math.min(detail.folder.step + 1, 4);
+    if (next === detail.folder.step) return;
+    await patchFolder({ step: next });
+  }
+  async function completeProject() {
+    await patchFolder({ step: 4, status: 'done' });
+  }
+
   if (loading) {
     return <p className="py-3 text-sm text-zinc-400 dark:text-zinc-500">Φορτώνει...</p>;
   }
@@ -408,6 +420,21 @@ export default function FolderDetailPanel({
   return (
     <div className="space-y-3">
       {toast && <p className={`text-xs font-medium ${toastErr ? 'text-red-600' : 'text-green-700'}`}>{toast}</p>}
+
+      {/* Διαδικασία — process stepper + step controls */}
+      <div className="rounded-xl bg-white p-3 ring-1 ring-zinc-200/70 dark:bg-[#17232f] dark:ring-white/10">
+        <Stepper step={detail.folder.step} />
+        {(detail.folder.step < 4 || (detail.folder.status !== 'done' && detail.folder.status !== 'archived')) && (
+          <div className="mt-2.5 flex flex-wrap gap-2">
+            {detail.folder.step < 4 && (
+              <Button variant="secondary" size="sm" loading={editBusy} onClick={() => void advanceStep()}>Παράλειψη βήματος ›</Button>
+            )}
+            {detail.folder.status !== 'done' && detail.folder.status !== 'archived' && (
+              <Button variant="secondary" size="sm" loading={editBusy} onClick={() => void completeProject()}>Ολοκλήρωση έργου</Button>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Quick actions */}
       <div className="flex flex-wrap gap-2">
