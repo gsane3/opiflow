@@ -10,11 +10,13 @@ import {
   APPOINTMENT_TASK_TYPES,
   dbToFolder,
   isFolderStatus,
+  isTerminalFolderStatus,
   validateFolderStep,
   validateFolderTitle,
   type FolderCounts,
   type WorkFolderRow,
 } from '@/lib/server/work-folders';
+import { capFolderTokensExpiry, FOLDER_TOKEN_EXPIRY_HOURS } from '@/lib/server/folder-tokens';
 
 export const runtime = 'nodejs';
 
@@ -264,6 +266,21 @@ export async function PATCH(
 
     updateFields.updated_at = new Date().toISOString();
 
+    // Detect a real transition INTO a terminal status (done/archived) so the
+    // post-completion countdown for the customer link starts exactly once — not on
+    // every later edit that re-sends the same status.
+    const becomingTerminal = 'status' in raw && isTerminalFolderStatus(raw.status);
+    let wasTerminal = false;
+    if (becomingTerminal) {
+      const prev = await supabase
+        .from('work_folders')
+        .select('status')
+        .eq('id', folderId)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      wasTerminal = isTerminalFolderStatus((prev.data as { status?: string } | null)?.status);
+    }
+
     const updPrimary = await supabase
       .from('work_folders')
       .update(updateFields)
@@ -295,6 +312,16 @@ export async function PATCH(
     }
     if (!updData) {
       return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
+    }
+
+    // On a real transition INTO a terminal status (done/archived), start the
+    // post-completion countdown: the customer's live links close 30 days later.
+    // Gated on the transition so unrelated edits to an already-terminal folder
+    // don't reset the clock. Best-effort — never blocks the response.
+    if (becomingTerminal && !wasTerminal) {
+      try {
+        await capFolderTokensExpiry({ businessId, workFolderId: folderId, hours: FOLDER_TOKEN_EXPIRY_HOURS });
+      } catch { /* best-effort */ }
     }
 
     return NextResponse.json({ ok: true, folder: dbToFolder(updData as WorkFolderRow) });

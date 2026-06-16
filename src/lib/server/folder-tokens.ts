@@ -16,6 +16,10 @@ import { createServiceSupabaseClient, getPublicAppUrl } from './intake-tokens';
 const TOKEN_BYTES = 32;
 // A job folder lives for weeks, so the link defaults to a longer 30-day window.
 const DEFAULT_EXPIRY_HOURS = 720;
+/** Rolling inactivity window AND post-completion window: 30 days. Exported so the
+ *  public read path (rolling refresh) and the folder PATCH (completion cap) use
+ *  the same value. */
+export const FOLDER_TOKEN_EXPIRY_HOURS = DEFAULT_EXPIRY_HOURS;
 
 export type FolderTokenStatus = 'pending' | 'sent' | 'opened' | 'expired' | 'revoked';
 
@@ -124,12 +128,22 @@ export async function findValidFolderToken(rawToken: string): Promise<FolderToke
   return data ? (data as FolderTokenRow) : null;
 }
 
-export async function markFolderTokenOpened(tokenId: string): Promise<void> {
+export async function markFolderTokenOpened(
+  tokenId: string,
+  opts?: { extendExpiryHours?: number },
+): Promise<void> {
   const supabase = createServiceSupabaseClient();
-  const now = new Date().toISOString();
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const update: Record<string, unknown> = { status: 'opened', opened_at: nowIso, updated_at: nowIso };
+  // Rolling expiry: each valid open pushes the deadline forward, so an actively
+  // used link never lapses while one untouched for `extendExpiryHours` does.
+  if (opts?.extendExpiryHours && opts.extendExpiryHours > 0) {
+    update.expires_at = new Date(now.getTime() + opts.extendExpiryHours * 60 * 60 * 1000).toISOString();
+  }
   const { error } = await supabase
     .from('customer_folder_tokens')
-    .update({ status: 'opened', opened_at: now, updated_at: now })
+    .update(update)
     .eq('id', tokenId)
     .in('status', ['pending', 'sent', 'opened']);
   if (error) {
@@ -174,5 +188,56 @@ export async function revokePendingFolderTokens(params: {
     .is('revoked_at', null);
   if (error) {
     throw new Error(`Failed to revoke folder tokens: ${error.message}`);
+  }
+}
+
+/**
+ * Revoke ONLY preview (undelivered) tokens — sent_channel IS NULL. Delivered
+ * links (sent via viber/sms/email/manual) are preserved, so previewing the
+ * portal from the Project page never breaks the link the customer already has.
+ * Keeps preview tokens from accumulating across repeated eye clicks.
+ */
+export async function revokePreviewFolderTokens(params: {
+  businessId: string;
+  workFolderId: string;
+}): Promise<void> {
+  const supabase = createServiceSupabaseClient();
+  const now = new Date().toISOString();
+  const { error } = await supabase
+    .from('customer_folder_tokens')
+    .update({ status: 'revoked', revoked_at: now, updated_at: now })
+    .eq('business_id', params.businessId)
+    .eq('work_folder_id', params.workFolderId)
+    .is('sent_channel', null)
+    .in('status', ['pending', 'sent', 'opened'])
+    .is('revoked_at', null);
+  if (error) {
+    throw new Error(`Failed to revoke preview folder tokens: ${error.message}`);
+  }
+}
+
+/**
+ * Cap the expiry of a folder's live tokens to now + `hours`. Used when a folder
+ * is completed (status → done): the customer's link then closes `hours` after
+ * completion, and the rolling refresh no longer extends it (the public read path
+ * stops extending once the folder is done).
+ */
+export async function capFolderTokensExpiry(params: {
+  businessId: string;
+  workFolderId: string;
+  hours: number;
+}): Promise<void> {
+  const supabase = createServiceSupabaseClient();
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + params.hours * 60 * 60 * 1000).toISOString();
+  const { error } = await supabase
+    .from('customer_folder_tokens')
+    .update({ expires_at: expiresAt, updated_at: now.toISOString() })
+    .eq('business_id', params.businessId)
+    .eq('work_folder_id', params.workFolderId)
+    .in('status', ['pending', 'sent', 'opened'])
+    .is('revoked_at', null);
+  if (error) {
+    throw new Error(`Failed to cap folder token expiry: ${error.message}`);
   }
 }

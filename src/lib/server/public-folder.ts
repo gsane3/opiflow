@@ -8,8 +8,8 @@
 // message (fail-closed, no information leak).
 
 import { createServiceSupabaseClient } from './intake-tokens';
-import { findValidFolderToken, markFolderTokenOpened } from './folder-tokens';
-import { clampStep } from './work-folders';
+import { findValidFolderToken, markFolderTokenOpened, FOLDER_TOKEN_EXPIRY_HOURS } from './folder-tokens';
+import { clampStep, isTerminalFolderStatus } from './work-folders';
 import { offerCanRespond } from './offer-status';
 import { appointmentCanRespond } from './appointment-status';
 import { mapPublicPayment, type PublicPayment, type PaymentRequestRow } from './payments';
@@ -315,8 +315,14 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     const messages = ((msgRes.data ?? []) as unknown[]) as MessageRowForPublic[];
     const payments = ((payRes.data ?? []) as unknown[]) as PaymentRowForPublic[];
 
-    // Best-effort "opened" tracking — must not block the page.
-    void markFolderTokenOpened(token.id).catch(() => {});
+    // Best-effort "opened" tracking + rolling 30-day inactivity window: each open
+    // pushes expiry forward WHILE the job is active. Once the folder reaches a
+    // terminal status (done/archived) we stop extending, so the link closes 30
+    // days after completion (the cap set on the terminal transition). Must not
+    // block the page.
+    void markFolderTokenOpened(token.id, {
+      extendExpiryHours: isTerminalFolderStatus(folder.status) ? undefined : FOLDER_TOKEN_EXPIRY_HOURS,
+    }).catch(() => {});
 
     return toPublicFolderView(folder, business, offers, appointments, messages, payments);
   } catch {

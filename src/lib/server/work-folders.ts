@@ -21,6 +21,13 @@ export function isFolderStatus(value: unknown): value is FolderStatus {
   return typeof value === 'string' && (FOLDER_STATUSES as readonly string[]).includes(value);
 }
 
+/** Terminal (finished) folder statuses. The customer portal link stops rolling
+ *  its inactivity window and begins its post-completion countdown once a folder
+ *  reaches one of these — `done` (completed) or `archived`. */
+export function isTerminalFolderStatus(value: unknown): boolean {
+  return value === 'done' || value === 'archived';
+}
+
 /** Coerce any DB/legacy value into a valid step (0..MAX). Tolerant of a missing
  *  column (pre-migration-047 rows) → defaults to 0. */
 export function clampStep(value: unknown): number {

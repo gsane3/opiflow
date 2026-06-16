@@ -12,6 +12,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { buildMapsUrl } from '@/lib/maps';
 import { OpfIcon } from '@/components/opf/icon';
 import CustomerFoldersStrip from '@/components/customers/CustomerFoldersStrip';
+import CustomerInfoPanel from '@/components/customers/CustomerInfoPanel';
 
 interface CustomerFull {
   id: string; name: string | null; companyName: string | null;
@@ -39,6 +40,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const [brief, setBrief] = useState<{ body: string; when: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [createSignal, setCreateSignal] = useState(0);
+  const [infoOpen, setInfoOpen] = useState(false);
   const [note, setNote] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
@@ -83,7 +85,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
       <div className="opf-topbar opf-prof-top">
         <button className="opf-press opf-tb-back" onClick={() => router.push('/customers')} aria-label="Πίσω"><OpfIcon name="chevronL" size={24} color="var(--brand)" stroke={2.4} /></button>
         <div style={{ flex: 1 }} />
-        <button className="opf-g-round opf-press" onClick={() => router.push(`/customers/${customerId}/chat`)} aria-label="Επεξεργασία"><OpfIcon name="edit" size={18} color="var(--brand)" stroke={2} /></button>
+        <button className="opf-g-round opf-press" onClick={() => setInfoOpen(true)} aria-label="Επεξεργασία στοιχείων"><OpfIcon name="edit" size={18} color="var(--brand)" stroke={2} /></button>
       </div>
 
       <div style={{ paddingBottom: 'calc(6rem + env(safe-area-inset-bottom))' }}>
@@ -156,6 +158,9 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
           <button className="opf-btn-primary opf-full opf-press" onClick={() => void saveNote()}>{noteSaving ? 'Αποθήκευση…' : noteSaved ? 'Αποθηκεύτηκε ✓' : 'Αποθήκευση σημείωσης'}</button>
         </div>
       </div>
+
+      {/* Edit-details panel — opened by the pencil; re-loads the profile on close. */}
+      <CustomerInfoPanel customerId={customerId} open={infoOpen} onClose={() => { setInfoOpen(false); void load(); }} callBriefs={[]} initialSection="contact" />
     </div>
   );
 }
