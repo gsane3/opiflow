@@ -41,6 +41,22 @@ interface DetailMsg {
   channel: string;
   createdAt: string;
 }
+interface DetailUpload {
+  id: string;
+  status: string;
+  sentChannel: string | null;
+  createdAt: string;
+  openedAt: string | null;
+  completedAt: string | null;
+}
+interface DetailIntake {
+  id: string;
+  status: string;
+  sentChannel: string | null;
+  createdAt: string;
+  openedAt: string | null;
+  submittedAt: string | null;
+}
 interface FolderDetail {
   folder: { id: string; title: string; status: string };
   customer: { id: string; name: string | null; phone: string | null; email: string | null } | null;
@@ -48,8 +64,8 @@ interface FolderDetail {
     offers: { count: number; items: DetailOffer[] };
     appointments: { count: number; items: DetailAppt[] };
     messages: { count: number; items: DetailMsg[] };
-    photos: { count: number };
-    intake: { count: number };
+    photos: { count: number; items: DetailUpload[] };
+    intake: { count: number; items: DetailIntake[] };
   };
 }
 interface AttachOffer {
@@ -64,6 +80,19 @@ interface AttachAppt {
   type: string;
   status: string;
   dueDate: string | null;
+}
+interface AttachMsg {
+  id: string;
+  direction: string;
+  channel: string;
+  summary: string | null;
+  createdAt: string;
+}
+interface AttachReq {
+  id: string;
+  status: string;
+  sentChannel: string | null;
+  createdAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +117,15 @@ const APPT_TYPE_OPTIONS = [
   { key: 'book_appointment', label: 'Ραντεβού' },
   { key: 'visit_customer', label: 'Επίσκεψη' },
 ];
+const REQ_STATUS_GR: Record<string, string> = {
+  pending: 'Εκκρεμεί',
+  sent: 'Στάλθηκε',
+  opened: 'Ανοίχτηκε',
+  submitted: 'Υποβλήθηκε',
+  completed: 'Ολοκληρώθηκε',
+  expired: 'Έληξε',
+  revoked: 'Ακυρώθηκε',
+};
 
 function money(n: number | null): string {
   return typeof n === 'number' ? `€${n.toLocaleString('el-GR')}` : '';
@@ -158,6 +196,9 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   const [attachError, setAttachError] = useState(false);
   const [attOffers, setAttOffers] = useState<AttachOffer[]>([]);
   const [attAppts, setAttAppts] = useState<AttachAppt[]>([]);
+  const [attMsgs, setAttMsgs] = useState<AttachMsg[]>([]);
+  const [attIntake, setAttIntake] = useState<AttachReq[]>([]);
+  const [attUpload, setAttUpload] = useState<AttachReq[]>([]);
 
   // WF-4: quick-create offer sheet
   const [newOfferOpen, setNewOfferOpen] = useState(false);
@@ -219,11 +260,24 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     setAttachError(false);
     setAttOffers([]);
     setAttAppts([]);
+    setAttMsgs([]);
+    setAttIntake([]);
+    setAttUpload([]);
     try {
-      const r = await apiGet<{ ok?: boolean; offers?: AttachOffer[]; appointments?: AttachAppt[] }>(`/api/folders/${folderId}/attachable`);
+      const r = await apiGet<{
+        ok?: boolean;
+        offers?: AttachOffer[];
+        appointments?: AttachAppt[];
+        messages?: AttachMsg[];
+        intake?: AttachReq[];
+        upload?: AttachReq[];
+      }>(`/api/folders/${folderId}/attachable`);
       if (r?.ok) {
         setAttOffers(r.offers ?? []);
         setAttAppts(r.appointments ?? []);
+        setAttMsgs(r.messages ?? []);
+        setAttIntake(r.intake ?? []);
+        setAttUpload(r.upload ?? []);
       } else {
         setAttachError(true);
       }
@@ -237,7 +291,7 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   // WF-4: attach or detach an entity from a folder
   async function setFolderLink(
     folderId: string,
-    entityType: 'offer' | 'task' | 'communication',
+    entityType: 'offer' | 'task' | 'communication' | 'intake_token' | 'upload_token',
     entityId: string,
     attach: boolean,
   ) {
@@ -248,9 +302,12 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       if (r?.ok) {
         Alert.alert('', attach ? 'Συνδέθηκε με τον φάκελο' : 'Αφαιρέθηκε από τον φάκελο');
         if (attach && attachOpen) {
-          // drop the just-attached item from the pick list
+          // drop the just-attached item from the pick lists
           setAttOffers((p) => p.filter((o) => o.id !== entityId));
           setAttAppts((p) => p.filter((a) => a.id !== entityId));
+          setAttMsgs((p) => p.filter((m) => m.id !== entityId));
+          setAttIntake((p) => p.filter((i) => i.id !== entityId));
+          setAttUpload((p) => p.filter((u) => u.id !== entityId));
         }
         void loadFolderDetail(folderId);
         void load();
@@ -260,6 +317,38 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     } catch (e) {
       const isNet = e instanceof ApiError && e.isNetwork;
       Alert.alert('Σφάλμα', isNet ? 'Έλεγξε τη σύνδεση.' : attach ? 'Δεν έγινε η σύνδεση. Δοκίμασε ξανά.' : 'Δεν αφαιρέθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
+  // WF-4B: one-tap request — create + send a photo/intake request filed into the folder
+  async function sendFolderRequest(folderId: string, customerId: string, kind: 'upload' | 'intake') {
+    const key = `req:${kind}`;
+    setBusyKey(key);
+    try {
+      const path = kind === 'upload' ? 'upload-link' : 'intake-link';
+      const r = await apiPost<{ ok?: boolean; sent?: boolean; fallbackReason?: string }>(
+        `/api/customers/${customerId}/${path}`,
+        { mode: 'send', workFolderId: folderId },
+      );
+      if (r?.ok) {
+        if (r.sent) {
+          Alert.alert('', kind === 'upload' ? 'Στάλθηκε το αίτημα φωτογραφιών.' : 'Στάλθηκε το αίτημα στοιχείων.');
+        } else if (r.fallbackReason === 'missing_mobile') {
+          Alert.alert('', 'Λείπει κινητό τηλέφωνο.');
+        } else {
+          Alert.alert('', 'Δεν στάλθηκε. Δοκίμασε ξανά.');
+        }
+        // Token is always created + filed, so always refresh
+        void loadFolderDetail(folderId);
+        void load();
+      } else {
+        Alert.alert('Σφάλμα', 'Δεν στάλθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      const isNet = e instanceof ApiError && e.isNetwork;
+      Alert.alert('Σφάλμα', isNet ? 'Έλεγξε τη σύνδεση.' : 'Δεν στάλθηκε. Δοκίμασε ξανά.');
     } finally {
       setBusyKey(null);
     }
@@ -694,28 +783,66 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
 
                   {/* Section: Φωτογραφίες */}
                   <FdSection title="Φωτογραφίες" count={fdetail.sections.photos.count} c={c} styles={styles}>
-                    {fdetail.sections.photos.count === 0 ? (
+                    <PrimaryButton
+                      label="Ζήτα φωτογραφίες"
+                      tone="outline"
+                      busy={busyKey === 'req:upload'}
+                      onPress={() => {
+                        const cid = fdetail.customer?.id;
+                        if (cid) void sendFolderRequest(fdetail.folder.id, cid, 'upload');
+                      }}
+                    />
+                    {fdetail.sections.photos.items.length === 0 ? (
                       <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
                     ) : (
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>
-                        {fdetail.sections.photos.count} αιτήματα φωτογραφιών
-                      </ThemedText>
+                      fdetail.sections.photos.items.map((u) => (
+                        <FdRow
+                          key={u.id}
+                          primary={REQ_STATUS_GR[u.status] ?? u.status}
+                          secondary={`Αίτημα φωτογραφιών · ${formatDate(u.createdAt)}`}
+                          busy={busyKey === `upload_token:${u.id}`}
+                          detachLabel="Αφαίρεση από φάκελο"
+                          onDetach={() => void setFolderLink(fdetail.folder.id, 'upload_token', u.id, false)}
+                          styles={styles}
+                          c={c}
+                        />
+                      ))
                     )}
                   </FdSection>
 
                   {/* Section: Στοιχεία πελάτη */}
                   <FdSection title="Στοιχεία πελάτη" c={c} styles={styles}>
-                    {!fdetail.customer ? (
-                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
-                    ) : (
+                    {fdetail.customer ? (
                       <View style={styles.customerBlock}>
                         <ThemedText type="smallBold" style={styles.ink}>{fdetail.customer.name ?? 'Πελάτης'}</ThemedText>
                         {fdetail.customer.phone ? <ThemedText type="small" themeColor="textSecondary">{fdetail.customer.phone}</ThemedText> : null}
                         {fdetail.customer.email ? <ThemedText type="small" themeColor="textSecondary">{fdetail.customer.email}</ThemedText> : null}
-                        {fdetail.sections.intake.count > 0 ? (
-                          <ThemedText type="small" themeColor="textSecondary">{fdetail.sections.intake.count} αιτήματα στοιχείων</ThemedText>
-                        ) : null}
                       </View>
+                    ) : null}
+                    <PrimaryButton
+                      label="Ζήτα στοιχεία"
+                      tone="outline"
+                      busy={busyKey === 'req:intake'}
+                      onPress={() => {
+                        const cid = fdetail.customer?.id;
+                        if (cid) void sendFolderRequest(fdetail.folder.id, cid, 'intake');
+                      }}
+                    />
+                    {fdetail.sections.intake.items.length === 0 && !fdetail.customer ? (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+                    ) : fdetail.sections.intake.items.length === 0 ? null : (
+                      fdetail.sections.intake.items.map((i) => (
+                        <FdRow
+                          key={i.id}
+                          primary={REQ_STATUS_GR[i.status] ?? i.status}
+                          secondary={`Αίτημα στοιχείων · ${formatDate(i.createdAt)}`}
+                          busy={busyKey === `intake_token:${i.id}`}
+                          detachLabel="Αφαίρεση από φάκελο"
+                          onDetach={() => void setFolderLink(fdetail.folder.id, 'intake_token', i.id, false)}
+                          styles={styles}
+                          c={c}
+                        />
+                      ))
                     )}
                   </FdSection>
                 </>
@@ -813,6 +940,60 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                     label="Σύνδεση"
                     busy={busyKey === `task:${a.id}`}
                     onPress={() => detail && void setFolderLink(detail.id, 'task', a.id, true)}
+                  />
+                </View>
+              ))
+            )}
+            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Μηνύματα</ThemedText>
+            {attMsgs.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+            ) : (
+              attMsgs.map((m) => (
+                <View key={m.id} style={styles.pickRow}>
+                  <View style={styles.pickRowBody}>
+                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{m.summary ?? '—'}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{formatDate(m.createdAt)}</ThemedText>
+                  </View>
+                  <PrimaryButton
+                    label="Σύνδεση"
+                    busy={busyKey === `communication:${m.id}`}
+                    onPress={() => detail && void setFolderLink(detail.id, 'communication', m.id, true)}
+                  />
+                </View>
+              ))
+            )}
+            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Στοιχεία</ThemedText>
+            {attIntake.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+            ) : (
+              attIntake.map((i) => (
+                <View key={i.id} style={styles.pickRow}>
+                  <View style={styles.pickRowBody}>
+                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{REQ_STATUS_GR[i.status] ?? i.status}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{`Αίτημα στοιχείων · ${formatDate(i.createdAt)}`}</ThemedText>
+                  </View>
+                  <PrimaryButton
+                    label="Σύνδεση"
+                    busy={busyKey === `intake_token:${i.id}`}
+                    onPress={() => detail && void setFolderLink(detail.id, 'intake_token', i.id, true)}
+                  />
+                </View>
+              ))
+            )}
+            <ThemedText type="smallBold" style={[styles.ink, styles.pickGroupLabel]}>Φωτογραφίες</ThemedText>
+            {attUpload.length === 0 ? (
+              <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Δεν υπάρχει κάτι ακόμα.</ThemedText>
+            ) : (
+              attUpload.map((u) => (
+                <View key={u.id} style={styles.pickRow}>
+                  <View style={styles.pickRowBody}>
+                    <ThemedText type="small" style={styles.ink} numberOfLines={1}>{REQ_STATUS_GR[u.status] ?? u.status}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>{`Αίτημα φωτογραφιών · ${formatDate(u.createdAt)}`}</ThemedText>
+                  </View>
+                  <PrimaryButton
+                    label="Σύνδεση"
+                    busy={busyKey === `upload_token:${u.id}`}
+                    onPress={() => detail && void setFolderLink(detail.id, 'upload_token', u.id, true)}
                   />
                 </View>
               ))

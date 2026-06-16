@@ -123,6 +123,8 @@ export async function createCustomerUploadToken(params: {
   sentChannel?: 'viber' | 'sms' | 'email' | 'manual' | null;
   sentToPhone?: string | null;
   expiryHours?: number;
+  /** WF-4B: file this request under a Work Folder. Requires migration 046. */
+  workFolderId?: string | null;
 }): Promise<CreateUploadTokenResult> {
   const supabase = createServiceSupabaseClient();
 
@@ -144,6 +146,8 @@ export async function createCustomerUploadToken(params: {
       sent_to_phone: params.sentToPhone ?? null,
       expires_at: expiresAt,
       updated_at: now.toISOString(),
+      // Only set when filing into a folder — keeps existing inserts untouched.
+      ...(params.workFolderId ? { work_folder_id: params.workFolderId } : {}),
     })
     .select('*')
     .single();

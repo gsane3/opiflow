@@ -86,6 +86,8 @@ export async function createCustomerIntakeToken(params: {
   phone?: string | null;
   sentChannel?: 'viber' | 'sms' | 'email' | 'manual' | null;
   expiryHours?: number;
+  /** WF-4B: file this request under a Work Folder. Requires migration 046. */
+  workFolderId?: string | null;
 }): Promise<CreateIntakeTokenResult> {
   const supabase = createServiceSupabaseClient();
 
@@ -107,6 +109,8 @@ export async function createCustomerIntakeToken(params: {
       sent_to_phone: params.phone ?? null,
       expires_at: expiresAt,
       updated_at: now.toISOString(),
+      // Only set when filing into a folder — keeps existing inserts untouched.
+      ...(params.workFolderId ? { work_folder_id: params.workFolderId } : {}),
     })
     .select('*')
     .single();
