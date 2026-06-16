@@ -15,7 +15,7 @@ import { formatDateGr } from '@/lib/date';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Spinner } from '@/components/ui/Spinner';
-import FolderDetailPanel from '@/components/customers/FolderDetailPanel';
+import ProjectProcess from '@/components/customers/ProjectProcess';
 import { ergoStepCaption } from '@/components/customers/Stepper';
 
 interface FolderCounts {
@@ -227,15 +227,14 @@ export default function CustomerFoldersStrip({
         </Overlay>
       )}
 
-      {/* Folder detail — opened from the chat context */}
+      {/* Project «Διαδικασία» — full-screen, chat-first, opened from the chat. */}
       {openFolder && (
-        <Overlay
-          title={openFolder.title}
-          subtitle={`Έργο · ${STATUS_LABELS[openFolder.status] ?? openFolder.status}`}
+        <ProjectProcess
+          folderId={openFolder.id}
+          customerId={customerId}
           onClose={() => setOpenId(null)}
-        >
-          <FolderDetailPanel folderId={openFolder.id} onChanged={() => void refreshAll()} />
-        </Overlay>
+          onChanged={() => void refreshAll()}
+        />
       )}
     </section>
   );
