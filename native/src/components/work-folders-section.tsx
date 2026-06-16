@@ -95,6 +95,18 @@ interface AttachReq {
   sentChannel: string | null;
   createdAt: string;
 }
+interface BizPayment {
+  id: string;
+  kind: string;
+  pct: number | null;
+  amount: number;
+  currency: string;
+  status: string;
+  receivingAccount: string | null;
+  declaredAt: string | null;
+  confirmedAt: string | null;
+  createdAt: string;
+}
 
 // ---------------------------------------------------------------------------
 // Greek label maps
@@ -114,6 +126,17 @@ const APPT_TYPE_GR: Record<string, string> = {
   book_appointment: 'Ραντεβού',
   visit_customer: 'Επίσκεψη',
 };
+const PAYMENT_KIND_GR: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
+const PAYMENT_STATUS_GR: Record<string, string> = {
+  pending: 'Εκκρεμεί',
+  declared: 'Δηλώθηκε κατάθεση',
+  confirmed: 'Επιβεβαιώθηκε',
+  cancelled: 'Ακυρώθηκε',
+};
+const PAYMENT_KIND_OPTIONS = [
+  { key: 'deposit', label: 'Προκαταβολή' },
+  { key: 'balance', label: 'Εξόφληση' },
+];
 
 // ---------------------------------------------------------------------------
 // Process tracker (Διαδικασία) — 5 steps, index = work_folders.step (0..4).
@@ -269,8 +292,18 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   const [qaError, setQaError] = useState('');
   const [qaBusy, setQaBusy] = useState(false);
 
-  // WF-4: tracks which detach/attach button is in-flight (entityType:id)
+  // WF-4: tracks which detach/attach button is in-flight (entityType:id);
+  // also keys payment confirm/cancel as `pay:<id>:<status>`.
   const [busyKey, setBusyKey] = useState<string | null>(null);
+
+  // Stage 8f: payments (create request + owner confirm/cancel)
+  const [payments, setPayments] = useState<BizPayment[]>([]);
+  const [newPaymentOpen, setNewPaymentOpen] = useState(false);
+  const [ppOfferId, setPpOfferId] = useState<string | null>(null);
+  const [ppKind, setPpKind] = useState('deposit');
+  const [ppPct, setPpPct] = useState('30');
+  const [ppError, setPpError] = useState('');
+  const [ppBusy, setPpBusy] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -304,6 +337,16 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
       setFdError(true);
     } finally {
       setFdLoading(false);
+    }
+  }, []);
+
+  // Stage 8f: fetch the folder's payment requests (owner list)
+  const loadFolderPayments = useCallback(async (folderId: string) => {
+    try {
+      const r = await apiGet<{ ok?: boolean; payments?: BizPayment[] }>(`/api/folders/${folderId}/payment-requests`);
+      if (r?.ok) setPayments(r.payments ?? []);
+    } catch {
+      // keep prior payments on transient error
     }
   }, []);
 
@@ -473,6 +516,69 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     }
   }
 
+  // Stage 8f: open the create-payment sheet, defaulting to the accepted offer.
+  function openNewPayment() {
+    const offers = fdetail?.sections.offers.items ?? [];
+    const accepted = offers.find((o) => o.status === 'accepted');
+    setPpOfferId((accepted ?? offers[0])?.id ?? null);
+    setPpKind('deposit');
+    setPpPct('30');
+    setPpError('');
+    setNewPaymentOpen(true);
+  }
+
+  // Stage 8f: create a deposit/balance payment request (amount computed server-side).
+  async function submitNewPayment(folderId: string) {
+    if (!ppOfferId) { setPpError('Διάλεξε προσφορά.'); return; }
+    const pct = Number(ppPct.replace(',', '.'));
+    if (!isFinite(pct) || pct <= 0 || pct > 100) { setPpError('Δώσε ποσοστό 1–100.'); return; }
+    setPpBusy(true);
+    try {
+      const r = await apiPost<{ ok?: boolean; error?: string }>(`/api/folders/${folderId}/payment-request`, {
+        kind: ppKind,
+        pct,
+        offerId: ppOfferId,
+      });
+      if (r?.ok) {
+        setNewPaymentOpen(false);
+        Alert.alert('', 'Δημιουργήθηκε αίτημα πληρωμής');
+        void loadFolderPayments(folderId);
+        void load();
+      } else if (r?.error === 'bank_not_configured') {
+        setPpError('Δεν έχεις IBAN. Ρυθμίσεις → Τραπεζικά στοιχεία πρώτα.');
+      } else {
+        setPpError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      setPpError(e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setPpBusy(false);
+    }
+  }
+
+  // Stage 8f: owner confirms (or cancels) a payment request. 'confirmed' is the
+  // only authoritative state — the customer's 'declared' is just a self-report.
+  async function confirmPayment(folderId: string, paymentId: string, status: 'confirmed' | 'cancelled') {
+    setBusyKey(`pay:${paymentId}:${status}`);
+    try {
+      const r = await apiPatch<{ ok?: boolean; error?: string }>(`/api/payments/${paymentId}`, { status });
+      if (r?.ok) {
+        Alert.alert('', status === 'confirmed' ? 'Η πληρωμή επιβεβαιώθηκε' : 'Το αίτημα ακυρώθηκε');
+        void loadFolderPayments(folderId);
+      } else if (r?.error === 'payment_not_actionable') {
+        Alert.alert('', 'Το αίτημα έχει ήδη διευθετηθεί.');
+        void loadFolderPayments(folderId);
+      } else {
+        Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      const isNet = e instanceof ApiError && e.isNetwork;
+      Alert.alert('Σφάλμα', isNet ? 'Έλεγξε τη σύνδεση.' : 'Δεν ολοκληρώθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setBusyKey(null);
+    }
+  }
+
   function openCreate() {
     setTitle('');
     setNotes('');
@@ -523,6 +629,9 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     // WF-4: fetch real sections
     setFdetail(null);
     void loadFolderDetail(f.id);
+    // Stage 8f: fetch payment requests
+    setPayments([]);
+    void loadFolderPayments(f.id);
   }
 
   // WF-2: create (draft) the public folder link, then send or share it.
@@ -606,6 +715,8 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
     setAttachOpen(false);
     setNewOfferOpen(false);
     setNewApptOpen(false);
+    setNewPaymentOpen(false);
+    setPayments([]);
   }
 
   async function patchFolder(updates: Record<string, unknown>): Promise<boolean> {
@@ -877,6 +988,26 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
                         />
                       ))
                     )}
+                  </FdSection>
+
+                  {/* Section: Πληρωμή (Stage 8f) */}
+                  <FdSection title="Πληρωμή" count={payments.length} c={c} styles={styles}>
+                    {fdetail.sections.offers.items.length > 0 ? (
+                      <PrimaryButton label="Νέο αίτημα πληρωμής" tone="outline" onPress={openNewPayment} />
+                    ) : (
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.emptySection}>Πρόσθεσε πρώτα μια προσφορά.</ThemedText>
+                    )}
+                    {payments.map((p) => (
+                      <PaymentFdRow
+                        key={p.id}
+                        p={p}
+                        busyKey={busyKey}
+                        onConfirm={() => void confirmPayment(fdetail.folder.id, p.id, 'confirmed')}
+                        onCancel={() => void confirmPayment(fdetail.folder.id, p.id, 'cancelled')}
+                        styles={styles}
+                        c={c}
+                      />
+                    ))}
                   </FdSection>
 
                   {/* Section: Μηνύματα */}
@@ -1168,6 +1299,29 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
         />
         <PrimaryButton label="Ακύρωση" tone="outline" onPress={() => setNewApptOpen(false)} />
       </SheetModal>
+
+      {/* Stage 8f: new payment request sheet */}
+      <SheetModal visible={newPaymentOpen} title="Αίτημα πληρωμής" onClose={() => setNewPaymentOpen(false)}>
+        {fdetail && fdetail.sections.offers.items.length > 0 ? (
+          <>
+            <ThemedText type="small" themeColor="textSecondary">Προσφορά</ThemedText>
+            <ChipSelect
+              options={fdetail.sections.offers.items.map((o) => ({ key: o.id, label: `${o.offerNumber ?? '—'}${o.total != null ? ` · ${money(o.total)}` : ''}` }))}
+              value={ppOfferId ?? ''}
+              onChange={(v) => setPpOfferId(v)}
+            />
+            <ThemedText type="small" themeColor="textSecondary">Τύπος</ThemedText>
+            <ChipSelect options={PAYMENT_KIND_OPTIONS} value={ppKind} onChange={setPpKind} />
+            <Input label="Ποσοστό %" value={ppPct} onChangeText={setPpPct} keyboardType="decimal-pad" />
+            <PaymentAmountPreview offers={fdetail.sections.offers.items} offerId={ppOfferId} pct={ppPct} />
+            {ppError ? <ThemedText type="small" style={styles.err}>{ppError}</ThemedText> : null}
+            <PrimaryButton label="Δημιουργία" busy={ppBusy} onPress={() => detail && void submitNewPayment(detail.id)} />
+            <PrimaryButton label="Ακύρωση" tone="outline" onPress={() => setNewPaymentOpen(false)} />
+          </>
+        ) : (
+          <ThemedText type="small" themeColor="textSecondary">Πρόσθεσε πρώτα μια προσφορά.</ThemedText>
+        )}
+      </SheetModal>
     </View>
   );
 }
@@ -1268,5 +1422,65 @@ function FdRow({
         </ThemedText>
       </Pressable>
     </View>
+  );
+}
+
+function PaymentFdRow({
+  p,
+  busyKey,
+  onConfirm,
+  onCancel,
+  styles,
+  c,
+}: {
+  p: BizPayment;
+  busyKey: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+  styles: Styles;
+  c: ThemePalette;
+}) {
+  const isFinal = p.status === 'confirmed' || p.status === 'cancelled';
+  const confirming = busyKey === `pay:${p.id}:confirmed`;
+  const cancelling = busyKey === `pay:${p.id}:cancelled`;
+  const busy = confirming || cancelling;
+  return (
+    <View style={styles.fdRowBox}>
+      <View style={styles.fdRowBody}>
+        <ThemedText type="small" numberOfLines={1} style={{ color: c.text, fontWeight: '600' }}>
+          {(PAYMENT_KIND_GR[p.kind] ?? p.kind)} · {money(p.amount)}
+        </ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+          {(PAYMENT_STATUS_GR[p.status] ?? p.status)}{p.pct != null ? ` · ${p.pct}%` : ''}
+        </ThemedText>
+      </View>
+      {!isFinal ? (
+        <View style={{ flexDirection: 'row', gap: Spacing.two, alignItems: 'center' }}>
+          <Pressable onPress={onConfirm} disabled={busy} style={styles.fdDetachBtn}>
+            <ThemedText style={[{ color: '#1B8A4C', fontSize: 11, fontWeight: '700' }, busy && { opacity: 0.4 }]}>
+              {confirming ? '...' : 'Επιβεβαίωση'}
+            </ThemedText>
+          </Pressable>
+          <Pressable onPress={onCancel} disabled={busy} style={styles.fdDetachBtn}>
+            <ThemedText style={[styles.fdDetachText, busy && { opacity: 0.4 }]}>
+              {cancelling ? '...' : 'Ακύρωση'}
+            </ThemedText>
+          </Pressable>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+function PaymentAmountPreview({ offers, offerId, pct }: { offers: DetailOffer[]; offerId: string | null; pct: string }) {
+  const offer = offers.find((o) => o.id === offerId);
+  const total = offer?.total ?? null;
+  const p = Number(pct.replace(',', '.'));
+  if (total == null || !isFinite(p) || p <= 0 || p > 100) return null;
+  const amount = Math.round(total * p) / 100;
+  return (
+    <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
+      Ποσό αιτήματος: €{amount.toLocaleString('el-GR')}
+    </ThemedText>
   );
 }
