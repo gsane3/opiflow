@@ -67,7 +67,7 @@ describe('public-folder', () => {
       expect(view).not.toHaveProperty('notes');
       // the public view's top-level keys are an explicit allow-list
       expect(Object.keys(view).sort()).toEqual(
-        ['appointments', 'business', 'offers', 'statusLabel', 'statusMessage', 'title'],
+        ['appointments', 'business', 'offers', 'statusLabel', 'statusMessage', 'step', 'title'],
       );
     });
 

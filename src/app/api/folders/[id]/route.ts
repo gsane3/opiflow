@@ -10,6 +10,7 @@ import {
   APPOINTMENT_TASK_TYPES,
   dbToFolder,
   isFolderStatus,
+  validateFolderStep,
   validateFolderTitle,
   type FolderCounts,
   type WorkFolderRow,
@@ -17,7 +18,9 @@ import {
 
 export const runtime = 'nodejs';
 
-const FOLDER_COLUMNS = 'id, business_id, customer_id, title, status, notes, created_at, updated_at';
+// `step` requires migration 047. Apply it before deploying (like 046); pre-apply
+// reads surface the route's normal error state, never a crash.
+const FOLDER_COLUMNS = 'id, business_id, customer_id, title, status, step, notes, created_at, updated_at';
 
 function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
@@ -200,11 +203,20 @@ export async function PATCH(
     if (raw.status != null && !isFolderStatus(raw.status)) {
       return NextResponse.json({ ok: false, error: 'invalid_status' }, { status: 400 });
     }
+    let step: number | undefined;
+    if ('step' in raw) {
+      const stepCheck = validateFolderStep(raw.step);
+      if (!stepCheck.ok) {
+        return NextResponse.json({ ok: false, error: stepCheck.error }, { status: 400 });
+      }
+      step = stepCheck.value;
+    }
 
     const updateFields: Record<string, unknown> = {};
     let hasUpdate = false;
     if (title !== undefined) { updateFields.title = title; hasUpdate = true; }
     if ('status' in raw && isFolderStatus(raw.status)) { updateFields.status = raw.status; hasUpdate = true; }
+    if (step !== undefined) { updateFields.step = step; hasUpdate = true; }
     if ('notes' in raw) { updateFields.notes = str(raw.notes); hasUpdate = true; }
 
     // Nothing to change → return the current folder (business-scoped).

@@ -65,10 +65,18 @@ describe('work-folders helpers', () => {
         customerId: 'c1',
         title: 'Job',
         status: 'open',
+        step: 0,
         notes: null,
         createdAt: '2026-01-01T00:00:00Z',
         updatedAt: '2026-01-02T00:00:00Z',
       });
+    });
+    it('maps + clamps step (tolerant of a missing/out-of-range column)', () => {
+      expect(dbToFolder({ ...row, step: 3 }).step).toBe(3);
+      expect(dbToFolder({ ...row, step: undefined }).step).toBe(0); // pre-047 row
+      expect(dbToFolder({ ...row, step: null }).step).toBe(0);
+      expect(dbToFolder({ ...row, step: 9 }).step).toBe(4); // clamped to MAX
+      expect(dbToFolder({ ...row, step: -2 }).step).toBe(0);
     });
     it('includes counts only when provided', () => {
       const counts = { offers: 2, appointments: 1, messages: 3, uploadRequests: 0, intakeRequests: 1 };

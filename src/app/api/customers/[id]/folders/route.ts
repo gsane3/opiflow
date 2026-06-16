@@ -22,7 +22,8 @@ import {
 
 export const runtime = 'nodejs';
 
-const FOLDER_COLUMNS = 'id, business_id, customer_id, title, status, notes, created_at, updated_at';
+// `step` requires migration 047 (apply before deploy, like 046).
+const FOLDER_COLUMNS = 'id, business_id, customer_id, title, status, step, notes, created_at, updated_at';
 
 function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
