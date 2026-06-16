@@ -95,6 +95,12 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
                       <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>
                     )}
                   </div>
+                  <a
+                    href={`/f/${encodeURIComponent(token)}/offer/${o.id}`}
+                    className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
+                  >
+                    Προβολή &amp; PDF →
+                  </a>
                   {o.canAccept && <OfferAcceptButton token={token} offerId={o.id} />}
                 </li>
               ))}
@@ -109,7 +115,7 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
             <p className="mt-1 text-xs text-zinc-500">Κατάθεση στον παρακάτω λογαριασμό. Μετά την κατάθεση, πατήστε «Δήλωσα την κατάθεση».</p>
             <ul className="mt-2 space-y-2">
               {view.payments.map((p) => (
-                <PaymentCard key={p.id} token={token} payment={p} />
+                <PaymentCard key={p.id} token={token} payment={p} bankName={view.business?.bankName ?? null} beneficiary={view.business?.bankBeneficiary ?? null} />
               ))}
             </ul>
           </section>

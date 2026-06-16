@@ -47,6 +47,8 @@ describe('public-folder', () => {
         phone: '2101234567',
         email: 'a@b.gr',
         website: 'https://acme.gr',
+        bankName: null,
+        bankBeneficiary: null,
       });
     });
 

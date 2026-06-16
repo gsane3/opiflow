@@ -1,21 +1,54 @@
 'use client';
 
 // Inline payment declaration for the public portal. Shows the requested amount +
-// the business IBAN to pay to, and a «Δήλωσα την κατάθεση» button that records the
-// customer's self-report (pending → declared). The folder token in the URL is the
-// only credential; the server re-scopes everything to that token. The app NEVER
-// moves money — the customer deposits directly and self-reports; the owner confirms.
+// the business bank details to pay to (δικαιούχος + IBAN, each with a copy
+// button), and a «Δήλωσα την κατάθεση» button that records the customer's
+// self-report (pending → declared). The folder token in the URL is the only
+// credential; the server re-scopes everything to that token. The app NEVER moves
+// money — the customer deposits directly and self-reports; the owner confirms.
 
 import { useState } from 'react';
 
 const KIND_LABELS: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
 
+function CopyField({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  async function copy() {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      /* clipboard unavailable — value is still visible to copy manually */
+    }
+  }
+  return (
+    <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-white px-2.5 py-2 ring-1 ring-zinc-200">
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-400">{label}</p>
+        <p className="truncate font-mono text-sm text-zinc-800">{value}</p>
+      </div>
+      <button
+        type="button"
+        onClick={copy}
+        className="shrink-0 rounded-lg bg-zinc-100 px-2.5 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200 active:scale-95"
+      >
+        {copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή'}
+      </button>
+    </div>
+  );
+}
+
 export default function PaymentCard({
   token,
   payment,
+  bankName,
+  beneficiary,
 }: {
   token: string;
   payment: { id: string; kind: string; amount: number; currency: string; status: string; receivingAccount: string | null };
+  bankName?: string | null;
+  beneficiary?: string | null;
 }) {
   const [status, setStatus] = useState(payment.status);
   const [busy, setBusy] = useState(false);
@@ -42,6 +75,9 @@ export default function PaymentCard({
 
   const amount = `€${payment.amount.toLocaleString('el-GR')}`;
   const kind = KIND_LABELS[payment.kind] ?? payment.kind;
+  // Bank details are only actionable while the request is still pending (the
+  // customer needs them to make the deposit). Once declared/confirmed, hide them.
+  const showBank = status === 'pending' && (beneficiary || payment.receivingAccount);
 
   return (
     <li className="rounded-xl bg-zinc-50 px-3 py-3">
@@ -49,10 +85,18 @@ export default function PaymentCard({
         <p className="text-sm font-medium text-zinc-900">{kind}</p>
         <span className="shrink-0 text-base font-semibold tabular-nums text-zinc-900">{amount}</span>
       </div>
-      {payment.receivingAccount && (
-        <p className="mt-1 break-all text-xs text-zinc-500">
-          IBAN: <span className="font-mono text-zinc-700">{payment.receivingAccount}</span>
-        </p>
+
+      {showBank && (
+        <div className="mt-2">
+          <p className="text-xs text-zinc-500">Κατάθεση στον λογαριασμό:</p>
+          {bankName && (
+            <p className="mt-1 text-xs text-zinc-500">
+              Τράπεζα: <span className="font-medium text-zinc-700">{bankName}</span>
+            </p>
+          )}
+          {beneficiary && <CopyField label="Δικαιούχος" value={beneficiary} />}
+          {payment.receivingAccount && <CopyField label="IBAN" value={payment.receivingAccount} />}
+        </div>
       )}
 
       {status === 'confirmed' ? (

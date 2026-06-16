@@ -6,6 +6,7 @@
 // real, live folder APIs. Opens full-screen from the customer chat.
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 
 // ── Icon set (ported verbatim from the prototype icons.jsx) ──────────────────
@@ -50,6 +51,7 @@ const OFFER_STATUS_GR: Record<string, string> = {
 const APPT_TYPE_GR: Record<string, string> = { book_appointment: 'Ραντεβού', visit_customer: 'Επίσκεψη' };
 const REQ_STATUS_GR: Record<string, string> = { pending: 'Σε αναμονή πελάτη', sent: 'Απεστάλη', opened: 'Ανοίχτηκε', submitted: 'Υποβλήθηκε', completed: 'Ολοκληρώθηκε', expired: 'Έληξε', revoked: 'Ακυρώθηκε' };
 const PAY_KIND_GR: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
+const REJECT_MESSAGE = 'Καλησπέρα σας. Ευχαριστούμε πολύ για την επικοινωνία. Δυστυχώς δεν θα μπορέσουμε να αναλάβουμε τη συγκεκριμένη εργασία αυτή την περίοδο. Σας ευχόμαστε καλή συνέχεια και ελπίζουμε να βρείτε άμεσα την κατάλληλη λύση.';
 
 interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
 interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
@@ -96,6 +98,7 @@ const T = (s: string | null | undefined) => (s ? new Date(s).getTime() || 0 : 0)
 type SheetName = 'msg' | 'appt' | 'offer' | 'req' | 'payreq' | 'menu' | 'reject' | null;
 
 export default function ProjectProcess({ folderId, customerId, onClose, onChanged }: { folderId: string; customerId: string; onClose: () => void; onChanged?: () => void }) {
+  const router = useRouter();
   const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [detail, setDetail] = useState<FolderDetail | null>(null);
   const [payments, setPayments] = useState<FolderPayment[]>([]);
@@ -215,6 +218,19 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       if (j?.ok && j.responseUrl) window.open(j.responseUrl, '_blank');
     } finally { setBusy(false); }
   }
+  // «Απόρριψη πελάτη» — polite decline to the customer's link + mark customer «Χαμένος».
+  async function rejectCustomer() {
+    setBusy(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      await fetch(`/api/customers/${customerId}/message`, { method: 'POST', headers, body: JSON.stringify({ text: REJECT_MESSAGE }) }).catch(() => {});
+      await fetch(`/api/customers/${customerId}`, { method: 'PATCH', headers, body: JSON.stringify({ status: 'lost' }) }).catch(() => {});
+      setSheet(null);
+      onChanged?.();
+      onClose();
+    } finally { setBusy(false); }
+  }
 
   const f = detail?.folder;
   const grossOf = (pct: number) => (firstOffer?.total != null ? Math.round(firstOffer.total * pct) / 100 : 0);
@@ -260,7 +276,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
             <div className="opf-pj-end">Δεν φορτώθηκαν τα στοιχεία.</div>
           ) : (
             <>
-              {timeline.map((it) => <Row key={`${it.kind}:${it.data.id}`} it={it} busy={busy} onConfirm={confirmPayment} onPayReq={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} />)}
+              {timeline.map((it) => <Row key={`${it.kind}:${it.data.id}`} it={it} busy={busy} onConfirm={confirmPayment} onPayReq={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} onOpenOffer={(id) => router.push(`/offers/${id}`)} />)}
               <div className="opf-pj-end">Όλα όσα στέλνεις εδώ τα βλέπει ο πελάτης στο link του.</div>
             </>
           )}
@@ -328,6 +344,13 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
           <button className="opf-menu-item opf-press" onClick={() => void advanceStep()}><div className="opf-menu-ic"><Icon name="arrowR" size={19} color="var(--brand)" stroke={2} /></div> Παράλειψη βήματος</button>
           <button className="opf-menu-item opf-press" onClick={() => void completeProject()}><div className="opf-menu-ic opf-ok"><Icon name="check" size={19} color="var(--success)" stroke={2.4} /></div> Ολοκλήρωση έργου</button>
           <button className="opf-menu-item opf-press" onClick={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }}><div className="opf-menu-ic"><Icon name="euro" size={19} color="var(--brand)" stroke={2} /></div> Αίτημα πληρωμής</button>
+          <button className="opf-menu-item opf-press" onClick={() => setSheet('reject')}><div className="opf-menu-ic opf-danger" style={{ background: 'color-mix(in srgb, var(--danger) 14%, transparent)' }}><Icon name="x" size={19} color="var(--danger)" stroke={2.4} /></div> <span style={{ color: 'var(--danger)', fontWeight: 700 }}>Απόρριψη πελάτη</span></button>
+        </Sheet>
+
+        {/* reject customer sheet */}
+        <Sheet open={sheet === 'reject'} title="Απόρριψη πελάτη" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void rejectCustomer()} style={{ background: 'var(--danger)' }}><Icon name="x" size={18} color="#fff" stroke={2.4} /><span>{busy ? 'Αποστολή…' : 'Αποστολή & απόρριψη'}</span></button>}>
+          <div className="opf-req-info"><Icon name="message" size={22} color="var(--danger)" stroke={2} /><span>Στέλνουμε ένα ευγενικό μήνυμα στον πελάτη και σημαίνουμε τον πελάτη ως «Χαμένο».</span></div>
+          <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'var(--surface-2, rgba(0,0,0,0.045))', fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.5, fontStyle: 'italic' }}>«{REJECT_MESSAGE}»</div>
         </Sheet>
       </div>
     </div>
@@ -335,7 +358,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
 }
 
 // ── timeline event rows (prototype DOM) ──────────────────────────────────────
-function Row({ it, busy, onConfirm, onPayReq }: { it: Item; busy: boolean; onConfirm: (id: string, s: 'confirmed' | 'cancelled') => void; onPayReq: () => void }) {
+function Row({ it, busy, onConfirm, onPayReq, onOpenOffer }: { it: Item; busy: boolean; onConfirm: (id: string, s: 'confirmed' | 'cancelled') => void; onPayReq: () => void; onOpenOffer: (id: string) => void }) {
   if (it.kind === 'msg') {
     const m = it.data; const tech = m.direction === 'outbound';
     return (
@@ -352,14 +375,14 @@ function Row({ it, busy, onConfirm, onPayReq }: { it: Item; busy: boolean; onCon
     return (
       <>
         <div className="opf-ev-side opf-r">
-          <div className="opf-ev-card">
+          <div className="opf-ev-card opf-press" role="button" tabIndex={0} onClick={() => onOpenOffer(o.id)} onKeyDown={(e) => { if (e.key === 'Enter') onOpenOffer(o.id); }} style={{ cursor: 'pointer' }}>
             <div className="opf-ev-card-top">
               <div className="opf-ev-card-ic opf-offer"><Icon name="file" size={18} color="#fff" stroke={2.1} /></div>
               <div className="opf-ev-card-h"><div className="opf-ev-card-title">Προσφορά</div><div className="opf-ev-card-sub">{o.offerNumber ?? '—'}</div></div>
               <div className={'opf-ev-status ' + (accepted ? 'opf-st-accepted' : 'opf-st-sent')}>{OFFER_STATUS_GR[o.status] ?? o.status}</div>
             </div>
             {o.total != null && <div className="opf-ev-total"><span>Σύνολο</span><b>{eur(o.total)}</b></div>}
-            <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ</div>
+            <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ<span style={{ marginLeft: 'auto', color: 'var(--brand)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="file" size={13} color="var(--brand)" stroke={2} />Άνοιγμα PDF</span></div>
           </div>
         </div>
         {accepted && (

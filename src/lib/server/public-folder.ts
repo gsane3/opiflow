@@ -81,6 +81,11 @@ export interface BusinessRowForPublic {
   phone: string | null;
   email: string | null;
   website: string | null;
+  // Bank details for deposit/balance transfers (migration 048). Optional →
+  // tolerant of pre-048 rows. The beneficiary + bank name are the business's own
+  // public details, needed so the customer can make the deposit; safe to expose.
+  bank_name?: string | null;
+  bank_beneficiary?: string | null;
 }
 export interface OfferRowForPublic {
   id: string;
@@ -126,6 +131,8 @@ export interface PublicFolderBusiness {
   phone: string | null;
   email: string | null;
   website: string | null;
+  bankName: string | null;
+  bankBeneficiary: string | null;
 }
 export interface PublicFolderOffer {
   id: string;
@@ -170,6 +177,8 @@ function mapPublicBusiness(row: BusinessRowForPublic | null): PublicFolderBusine
     phone: row.phone,
     email: row.email,
     website: row.website,
+    bankName: row.bank_name?.trim() || null,
+    bankBeneficiary: row.bank_beneficiary?.trim() || null,
   };
 }
 
@@ -259,7 +268,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     const [bizRes, offersRes, apptRes, msgRes, payRes] = await Promise.all([
       supabase
         .from('businesses')
-        .select('name, legal_name, trade_name, logo_url, phone, email, website')
+        .select('name, legal_name, trade_name, logo_url, phone, email, website, bank_name, bank_beneficiary')
         .eq('id', token.business_id)
         .maybeSingle(),
       supabase
