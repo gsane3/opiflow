@@ -52,6 +52,19 @@ interface AttachOffer { id: string; offerNumber: string | null; status: string; 
 interface AttachAppt { id: string; title: string; type: string; status: string; dueDate: string | null }
 interface AttachMsg { id: string; direction: string; channel: string; summary: string | null; createdAt: string }
 interface AttachReq { id: string; status: string; sentChannel: string | null; createdAt: string }
+interface FolderPayment {
+  id: string; kind: string; pct: number | null; amount: number; currency: string;
+  status: string; receivingAccount: string | null; declaredAt: string | null;
+  confirmedAt: string | null; createdAt: string;
+}
+
+const PAYMENT_KIND_GR: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
+const PAYMENT_STATUS_GR: Record<string, { l: string; cls: string }> = {
+  pending: { l: 'Εκκρεμεί', cls: 'bg-amber-50 text-amber-700 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:ring-amber-900/40' },
+  declared: { l: 'Ο πελάτης δήλωσε κατάθεση', cls: 'bg-blue-50 text-blue-700 ring-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:ring-blue-900/40' },
+  confirmed: { l: 'Επιβεβαιώθηκε', cls: 'bg-green-50 text-green-700 ring-green-200 dark:bg-green-950/40 dark:text-green-300 dark:ring-green-900/40' },
+  cancelled: { l: 'Ακυρώθηκε', cls: 'bg-zinc-100 text-zinc-500 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-400 dark:ring-white/10' },
+};
 
 async function authHeaders(): Promise<Record<string, string> | null> {
   try {
@@ -129,6 +142,15 @@ export default function FolderDetailPanel({
   const [editBusy, setEditBusy] = useState(false);
   const [editErr, setEditErr] = useState('');
 
+  // payments (Stage 8c create + 8e confirm/cancel)
+  const [payments, setPayments] = useState<FolderPayment[]>([]);
+  const [prOpen, setPrOpen] = useState(false);
+  const [prOfferId, setPrOfferId] = useState<string | null>(null);
+  const [prKind, setPrKind] = useState<'deposit' | 'balance'>('deposit');
+  const [prPct, setPrPct] = useState('30');
+  const [prBusy, setPrBusy] = useState(false);
+  const [prError, setPrError] = useState('');
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
@@ -149,7 +171,19 @@ export default function FolderDetailPanel({
     }
   }, [folderId]);
 
-  useEffect(() => { void load(); }, [load]);
+  const loadPayments = useCallback(async () => {
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch(`/api/folders/${folderId}/payment-requests`, { headers });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; payments?: FolderPayment[] };
+      if (res.ok && json?.ok) setPayments(json.payments ?? []);
+    } catch {
+      // keep prior payments on transient error
+    }
+  }, [folderId]);
+
+  useEffect(() => { void load(); void loadPayments(); }, [load, loadPayments]);
 
   // Auto-dismiss the action toast.
   useEffect(() => {
@@ -160,6 +194,7 @@ export default function FolderDetailPanel({
 
   async function refreshAll() {
     await load();
+    await loadPayments();
     onChanged?.();
   }
 
@@ -313,6 +348,53 @@ export default function FolderDetailPanel({
     }
   }
 
+  // Payments — create a deposit/balance request off an offer's gross.
+  function openPaymentRequest() {
+    const offers = detail?.sections.offers.items ?? [];
+    const accepted = offers.find((o) => o.status === 'accepted');
+    setPrOfferId((accepted ?? offers[0])?.id ?? null);
+    setPrKind('deposit');
+    setPrPct('30');
+    setPrError('');
+    setPrOpen(true);
+  }
+
+  async function submitPaymentRequest() {
+    setPrError('');
+    if (!prOfferId) { setPrError('Διάλεξε προσφορά.'); return; }
+    const pct = Number(prPct.replace(',', '.'));
+    if (!isFinite(pct) || pct <= 0 || pct > 100) { setPrError('Δώσε ποσοστό 1–100.'); return; }
+    setPrBusy(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) { setPrError('Λήξη σύνδεσης. Δοκίμασε ξανά.'); setPrBusy(false); return; }
+      const res = await fetch(`/api/folders/${folderId}/payment-request`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ kind: prKind, pct, offerId: prOfferId }),
+      });
+      const json = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (res.ok && json?.ok) {
+        setPrOpen(false);
+        notify('Δημιουργήθηκε αίτημα πληρωμής');
+        await loadPayments();
+        onChanged?.();
+      } else if (json?.error === 'bank_not_configured') {
+        setPrError('Δεν έχεις IBAN. Πήγαινε στις Ρυθμίσεις → Τραπεζικά στοιχεία πρώτα.');
+      } else if (json?.error === 'offer_not_found') {
+        setPrError('Η προσφορά δεν βρέθηκε σε αυτό το έργο.');
+      } else if (json?.error === 'invalid_pct') {
+        setPrError('Μη έγκυρο ποσοστό.');
+      } else {
+        setPrError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+      }
+    } catch {
+      setPrError('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setPrBusy(false);
+    }
+  }
+
   // WF-2: public folder link — draft, copy, send (Viber/SMS), share.
   async function draftLink() {
     setLinkBusy(true); setLinkErr(''); setLinkSent(false); setLinkCopied(false);
@@ -457,6 +539,21 @@ export default function FolderDetailPanel({
               onDetach={() => void setFolderLink('offer', o.id, false)}
             />
           ))
+        )}
+      </Section>
+
+      {/* Πληρωμές */}
+      <Section
+        title="Πληρωμές"
+        count={payments.length}
+        action={s.offers.items.length > 0 ? <SmallAction busy={false} onClick={openPaymentRequest}>Νέο αίτημα</SmallAction> : undefined}
+      >
+        {payments.length === 0 ? (
+          s.offers.items.length === 0
+            ? <p className="px-1 text-xs text-zinc-400 dark:text-zinc-500">Πρόσθεσε πρώτα μια προσφορά.</p>
+            : <Empty />
+        ) : (
+          payments.map((p) => <PaymentRow key={p.id} p={p} />)
         )}
       </Section>
 
@@ -681,6 +778,66 @@ export default function FolderDetailPanel({
         </Overlay>
       )}
 
+      {/* Payment request sheet */}
+      {prOpen && (
+        <Overlay onClose={() => setPrOpen(false)} title="Αίτημα πληρωμής">
+          <div className="space-y-3">
+            {prError && <p className="text-xs text-red-600">{prError}</p>}
+            <div>
+              <p className="mb-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Προσφορά</p>
+              <div className="flex flex-wrap gap-1.5">
+                {detail.sections.offers.items.map((o) => (
+                  <button
+                    key={o.id}
+                    type="button"
+                    onClick={() => setPrOfferId(o.id)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${prOfferId === o.id ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-zinc-200 text-zinc-600 dark:border-white/10 dark:text-zinc-300'}`}
+                  >
+                    {(o.offerNumber ?? '—')}{o.total != null ? ` · ${money(o.total)}` : ''}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Τύπος</p>
+              <div className="flex gap-1.5">
+                {[{ v: 'deposit', l: 'Προκαταβολή' }, { v: 'balance', l: 'Εξόφληση' }].map((o) => (
+                  <button
+                    key={o.v}
+                    type="button"
+                    onClick={() => setPrKind(o.v as 'deposit' | 'balance')}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${prKind === o.v ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-zinc-200 text-zinc-600 dark:border-white/10 dark:text-zinc-300'}`}
+                  >
+                    {o.l}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium text-zinc-500 dark:text-zinc-400">Ποσοστό</p>
+              <div className="mb-2 flex flex-wrap gap-1.5">
+                {['30', '50', '70', '100'].map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setPrPct(v)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition ${prPct === v ? 'border-indigo-500 bg-indigo-600 text-white' : 'border-zinc-200 text-zinc-600 dark:border-white/10 dark:text-zinc-300'}`}
+                  >
+                    {v}%
+                  </button>
+                ))}
+              </div>
+              <Input label="Ποσοστό %" value={prPct} inputMode="decimal" onChange={(e) => setPrPct(e.target.value)} />
+            </div>
+            <PaymentPreview offers={detail.sections.offers.items} offerId={prOfferId} pct={prPct} />
+            <div className="flex justify-end gap-2">
+              <Button variant="secondary" size="sm" onClick={() => setPrOpen(false)}>Ακύρωση</Button>
+              <Button size="sm" loading={prBusy} onClick={submitPaymentRequest}>Δημιουργία</Button>
+            </div>
+          </div>
+        </Overlay>
+      )}
+
       {/* Quick create sheet */}
       {qcMode && (
         <Overlay onClose={() => setQcMode(null)} title={qcMode === 'offer' ? 'Νέα προσφορά' : 'Νέο ραντεβού'}>
@@ -782,6 +939,34 @@ function PickRow({ primary, secondary, busy, onAttach }: { primary: string; seco
         <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">{secondary}</p>
       </div>
       <Button size="sm" loading={busy} onClick={onAttach}>Σύνδεση</Button>
+    </div>
+  );
+}
+
+function PaymentRow({ p }: { p: FolderPayment }) {
+  const st = PAYMENT_STATUS_GR[p.status] ?? { l: p.status, cls: 'bg-zinc-100 text-zinc-500 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-400 dark:ring-white/10' };
+  return (
+    <div className="rounded-lg bg-zinc-50 px-2.5 py-2 dark:bg-[#1e2b38]">
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-sm text-zinc-800 dark:text-zinc-100">
+          {PAYMENT_KIND_GR[p.kind] ?? p.kind} · {money(p.amount)}
+        </p>
+        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${st.cls}`}>{st.l}</span>
+      </div>
+      {p.pct != null && <p className="text-xs text-zinc-500 dark:text-zinc-400">{p.pct}% της προσφοράς</p>}
+    </div>
+  );
+}
+
+function PaymentPreview({ offers, offerId, pct }: { offers: DetailOffer[]; offerId: string | null; pct: string }) {
+  const offer = offers.find((o) => o.id === offerId);
+  const total = offer?.total ?? null;
+  const p = Number(pct.replace(',', '.'));
+  if (total == null || !isFinite(p) || p <= 0 || p > 100) return null;
+  const amount = Math.round(total * p) / 100;
+  return (
+    <div className="rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-200">
+      Ποσό αιτήματος: <span className="font-semibold">€{amount.toLocaleString('el-GR')}</span>
     </div>
   );
 }
