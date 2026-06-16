@@ -6,6 +6,7 @@
 import { loadPublicFolder, type PublicFolderView } from '@/lib/server/public-folder';
 import QuestionForm from './QuestionForm';
 import Stepper from '@/components/customers/Stepper';
+import OfferAcceptButton from './OfferAcceptButton';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -81,15 +82,18 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
           <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
             <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Προσφορές</p>
             <ul className="mt-2 space-y-2">
-              {view.offers.map((o, i) => (
-                <li key={i} className="flex items-center justify-between gap-2 rounded-xl bg-zinc-50 px-3 py-2.5">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber}</p>
-                    <p className="text-xs text-zinc-500">{o.statusLabel}</p>
+              {view.offers.map((o) => (
+                <li key={o.id} className="rounded-xl bg-zinc-50 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber}</p>
+                      <p className="text-xs text-zinc-500">{o.statusLabel}</p>
+                    </div>
+                    {typeof o.total === 'number' && (
+                      <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>
+                    )}
                   </div>
-                  {typeof o.total === 'number' && (
-                    <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>
-                  )}
+                  {o.canAccept && <OfferAcceptButton token={token} offerId={o.id} />}
                 </li>
               ))}
             </ul>

@@ -10,6 +10,7 @@
 import { createServiceSupabaseClient } from './intake-tokens';
 import { findValidFolderToken, markFolderTokenOpened } from './folder-tokens';
 import { clampStep } from './work-folders';
+import { offerCanRespond } from './offer-status';
 
 const APPOINTMENT_TASK_TYPES = ['book_appointment', 'visit_customer'] as const;
 
@@ -75,9 +76,11 @@ export interface BusinessRowForPublic {
   website: string | null;
 }
 export interface OfferRowForPublic {
+  id: string;
   offer_number: string | null;
   status: string;
   total: number | null;
+  valid_until: string | null;
 }
 export interface TaskRowForPublic {
   due_date: string | null;
@@ -97,9 +100,12 @@ export interface PublicFolderBusiness {
   website: string | null;
 }
 export interface PublicFolderOffer {
+  id: string;
   offerNumber: string;
   statusLabel: string;
   total: number | null;
+  /** Whether the customer can still accept this offer (not final, not expired). */
+  canAccept: boolean;
 }
 export interface PublicFolderAppointment {
   date: string | null;
@@ -146,9 +152,11 @@ export function toPublicFolderView(
     statusMessage: folderStatusMessage(folder.status),
     step: clampStep(folder.step),
     offers: offers.map((o) => ({
+      id: o.id,
       offerNumber: o.offer_number ?? '—',
       statusLabel: OFFER_STATUS_LABELS[o.status] ?? o.status,
       total: o.total,
+      canAccept: offerCanRespond({ status: o.status, valid_until: o.valid_until }),
     })),
     appointments: appointments.map((t) => ({
       date: t.due_date,
@@ -187,7 +195,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .maybeSingle(),
       supabase
         .from('offers')
-        .select('offer_number, status, total')
+        .select('id, offer_number, status, total, valid_until')
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .order('created_at', { ascending: false }),

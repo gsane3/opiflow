@@ -15,8 +15,8 @@ const business: BusinessRowForPublic = {
   logo_url: 'https://x/logo.png', phone: '2101234567', email: 'a@b.gr', website: 'https://acme.gr',
 };
 const offers: OfferRowForPublic[] = [
-  { offer_number: 'PR-1', status: 'sent_manually', total: 1200 },
-  { offer_number: 'PR-2', status: 'draft', total: 0 },
+  { id: 'off-1', offer_number: 'PR-1', status: 'sent_manually', total: 1200, valid_until: null },
+  { id: 'off-2', offer_number: 'PR-2', status: 'draft', total: 0, valid_until: null },
 ];
 const appts: TaskRowForPublic[] = [{ due_date: '2026-07-01', due_time: '10:00', type: 'book_appointment' }];
 
@@ -49,8 +49,8 @@ describe('public-folder', () => {
 
     it('maps offers with customer-facing labels (draft → neutral)', () => {
       expect(view.offers).toEqual([
-        { offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200 },
-        { offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0 },
+        { id: 'off-1', offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200, canAccept: true },
+        { id: 'off-2', offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0, canAccept: true },
       ]);
     });
 
@@ -60,7 +60,10 @@ describe('public-folder', () => {
 
     it('NEVER leaks internal ids, internal notes, or business-only fields (security)', () => {
       const serialized = JSON.stringify(view);
-      for (const banned of ['business_id', 'customer_id', 'work_folder_id', 'token', 'owner_id', '"id"', '"notes"']) {
+      // NB: offer/appointment UUIDs ARE intentionally exposed (safe selectors for
+      // the folder-scoped action endpoints — authorization is the folder token).
+      // Internal scoping ids + notes must still never appear.
+      for (const banned of ['business_id', 'customer_id', 'work_folder_id', 'token', 'owner_id', '"notes"']) {
         expect(serialized).not.toContain(banned);
       }
       // internal business notes are never part of the public view
