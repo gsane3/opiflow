@@ -497,8 +497,6 @@ export default function MessengerTimeline({ customerId }: { customerId: string }
       {!loading && !error && (
         <CustomerFoldersStrip
           customerId={customerId}
-          onNewOffer={() => openComposer('offer')}
-          onNewAppointment={() => openComposer('appointment')}
           onChanged={() => void load()}
         />
       )}
