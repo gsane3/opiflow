@@ -39,11 +39,14 @@ export function OfferPreviewSheet({
   const [draft, setDraft] = useState<LinkDraft | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
+  // Bank details for the payment block (migration 048; null/empty → hidden).
+  const [bank, setBank] = useState<{ beneficiary: string | null; bank: string | null; iban: string | null } | null>(null);
 
   useEffect(() => {
     setOffer(null);
     setDraft(null);
     setLoadError(false);
+    setBank(null);
     if (!offerId) return;
     apiGet<{ ok?: boolean; offer?: Offer }>(`/api/offers/${offerId}`)
       .then((res) => {
@@ -51,6 +54,10 @@ export function OfferPreviewSheet({
         else setLoadError(true);
       })
       .catch(() => setLoadError(true));
+    // Business bank details (separate endpoint; non-fatal, hides if absent).
+    apiGet<{ ok?: boolean; bank?: { beneficiary: string | null; bank: string | null; iban: string | null } }>('/api/businesses/me/bank')
+      .then((r) => setBank(r?.bank ?? null))
+      .catch(() => setBank(null));
   }, [offerId, retryKey]);
 
   async function setStatus(status: string) {
@@ -165,6 +172,15 @@ export function OfferPreviewSheet({
             </ThemedText>
           ) : null}
 
+          {bank?.iban ? (
+            <View style={styles.bankBox}>
+              <ThemedText type="small" themeColor="textSecondary">Στοιχεία πληρωμής</ThemedText>
+              {bank.beneficiary ? <ThemedText type="small" style={styles.dark}>Δικαιούχος: {bank.beneficiary}</ThemedText> : null}
+              {bank.bank ? <ThemedText type="small" style={styles.dark}>Τράπεζα: {bank.bank}</ThemedText> : null}
+              <ThemedText type="small" style={styles.dark}>IBAN: {bank.iban}</ThemedText>
+            </View>
+          ) : null}
+
           <PrimaryButton label="Αποστολή / επαναποστολή μηνύματος" onPress={() => void buildDraft()} busy={busy} />
           {offer.status !== 'sent_manually' && offer.status !== 'accepted' ? (
             <PrimaryButton label="Σήμανση: Στάλθηκε" tone="outline" busy={busy} onPress={() => void setStatus('sent_manually')} />
@@ -189,5 +205,6 @@ const makeStyles = (c: ThemePalette) =>
     totals: { alignItems: 'flex-end', gap: 2 },
     total: { fontSize: 17, color: c.text },
     msgBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three },
+    bankBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 2 },
     dark: { color: c.text },
   });
