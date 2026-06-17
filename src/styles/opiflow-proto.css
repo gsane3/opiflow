@@ -691,18 +691,21 @@
 .opf-tile-ic.opf-ic-chat { background: linear-gradient(150deg, var(--warn), color-mix(in srgb, var(--warn) 70%, #b5651a)); box-shadow: 0 5px 13px color-mix(in srgb, var(--warn) 30%, transparent); }
 .opf-tile-t { font-size: 16.5px; font-weight: 800; letter-spacing: -.2px; color: var(--ink); margin-top: auto; }
 .opf-tile-s { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
-.opf-tile-badge { position: absolute; top: 14px; right: 14px; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-.opf-tb-brand { background: var(--tint-2); color: var(--brand); }
-.opf-tb-warn { background: color-mix(in srgb, var(--warn) 20%, var(--surface)); color: var(--warn); }
+.opf-tile-badge { position: absolute; top: 14px; right: 14px; min-width: 24px; height: 24px; padding: 0 9px; border-radius: 999px; font-size: 12.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+/* «Ελέγξτε» is the call-to-action — solid fill so it pops for older eyes. */
+.opf-tb-brand { background: var(--brand); color: #fff; box-shadow: 0 2px 6px color-mix(in srgb, var(--brand) 35%, transparent); }
+.opf-tb-warn { background: var(--warn); color: #fff; }
 .opf-tb-ok { background: color-mix(in srgb, var(--success) 18%, var(--surface)); color: var(--success); }
 /* needs-review: brand ring + soft pulse to pull attention */
 .opf-tile.opf-review { border-color: color-mix(in srgb, var(--brand) 45%, transparent); box-shadow: var(--shadow-card), 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent); }
 .opf-tile.opf-review .opf-tile-badge { animation: opfBadgePulse 1.8s ease-in-out infinite; }
 @media (prefers-reduced-motion: no-preference) { @keyframes opfBadgePulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 40%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } } }
-/* not-sent yet: greyed out, not clickable */
-.opf-tile.opf-off { filter: grayscale(1); opacity: .5; box-shadow: none; pointer-events: none; }
+/* not-sent yet: muted + not clickable, but the explanatory subtitle stays
+   readable so an older user understands it's pending (not broken). */
+.opf-tile.opf-off { filter: grayscale(1); opacity: .68; box-shadow: none; pointer-events: none; }
 .opf-tile.opf-off .opf-tile-ic { background: var(--surface-2) !important; box-shadow: none !important; }
 .opf-tile.opf-off .opf-tile-ic svg path { stroke: var(--muted) !important; }
+.opf-tile.opf-off .opf-tile-s { color: var(--ink-2); }
 
 /* section title */
 .opf-psec { font-size: 17px; font-weight: 800; letter-spacing: -.3px; color: var(--ink); margin: 24px 22px 11px; }

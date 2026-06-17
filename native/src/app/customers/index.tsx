@@ -26,6 +26,8 @@ import type { Customer } from '@/lib/types';
 
 const STATUS_FILTERS: Array<{ key: string; label: string }> = [
   { key: '', label: 'Όλοι' },
+  // «Αναμονή στοιχείων» (#8): inbound-call contacts auto-created without a name.
+  { key: 'awaiting', label: 'Αναμονή στοιχείων' },
   { key: 'new', label: 'Νέοι' },
   { key: 'in_progress', label: 'Σε εξέλιξη' },
   { key: 'won', label: 'Κερδισμένοι' },
@@ -49,6 +51,8 @@ export default function CustomersListScreen() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
+  // #9 — hide contacts that were imported from the phone address book.
+  const [hideImported, setHideImported] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Sequence guard: a slow response for «γ» must not overwrite «γιάννης».
@@ -61,7 +65,9 @@ export default function CustomersListScreen() {
       const params = new URLSearchParams();
       params.set('limit', '100');
       if (query.trim()) params.set('q', query.trim());
-      if (st) params.set('status', st);
+      // 'awaiting' is a derived pseudo-filter (#8), not a real status value.
+      if (st === 'awaiting') params.set('awaiting', '1');
+      else if (st) params.set('status', st);
       const json = await apiGet<{ ok?: boolean; customers?: Customer[] }>(
         `/api/customers?${params.toString()}`,
       );
@@ -141,7 +147,7 @@ export default function CustomersListScreen() {
       let added = 0;
       for (const c of candidates.slice(0, 500)) {
         try {
-          const r = await apiPost<{ ok?: boolean }>('/api/customers', { ...c, source: 'manual_entry' });
+          const r = await apiPost<{ ok?: boolean }>('/api/customers', { ...c, source: 'manual_entry', importedFromPhone: true });
           if (r?.ok) added += 1;
         } catch {
           // skip failures, keep going
@@ -155,6 +161,12 @@ export default function CustomersListScreen() {
       setImporting(false);
     }
   }
+
+  const visibleItems = useMemo(
+    () => (hideImported ? items.filter((i) => !i.importedFromPhone) : items),
+    [items, hideImported],
+  );
+  const hasImported = useMemo(() => items.some((i) => i.importedFromPhone), [items]);
 
   return (
     <ThemedView style={styles.container}>
@@ -216,6 +228,25 @@ export default function CustomersListScreen() {
           ))}
         </View>
 
+        {/* #9 — hide contacts imported from the phone book (only when relevant). */}
+        {hasImported ? (
+          <Pressable
+            accessibilityRole="switch"
+            accessibilityState={{ checked: hideImported }}
+            onPress={() => setHideImported((v) => !v)}
+            style={styles.hideToggle}
+            hitSlop={6}>
+            <Ionicons
+              name={hideImported ? 'checkbox' : 'square-outline'}
+              size={17}
+              color={hideImported ? Brand.primary : c.textFaint}
+            />
+            <ThemedText type="small" themeColor={hideImported ? undefined : 'textSecondary'}>
+              Απόκρυψη επαφών κινητού
+            </ThemedText>
+          </Pressable>
+        ) : null}
+
         {loading ? (
           <View style={styles.center}>
             <ActivityIndicator color={Brand.primary} />
@@ -234,15 +265,15 @@ export default function CustomersListScreen() {
               <ThemedText style={styles.retryText}>Δοκίμασε ξανά</ThemedText>
             </Pressable>
           </View>
-        ) : items.length === 0 ? (
+        ) : visibleItems.length === 0 ? (
           <View style={styles.center}>
             <ThemedText themeColor="textSecondary">
-              {q || status ? 'Κανένα αποτέλεσμα.' : 'Δεν υπάρχουν πελάτες ακόμα.'}
+              {q || status || hideImported ? 'Κανένα αποτέλεσμα.' : 'Δεν υπάρχουν πελάτες ακόμα.'}
             </ThemedText>
           </View>
         ) : (
           <FlatList
-            data={items}
+            data={visibleItems}
             keyExtractor={(c) => c.id}
             contentContainerStyle={styles.list}
             keyboardShouldPersistTaps="handled"
@@ -271,9 +302,11 @@ export default function CustomersListScreen() {
                     {dot ? <View style={[styles.statusDot, { backgroundColor: dot }]} /> : null}
                   </View>
                   <View style={styles.rowText}>
-                    <ThemedText type="smallBold">{item.name ?? 'Πελάτης'}</ThemedText>
+                    <ThemedText type="smallBold">{item.name || phone || 'Πελάτης'}</ThemedText>
                     <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                      {[item.companyName, phone].filter(Boolean).join(' · ') || '—'}
+                      {item.name
+                        ? [item.companyName, phone].filter(Boolean).join(' · ') || '—'
+                        : 'Αναμονή στοιχείων'}
                     </ThemedText>
                   </View>
                   {item.pinned ? <Ionicons name="bookmark" size={15} color={Brand.primary} /> : null}
@@ -400,6 +433,13 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   chip: { paddingHorizontal: Spacing.three, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: c.border },
   chipActive: { backgroundColor: Brand.primary, borderColor: Brand.primary },
   chipActiveText: { color: Brand.onPrimary, fontWeight: '700' },
+  hideToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.two,
+    paddingHorizontal: Spacing.four,
+    paddingBottom: Spacing.two,
+  },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three, paddingHorizontal: Spacing.four },
   centerText: { textAlign: 'center' },
   list: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },

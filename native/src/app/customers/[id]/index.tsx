@@ -155,6 +155,8 @@ export default function CustomerProfileScreen() {
           landlinePhone: cu.landlinePhone ?? '',
           email: cu.email ?? '',
           address: cu.address ?? '',
+          postalCode: cu.postalCode ?? '',
+          region: cu.region ?? '',
           preferredContactMethod: (cu as { preferredContactMethod?: string }).preferredContactMethod ?? 'phone',
           source: cu.source ?? 'other',
           needsSummary: cu.needsSummary ?? '',
@@ -299,6 +301,8 @@ export default function CustomerProfileScreen() {
         landlinePhone: form.landlinePhone || null,
         email: form.email || null,
         address: form.address || null,
+        postalCode: form.postalCode || null,
+        region: form.region || null,
         preferredContactMethod: form.preferredContactMethod || null,
         source: form.source || null,
         needsSummary: form.needsSummary || null,
@@ -342,10 +346,12 @@ export default function CustomerProfileScreen() {
 
   function rejectCustomer() {
     if (customer?.status === 'lost') return;
-    Alert.alert('Απόρριψη πελάτη', 'Ο πελάτης θα σημανθεί ως «Χαμένος».', [
-      { text: 'Απόρριψη + ενημέρωση πελάτη', onPress: () => void markLost(true) },
-      { text: 'Απόρριψη χωρίς μήνυμα', style: 'destructive', onPress: () => void markLost(false) },
+    // Cancel first + clearly worded so a tired tap can't fire the
+    // customer-facing message option by accident.
+    Alert.alert('Απόρριψη πελάτη', 'Ο πελάτης θα σημανθεί ως «Χαμένος». Θέλετε να του στείλετε και ενημέρωση;', [
       { text: 'Ακύρωση', style: 'cancel' },
+      { text: 'Απόρριψη χωρίς μήνυμα', style: 'destructive', onPress: () => void markLost(false) },
+      { text: 'Απόρριψη + αποστολή μηνύματος', onPress: () => void markLost(true) },
     ]);
   }
 
@@ -429,7 +435,7 @@ export default function CustomerProfileScreen() {
         </View>
       </SafeAreaView>
 
-      {loading ? (
+      {loading && !customer ? (
         <View style={styles.center}>
           <ActivityIndicator color={Brand.primary} />
         </View>
@@ -471,14 +477,16 @@ export default function CustomerProfileScreen() {
               />
               <Quick icon="chatbubble-ellipses" label="Μήνυμα" onPress={() => setMsgSignal((n) => n + 1)} />
               <Quick icon="add-circle" label="Νέο έργο" onPress={() => setCreateSignal((n) => n + 1)} />
-              <Quick icon="clipboard-outline" label="Στοιχεία" onPress={sendIntake} />
+              <Quick icon="clipboard-outline" label="Ζήτα στοιχεία" onPress={sendIntake} />
               <Quick
                 icon="map"
                 label="Χάρτης"
                 disabled={!customer.address}
                 onPress={() =>
                   Linking.openURL(
-                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address ?? '')}`,
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      [customer.address, customer.postalCode, customer.region].filter(Boolean).join(', '),
+                    )}`,
                   )
                 }
               />
@@ -490,7 +498,11 @@ export default function CustomerProfileScreen() {
             <InfoRow icon="call" label="Κινητό" value={customer.mobilePhone} />
             <InfoRow icon="call-outline" label="Σταθερό" value={customer.landlinePhone} />
             <InfoRow icon="mail" label="Email" value={customer.email} />
-            <InfoRow icon="location" label="Διεύθυνση" value={customer.address} />
+            <InfoRow
+              icon="location"
+              label="Διεύθυνση"
+              value={[customer.address, [customer.postalCode, customer.region].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null}
+            />
             <InfoRow icon="sparkles" label="Ανάγκες" value={customer.needsSummary} />
             {!customer.mobilePhone && !customer.landlinePhone && !customer.email && !customer.address ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.emptyRow}>
@@ -645,6 +657,14 @@ export default function CustomerProfileScreen() {
         <Input label="Σταθερό" value={form.landlinePhone ?? ''} onChangeText={set('landlinePhone')} keyboardType="phone-pad" />
         <Input label="Email" value={form.email ?? ''} onChangeText={set('email')} keyboardType="email-address" />
         <Input label="Διεύθυνση" value={form.address ?? ''} onChangeText={set('address')} />
+        <View style={styles.twoCol}>
+          <View style={{ flex: 1 }}>
+            <Input label="Τ.Κ." value={form.postalCode ?? ''} onChangeText={set('postalCode')} keyboardType="numeric" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Input label="Περιοχή" value={form.region ?? ''} onChangeText={set('region')} />
+          </View>
+        </View>
         <ThemedText type="small" themeColor="textSecondary">
           Προτιμώμενο κανάλι
         </ThemedText>
@@ -752,7 +772,7 @@ function Quick({
       <View style={styles.quickCircle}>
         <Ionicons name={icon} size={20} color={Brand.primary} />
       </View>
-      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.quickLabel}>
+      <ThemedText type="small" themeColor="textSecondary" numberOfLines={2} style={styles.quickLabel}>
         {label}
       </ThemedText>
     </Pressable>
@@ -861,7 +881,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   badgeText: { color: Brand.primary, fontSize: 13, fontWeight: '700' },
   quickRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', marginTop: Spacing.three },
   quick: { alignItems: 'center', gap: 4, width: 62 },
-  quickLabel: { fontSize: 12, textAlign: 'center' },
+  quickLabel: { fontSize: 12, lineHeight: 15, textAlign: 'center' },
   quickCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' },
 
   group: { gap: 6 },

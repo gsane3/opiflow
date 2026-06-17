@@ -50,17 +50,45 @@ function asCustomerRow(value: unknown): CustomerRow {
   return value as CustomerRow;
 }
 
-function publicCustomer(row: CustomerRow): IntakeCustomer {
+function publicCustomer(
+  row: CustomerRow,
+  extras: { postalCode: string | null; region: string | null } = { postalCode: null, region: null }
+): IntakeCustomer {
   return {
     crmNumber: row.crm_number,
     displayName: row.name ?? row.company_name ?? row.crm_number ?? 'Πελάτης',
     phoneMasked: maskPhone(row.phone ?? row.mobile_phone ?? row.landline_phone),
+    companyName: row.company_name,
     email: row.email,
     address: row.address,
+    postalCode: extras.postalCode,
+    region: extras.region,
     notes: row.notes,
     needsSummary: row.needs_summary,
     intakeStatus: row.intake_status,
   };
+}
+
+// postal_code / region (migration 053) read tolerantly so the prefill keeps
+// working before 053 is applied.
+async function loadCustomerExtras(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  customerId: string,
+  businessId: string
+): Promise<{ postalCode: string | null; region: string | null }> {
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('postal_code, region')
+      .eq('id', customerId)
+      .eq('business_id', businessId)
+      .maybeSingle();
+    if (error || !data) return { postalCode: null, region: null };
+    const r = data as { postal_code: string | null; region: string | null };
+    return { postalCode: r.postal_code ?? null, region: r.region ?? null };
+  } catch {
+    return { postalCode: null, region: null };
+  }
 }
 
 // Public business header (logo + name + contact) — the brand the customer sees.
@@ -130,8 +158,10 @@ async function getInitialCustomer(token: string): Promise<{
 
     await markIntakeTokenOpened(tokenRow.id);
 
+    const extras = await loadCustomerExtras(supabase, tokenRow.customer_id, tokenRow.business_id);
+
     return {
-      customer: publicCustomer(asCustomerRow(data)),
+      customer: publicCustomer(asCustomerRow(data), extras),
       business: publicBusiness((bizData as unknown as BusinessRow | null) ?? null),
       error: null,
     };

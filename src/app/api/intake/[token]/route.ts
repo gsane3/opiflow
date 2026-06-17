@@ -78,17 +78,50 @@ function maskPhone(phone: string | null): string | null {
   return `${phone.slice(0, 4)}***${phone.slice(-3)}`;
 }
 
-function publicCustomer(row: CustomerRow) {
+// postal_code / region were added in migration 053; they're read tolerantly
+// (see loadCustomerExtras) so the intake form keeps working before 053 is
+// applied. company_name / needs_summary exist since 003.
+interface CustomerExtras {
+  postalCode: string | null;
+  region: string | null;
+}
+
+function publicCustomer(row: CustomerRow, extras: CustomerExtras = { postalCode: null, region: null }) {
   return {
     crmNumber: row.crm_number,
     displayName: row.name ?? row.company_name ?? row.crm_number ?? 'Πελάτης',
     phoneMasked: maskPhone(row.phone ?? row.mobile_phone ?? row.landline_phone),
+    companyName: row.company_name,
     email: row.email,
     address: row.address,
+    postalCode: extras.postalCode,
+    region: extras.region,
     notes: row.notes,
     needsSummary: row.needs_summary,
     intakeStatus: row.intake_status,
   };
+}
+
+// Tolerant fetch of the migration-053 columns — a missing column (pre-053)
+// simply yields nulls rather than failing the whole intake load.
+async function loadCustomerExtras(
+  supabase: ReturnType<typeof createServiceSupabaseClient>,
+  customerId: string,
+  businessId: string
+): Promise<CustomerExtras> {
+  try {
+    const { data, error } = await supabase
+      .from('customers')
+      .select('postal_code, region')
+      .eq('id', customerId)
+      .eq('business_id', businessId)
+      .maybeSingle();
+    if (error || !data) return { postalCode: null, region: null };
+    const row = data as { postal_code: string | null; region: string | null };
+    return { postalCode: row.postal_code ?? null, region: row.region ?? null };
+  } catch {
+    return { postalCode: null, region: null };
+  }
 }
 
 // Public business header (logo + name + contact) so the customer sees WHO is
@@ -192,9 +225,12 @@ export async function GET(
 
     await markIntakeTokenOpened(tokenRow.id);
 
+    const supabase = createServiceSupabaseClient();
+    const extras = await loadCustomerExtras(supabase, customer.id, customer.business_id);
+
     return NextResponse.json({
       ok: true,
-      customer: publicCustomer(customer),
+      customer: publicCustomer(customer, extras),
       business: await loadPublicBusiness(tokenRow.business_id),
     });
   } catch {
@@ -254,7 +290,11 @@ export async function POST(
     const firstName = str(raw.firstName);
     const lastName = str(raw.lastName);
     const email = str(raw.email);
+    const companyName = str(raw.companyName);
     const address = str(raw.address);
+    const postalCode = str(raw.postalCode);
+    const region = str(raw.region);
+    const needsSummary = str(raw.needsSummary);
     const comments = str(raw.comments);
     const preferred = preferredContactMethod(raw.preferredContactMethod);
 
@@ -274,16 +314,23 @@ export async function POST(
     ].filter(Boolean);
 
     const supabase = createServiceSupabaseClient();
+    // company_name / needs_summary exist since 003 → safe in the core update.
+    // Only overwrite them when the customer actually supplied a value, so a
+    // blank field never wipes data the business already had on file.
+    const coreUpdate: Record<string, unknown> = {
+      name,
+      email,
+      address,
+      notes: notesParts.length > 0 ? notesParts.join('\n\n') : null,
+      intake_status: 'submitted',
+      updated_at: now,
+    };
+    if (companyName) coreUpdate.company_name = companyName;
+    if (needsSummary) coreUpdate.needs_summary = needsSummary;
+
     const { data, error } = await supabase
       .from('customers')
-      .update({
-        name,
-        email,
-        address,
-        notes: notesParts.length > 0 ? notesParts.join('\n\n') : null,
-        intake_status: 'submitted',
-        updated_at: now,
-      })
+      .update(coreUpdate)
       .eq('id', customer.id)
       .eq('business_id', customer.business_id)
       .select(CUSTOMER_COLUMNS)
@@ -330,6 +377,27 @@ export async function POST(
       }
     }
 
+    // postal_code / region (migration 053) in their OWN isolated update so a
+    // pre-053 deployment can't fail the core intake submission above. Write only
+    // the field(s) the customer actually filled — never null out a prefilled
+    // value because the other field was left blank.
+    let extras = await loadCustomerExtras(supabase, customer.id, customer.business_id);
+    if (postalCode || region) {
+      const extraUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (postalCode) extraUpdate.postal_code = postalCode;
+      if (region) extraUpdate.region = region;
+      try {
+        await supabase
+          .from('customers')
+          .update(extraUpdate)
+          .eq('id', customer.id)
+          .eq('business_id', customer.business_id);
+        extras = { postalCode: postalCode ?? extras.postalCode, region: region ?? extras.region };
+      } catch {
+        // pre-053 → swallowed; intake submission already succeeded.
+      }
+    }
+
     await markIntakeTokenSubmitted(tokenRow.id);
 
     // Surface the customer's free-text comment as an INBOUND message so it
@@ -365,7 +433,7 @@ export async function POST(
 
     return NextResponse.json({
       ok: true,
-      customer: publicCustomer(updatedRow),
+      customer: publicCustomer(updatedRow, extras),
     });
   } catch {
     return NextResponse.json({ ok: false, error: 'intake_submit_failed' }, { status: 500 });

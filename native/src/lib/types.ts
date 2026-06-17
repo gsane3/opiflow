@@ -10,6 +10,8 @@ export interface Customer {
   landlinePhone?: string | null;
   email?: string | null;
   address?: string | null;
+  postalCode?: string | null;
+  region?: string | null;
   source?: string | null;
   status?: 'new' | 'in_progress' | 'won' | 'lost' | null;
   opportunityValue?: number | null;
@@ -22,6 +24,8 @@ export interface Customer {
   lastContactAt?: string | null;
   createdAt?: string;
   pinned?: boolean;
+  /** Imported from the phone address book (#9) — hideable in the list. */
+  importedFromPhone?: boolean;
 }
 
 export interface Task {

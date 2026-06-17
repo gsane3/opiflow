@@ -98,6 +98,10 @@ interface CustomerRow {
   next_best_action: string | null;
   memory_updated_at: string | null;
   pinned?: boolean;
+  // migration 053 — read tolerantly, may be absent pre-053
+  postal_code?: string | null;
+  region?: string | null;
+  imported_from_phone?: boolean | null;
 }
 
 function dbToCustomer(row: CustomerRow) {
@@ -111,6 +115,8 @@ function dbToCustomer(row: CustomerRow) {
     landlinePhone: row.landline_phone,
     email: row.email,
     address: row.address,
+    postalCode: row.postal_code ?? null,
+    region: row.region ?? null,
     source: row.source,
     status: row.status,
     opportunityValue: row.opportunity_value,
@@ -128,6 +134,7 @@ function dbToCustomer(row: CustomerRow) {
     nextBestAction: row.next_best_action,
     memoryUpdatedAt: row.memory_updated_at,
     pinned: row.pinned ?? false,
+    importedFromPhone: row.imported_from_phone ?? false,
   };
 }
 
@@ -193,6 +200,9 @@ export async function GET(request: NextRequest) {
     const { searchParams } = request.nextUrl;
     const statusParam = searchParams.get('status');
     const qParam = searchParams.get('q');
+    // «Αναμονή στοιχείων» (#8): inbound-call contacts auto-created with no name
+    // yet — derived, no dedicated column needed.
+    const awaiting = searchParams.get('awaiting') === '1';
     const limitRaw = parseInt(searchParams.get('limit') ?? '50', 10);
     const offsetRaw = parseInt(searchParams.get('offset') ?? '0', 10);
 
@@ -212,6 +222,10 @@ export async function GET(request: NextRequest) {
 
     if (statusParam) {
       query = query.eq('status', statusParam);
+    }
+
+    if (awaiting) {
+      query = query.is('name', null).eq('source', 'inbound_call');
     }
 
     const q = qParam?.trim();
@@ -246,6 +260,30 @@ export async function GET(request: NextRequest) {
       }
     } catch {
       // pre-044 → leave as-is
+    }
+
+    // imported_from_phone (#9, migration 053) — tolerant merge so the native
+    // contacts list can hide phone-imported contacts. A missing column (pre-053)
+    // simply leaves every customer as not-imported.
+    try {
+      const ids = customers.map((c) => c.id);
+      if (ids.length > 0) {
+        const { data: flags, error: flagErr } = await supabase
+          .from('customers')
+          .select('id, imported_from_phone')
+          .eq('business_id', businessId)
+          .in('id', ids);
+        if (!flagErr && Array.isArray(flags)) {
+          const imported = new Set(
+            (flags as Array<{ id: string; imported_from_phone: boolean | null }>)
+              .filter((f) => f.imported_from_phone)
+              .map((f) => f.id)
+          );
+          for (const c of customers) c.importedFromPhone = imported.has(c.id);
+        }
+      }
+    } catch {
+      // pre-053 → leave importedFromPhone false
     }
 
     return NextResponse.json({ ok: true, customers, count: customers.length });
@@ -350,8 +388,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'customer_create_failed' }, { status: 500 });
     }
 
+    const created = dbToCustomer(asCustomerRow(data));
+
+    // Mark phone-address-book imports (#9) in their own isolated update so a
+    // pre-053 deployment can't fail the create. Native contact-import sends this.
+    if (raw.importedFromPhone === true) {
+      try {
+        await supabase
+          .from('customers')
+          .update({ imported_from_phone: true })
+          .eq('id', created.id)
+          .eq('business_id', businessId);
+        created.importedFromPhone = true;
+      } catch {
+        // pre-053 → swallowed; the customer was still created.
+      }
+    }
+
     return NextResponse.json(
-      { ok: true, customer: dbToCustomer(asCustomerRow(data)) },
+      { ok: true, customer: created },
       { status: 201 }
     );
   } catch {

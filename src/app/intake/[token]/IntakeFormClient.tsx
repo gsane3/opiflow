@@ -6,8 +6,11 @@ export interface IntakeCustomer {
   crmNumber: string | null;
   displayName: string;
   phoneMasked: string | null;
+  companyName: string | null;
   email: string | null;
   address: string | null;
+  postalCode: string | null;
+  region: string | null;
   notes: string | null;
   needsSummary: string | null;
   intakeStatus: string;
@@ -75,14 +78,20 @@ export default function IntakeFormClient({
   const [business, setBusiness] = useState<IntakeBusiness | null>(initialBusiness);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [companyName, setCompanyName] = useState(initialCustomer?.companyName ?? '');
   const [email, setEmail] = useState(initialCustomer?.email ?? '');
   const [address, setAddress] = useState(initialCustomer?.address ?? '');
+  const [postalCode, setPostalCode] = useState(initialCustomer?.postalCode ?? '');
+  const [region, setRegion] = useState(initialCustomer?.region ?? '');
+  const [needsSummary, setNeedsSummary] = useState(initialCustomer?.needsSummary ?? '');
   const [comments, setComments] = useState('');
   const [preferredContactMethod, setPreferredContactMethod] =
     useState<PreferredContactMethod>('viber');
   const [loading, setLoading] = useState(!initialSubmitted && !initialCustomer && !initialError);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(initialSubmitted);
+  // Distinguishes a red error message from the neutral blue instruction.
+  const [isError, setIsError] = useState(Boolean(initialError));
   const [message, setMessage] = useState(
     initialSubmitted
       ? 'Τα στοιχεία σας στάλθηκαν. Η επιχείρηση θα ενημερωθεί.'
@@ -109,18 +118,25 @@ export default function IntakeFormClient({
 
         if (!response.ok || !json.ok || !json.customer) {
           setCustomer(null);
-          setMessage('Το link δεν είναι πλέον ενεργό. Επικοινωνήστε με την επιχείρηση.');
+          setIsError(true);
+          setMessage('Ο σύνδεσμος δεν είναι πλέον ενεργός. Επικοινωνήστε με την επιχείρηση.');
           return;
         }
 
         setCustomer(json.customer);
         if (json.business) setBusiness(json.business);
+        setCompanyName(json.customer.companyName ?? '');
         setEmail(json.customer.email ?? '');
         setAddress(json.customer.address ?? '');
+        setPostalCode(json.customer.postalCode ?? '');
+        setRegion(json.customer.region ?? '');
+        setNeedsSummary(json.customer.needsSummary ?? '');
+        setIsError(false);
         setMessage('Συμπληρώστε τα στοιχεία σας για να ολοκληρώσουμε την καρτέλα.');
       } catch {
         if (!cancelled) {
           setCustomer(null);
+          setIsError(true);
           setMessage('Δεν μπορέσαμε να φορτώσουμε τη φόρμα. Δοκιμάστε ξανά.');
         }
       } finally {
@@ -139,11 +155,13 @@ export default function IntakeFormClient({
     event.preventDefault();
 
     if (!firstName.trim() && !lastName.trim()) {
+      setIsError(true);
       setMessage('Συμπληρώστε όνομα ή επώνυμο.');
       return;
     }
 
     setSaving(true);
+    setIsError(false);
     setMessage('Αποθηκεύουμε τα στοιχεία...');
 
     try {
@@ -153,8 +171,12 @@ export default function IntakeFormClient({
         body: JSON.stringify({
           firstName,
           lastName,
+          companyName,
           email,
           address,
+          postalCode,
+          region,
+          needsSummary,
           comments,
           preferredContactMethod,
         }),
@@ -163,14 +185,17 @@ export default function IntakeFormClient({
       const json = (await response.json()) as IntakeApiResponse;
 
       if (!response.ok || !json.ok || !json.customer) {
+        setIsError(true);
         setMessage('Δεν μπορέσαμε να αποθηκεύσουμε τα στοιχεία. Δοκιμάστε ξανά.');
         return;
       }
 
       setCustomer(json.customer);
       setSubmitted(true);
+      setIsError(false);
       setMessage('Τα στοιχεία σας στάλθηκαν. Η επιχείρηση θα ενημερωθεί.');
     } catch {
+      setIsError(true);
       setMessage('Δεν μπορέσαμε να αποθηκεύσουμε τα στοιχεία. Δοκιμάστε ξανά.');
     } finally {
       setSaving(false);
@@ -227,7 +252,14 @@ export default function IntakeFormClient({
           ) : null}
 
           {message && !submitted ? (
-            <p className="mt-4 rounded-2xl bg-indigo-50 px-4 py-3 text-sm text-indigo-700">
+            <p
+              role={isError ? 'alert' : undefined}
+              className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                isError
+                  ? 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300'
+                  : 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300'
+              }`}
+            >
               {message}
             </p>
           ) : null}
@@ -236,7 +268,7 @@ export default function IntakeFormClient({
             <form action={`/api/intake/${encodeURIComponent(token)}`} method="post" onSubmit={handleSubmit} className="mt-5 space-y-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <label className="block">
-                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Όνομα</span>
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Όνομα <span className="text-indigo-600">*</span></span>
                   <input
                     name="firstName"
                     value={firstName}
@@ -260,8 +292,24 @@ export default function IntakeFormClient({
                 </label>
               </div>
 
+              <p className="-mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                <span className="text-indigo-600">*</span> Συμπληρώστε όνομα ή επώνυμο. Τα υπόλοιπα είναι προαιρετικά.
+              </p>
+
               <label className="block">
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Email</span>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Εταιρεία <span className="font-normal text-zinc-400">(προαιρετικό)</span></span>
+                <input
+                  name="companyName"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  autoComplete="organization"
+                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
+                  placeholder="π.χ. Παπαδόπουλος Ο.Ε."
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Email <span className="font-normal text-zinc-400">(προαιρετικό)</span></span>
                 <input
                   name="email"
                   type="email"
@@ -276,14 +324,52 @@ export default function IntakeFormClient({
               </label>
 
               <label className="block">
-                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Διεύθυνση</span>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Διεύθυνση <span className="font-normal text-zinc-400">(προαιρετικό)</span></span>
                 <input
                   name="address"
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
-                  autoComplete="street-address"
+                  autoComplete="address-line1"
                   className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
-                  placeholder="Οδός, αριθμός, περιοχή"
+                  placeholder="Οδός & αριθμός"
+                />
+              </label>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Τ.Κ.</span>
+                  <input
+                    name="postalCode"
+                    value={postalCode}
+                    onChange={(event) => setPostalCode(event.target.value)}
+                    autoComplete="postal-code"
+                    inputMode="numeric"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
+                    placeholder="π.χ. 11521"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Περιοχή</span>
+                  <input
+                    name="region"
+                    value={region}
+                    onChange={(event) => setRegion(event.target.value)}
+                    autoComplete="address-level2"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
+                    placeholder="π.χ. Αμπελόκηποι"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Τι χρειάζεστε; <span className="font-normal text-zinc-400">(προαιρετικό)</span></span>
+                <textarea
+                  name="needsSummary"
+                  value={needsSummary}
+                  onChange={(event) => setNeedsSummary(event.target.value)}
+                  className="mt-1 min-h-20 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-3 text-base outline-none focus:border-indigo-400"
+                  placeholder="Σύντομη περιγραφή της εργασίας/ανάγκης σας."
                 />
               </label>
 
@@ -326,6 +412,13 @@ export default function IntakeFormClient({
                 />
               </label>
 
+              <p className="flex items-center justify-center gap-1.5 text-center text-sm text-zinc-500 dark:text-zinc-400">
+                <svg className="h-4 w-4 shrink-0" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                Τα στοιχεία χρησιμοποιούνται μόνο για την εξυπηρέτησή σας.
+              </p>
+
               <button
                 type="submit"
                 disabled={saving}
@@ -367,7 +460,7 @@ export default function IntakeFormClient({
           ) : null}
 
           <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-            Τα στοιχεία χρησιμοποιούνται μόνο για την εξυπηρέτησή σας.
+            Ιδιωτική σελίδα — μόνο εσείς και η επιχείρηση έχετε πρόσβαση.
           </p>
         </section>
       </div>
