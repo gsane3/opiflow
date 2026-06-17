@@ -56,7 +56,7 @@ type PreferredContactMethod = 'viber' | 'sms' | 'email';
 const CONTACT_METHOD_OPTIONS: { value: PreferredContactMethod; label: string }[] = [
   { value: 'viber', label: 'Viber' },
   { value: 'sms', label: 'SMS' },
-  { value: 'email', label: 'Email' },
+  // Email removed — links are delivered via Viber→SMS (email channel not configured).
 ];
 
 interface IntakeFormClientProps {
