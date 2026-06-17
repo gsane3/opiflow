@@ -319,7 +319,10 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .in('channel', ['sms', 'viber', 'email'])
-        .eq('status', 'completed')
+        // Inbound customer messages are logged 'completed'; outbound business
+        // messages go 'sent'→'delivered'→'seen' (Apifon status webhook). Show both
+        // directions so the chat is two-way and project-update notifications appear.
+        .in('status', ['completed', 'sent', 'delivered', 'seen'])
         .order('created_at', { ascending: true })
         .limit(50),
       // Payment requests — same triple-scoping (business_id + work_folder_id),

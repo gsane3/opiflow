@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { notifyFolderUpdate } from '@/lib/server/notify-folder-update';
 import {
   computePaymentAmount,
   isPaymentKind,
@@ -119,6 +120,8 @@ export async function POST(
       return NextResponse.json({ ok: false, error: 'payment_request_failed' }, { status: 500 });
     }
 
+    // γ — auto-notify the customer about the new payment request.
+    void notifyFolderUpdate({ businessId, workFolderId: folderId, what: kind === 'deposit' ? 'αίτημα προκαταβολής' : 'αίτημα εξόφλησης' }).catch(() => {});
     return NextResponse.json({ ok: true, payment: mapBusinessPayment(inserted as unknown as PaymentRequestRow) });
   } catch {
     return NextResponse.json({ ok: false, error: 'payment_request_failed' }, { status: 500 });
