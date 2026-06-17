@@ -2,8 +2,8 @@
 // Hero (avatar + name + status) · circular quick actions (Κλήση / Μήνυμα / Νέο έργο
 // / Χάρτης) · Στοιχεία · Έργα (WorkFoldersSection = the project «Διαδικασία» flow) ·
 // Δραστηριότητα (offers/appointments/files/call-briefs) · internal note · reject.
-// The old chat-first workspace was retired; messaging is via the «Μήνυμα» sheet
-// (free text + snippets + schedule + AI draft) and the per-project flow.
+// The old chat-first workspace was retired; «Μήνυμα» and «Νέο έργο» open the
+// project «Διαδικασία» flow (where messaging lives), exactly like the web.
 
 import { Ionicons } from '@expo/vector-icons';
 import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -29,9 +29,8 @@ import { ChipSelect, Input, ListRow, PrimaryButton, SheetModal } from '@/compone
 import { WorkFoldersSection } from '@/components/work-folders-section';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
-import { dmyToYmd, formatDate, formatEuro, formatWhen } from '@/lib/format';
-import { hapticSuccess } from '@/lib/haptics';
+import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { formatDate, formatEuro, formatWhen } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { Customer, GalleryFile, LinkDraft, Offer, Task, TimelineItem, UploadSession } from '@/lib/types';
 
@@ -118,8 +117,9 @@ export default function CustomerProfileScreen() {
   const [previewAppt, setPreviewAppt] = useState<Task | null>(null);
   const [apptDraft, setApptDraft] = useState<LinkDraft | null>(null);
 
-  // Profile-first additions (web parity)
-  const [msgOpen, setMsgOpen] = useState(false);
+  // Profile-first additions (web parity): «Μήνυμα» opens the latest project chat,
+  // «Νέο έργο» opens the create sheet — both via signals to WorkFoldersSection.
+  const [msgSignal, setMsgSignal] = useState(0);
   const [createSignal, setCreateSignal] = useState(0);
 
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
@@ -445,7 +445,7 @@ export default function CustomerProfileScreen() {
                 disabled={!callPhone}
                 onPress={() => router.push({ pathname: '/calls', params: { num: callPhone } })}
               />
-              <Quick icon="chatbubble-ellipses" label="Μήνυμα" onPress={() => setMsgOpen(true)} />
+              <Quick icon="chatbubble-ellipses" label="Μήνυμα" onPress={() => setMsgSignal((n) => n + 1)} />
               <Quick icon="add-circle" label="Νέο έργο" onPress={() => setCreateSignal((n) => n + 1)} />
               <Quick
                 icon="map"
@@ -475,7 +475,7 @@ export default function CustomerProfileScreen() {
           </GroupCard>
 
           {/* Έργα — per-job grouping + the project «Διαδικασία» flow */}
-          <WorkFoldersSection customerId={customerId} openCreateSignal={createSignal} />
+          <WorkFoldersSection customerId={customerId} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
 
           {/* Δραστηριότητα — expandable rows */}
           <GroupCard title="Δραστηριότητα">
@@ -604,19 +604,6 @@ export default function CustomerProfileScreen() {
         </ScrollView>
       )}
 
-      {/* Μήνυμα (free text + snippets + schedule + AI draft) */}
-      <MessageModal
-        visible={msgOpen}
-        customerId={customerId}
-        customerName={customer?.name ?? null}
-        customerAddress={customer?.address ?? null}
-        onClose={() => setMsgOpen(false)}
-        onDone={() => {
-          setMsgOpen(false);
-          void load();
-        }}
-      />
-
       {/* Edit contact sheet — Όνομα / Επώνυμο split (web parity) */}
       <SheetModal visible={editOpen} title="Επεξεργασία στοιχείων" onClose={() => setEditOpen(false)}>
         <View style={styles.twoCol}>
@@ -716,275 +703,6 @@ export default function CustomerProfileScreen() {
         </View>
       </Modal>
     </ThemedView>
-  );
-}
-
-// ---------- message modal (free text + snippets + schedule + AI draft) ----------
-
-interface SnippetLite {
-  id: string;
-  title: string;
-  body: string;
-}
-
-function fillTokens(body: string, name: string | null, address: string | null): string {
-  return body
-    .replace(/\{όνομα\}/g, name?.trim() || '')
-    .replace(/\{διεύθυνση\}/g, address?.trim() || '')
-    .replace(/\{ημερομηνία\}/g, '')
-    .replace(/\{ώρα\}/g, '')
-    .replace(/[ \t]{2,}/g, ' ')
-    .replace(/\s+([,.!;])/g, '$1')
-    .trim();
-}
-
-function MessageModal({
-  visible,
-  customerId,
-  customerName,
-  customerAddress,
-  onClose,
-  onDone,
-}: {
-  visible: boolean;
-  customerId: string;
-  customerName: string | null;
-  customerAddress: string | null;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const c = useTheme();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  const [text, setText] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [drafting, setDrafting] = useState(false);
-  const [snippets, setSnippets] = useState<SnippetLite[] | null>(null);
-  const [showSnippets, setShowSnippets] = useState(false);
-  const [scheduleMode, setScheduleMode] = useState(false);
-  const [schedDate, setSchedDate] = useState('');
-  const [schedTime, setSchedTime] = useState('');
-  const [pending, setPending] = useState<Array<{ id: string; body: string; scheduledFor: string }>>([]);
-
-  const loadPending = useCallback(async () => {
-    try {
-      const res = await apiGet<{ ok?: boolean; messages?: Array<{ id: string; body: string; scheduledFor: string }> }>(
-        `/api/customers/${customerId}/scheduled-messages`,
-      );
-      setPending(res?.messages ?? []);
-    } catch {
-      setPending([]);
-    }
-  }, [customerId]);
-
-  useEffect(() => {
-    if (visible) {
-      setText('');
-      setShowSnippets(false);
-      setScheduleMode(false);
-      setSchedDate('');
-      setSchedTime('');
-      void loadPending();
-    }
-  }, [visible, loadPending]);
-
-  async function cancelPending(pid: string) {
-    setPending((prev) => prev.filter((p) => p.id !== pid));
-    try { await apiDelete(`/api/scheduled-messages/${pid}`); } catch { void loadPending(); }
-  }
-
-  async function schedule() {
-    const t = text.trim();
-    if (!t) return;
-    const ymd = dmyToYmd(schedDate);
-    if (!ymd) {
-      Alert.alert('Ημερομηνία', 'Γράψε ημερομηνία ως ΗΗ-ΜΜ-ΕΕΕΕ.');
-      return;
-    }
-    const time = schedTime.trim() || '10:00';
-    if (!/^\d{1,2}:\d{2}$/.test(time)) {
-      Alert.alert('Ώρα', 'Γράψε ώρα ως ΩΩ:ΛΛ (π.χ. 10:00).');
-      return;
-    }
-    const when = new Date(`${ymd}T${time.padStart(5, '0')}:00`);
-    if (isNaN(when.getTime()) || when.getTime() < Date.now()) {
-      Alert.alert('Ημερομηνία', 'Διάλεξε μελλοντική ημερομηνία/ώρα.');
-      return;
-    }
-    setBusy(true);
-    try {
-      const res = await apiPost<{ ok?: boolean; error?: string }>(`/api/customers/${customerId}/scheduled-messages`, {
-        text: t,
-        scheduledFor: when.toISOString(),
-      });
-      if (res?.ok) {
-        Alert.alert('✓', 'Το μήνυμα προγραμματίστηκε. Θα σταλεί αυτόματα.');
-        onDone();
-      } else {
-        Alert.alert('Σφάλμα', res?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Ο προγραμματισμός απέτυχε.');
-      }
-    } catch {
-      Alert.alert('Σφάλμα', 'Ο προγραμματισμός απέτυχε.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function loadSnippets() {
-    if (snippets !== null) {
-      setShowSnippets((v) => !v);
-      return;
-    }
-    setShowSnippets(true);
-    try {
-      const res = await apiGet<{ ok?: boolean; snippets?: SnippetLite[] }>('/api/snippets');
-      setSnippets(res?.snippets ?? []);
-    } catch {
-      setSnippets([]);
-    }
-  }
-
-  async function draftReply() {
-    if (drafting) return;
-    setDrafting(true);
-    try {
-      const res = await apiPost<{ ok?: boolean; draft?: string; error?: string }>(
-        `/api/customers/${customerId}/reply-draft`,
-        text.trim() ? { hint: text.trim() } : {},
-      );
-      if (res?.ok && res.draft) setText(res.draft);
-      else Alert.alert('AI', res?.error === 'ai_not_configured' ? 'Ο AI βοηθός δεν είναι ρυθμισμένος.' : 'Δεν δημιουργήθηκε πρόταση.');
-    } catch {
-      Alert.alert('AI', 'Δεν δημιουργήθηκε πρόταση.');
-    } finally {
-      setDrafting(false);
-    }
-  }
-
-  async function send() {
-    const t = text.trim();
-    if (!t) return;
-    setBusy(true);
-    try {
-      const res = await apiPost<{ ok?: boolean; error?: string }>(`/api/customers/${customerId}/message`, { text: t });
-      if (res?.ok) { void hapticSuccess(); onDone(); }
-      else Alert.alert('Σφάλμα', res?.error === 'no_phone' ? 'Ο πελάτης δεν έχει τηλέφωνο.' : 'Το μήνυμα δεν στάλθηκε.');
-    } catch {
-      Alert.alert('Σφάλμα', 'Το μήνυμα δεν στάλθηκε.');
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <SheetModal visible={visible} title="Μήνυμα στον πελάτη" onClose={onClose}>
-      {pending.length > 0 ? (
-        <View style={styles.pendingBox}>
-          <ThemedText type="smallBold" style={styles.ink}>
-            Προγραμματισμένα ({pending.length})
-          </ThemedText>
-          {pending.map((p) => (
-            <View key={p.id} style={styles.pendingItem}>
-              <View style={{ flex: 1 }}>
-                <ThemedText type="small" themeColor="textSecondary">
-                  {formatWhen(p.scheduledFor)}
-                </ThemedText>
-                <ThemedText type="small" style={styles.ink} numberOfLines={1}>
-                  {p.body}
-                </ThemedText>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Ακύρωση"
-                onPress={() => void cancelPending(p.id)}
-                hitSlop={8}
-                style={({ pressed }) => [pressed && styles.pressed]}>
-                <Ionicons name="close-circle" size={22} color="#D14343" />
-              </Pressable>
-            </View>
-          ))}
-        </View>
-      ) : null}
-      <Input label="Μήνυμα (Viber → SMS)" value={text} onChangeText={setText} placeholder="Γράψε ή διάλεξε πρότυπο…" multiline />
-      <View style={styles.msgTools}>
-        <Pressable onPress={() => void loadSnippets()} style={({ pressed }) => [styles.snippetToggle, pressed && styles.pressed]}>
-          <Ionicons name="chatbox-ellipses-outline" size={16} color={Brand.primary} />
-          <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
-            {showSnippets ? 'Κλείσιμο' : 'Πρότυπα'}
-          </ThemedText>
-        </Pressable>
-        <Pressable onPress={() => void draftReply()} disabled={drafting} style={({ pressed }) => [styles.snippetToggle, (pressed || drafting) && styles.pressed]}>
-          {drafting ? <ActivityIndicator size="small" color={Brand.primary} /> : <Ionicons name="sparkles" size={16} color={Brand.primary} />}
-          <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
-            Πρόταση απάντησης
-          </ThemedText>
-        </Pressable>
-      </View>
-      {showSnippets ? (
-        snippets === null ? (
-          <ActivityIndicator color={Brand.primary} style={{ marginVertical: Spacing.two }} />
-        ) : snippets.length === 0 ? (
-          <ThemedText type="small" themeColor="textSecondary">
-            Δεν υπάρχουν πρότυπα. Πρόσθεσέ τα από τις Ρυθμίσεις.
-          </ThemedText>
-        ) : (
-          <View style={styles.snippetList}>
-            {snippets.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => {
-                  const filled = fillTokens(s.body, customerName, customerAddress);
-                  setText((prev) => (prev ? `${prev} ${filled}` : filled));
-                  setShowSnippets(false);
-                }}
-                style={({ pressed }) => [styles.snippetItem, pressed && styles.pressed]}>
-                <ThemedText type="smallBold" style={styles.ink}>
-                  {s.title}
-                </ThemedText>
-                <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                  {fillTokens(s.body, customerName, customerAddress)}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-        )
-      ) : null}
-      <Pressable onPress={() => setScheduleMode((v) => !v)} style={({ pressed }) => [styles.snippetToggle, pressed && styles.pressed]}>
-        <Ionicons name={scheduleMode ? 'time' : 'time-outline'} size={16} color={Brand.primary} />
-        <ThemedText type="small" style={{ color: Brand.primary, fontWeight: '700' }}>
-          {scheduleMode ? 'Άμεση αποστολή' : 'Αποστολή αργότερα'}
-        </ThemedText>
-      </Pressable>
-      {scheduleMode ? (
-        <>
-          <View style={styles.dateChips}>
-            {([
-              ['Αύριο', 1],
-              ['Μεθαύριο', 2],
-            ] as const).map(([label, offset]) => (
-              <Pressable
-                key={label}
-                onPress={() => {
-                  const d = new Date();
-                  d.setDate(d.getDate() + offset);
-                  const p = (n: number) => String(n).padStart(2, '0');
-                  setSchedDate(`${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`);
-                  if (!schedTime) setSchedTime('10:00');
-                }}
-                style={({ pressed }) => [styles.dateChip, pressed && styles.pressed]}>
-                <ThemedText type="small" style={styles.dateChipText}>
-                  {label}
-                </ThemedText>
-              </Pressable>
-            ))}
-          </View>
-          <Input label="Ημερομηνία (ΗΗ-ΜΜ-ΕΕΕΕ)" value={schedDate} onChangeText={setSchedDate} placeholder="15-06-2026" />
-          <Input label="Ώρα" value={schedTime} onChangeText={setSchedTime} placeholder="10:00" />
-          <PrimaryButton label="Προγραμματισμός" onPress={() => void schedule()} busy={busy} disabled={!text.trim() || !schedDate.trim()} />
-        </>
-      ) : (
-        <PrimaryButton label="Αποστολή (Viber → SMS)" onPress={() => void send()} busy={busy} disabled={!text.trim()} />
-      )}
-    </SheetModal>
   );
 }
 
