@@ -177,6 +177,25 @@ export default function BusinessForm({ profile, onChange, onSave, saved }: Props
               placeholder="https://example.gr"
             />
           </Field>
+          <Field label="Facebook">
+            <input
+              className={inputCls}
+              type="text"
+              value={profile.facebookUrl ?? ''}
+              onChange={(e) => set('facebookUrl', e.target.value)}
+              placeholder="https://facebook.com/… ή @σελίδα"
+            />
+          </Field>
+          <Field label="Instagram">
+            <input
+              className={inputCls}
+              type="text"
+              value={profile.instagramUrl ?? ''}
+              onChange={(e) => set('instagramUrl', e.target.value)}
+              placeholder="https://instagram.com/… ή @handle"
+            />
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Φαίνονται ως κουμπιά στο link του πελάτη.</p>
+          </Field>
         </div>
       </section>
 

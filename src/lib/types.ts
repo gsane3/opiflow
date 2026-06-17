@@ -30,6 +30,8 @@ export interface BusinessProfile {
   postalCode?: string;
   region?: string;
   website?: string;
+  facebookUrl?: string;
+  instagramUrl?: string;
   vatNumber: string;
   taxOffice: string;
   logoDataUrl: string;

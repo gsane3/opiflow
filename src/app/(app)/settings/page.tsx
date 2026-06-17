@@ -46,6 +46,8 @@ type BusinessMeResponse = {
     postal_code?: string | null;
     region?: string | null;
     website?: string | null;
+    facebook_url?: string | null;
+    instagram_url?: string | null;
   };
   phoneAssigned?: boolean;
   activationAllowed?: boolean;
@@ -122,6 +124,8 @@ function defaultProfile(): BusinessProfile {
     postalCode: '',
     region: '',
     website: '',
+    facebookUrl: '',
+    instagramUrl: '',
     vatNumber: '',
     taxOffice: '',
     logoDataUrl: '',
@@ -192,6 +196,8 @@ export default function SettingsPage() {
               postalCode:     biz.postal_code      !== undefined ? (biz.postal_code      ?? '')                                               : current.postalCode,
               region:         biz.region           !== undefined ? (biz.region           ?? '')                                               : current.region,
               website:        biz.website          !== undefined ? (biz.website          ?? '')                                               : current.website,
+              facebookUrl:    biz.facebook_url     !== undefined ? (biz.facebook_url     ?? '')                                               : current.facebookUrl,
+              instagramUrl:   biz.instagram_url    !== undefined ? (biz.instagram_url    ?? '')                                               : current.instagramUrl,
               // Logo is now persisted to businesses.logo_url — the DB is the
               // source of truth (shown on the public offer/intake/appointment pages).
               logoDataUrl: (biz as { logo_url?: string | null }).logo_url !== undefined
@@ -269,6 +275,8 @@ export default function SettingsPage() {
           postal_code:              profile.postalCode       || null,
           region:                   profile.region           || null,
           website:                  profile.website          || null,
+          facebook_url:             profile.facebookUrl      || null,
+          instagram_url:            profile.instagramUrl     || null,
           logoDataUrl:              profile.logoDataUrl      || null,
         }),
       });

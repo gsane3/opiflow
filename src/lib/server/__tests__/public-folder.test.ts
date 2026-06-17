@@ -49,6 +49,8 @@ describe('public-folder', () => {
         website: 'https://acme.gr',
         bankName: null,
         bankBeneficiary: null,
+        facebookUrl: null,
+        instagramUrl: null,
       });
     });
 

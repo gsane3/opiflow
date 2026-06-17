@@ -88,6 +88,9 @@ export interface BusinessRowForPublic {
   // public details, needed so the customer can make the deposit; safe to expose.
   bank_name?: string | null;
   bank_beneficiary?: string | null;
+  // Public contact links shown as icons on the portal hero (β).
+  facebook_url?: string | null;
+  instagram_url?: string | null;
 }
 export interface OfferRowForPublic {
   id: string;
@@ -143,6 +146,8 @@ export interface PublicFolderBusiness {
   website: string | null;
   bankName: string | null;
   bankBeneficiary: string | null;
+  facebookUrl: string | null;
+  instagramUrl: string | null;
 }
 export interface PublicFolderOffer {
   id: string;
@@ -198,6 +203,8 @@ function mapPublicBusiness(row: BusinessRowForPublic | null): PublicFolderBusine
     website: row.website,
     bankName: row.bank_name?.trim() || null,
     bankBeneficiary: row.bank_beneficiary?.trim() || null,
+    facebookUrl: row.facebook_url?.trim() || null,
+    instagramUrl: row.instagram_url?.trim() || null,
   };
 }
 
@@ -293,7 +300,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     const [bizRes, offersRes, apptRes, msgRes, payRes, custRes] = await Promise.all([
       supabase
         .from('businesses')
-        .select('name, legal_name, trade_name, logo_url, phone, email, website, bank_name, bank_beneficiary')
+        .select('name, legal_name, trade_name, logo_url, phone, email, website, bank_name, bank_beneficiary, facebook_url, instagram_url')
         .eq('id', token.business_id)
         .maybeSingle(),
       supabase

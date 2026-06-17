@@ -53,6 +53,40 @@ function Stepper({ step }: { step: number }) {
   );
 }
 
+// Normalize a stored social value (full URL or @handle/handle) to an href.
+function socialHref(value: string | null | undefined, domain: string): string | null {
+  if (!value) return null;
+  const v = value.trim();
+  if (!v) return null;
+  if (/^https?:\/\//i.test(v)) return v;
+  const handle = v.replace(/^@/, '').replace(/^\/+/, '');
+  return handle ? `https://${domain}/${handle}` : null;
+}
+
+function ContactIcons({ biz }: { biz: PublicFolderView['business'] }) {
+  if (!biz) return null;
+  const tel = biz.phone ? `tel:${biz.phone.replace(/\s+/g, '')}` : null;
+  const fb = socialHref(biz.facebookUrl, 'facebook.com');
+  const ig = socialHref(biz.instagramUrl, 'instagram.com');
+  if (!tel && !fb && !ig) return null;
+  const circle: React.CSSProperties = { width: 42, height: 42, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: '1px solid var(--line)', flexShrink: 0 };
+  return (
+    <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
+      {tel && <a href={tel} aria-label="Κλήση" className="opf-press" style={circle}><OpfIcon name="phone" size={20} color="var(--brand)" stroke={2} /></a>}
+      {fb && (
+        <a href={fb} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="opf-press" style={circle}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--brand)" aria-hidden="true"><path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4z" /></svg>
+        </a>
+      )}
+      {ig && (
+        <a href={ig} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="opf-press" style={circle}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="3.8" /><circle cx="17.2" cy="6.8" r="1.2" fill="var(--brand)" stroke="none" /></svg>
+        </a>
+      )}
+    </div>
+  );
+}
+
 type Offer = PublicFolderView['offers'][number];
 type Appt = PublicFolderView['appointments'][number];
 type Payment = PublicFolderView['payments'][number];
@@ -85,6 +119,8 @@ export default function PortalView({ token, view }: { token: string; view: Publi
           </div>
           <div className="opf-portal-greet">Γεια σας{view.greetingName ? ` ${view.greetingName}` : ''} 👋</div>
           <div className="opf-portal-sub">Παρακολουθήστε το έργο σας εδώ. Όλα σε ένα μέρος.</div>
+
+          <ContactIcons biz={biz} />
 
           {/* project title (single project → read-only switcher style) */}
           <div className="opf-portal-switch" style={{ cursor: 'default' }}>

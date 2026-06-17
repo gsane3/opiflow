@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
     const { data: business, error: queryError } = await supabase
       .from('businesses')
       .select(
-        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, facebook_url, instagram_url, created_at, updated_at'
       )
       .eq('id', resolved.businessId)
       .maybeSingle();
@@ -272,6 +272,8 @@ export async function PATCH(request: NextRequest) {
       postal_code:              postalCodeRaw,
       region:                   patchStr(raw.region),
       website:                  websiteRaw,
+      facebook_url:             patchStr(raw.facebook_url),
+      instagram_url:            patchStr(raw.instagram_url),
       updated_at:               new Date().toISOString(),
     };
     if (defaultVatRate !== undefined) {
@@ -286,7 +288,7 @@ export async function PATCH(request: NextRequest) {
       .update(updates)
       .eq('owner_id', user.id)
       .select(
-        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, created_at, updated_at'
+        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, facebook_url, instagram_url, created_at, updated_at'
       )
       .single();
 
