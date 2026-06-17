@@ -1,14 +1,14 @@
-// «Έργα» (Projects) section — native port of the web CustomerFoldersStrip, 1:1:
-// «Έργα» header with a + button, rich project cards (status dot + pill + 5-segment
-// mini-stepper + counts/date foot), the «Νέο έργο» sheet (title + template chips +
-// SMS-link note + «Δημιουργία & αποστολή link»), and — on tap — the full-screen
-// chat-first «Διαδικασία» (ProjectProcess). Wired to the live folder APIs.
+// «Έργα» (Projects) section — native port of the web CustomerFoldersStrip:
+// «Έργα» header with a + button, rich project cards (status dot + pill + counts/date
+// foot — no progress bar), the «Νέο έργο» sheet (title + template chips + SMS-link
+// note + «Δημιουργία & αποστολή link»), and — on tap — the full-screen chat-first
+// «Διαδικασία» route. Wired to the live folder APIs.
 
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, StyleSheet, View } from 'react-native';
 
-import { ProjectProcess, type ProjectInitial } from '@/components/project-process';
 import { ThemedText } from '@/components/themed-text';
 import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
@@ -37,11 +37,17 @@ function countsLine(c?: WorkFolderCounts): string {
 export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSignal }: { customerId: string; openCreateSignal?: number; openLatestSignal?: number }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const router = useRouter();
 
   const [folders, setFolders] = useState<WorkFolder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const [open, setOpen] = useState<ProjectInitial | null>(null);
+
+  // Push the chat-first «Διαδικασία» route (proper full-screen, safe-area, tappable).
+  const openProject = useCallback((p: { id: string; title: string; status: string }) => {
+    // Typed-routes regenerate on the next dev/prebuild — cast keeps tsc green now.
+    router.push({ pathname: '/customers/[id]/project/[folderId]', params: { id: customerId, folderId: p.id, title: p.title, status: p.status } } as never);
+  }, [router, customerId]);
 
   const [creating, setCreating] = useState(false);
   const [title, setTitle] = useState('');
@@ -78,7 +84,7 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
       if (r?.ok) {
         setCreating(false); setTitle('');
         await load();
-        if (r.folder?.id) setOpen({ id: r.folder.id, title: r.folder.title ?? t, status: r.folder.status ?? 'open', step: r.folder.step ?? 0 });
+        if (r.folder?.id) openProject({ id: r.folder.id, title: r.folder.title ?? t, status: r.folder.status ?? 'open' });
       } else setCreateErr('Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
     } catch (e) {
       setCreateErr(e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Δεν δημιουργήθηκε. Δοκίμασε ξανά.');
@@ -104,11 +110,11 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
     setPendingLatest(false);
     if (list.length > 0) {
       const p = list[0];
-      setOpen({ id: p.id, title: p.title, status: p.status, step: p.step ?? 0 });
+      openProject({ id: p.id, title: p.title, status: p.status });
     } else {
       openCreate();
     }
-  }, [pendingLatest, loading, list]);
+  }, [pendingLatest, loading, list, openProject]);
 
   return (
     <View style={styles.group}>
@@ -144,11 +150,10 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
         <View style={styles.list}>
           {list.map((p) => {
             const cl = countsLine(p.counts);
-            const step = p.step ?? 0;
             return (
               <Pressable
                 key={p.id}
-                onPress={() => setOpen({ id: p.id, title: p.title, status: p.status, step })}
+                onPress={() => openProject({ id: p.id, title: p.title, status: p.status })}
                 style={({ pressed }) => [styles.projCard, pressed && styles.dim]}>
                 <View style={styles.projTop}>
                   <View style={[styles.dot, { backgroundColor: DOT_COLOR[p.status] ?? Brand.primary }]} />
@@ -156,9 +161,6 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
                   <View style={[styles.pill, p.status === 'done' ? styles.pillOk : styles.pillWarn]}>
                     <ThemedText style={[styles.pillText, p.status === 'done' ? styles.pillTextOk : styles.pillTextWarn]}>{STATUS_LABEL[p.status] ?? p.status}</ThemedText>
                   </View>
-                </View>
-                <View style={styles.miniBar}>
-                  {[0, 1, 2, 3, 4].map((i) => <View key={i} style={[styles.seg, i <= step && styles.segOn]} />)}
                 </View>
                 <View style={styles.projFoot}>
                   <Ionicons name="link-outline" size={13} color={c.textFaint} />
@@ -187,18 +189,6 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
         </View>
         <PrimaryButton label={createBusy ? 'Δημιουργία…' : 'Δημιουργία & αποστολή link'} busy={createBusy} onPress={() => void createFolder()} />
       </SheetModal>
-
-      {/* Full-screen «Διαδικασία» */}
-      {open ? (
-        <ProjectProcess
-          visible
-          folderId={open.id}
-          customerId={customerId}
-          initial={open}
-          onClose={() => setOpen(null)}
-          onChanged={() => void load()}
-        />
-      ) : null}
     </View>
   );
 }
@@ -230,9 +220,6 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   pillText: { fontSize: 11, fontWeight: '800' },
   pillTextOk: { color: C_SUCCESS },
   pillTextWarn: { color: C_WARN },
-  miniBar: { flexDirection: 'row', gap: 5 },
-  seg: { flex: 1, height: 5, borderRadius: 3, backgroundColor: c.surface === '#FFFFFF' ? '#E8EEF4' : c.border },
-  segOn: { backgroundColor: Brand.primary },
   projFoot: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
   // new-project sheet

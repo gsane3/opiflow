@@ -349,6 +349,30 @@ export default function CustomerProfileScreen() {
     ]);
   }
 
+  // «Στοιχεία» — customer-level intake request (NOT project-scoped): sends the
+  // customer a link to fill in their own details (address, ΑΦΜ, …).
+  function sendIntake() {
+    Alert.alert('Αίτημα στοιχείων', 'Θα σταλεί σύνδεσμος στον πελάτη (Viber → SMS) για να συμπληρώσει τα στοιχεία του. Συνέχεια;', [
+      { text: 'Ακύρωση', style: 'cancel' },
+      {
+        text: 'Αποστολή',
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const r = await apiPost<{ ok?: boolean; sent?: boolean; fallbackReason?: string }>(`/api/customers/${customerId}/intake-link`, { mode: 'send' });
+            if (r?.sent) Alert.alert('✓', 'Στάλθηκε αίτημα στοιχείων.');
+            else Alert.alert('Αποστολή', r?.fallbackReason === 'missing_mobile' ? 'Λείπει κινητό τηλέφωνο.' : 'Δεν στάλθηκε. Έλεγξε το κινητό του πελάτη.');
+            void load();
+          } catch {
+            Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε.');
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  }
+
   async function sendApptLink(t: Task) {
     setBusy(true);
     try {
@@ -437,7 +461,7 @@ export default function CustomerProfileScreen() {
               </View>
             ) : null}
 
-            {/* Circular quick actions (web parity: Κλήση / Μήνυμα / Νέο έργο / Χάρτης) */}
+            {/* Circular quick actions: Κλήση / Μήνυμα / Νέο έργο / Στοιχεία / Χάρτης */}
             <View style={styles.quickRow}>
               <Quick
                 icon="call"
@@ -447,6 +471,7 @@ export default function CustomerProfileScreen() {
               />
               <Quick icon="chatbubble-ellipses" label="Μήνυμα" onPress={() => setMsgSignal((n) => n + 1)} />
               <Quick icon="add-circle" label="Νέο έργο" onPress={() => setCreateSignal((n) => n + 1)} />
+              <Quick icon="clipboard-outline" label="Στοιχεία" onPress={sendIntake} />
               <Quick
                 icon="map"
                 label="Χάρτης"
@@ -477,8 +502,32 @@ export default function CustomerProfileScreen() {
           {/* Έργα — per-job grouping + the project «Διαδικασία» flow */}
           <WorkFoldersSection customerId={customerId} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
 
-          {/* Δραστηριότητα — expandable rows */}
+          {/* Δραστηριότητα — expandable rows (call summaries first) */}
           <GroupCard title="Δραστηριότητα">
+            <NavRow
+              icon="mic"
+              label="Περιλήψεις κλήσεων"
+              count={briefs.length}
+              open={expanded === 'calls'}
+              onPress={() => toggle('calls')}
+            />
+            {expanded === 'calls' ? (
+              briefs.length === 0 ? (
+                <EmptyLine text="Δεν υπάρχουν κλήσεις με περίληψη." />
+              ) : (
+                briefs.slice(0, 10).map((b) => (
+                  <View key={b.id} style={styles.briefRow}>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      {formatWhen(b.occurredAt)}
+                    </ThemedText>
+                    <ThemedText type="small" style={styles.ink}>
+                      {b.body}
+                    </ThemedText>
+                  </View>
+                ))
+              )
+            ) : null}
+
             <NavRow
               icon="document-text"
               label="Προσφορές"
@@ -558,29 +607,6 @@ export default function CustomerProfileScreen() {
               )
             ) : null}
 
-            <NavRow
-              icon="mic"
-              label="Περιλήψεις κλήσεων"
-              count={briefs.length}
-              open={expanded === 'calls'}
-              onPress={() => toggle('calls')}
-            />
-            {expanded === 'calls' ? (
-              briefs.length === 0 ? (
-                <EmptyLine text="Δεν υπάρχουν κλήσεις με περίληψη." />
-              ) : (
-                briefs.slice(0, 10).map((b) => (
-                  <View key={b.id} style={styles.briefRow}>
-                    <ThemedText type="small" themeColor="textSecondary">
-                      {formatWhen(b.occurredAt)}
-                    </ThemedText>
-                    <ThemedText type="small" style={styles.ink}>
-                      {b.body}
-                    </ThemedText>
-                  </View>
-                ))
-              )
-            ) : null}
           </GroupCard>
 
           {/* Σημείωση */}
@@ -833,8 +859,8 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   name: { fontSize: 26, lineHeight: 32, textAlign: 'center' },
   badge: { backgroundColor: Brand.primarySoft, paddingHorizontal: Spacing.three, paddingVertical: 4, borderRadius: 999 },
   badgeText: { color: Brand.primary, fontSize: 13, fontWeight: '700' },
-  quickRow: { flexDirection: 'row', gap: Spacing.four, marginTop: Spacing.three },
-  quick: { alignItems: 'center', gap: 4, width: 64 },
+  quickRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', marginTop: Spacing.three },
+  quick: { alignItems: 'center', gap: 4, width: 62 },
   quickLabel: { fontSize: 12, textAlign: 'center' },
   quickCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' },
 

@@ -9,6 +9,8 @@ export default function CustomersLayout() {
       {/* The customer screen is profile-first and draws its own header; the native
           push transition (slide from the right + swipe-back) stays. */}
       <Stack.Screen name="[id]/index" options={{ headerShown: false }} />
+      {/* Chat-first project «Διαδικασία» — pushed full-screen route. */}
+      <Stack.Screen name="[id]/project/[folderId]" options={{ headerShown: false }} />
     </Stack>
   );
 }
