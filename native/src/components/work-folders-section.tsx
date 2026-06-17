@@ -233,7 +233,7 @@ function countsSummary(counts?: WorkFolderCounts): string {
   return parts.join(' · ');
 }
 
-export function WorkFoldersSection({ customerId }: { customerId: string }) {
+export function WorkFoldersSection({ customerId, openCreateSignal }: { customerId: string; openCreateSignal?: number }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
 
@@ -321,6 +321,12 @@ export function WorkFoldersSection({ customerId }: { customerId: string }) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Hero «Νέο έργο» action (profile) opens the create sheet via a bumped signal.
+  // openCreate is a hoisted function declaration, so referencing it here is safe.
+  useEffect(() => {
+    if (openCreateSignal && openCreateSignal > 0) openCreate();
+  }, [openCreateSignal]);
 
   // WF-4: fetch folder detail sections
   const loadFolderDetail = useCallback(async (folderId: string) => {

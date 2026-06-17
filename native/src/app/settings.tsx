@@ -27,7 +27,7 @@ const PHONE_LABEL: Record<string, string> = {
 };
 
 interface Snippet { id: string; title: string; body: string }
-interface Bank { beneficiary: string | null; bank: string | null; iban: string | null }
+interface BankAccount { id: string; beneficiary: string | null; bankName: string | null; iban: string; sortOrder: number }
 
 const IBAN_RE = /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/;
 
@@ -65,10 +65,11 @@ export default function SettingsScreen() {
   const [bizForm, setBizForm] = useState<Record<string, string>>({});
   const [bizBusy, setBizBusy] = useState(false);
 
-  // ----- bank details (IBAN, shown on portal payment card / offer) -----
-  const [bank, setBank] = useState<Bank | null>(null);
-  const [bankForm, setBankForm] = useState<Record<string, string>>({ beneficiary: '', bank: '', iban: '' });
+  // ----- bank accounts (multiple, α; primary = first, mirrored to businesses.bank_*) -----
+  const [accounts, setAccounts] = useState<BankAccount[]>([]);
   const [bankBusy, setBankBusy] = useState(false);
+  const [baForm, setBaForm] = useState<{ beneficiary: string; bank: string; iban: string }>({ beneficiary: '', bank: '', iban: '' });
+  const [baEditId, setBaEditId] = useState<string | null>(null);
 
   // ----- catalog -----
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
@@ -104,7 +105,7 @@ export default function SettingsScreen() {
         apiGet<{ ok?: boolean; items?: CatalogItem[] }>('/api/catalog'),
         apiGet<{ ok?: boolean; snippets?: Snippet[] }>('/api/snippets'),
         apiGet<{ ok?: boolean; settings?: MessagingSettings }>('/api/businesses/me/messaging-settings'),
-        apiGet<{ ok?: boolean; bank?: Bank }>('/api/businesses/me/bank'),
+        apiGet<{ ok?: boolean; accounts?: BankAccount[] }>('/api/businesses/me/bank-accounts'),
       ]);
       setSnippets(sn?.snippets ?? []);
       if (ms?.settings) {
@@ -135,14 +136,7 @@ export default function SettingsScreen() {
         });
       }
       setCatalog(c?.items ?? []);
-      if (bk?.bank) {
-        setBank(bk.bank);
-        setBankForm({
-          beneficiary: bk.bank.beneficiary ?? '',
-          bank: bk.bank.bank ?? '',
-          iban: bk.bank.iban ?? '',
-        });
-      }
+      setAccounts(bk?.accounts ?? []);
     } catch {
       // sections show empty states; pull of the screen retries on remount
     }
@@ -153,8 +147,8 @@ export default function SettingsScreen() {
   }, [load]);
 
   const setB = (k: string) => (v: string) => setBizForm((f) => ({ ...f, [k]: v }));
-  const setBk = (k: 'beneficiary' | 'bank' | 'iban') => (v: string) =>
-    setBankForm((f) => ({ ...f, [k]: k === 'iban' ? v.toUpperCase() : v }));
+  const setBa = (k: 'beneficiary' | 'bank' | 'iban') => (v: string) =>
+    setBaForm((f) => ({ ...f, [k]: k === 'iban' ? v.toUpperCase() : v }));
 
   async function saveBusiness() {
     // GUARD: if the initial load failed, the form is empty — saving it would
@@ -190,34 +184,33 @@ export default function SettingsScreen() {
     }
   }
 
-  async function saveBank() {
-    // GUARD: if the initial load failed, the form is empty — saving it would
-    // wipe the real bank details on the server.
-    if (!bank) {
-      Alert.alert('Σφάλμα', 'Τα στοιχεία δεν έχουν φορτωθεί ακόμα — κάνε ανανέωση και δοκίμασε ξανά.');
-      return;
-    }
-    const normIban = (bankForm.iban ?? '').replace(/\s+/g, '').toUpperCase();
-    if (normIban.length > 0 && !IBAN_RE.test(normIban)) {
+  function resetBankForm() {
+    setBaForm({ beneficiary: '', bank: '', iban: '' });
+    setBaEditId(null);
+  }
+
+  function editAccount(a: BankAccount) {
+    setBaEditId(a.id);
+    setBaForm({ beneficiary: a.beneficiary ?? '', bank: a.bankName ?? '', iban: a.iban });
+  }
+
+  // Add (POST) or update (PATCH) a bank account. First account = primary, mirrored
+  // server-side into businesses.bank_* (payment card / offer keep reading those).
+  async function saveAccount() {
+    const normIban = (baForm.iban ?? '').replace(/\s+/g, '').toUpperCase();
+    if (!IBAN_RE.test(normIban)) {
       Alert.alert('Μη έγκυρο IBAN', 'Έλεγξε τη μορφή του IBAN (π.χ. GR16 0110 1250 0000 0001 2300 695).');
       return;
     }
     setBankBusy(true);
     try {
-      const res = await apiPatch<{ ok?: boolean; bank?: Bank }>('/api/businesses/me/bank', {
-        beneficiary: (bankForm.beneficiary ?? '').trim() || null,
-        bank: (bankForm.bank ?? '').trim() || null,
-        iban: normIban || null,
-      });
+      const payload = { beneficiary: baForm.beneficiary.trim() || null, bank: baForm.bank.trim() || null, iban: normIban };
+      const res = baEditId
+        ? await apiPatch<{ ok?: boolean }>(`/api/businesses/me/bank-accounts/${baEditId}`, payload)
+        : await apiPost<{ ok?: boolean }>('/api/businesses/me/bank-accounts', payload);
       if (res?.ok) {
-        if (res.bank) {
-          setBank(res.bank);
-          setBankForm({
-            beneficiary: res.bank.beneficiary ?? '',
-            bank: res.bank.bank ?? '',
-            iban: res.bank.iban ?? '',
-          });
-        }
+        resetBankForm();
+        void load();
         Alert.alert('✓', 'Αποθηκεύτηκε.');
       } else {
         Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
@@ -236,6 +229,27 @@ export default function SettingsScreen() {
     } finally {
       setBankBusy(false);
     }
+  }
+
+  function deleteAccount(a: BankAccount) {
+    Alert.alert('Διαγραφή λογαριασμού', `Να διαγραφεί ο λογαριασμός ${a.iban};`, [
+      { text: 'Ακύρωση', style: 'cancel' },
+      {
+        text: 'Διαγραφή',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            const r = await apiDelete<{ ok?: boolean }>(`/api/businesses/me/bank-accounts/${a.id}`);
+            if (r?.ok) {
+              if (baEditId === a.id) resetBankForm();
+              void load();
+            } else Alert.alert('Σφάλμα', 'Δεν διαγράφηκε.');
+          } catch {
+            Alert.alert('Σφάλμα', 'Δεν διαγράφηκε.');
+          }
+        },
+      },
+    ]);
   }
 
   async function addCatalogItem() {
@@ -414,15 +428,46 @@ export default function SettingsScreen() {
             <PrimaryButton label="Αποθήκευση" onPress={() => void saveBusiness()} busy={bizBusy} disabled={!biz} />
           </Section>
 
-          {/* Τραπεζικά στοιχεία */}
-          <Section title="Τραπεζικά στοιχεία">
+          {/* Τραπεζικά στοιχεία (πολλαπλοί λογαριασμοί, α) */}
+          <Section title="Τραπεζικά στοιχεία" count={accounts.length}>
             <ThemedText type="small" themeColor="textSecondary">
-              Εμφανίζονται στον πελάτη όταν του ζητάς κατάθεση/εξόφληση και στην προσφορά. Το Opiflow δεν διαχειρίζεται χρήματα — ο πελάτης καταθέτει απευθείας σε εσένα.
+              Εμφανίζονται στον πελάτη όταν του ζητάς κατάθεση/εξόφληση και στην προσφορά. Ο πρώτος λογαριασμός είναι ο κύριος. Το Opiflow δεν διαχειρίζεται χρήματα — ο πελάτης καταθέτει απευθείας σε εσένα.
             </ThemedText>
-            <Input label="Δικαιούχος" value={bankForm.beneficiary ?? ''} onChangeText={setBk('beneficiary')} placeholder="π.χ. Γεώργιος Παπαδόπουλος" />
-            <Input label="Τράπεζα" value={bankForm.bank ?? ''} onChangeText={setBk('bank')} placeholder="π.χ. Εθνική Τράπεζα" />
-            <Input label="IBAN" value={bankForm.iban ?? ''} onChangeText={setBk('iban')} placeholder="GR16 0110 1250 0000 0001 2300 695" />
-            <PrimaryButton label="Αποθήκευση" onPress={() => void saveBank()} busy={bankBusy} disabled={!bank} />
+            {accounts.map((a, i) => (
+              <ListRow
+                key={a.id}
+                title={`${a.iban}${i === 0 ? '  ·  Κύριος' : ''}`}
+                subtitle={[a.beneficiary, a.bankName].filter(Boolean).join(' · ') || '—'}
+                onPress={() => editAccount(a)}
+              />
+            ))}
+            <ThemedText type="smallBold" style={styles.subhead}>
+              {baEditId ? 'Επεξεργασία λογαριασμού' : 'Προσθήκη λογαριασμού'}
+            </ThemedText>
+            <Input label="Δικαιούχος" value={baForm.beneficiary} onChangeText={setBa('beneficiary')} placeholder="π.χ. Γεώργιος Παπαδόπουλος" />
+            <Input label="Τράπεζα" value={baForm.bank} onChangeText={setBa('bank')} placeholder="π.χ. Εθνική Τράπεζα" />
+            <Input label="IBAN" value={baForm.iban} onChangeText={setBa('iban')} placeholder="GR16 0110 1250 0000 0001 2300 695" />
+            <PrimaryButton label={baEditId ? 'Αποθήκευση' : 'Προσθήκη λογαριασμού'} onPress={() => void saveAccount()} busy={bankBusy} />
+            {baEditId ? (
+              <View style={styles.bankEditRow}>
+                <View style={styles.bankEditCol}>
+                  <PrimaryButton
+                    label="Διαγραφή"
+                    tone="outline"
+                    onPress={() => {
+                      const a = accounts.find((x) => x.id === baEditId);
+                      if (a) deleteAccount(a);
+                    }}
+                  />
+                </View>
+                <View style={styles.bankEditCol}>
+                  <PrimaryButton label="Άκυρο" tone="outline" onPress={resetBankForm} />
+                </View>
+              </View>
+            ) : null}
+            <ThemedText type="small" themeColor="textSecondary">
+              Tip: πάτησε έναν λογαριασμό για επεξεργασία ή διαγραφή.
+            </ThemedText>
           </Section>
 
           {/* Κατάλογος υπηρεσιών */}
@@ -603,6 +648,8 @@ const makeStyles = (c: ThemePalette) =>
     subhead: { marginTop: Spacing.two },
     catRow: { flexDirection: 'row', gap: Spacing.two },
     catCol: { flex: 1 },
+    bankEditRow: { flexDirection: 'row', gap: Spacing.two },
+    bankEditCol: { flex: 1 },
     inlineBtns: { flexDirection: 'row', gap: Spacing.two },
     toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: 6 },
     dayRow: { flexDirection: 'row', gap: Spacing.one, flexWrap: 'wrap' },
