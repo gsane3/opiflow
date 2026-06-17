@@ -54,8 +54,8 @@ describe('public-folder', () => {
 
     it('maps offers with customer-facing labels (draft → neutral)', () => {
       expect(view.offers).toEqual([
-        { id: 'off-1', offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200, canAccept: true },
-        { id: 'off-2', offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0, canAccept: true },
+        { id: 'off-1', offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200, vatRate: null, lines: [], accepted: false, canAccept: true },
+        { id: 'off-2', offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0, vatRate: null, lines: [], accepted: false, canAccept: true },
       ]);
     });
 
@@ -77,7 +77,7 @@ describe('public-folder', () => {
       expect(view).not.toHaveProperty('notes');
       // the public view's top-level keys are an explicit allow-list
       expect(Object.keys(view).sort()).toEqual(
-        ['appointments', 'business', 'messages', 'offers', 'payments', 'statusLabel', 'statusMessage', 'step', 'title'],
+        ['appointments', 'business', 'greetingName', 'messages', 'offers', 'payments', 'statusLabel', 'statusMessage', 'step', 'title'],
       );
     });
 

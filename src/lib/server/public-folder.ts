@@ -70,6 +70,8 @@ export interface FolderRowForPublic {
   // step (0..4) drives the portal Stepper. Non-sensitive progress only.
   // Optional → tolerant of pre-migration-047 rows (absent column → 0).
   step?: number | null;
+  // Used only to fetch the customer's own first name for the portal greeting.
+  customer_id?: string | null;
   // folder.notes is INTENTIONALLY excluded — it is internal business notes and
   // is never selected or exposed on the public page.
 }
@@ -93,6 +95,14 @@ export interface OfferRowForPublic {
   status: string;
   total: number | null;
   valid_until: string | null;
+  vat_rate?: number | null;
+}
+// Safe, customer-facing line of the customer's OWN offer (their quote).
+export interface OfferItemRowForPublic {
+  offer_id: string;
+  description: string | null;
+  line_total: number | null;
+  sort_order?: number | null;
 }
 export interface TaskRowForPublic {
   id: string;
@@ -138,7 +148,14 @@ export interface PublicFolderOffer {
   id: string;
   offerNumber: string;
   statusLabel: string;
+  /** Gross total (incl. VAT). */
   total: number | null;
+  /** VAT rate (%) for the «Σύνολο (με ΦΠΑ x%)» label. */
+  vatRate: number | null;
+  /** The offer's line items (description + line total) — the customer's own quote. */
+  lines: { description: string; lineTotal: number }[];
+  /** Authoritative accepted flag (status === 'accepted'), independent of the label. */
+  accepted: boolean;
   /** Whether the customer can still accept this offer (not final, not expired). */
   canAccept: boolean;
 }
@@ -157,6 +174,8 @@ export interface PublicFolderMessage {
 }
 export interface PublicFolderView {
   business: PublicFolderBusiness | null;
+  /** The customer's own first name, for the portal greeting (null if unknown). */
+  greetingName: string | null;
   title: string;
   statusLabel: string;
   statusMessage: string;
@@ -193,9 +212,12 @@ export function toPublicFolderView(
   appointments: TaskRowForPublic[],
   messages: MessageRowForPublic[] = [],
   payments: PaymentRowForPublic[] = [],
+  greetingName: string | null = null,
+  offerLines: Record<string, { description: string; lineTotal: number }[]> = {},
 ): PublicFolderView {
   return {
     business: mapPublicBusiness(business),
+    greetingName,
     title: folder.title,
     statusLabel: folderStatusLabel(folder.status),
     statusMessage: folderStatusMessage(folder.status),
@@ -214,6 +236,9 @@ export function toPublicFolderView(
       offerNumber: o.offer_number ?? '—',
       statusLabel: OFFER_STATUS_LABELS[o.status] ?? o.status,
       total: o.total,
+      vatRate: o.vat_rate ?? null,
+      lines: offerLines[o.id] ?? [],
+      accepted: o.status === 'accepted',
       canAccept: offerCanRespond({ status: o.status, valid_until: o.valid_until }),
     })),
     appointments: appointments.map((t) => ({
@@ -245,7 +270,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     // Folder, scoped by the token's business_id (defense in depth).
     const fPrimary = await supabase
       .from('work_folders')
-      .select('title, status, step') // NB: notes intentionally not selected (internal-only)
+      .select('title, status, step, customer_id') // NB: notes intentionally not selected (internal-only)
       .eq('id', token.work_folder_id)
       .eq('business_id', token.business_id)
       .maybeSingle();
@@ -255,7 +280,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
       // Pre-migration-047 fallback: retry without `step` (clampStep defaults to 0).
       const fb = await supabase
         .from('work_folders')
-        .select('title, status')
+        .select('title, status, customer_id')
         .eq('id', token.work_folder_id)
         .eq('business_id', token.business_id)
         .maybeSingle();
@@ -265,7 +290,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     if (folderError || !folderData) return null;
     const folder = folderData as unknown as FolderRowForPublic;
 
-    const [bizRes, offersRes, apptRes, msgRes, payRes] = await Promise.all([
+    const [bizRes, offersRes, apptRes, msgRes, payRes, custRes] = await Promise.all([
       supabase
         .from('businesses')
         .select('name, legal_name, trade_name, logo_url, phone, email, website, bank_name, bank_beneficiary')
@@ -273,7 +298,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .maybeSingle(),
       supabase
         .from('offers')
-        .select('id, offer_number, status, total, valid_until')
+        .select('id, offer_number, status, total, valid_until, vat_rate')
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .order('created_at', { ascending: false }),
@@ -307,6 +332,14 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .eq('work_folder_id', token.work_folder_id)
         .in('status', PUBLIC_PAYMENT_STATUSES as unknown as string[])
         .order('created_at', { ascending: false }),
+      // The customer's OWN first name for the portal greeting (their own data,
+      // their own link). Scoped to this business; only `name` is selected.
+      supabase
+        .from('customers')
+        .select('name')
+        .eq('id', (folder.customer_id ?? '') as string)
+        .eq('business_id', token.business_id)
+        .maybeSingle(),
     ]);
 
     const business = (bizRes.data as unknown as BusinessRowForPublic | null) ?? null;
@@ -314,6 +347,30 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     const appointments = ((apptRes.data ?? []) as unknown[]) as TaskRowForPublic[];
     const messages = ((msgRes.data ?? []) as unknown[]) as MessageRowForPublic[];
     const payments = ((payRes.data ?? []) as unknown[]) as PaymentRowForPublic[];
+
+    // The customer's OWN first name for the greeting.
+    const custName = (custRes.data as { name?: string | null } | null)?.name ?? null;
+    const greetingName = custName ? (custName.trim().split(/\s+/)[0] || null) : null;
+
+    // Offer line items (the customer's own quote breakdown), scoped to this
+    // business + the offers already scoped to this folder. Best-effort.
+    const offerLines: Record<string, { description: string; lineTotal: number }[]> = {};
+    const offerIds = offers.map((o) => o.id).filter(Boolean);
+    if (offerIds.length > 0) {
+      const itemsRes = await supabase
+        .from('offer_items')
+        .select('offer_id, description, line_total, sort_order')
+        .eq('business_id', token.business_id)
+        .in('offer_id', offerIds)
+        .order('sort_order', { ascending: true });
+      for (const row of ((itemsRes.data ?? []) as unknown[]) as OfferItemRowForPublic[]) {
+        const list = offerLines[row.offer_id] ?? (offerLines[row.offer_id] = []);
+        list.push({
+          description: (row.description ?? '').trim(),
+          lineTotal: typeof row.line_total === 'number' ? row.line_total : Number(row.line_total ?? 0),
+        });
+      }
+    }
 
     // Best-effort "opened" tracking + rolling 30-day inactivity window: each open
     // pushes expiry forward WHILE the job is active. Once the folder reaches a
@@ -324,7 +381,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
       extendExpiryHours: isTerminalFolderStatus(folder.status) ? undefined : FOLDER_TOKEN_EXPIRY_HOURS,
     }).catch(() => {});
 
-    return toPublicFolderView(folder, business, offers, appointments, messages, payments);
+    return toPublicFolderView(folder, business, offers, appointments, messages, payments, greetingName, offerLines);
   } catch {
     return null;
   }
