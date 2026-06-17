@@ -1,17 +1,20 @@
 'use client';
 
-// Public customer portal — pixel-faithful port of the prototype PortalScreen
-// (screens-project.jsx) using the prototype's own design system (opf-* CSS on
-// .opf-stage). Hero greeting · project title · stepper · offer card (line items +
-// total + full-PDF link + Αποδοχή/Έχω απορία) · payments (δικαιούχος + IBAN copy +
-// «Δήλωσα την κατάθεση») · appointment (Επιβεβαίωση/Αλλαγή ώρας) · questions chat.
-// All actions hit the existing folder-token-scoped /api/f/[token]/* endpoints.
+// Public customer portal — clean launcher port of the prototype (customer-page.jsx).
+// No progress bar: a centred hero + a 4-tile launcher (Προσφορά · Ραντεβού ·
+// Φωτογραφίες · Απορία) where each tile opens a bottom sheet, an «Ενημερώσεις» feed,
+// and a social/contact footer. Tiles gate on real data: greyed «Δεν έχει σταλεί
+// ακόμη» until the technician sends an offer/appointment, then an «Ελέγξτε» badge
+// (with a pulse ring), then ✓ once the customer has handled it. The offer sheet
+// folds in acceptance → payment (bank details + copy + «Δήλωσα την κατάθεση»), just
+// like the technician side. All actions hit the existing folder-token-scoped
+// /api/f/[token]/* endpoints (offer accept · appointment respond · payment declare ·
+// message · upload-link).
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { OpfIcon, OpfLogo } from '@/components/opf/icon';
 import type { PublicFolderView } from '@/lib/server/public-folder';
 
-const STEPS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'] as const;
 const KIND_GR: Record<string, string> = { deposit: 'Προκαταβολή', balance: 'Εξόφληση' };
 
 function eur(n: number | null | undefined): string {
@@ -19,10 +22,20 @@ function eur(n: number | null | undefined): string {
     ? `${n.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`
     : '—';
 }
-function fmtDate(s: string | null): string {
-  if (!s) return '';
-  const [y, m, d] = s.split('T')[0].split('-');
-  return y && m && d ? `${d}/${m}/${y}` : s;
+// «Τρί 17 Ιουν» (parsed as local date so YYYY-MM-DD doesn't shift a day).
+function grDate(dateStr: string | null): string {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateStr ?? '');
+  if (!m) return dateStr ?? '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return d.toLocaleDateString('el-GR', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+// «09-06 18:05» feed timestamp.
+function fmtWhen(iso: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 const pad = (n: number) => String(n).padStart(2, '0');
 function shift(date: string, time: string, deltaHours: number): { date: string; time: string } | null {
@@ -33,27 +46,7 @@ function shift(date: string, time: string, deltaHours: number): { date: string; 
   const d = new Date(base + deltaHours * 3600 * 1000);
   return { date: `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`, time: `${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}` };
 }
-
-function Stepper({ step }: { step: number }) {
-  return (
-    <div className="opf-stepper">
-      {STEPS.map((s, i) => {
-        const state = i < step ? 'done' : i === step ? 'now' : 'todo';
-        return (
-          <span key={s} style={{ display: 'contents' }}>
-            <div className={`opf-step opf-${state}`}>
-              <div className="opf-step-dot">{i < step ? <OpfIcon name="check" size={13} color="#fff" stroke={2.8} /> : <span>{i + 1}</span>}</div>
-              <span className="opf-step-label">{s}</span>
-            </div>
-            {i < STEPS.length - 1 && <div className={'opf-step-bar' + (i < step ? ' opf-done' : '')} />}
-          </span>
-        );
-      })}
-    </div>
-  );
-}
-
-// Normalize a stored social value (full URL or @handle/handle) to an href.
+// Normalize a stored social value (full URL or @handle/handle) to an href; only http(s) pass.
 function socialHref(value: string | null | undefined, domain: string): string | null {
   if (!value) return null;
   const v = value.trim();
@@ -63,165 +56,80 @@ function socialHref(value: string | null | undefined, domain: string): string | 
   return handle ? `https://${domain}/${handle}` : null;
 }
 
-function ContactIcons({ biz }: { biz: PublicFolderView['business'] }) {
-  if (!biz) return null;
-  const tel = biz.phone ? `tel:${biz.phone.replace(/\s+/g, '')}` : null;
-  const fb = socialHref(biz.facebookUrl, 'facebook.com');
-  const ig = socialHref(biz.instagramUrl, 'instagram.com');
-  if (!tel && !fb && !ig) return null;
-  const circle: React.CSSProperties = { width: 42, height: 42, borderRadius: '50%', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--surface-2)', border: '1px solid var(--line)', flexShrink: 0 };
-  return (
-    <div style={{ display: 'flex', gap: 10, marginTop: 14 }}>
-      {tel && <a href={tel} aria-label="Κλήση" className="opf-press" style={circle}><OpfIcon name="phone" size={20} color="var(--brand)" stroke={2} /></a>}
-      {fb && (
-        <a href={fb} target="_blank" rel="noopener noreferrer" aria-label="Facebook" className="opf-press" style={circle}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--brand)" aria-hidden="true"><path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4z" /></svg>
-        </a>
-      )}
-      {ig && (
-        <a href={ig} target="_blank" rel="noopener noreferrer" aria-label="Instagram" className="opf-press" style={circle}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="3.8" /><circle cx="17.2" cy="6.8" r="1.2" fill="var(--brand)" stroke="none" /></svg>
-        </a>
-      )}
-    </div>
-  );
-}
-
 type Offer = PublicFolderView['offers'][number];
 type Appt = PublicFolderView['appointments'][number];
 type Payment = PublicFolderView['payments'][number];
+type Biz = PublicFolderView['business'];
+type Msg = PublicFolderView['messages'][number];
+type SheetKey = 'offer' | 'appt' | 'files' | 'chat' | null;
 
-export default function PortalView({ token, view }: { token: string; view: PublicFolderView }) {
-  const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
-  const composerRef = useRef<HTMLInputElement>(null);
-
-  const biz = view.business;
-  const focusComposer = () => { composerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }); composerRef.current?.focus(); };
-
-  const nothing = view.offers.length === 0 && view.appointments.length === 0 && view.payments.length === 0;
-
+// ── bottom sheet ──────────────────────────────────────────────────────────────
+function Sheet({
+  open, onClose, title, children, footer,
+}: {
+  open: boolean; onClose: () => void; title: React.ReactNode; children: React.ReactNode; footer?: React.ReactNode;
+}) {
+  const [show, setShow] = useState(open);
+  useEffect(() => { if (open) setShow(true); }, [open]);
+  if (!show && !open) return null;
   return (
-    <div className="opf-stage opf-portal" data-theme={theme} style={{ minHeight: '100vh', background: 'var(--bg)' }}>
-      <div style={{ maxWidth: 460, margin: '0 auto', padding: '20px 16px calc(2.5rem + env(safe-area-inset-bottom))' }}>
-        {/* hero */}
-        <div className="opf-portal-hero">
-          <div className="opf-portal-biz">
-            {biz?.logoUrl ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img src={biz.logoUrl} alt={biz.name} style={{ width: 40, height: 40, borderRadius: 12, objectFit: 'contain', flexShrink: 0 }} />
-            ) : (
-              <OpfLogo size={40} radius={12} />
-            )}
-            <div style={{ minWidth: 0 }}>
-              <div className="opf-portal-biz-n">{biz?.name ?? 'Η επιχείρηση'}</div>
-              {biz?.phone && <div className="opf-portal-biz-s">{biz.phone}</div>}
-            </div>
-          </div>
-          <div className="opf-portal-greet">Γεια σας{view.greetingName ? ` ${view.greetingName}` : ''} 👋</div>
-          <div className="opf-portal-sub">Παρακολουθήστε το έργο σας εδώ. Όλα σε ένα μέρος.</div>
-
-          <ContactIcons biz={biz} />
-
-          {/* project title (single project → read-only switcher style) */}
-          <div className="opf-portal-switch" style={{ cursor: 'default' }}>
-            <OpfIcon name="folder" size={17} color="var(--brand)" stroke={2} />
-            <span>{view.title}</span>
-          </div>
+    <div className={'opf-sheet-wrap' + (open ? ' opf-open' : '')} onTransitionEnd={() => { if (!open) setShow(false); }}>
+      <div className="opf-sheet-backdrop" onClick={onClose} />
+      <div className="opf-sheet" role="dialog" aria-modal="true">
+        <div className="opf-sheet-grab" />
+        <div className="opf-sheet-head">
+          <div className="opf-sheet-title">{title}</div>
+          <button className="opf-sheet-x opf-press" onClick={onClose} aria-label="Κλείσιμο">
+            <OpfIcon name="x" size={20} color="var(--muted)" stroke={2.2} />
+          </button>
         </div>
-
-        {/* stepper */}
-        <div className="opf-portal-card opf-stepper-card"><Stepper step={view.step} /></div>
-
-        {/* offers */}
-        {view.offers.map((o) => <OfferCard key={o.id} token={token} offer={o} onAsk={focusComposer} />)}
-
-        {/* payments */}
-        {view.payments.map((p) => (
-          <PaymentBlock key={p.id} token={token} payment={p} bankName={biz?.bankName ?? null} beneficiary={biz?.bankBeneficiary ?? null} />
-        ))}
-
-        {/* appointments */}
-        {view.appointments.map((a) => <ApptCard key={a.id} token={token} appt={a} />)}
-
-        {/* empty */}
-        {nothing && (
-          <div className="opf-portal-card" style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 14.5 }}>
-            Δεν υπάρχει κάτι ακόμα. Θα ενημερωθείτε για κάθε νεότερο.
-          </div>
-        )}
-
-        {/* questions */}
-        <QuestionsCard token={token} initial={view.messages} composerRef={composerRef} />
-
-        <p style={{ textAlign: 'center', color: 'var(--muted)', fontSize: 12.5, marginTop: 14 }}>Επικοινωνήστε μαζί μας αν χρειάζεστε βοήθεια.</p>
+        <div className="opf-sheet-body">{children}</div>
+        {footer && <div className="opf-sheet-foot">{footer}</div>}
       </div>
     </div>
   );
 }
 
-// ── offer ────────────────────────────────────────────────────────────────────
-function OfferCard({ token, offer, onAsk }: { token: string; offer: Offer; onAsk: () => void }) {
-  const [accepted, setAccepted] = useState(offer.accepted);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-
-  async function accept() {
-    setBusy(true); setError(false);
-    try {
-      const res = await fetch(`/api/f/${encodeURIComponent(token)}/offer/${offer.id}/accept`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response: 'accepted' }),
-      });
-      const j = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && j?.ok) setAccepted(true); else setError(true);
-    } catch { setError(true); } finally { setBusy(false); }
+// ── copy + bank rows ────────────────────────────────────────────────────────────
+function CopyBtn({ value }: { value: string }) {
+  const [ok, setOk] = useState(false);
+  async function copy() {
+    try { await navigator.clipboard.writeText(value); } catch { /* value stays visible to copy manually */ }
+    setOk(true); setTimeout(() => setOk(false), 1400);
   }
-
   return (
-    <div className="opf-portal-card">
-      <div className="opf-portal-card-h"><OpfIcon name="file" size={18} color="var(--brand)" stroke={2} /> Η προσφορά σας</div>
-      {offer.lines.length > 0 && (
-        <div className="opf-ev-lines">
-          {offer.lines.map((l, i) => <div key={i} className="opf-ev-line"><span>{l.description}</span><b>{eur(l.lineTotal)}</b></div>)}
+    <button type="button" className={'opf-copy-btn opf-press' + (ok ? ' opf-ok' : '')} onClick={() => void copy()}>
+      <OpfIcon name={ok ? 'check' : 'clipboard'} size={15} color={ok ? 'var(--success)' : 'var(--brand)'} stroke={2.2} />
+      <span>{ok ? 'Αντιγράφηκε' : 'Αντιγραφή'}</span>
+    </button>
+  );
+}
+function BankRows({ beneficiary, bankName, iban }: { beneficiary: string | null; bankName: string | null; iban: string | null }) {
+  return (
+    <div className="opf-bank">
+      {beneficiary && (
+        <div className="opf-bank-row">
+          <div className="opf-bank-info"><div className="opf-bank-k">Δικαιούχος</div><div className="opf-bank-v">{beneficiary}</div></div>
+          <CopyBtn value={beneficiary} />
         </div>
       )}
-      <div className="opf-ev-total"><span>Σύνολο{offer.vatRate != null ? ` (με ΦΠΑ ${offer.vatRate}%)` : ''}</span><b>{eur(offer.total)}</b></div>
-      <a className="opf-portal-pdf opf-press" href={`/f/${encodeURIComponent(token)}/offer/${offer.id}`}>
-        <OpfIcon name="file" size={17} color="var(--brand)" stroke={2} /> Προβολή ολόκληρης προσφοράς (PDF)
-      </a>
-      <div className="opf-portal-btns">
-        {accepted ? (
-          <div className="opf-accepted-tag"><OpfIcon name="check" size={17} color="var(--success)" stroke={2.6} /> Αποδεκτή</div>
-        ) : offer.canAccept ? (
-          <button className="opf-portal-accept opf-press" onClick={() => void accept()} disabled={busy}>
-            <OpfIcon name="check" size={18} color="#fff" stroke={2.4} /> {busy ? 'Γίνεται…' : 'Αποδοχή'}
-          </button>
-        ) : (
-          <div className="opf-accepted-tag" style={{ color: 'var(--muted)' }}>{offer.statusLabel}</div>
-        )}
-        <button className="opf-portal-ghost opf-press" onClick={onAsk}>Έχω απορία</button>
-      </div>
-      {error && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Κάτι πήγε στραβά. Δοκιμάστε ξανά.</p>}
+      {bankName && (
+        <div className="opf-bank-row">
+          <div className="opf-bank-info"><div className="opf-bank-k">Τράπεζα</div><div className="opf-bank-v">{bankName}</div></div>
+        </div>
+      )}
+      {iban && (
+        <div className="opf-bank-row">
+          <div className="opf-bank-info"><div className="opf-bank-k">IBAN</div><div className="opf-bank-v opf-mono">{iban}</div></div>
+          <CopyBtn value={iban.replace(/\s/g, '')} />
+        </div>
+      )}
     </div>
   );
 }
 
-// ── payment ──────────────────────────────────────────────────────────────────
-function CopyRow({ label, value }: { label: string; value: string }) {
-  const [copied, setCopied] = useState(false);
-  async function copy() {
-    try { await navigator.clipboard.writeText(value); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* visible to copy manually */ }
-  }
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8, padding: '9px 12px', borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--line)' }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.4px', color: 'var(--muted)' }}>{label}</div>
-        <div style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 14, color: 'var(--ink)', overflowWrap: 'anywhere' }}>{value}</div>
-      </div>
-      <button type="button" className="opf-press" onClick={copy} style={{ flexShrink: 0, borderRadius: 10, padding: '8px 11px', fontSize: 12.5, fontWeight: 700, background: 'var(--tint)', color: 'var(--brand)' }}>{copied ? 'Αντιγράφηκε ✓' : 'Αντιγραφή'}</button>
-    </div>
-  );
-}
-function PaymentBlock({ token, payment, bankName, beneficiary }: { token: string; payment: Payment; bankName: string | null; beneficiary: string | null }) {
+// ── payment block (inside the offer sheet, after acceptance) ─────────────────────
+function PaymentBlock({ token, payment, biz }: { token: string; payment: Payment; biz: Biz }) {
   const [status, setStatus] = useState(payment.status);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -237,95 +145,213 @@ function PaymentBlock({ token, payment, bankName, beneficiary }: { token: string
     } catch { setError(true); } finally { setBusy(false); }
   }
 
+  const beneficiary = biz?.bankBeneficiary ?? null;
   const showBank = status === 'pending' && (beneficiary || payment.receivingAccount);
 
   return (
-    <div className="opf-portal-card">
+    <div className="opf-portal-card opf-pay-card" style={{ margin: '12px 0 0' }}>
       <div className="opf-portal-card-h"><OpfIcon name="euro" size={18} color="var(--brand)" stroke={2} /> {KIND_GR[payment.kind] ?? payment.kind}</div>
-      <div className="opf-ev-total" style={{ marginTop: 4 }}><span>Ποσό</span><b>{eur(payment.amount)}</b></div>
+      <div className="opf-pay-amount-lg opf-portal"><span className="opf-pay-big">{eur(payment.amount)}</span><span>{KIND_GR[payment.kind] ?? payment.kind}</span></div>
 
-      {showBank && (
-        <div style={{ marginTop: 10 }}>
-          {bankName && <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>Τράπεζα: <b style={{ color: 'var(--ink-2)' }}>{bankName}</b></div>}
-          {beneficiary && <CopyRow label="Δικαιούχος" value={beneficiary} />}
-          {payment.receivingAccount && <CopyRow label="IBAN" value={payment.receivingAccount} />}
-        </div>
+      {status === 'confirmed' ? (
+        <div className="opf-pay-done opf-portal-card" style={{ margin: 0 }}><OpfIcon name="check" size={20} color="var(--success)" stroke={2.6} /> Η πληρωμή ολοκληρώθηκε. Ευχαριστούμε!</div>
+      ) : status === 'declared' ? (
+        <p style={{ color: 'var(--brand)', fontSize: 14, fontWeight: 600 }}>Λάβαμε τη δήλωσή σας — αναμονή επιβεβαίωσης.</p>
+      ) : (
+        <>
+          {showBank && (
+            <>
+              <div className="opf-pay-instr">Καταθέστε στον παρακάτω λογαριασμό και δηλώστε την πληρωμή:</div>
+              <BankRows beneficiary={beneficiary} bankName={biz?.bankName ?? null} iban={payment.receivingAccount} />
+            </>
+          )}
+          <button className="opf-portal-accept opf-press" style={{ width: '100%', marginTop: 14 }} onClick={() => void declare()} disabled={busy}>
+            <OpfIcon name="check" size={18} color="#fff" stroke={2.4} /> {busy ? 'Γίνεται…' : 'Δήλωσα την κατάθεση'}
+          </button>
+          {error && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Κάτι πήγε στραβά. Δοκιμάστε ξανά.</p>}
+        </>
       )}
-
-      <div style={{ marginTop: 12 }}>
-        {status === 'confirmed' ? (
-          <div className="opf-accepted-tag"><OpfIcon name="check" size={17} color="var(--success)" stroke={2.6} /> Επιβεβαιώθηκε</div>
-        ) : status === 'declared' ? (
-          <p style={{ color: 'var(--brand)', fontSize: 14, fontWeight: 600 }}>Λάβαμε τη δήλωσή σας — αναμονή επιβεβαίωσης.</p>
-        ) : (
-          <button className="opf-portal-accept opf-press" onClick={() => void declare()} disabled={busy}>{busy ? 'Γίνεται…' : 'Δήλωσα την κατάθεση'}</button>
-        )}
-        {error && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 6 }}>Κάτι πήγε στραβά. Δοκιμάστε ξανά.</p>}
-      </div>
     </div>
   );
 }
 
-// ── appointment ──────────────────────────────────────────────────────────────
-function ApptCard({ token, appt }: { token: string; appt: Appt }) {
-  const [state, setState] = useState<'idle' | 'busy' | 'confirmed' | 'changeRequested' | 'error'>('idle');
+// ── OFFER sheet ──────────────────────────────────────────────────────────────
+function OfferSheet({
+  open, onClose, token, offer, payments, biz, accepted, onAccepted, onAsk,
+}: {
+  open: boolean; onClose: () => void; token: string; offer: Offer | null; payments: Payment[]; biz: Biz;
+  accepted: boolean; onAccepted: () => void; onAsk: () => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function accept() {
+    if (!offer) return;
+    setBusy(true); setError(false);
+    try {
+      const res = await fetch(`/api/f/${encodeURIComponent(token)}/offer/${offer.id}/accept`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response: 'accepted' }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean };
+      if (res.ok && j?.ok) onAccepted(); else setError(true);
+    } catch { setError(true); } finally { setBusy(false); }
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Η προσφορά σας">
+      {offer ? (
+        <>
+          {offer.lines.length > 0 && (
+            <div className="opf-ev-lines">
+              {offer.lines.map((l, i) => <div key={i} className="opf-ev-line"><span>{l.description}</span><b>{eur(l.lineTotal)}</b></div>)}
+            </div>
+          )}
+          <div className="opf-ev-total"><span>Σύνολο{offer.vatRate != null ? ` (με ΦΠΑ ${offer.vatRate}%)` : ''}</span><b>{eur(offer.total)}</b></div>
+          <a className="opf-portal-pdf opf-press" href={`/f/${encodeURIComponent(token)}/offer/${offer.id}`}>
+            <OpfIcon name="file" size={17} color="var(--brand)" stroke={2} /> Προβολή ολόκληρης προσφοράς (PDF)
+          </a>
+
+          {accepted ? (
+            <>
+              <div className="opf-accepted-tag" style={{ marginBottom: 12 }}>
+                <OpfIcon name="check" size={17} color="var(--success)" stroke={2.6} /> Αποδεκτή προσφορά
+              </div>
+              {payments.map((p) => <PaymentBlock key={p.id} token={token} payment={p} biz={biz} />)}
+              {payments.length === 0 && (
+                <p style={{ color: 'var(--muted)', fontSize: 13.5, marginTop: 4, lineHeight: 1.4 }}>
+                  Ευχαριστούμε! Θα λάβετε σύντομα τα στοιχεία πληρωμής.
+                </p>
+              )}
+            </>
+          ) : offer.canAccept ? (
+            <div className="opf-portal-btns">
+              <button className="opf-portal-accept opf-press" onClick={() => void accept()} disabled={busy}>
+                <OpfIcon name="check" size={18} color="#fff" stroke={2.4} /> {busy ? 'Γίνεται…' : 'Αποδοχή'}
+              </button>
+              <button className="opf-portal-ghost opf-press" onClick={onAsk}>Έχω απορία</button>
+            </div>
+          ) : (
+            <div className="opf-accepted-tag" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>{offer.statusLabel}</div>
+          )}
+          {error && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Κάτι πήγε στραβά. Δοκιμάστε ξανά.</p>}
+        </>
+      ) : (
+        <p style={{ color: 'var(--muted)', fontSize: 14.5 }}>Δεν υπάρχει προσφορά ακόμη.</p>
+      )}
+    </Sheet>
+  );
+}
+
+// ── APPOINTMENT sheet ───────────────────────────────────────────────────────────
+function ApptSheet({
+  open, onClose, token, appt, locationLabel, confirmed, onConfirmed,
+}: {
+  open: boolean; onClose: () => void; token: string; appt: Appt | null; locationLabel: string | null;
+  confirmed: boolean; onConfirmed: () => void;
+}) {
+  const [state, setState] = useState<'idle' | 'busy' | 'changeRequested' | 'error'>('idle');
   const [showChange, setShowChange] = useState(false);
 
   async function post(body: Record<string, unknown>, ok: 'confirmed' | 'changeRequested') {
+    if (!appt) return;
     setState('busy');
     try {
       const res = await fetch(`/api/f/${encodeURIComponent(token)}/appointment/${appt.id}/respond`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      setState(res.ok && j?.ok ? ok : 'error');
+      if (res.ok && j?.ok) { if (ok === 'confirmed') onConfirmed(); else setState('changeRequested'); }
+      else setState('error');
     } catch { setState('error'); }
   }
 
-  const options = appt.date && appt.time ? [shift(appt.date, appt.time, -1), shift(appt.date, appt.time, 1)].filter(Boolean) as { date: string; time: string }[] : [];
+  const options = appt?.date && appt.time
+    ? ([shift(appt.date, appt.time, -1), shift(appt.date, appt.time, 1)].filter(Boolean) as { date: string; time: string }[])
+    : [];
 
   return (
-    <div className="opf-portal-card">
-      <div className="opf-portal-card-h"><OpfIcon name="calendar" size={18} color="var(--brand)" stroke={2} /> Το ραντεβού σας</div>
-      <div className="opf-portal-appt">
-        <div className="opf-portal-appt-d"><b>{fmtDate(appt.date)}</b>{appt.time && <span>{appt.time}</span>}</div>
-        <div className="opf-portal-appt-t">{appt.typeLabel}</div>
-      </div>
+    <Sheet open={open} onClose={onClose} title="Το ραντεβού σας">
+      {appt ? (
+        <>
+          <div className="opf-portal-appt">
+            <div className="opf-portal-appt-d"><b>{grDate(appt.date)}</b>{appt.time && <span>{appt.time}</span>}</div>
+            <div className="opf-portal-appt-t">{appt.typeLabel}</div>
+          </div>
+          {locationLabel && (
+            <div className="opf-appt-loc"><OpfIcon name="pin" size={16} color="var(--brand)" stroke={2} /> {locationLabel}</div>
+          )}
 
-      {state === 'confirmed' ? (
-        <div className="opf-accepted-tag" style={{ marginTop: 10 }}><OpfIcon name="check" size={17} color="var(--success)" stroke={2.6} /> Επιβεβαιώθηκε</div>
-      ) : state === 'changeRequested' ? (
-        <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 10 }}>Ζητήσατε αλλαγή ώρας — θα σας ενημερώσουμε.</p>
-      ) : appt.canRespond ? (
-        !showChange ? (
-          <div className="opf-portal-btns">
-            <button className="opf-portal-accept opf-press" onClick={() => void post({ response: 'accepted' }, 'confirmed')} disabled={state === 'busy'}>
-              <OpfIcon name="check" size={18} color="#fff" stroke={2.4} /> {state === 'busy' ? 'Γίνεται…' : 'Επιβεβαίωση'}
-            </button>
-            {options.length > 0 && <button className="opf-portal-ghost opf-press" onClick={() => setShowChange(true)}>Αλλαγή ώρας</button>}
-          </div>
-        ) : (
-          <div style={{ marginTop: 10 }}>
-            <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 7 }}>Προτεινόμενες ώρες:</p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {options.map((o) => (
-                <button key={`${o.date} ${o.time}`} className="opf-portal-ghost opf-press" disabled={state === 'busy'}
-                  onClick={() => void post({ response: 'time_change_requested', requestedDueDate: o.date, requestedDueTime: o.time }, 'changeRequested')}>
-                  {o.time}{o.date !== appt.date ? ` (${o.date.slice(8, 10)}/${o.date.slice(5, 7)})` : ''}
+          {confirmed ? (
+            <div className="opf-accepted-tag" style={{ marginTop: 16 }}><OpfIcon name="check" size={17} color="var(--success)" stroke={2.6} /> Επιβεβαιώθηκε</div>
+          ) : state === 'changeRequested' ? (
+            <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 16 }}>Ζητήσατε αλλαγή ώρας — θα σας ενημερώσουμε.</p>
+          ) : appt.canRespond ? (
+            !showChange ? (
+              <div className="opf-portal-btns">
+                <button className="opf-portal-accept opf-press" onClick={() => void post({ response: 'accepted' }, 'confirmed')} disabled={state === 'busy'}>
+                  <OpfIcon name="check" size={18} color="#fff" stroke={2.4} /> {state === 'busy' ? 'Γίνεται…' : 'Επιβεβαίωση'}
                 </button>
-              ))}
-              <button className="opf-press" onClick={() => setShowChange(false)} style={{ fontSize: 14, color: 'var(--muted)', padding: '10px 8px' }}>Άκυρο</button>
-            </div>
-          </div>
-        )
-      ) : null}
-      {state === 'error' && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Κάτι πήγε στραβά. Δοκιμάστε ξανά.</p>}
-    </div>
+                {options.length > 0 && <button className="opf-portal-ghost opf-press" onClick={() => setShowChange(true)}>Αλλαγή ώρας</button>}
+              </div>
+            ) : (
+              <div style={{ marginTop: 16 }}>
+                <p style={{ fontSize: 12.5, color: 'var(--muted)', marginBottom: 7 }}>Προτεινόμενες ώρες:</p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                  {options.map((o) => (
+                    <button key={`${o.date} ${o.time}`} className="opf-portal-ghost opf-press" disabled={state === 'busy'}
+                      onClick={() => void post({ response: 'time_change_requested', requestedDueDate: o.date, requestedDueTime: o.time }, 'changeRequested')}>
+                      {o.time}{o.date !== appt.date ? ` (${o.date.slice(8, 10)}/${o.date.slice(5, 7)})` : ''}
+                    </button>
+                  ))}
+                  <button className="opf-press" onClick={() => setShowChange(false)} style={{ fontSize: 14, color: 'var(--muted)', padding: '10px 8px' }}>Άκυρο</button>
+                </div>
+              </div>
+            )
+          ) : null}
+          {state === 'error' && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Κάτι πήγε στραβά. Δοκιμάστε ξανά.</p>}
+        </>
+      ) : (
+        <p style={{ color: 'var(--muted)', fontSize: 14.5 }}>Δεν υπάρχει ραντεβού ακόμη.</p>
+      )}
+    </Sheet>
   );
 }
 
-// ── questions ────────────────────────────────────────────────────────────────
-function QuestionsCard({ token, initial, composerRef }: { token: string; initial: PublicFolderView['messages']; composerRef: React.RefObject<HTMLInputElement | null> }) {
+// ── FILES sheet (mints an upload link, then navigates to the upload page) ─────────
+function FilesSheet({ open, onClose, token }: { open: boolean; onClose: () => void; token: string }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function go() {
+    setBusy(true); setError(false);
+    try {
+      const res = await fetch(`/api/f/${encodeURIComponent(token)}/upload-link`, { method: 'POST' });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; url?: string };
+      if (res.ok && j?.ok && typeof j.url === 'string' && j.url) { window.location.href = j.url; return; }
+      setError(true); setBusy(false);
+    } catch { setError(true); setBusy(false); }
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} title="Φωτογραφίες / Αρχεία"
+      footer={
+        <button className="opf-btn-primary opf-full opf-press" onClick={() => void go()} disabled={busy}>
+          <OpfIcon name="image" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Άνοιγμα…' : 'Ανέβασμα φωτογραφιών'}</span>
+        </button>
+      }>
+      <div className="opf-files-grid">
+        {[0, 1, 2].map((i) => <div key={i} className="opf-file-thumb"><OpfIcon name="image" size={22} color="var(--muted)" stroke={2} /></div>)}
+      </div>
+      <p style={{ color: 'var(--muted)', fontSize: 13.5, marginTop: 12, lineHeight: 1.45 }}>
+        Ανεβάστε φωτογραφίες ή βίντεο του χώρου ώστε να σας εξυπηρετήσουμε καλύτερα.
+      </p>
+      {error && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Κάτι πήγε στραβά. Δοκιμάστε ξανά.</p>}
+    </Sheet>
+  );
+}
+
+// ── CHAT sheet (two-colour thread: technician left, customer right) ───────────────
+function ChatSheet({ open, onClose, token, initial }: { open: boolean; onClose: () => void; token: string; initial: Msg[] }) {
   const [messages, setMessages] = useState(initial);
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'error' | 'rate'>('idle');
@@ -347,27 +373,178 @@ function QuestionsCard({ token, initial, composerRef }: { token: string; initial
   }
 
   return (
-    <div className="opf-portal-card">
-      <div className="opf-portal-card-h"><OpfIcon name="message" size={18} color="var(--brand)" stroke={2} /> Ερωτήσεις</div>
-      {messages.length > 0 && (
-        <div className="opf-portal-chat">
-          {messages.map((m, i) => (
-            <div key={i} className={'opf-bub ' + (m.direction === 'out' ? 'opf-l' : 'opf-r')}>
-              <div className={'opf-bubble ' + (m.direction === 'out' ? 'opf-role-tech' : 'opf-role-cust')}>{m.text}</div>
+    <Sheet open={open} onClose={onClose} title="Συνομιλία"
+      footer={
+        <div className="opf-portal-composer">
+          <input className="opf-inp" placeholder="Γράψτε την ερώτησή σας…" value={text}
+            onChange={(e) => { setText(e.target.value); if (status === 'error' || status === 'rate') setStatus('idle'); }}
+            onKeyDown={(e) => { if (e.key === 'Enter') void send(); }} maxLength={1000} />
+          <button className="opf-pj-send opf-press" onClick={() => void send()} disabled={status === 'sending' || !text.trim()} aria-label="Αποστολή">
+            <OpfIcon name="send" size={19} color="#fff" stroke={2} />
+          </button>
+        </div>
+      }>
+      <div className="opf-chat-day">Συνομιλία με τον τεχνικό</div>
+      {messages.length === 0 ? (
+        <p style={{ color: 'var(--muted)', fontSize: 14, textAlign: 'center', padding: '12px 8px' }}>
+          Στείλτε μας την απορία σας — θα σας απαντήσουμε εδώ.
+        </p>
+      ) : (
+        messages.map((m, i) => (
+          <div key={i} className={'opf-bub ' + (m.direction === 'out' ? 'opf-l' : 'opf-r')} style={{ marginBottom: 8 }}>
+            <div className={'opf-bubble ' + (m.direction === 'out' ? 'opf-role-tech' : 'opf-role-cust')} style={{ padding: '11px 14px' }}>{m.text}</div>
+          </div>
+        ))
+      )}
+      {status === 'error' && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Δεν στάλθηκε. Δοκιμάστε ξανά.</p>}
+      {status === 'rate' && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Πολλά αιτήματα. Δοκιμάστε ξανά σε λίγο.</p>}
+    </Sheet>
+  );
+}
+
+// ── social / contact footer ──────────────────────────────────────────────────────
+function PortalFooter({ biz }: { biz: Biz }) {
+  if (!biz) return null;
+  const tel = biz.phone ? `tel:${biz.phone.replace(/\s+/g, '')}` : null;
+  const fb = socialHref(biz.facebookUrl, 'facebook.com');
+  const ig = socialHref(biz.instagramUrl, 'instagram.com');
+  return (
+    <>
+      {(tel || fb || ig) && (
+        <div className="opf-psocial">
+          {tel && <a className="opf-psoc opf-press" href={tel} aria-label="Τηλέφωνο"><OpfIcon name="phone" size={20} color="var(--brand)" stroke={2} /></a>}
+          {fb && (
+            <a className="opf-psoc opf-press" href={fb} target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="var(--brand)" aria-hidden="true"><path d="M14 13.5h2.5l1-4H14v-2c0-1.03 0-2 2-2h1.5V2.14c-.326-.043-1.557-.14-2.857-.14C11.928 2 10 3.657 10 6.7v2.8H7v4h3V22h4z" /></svg>
+            </a>
+          )}
+          {ig && (
+            <a className="opf-psoc opf-press" href={ig} target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5" /><circle cx="12" cy="12" r="3.8" /><circle cx="17.2" cy="6.8" r="1.2" fill="var(--brand)" stroke="none" /></svg>
+            </a>
+          )}
+        </div>
+      )}
+      {biz.phone && <div className="opf-pcontact">Επικοινωνία: {biz.phone}</div>}
+      <div className="opf-phelp">Φιλικά, Opiflow Assistant για λογαριασμό του {biz.name}</div>
+    </>
+  );
+}
+
+// ── main ──────────────────────────────────────────────────────────────────────
+export default function PortalView({ token, view }: { token: string; view: PublicFolderView }) {
+  const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
+  const [sheet, setSheet] = useState<SheetKey>(null);
+
+  const biz = view.business;
+  const primaryOffer = view.offers[0] ?? null;
+  const appt = view.appointments[0] ?? null;
+
+  const [offerAccepted, setOfferAccepted] = useState<boolean>(primaryOffer?.accepted ?? false);
+  const [apptConfirmed, setApptConfirmed] = useState<boolean>(false);
+
+  const paymentOutstanding = view.payments.some((p) => p.status !== 'confirmed');
+
+  // ── tile state ──
+  const offerReview = !!(primaryOffer && primaryOffer.canAccept && !offerAccepted);
+  let offerBadge: { t: string; tone: 'brand' | 'warn' | 'ok' } | null = null;
+  if (primaryOffer) {
+    if (offerReview) offerBadge = { t: 'Ελέγξτε', tone: 'brand' };
+    else if (offerAccepted && paymentOutstanding) offerBadge = { t: 'Πληρωμή', tone: 'warn' };
+    else if (offerAccepted) offerBadge = { t: '✓', tone: 'ok' };
+  }
+
+  const apptHandled = appt ? (apptConfirmed || !appt.canRespond) : false;
+  const apptReview = !!(appt && !apptHandled);
+  const apptBadge: { t: string; tone: 'brand' | 'ok' } | null = appt
+    ? (apptHandled ? { t: '✓', tone: 'ok' } : { t: 'Ελέγξτε', tone: 'brand' })
+    : null;
+
+  // ── updates feed (newest-ish first; welcome last) ──
+  type Update = { ic: string; t: string; when: string | null };
+  const updates: Update[] = [];
+  if (appt) updates.push({ ic: 'calendar', t: `Προτάθηκε ραντεβού${appt.date ? ` για ${grDate(appt.date)}` : ''}`, when: appt.createdAt });
+  if (primaryOffer) updates.push({ ic: 'file', t: 'Λάβατε νέα προσφορά', when: primaryOffer.createdAt });
+  for (const p of view.payments) {
+    updates.push({ ic: 'euro', t: p.kind === 'deposit' ? 'Αίτημα προκαταβολής' : p.kind === 'balance' ? 'Αίτημα εξόφλησης' : 'Αίτημα πληρωμής', when: null });
+  }
+  updates.push({ ic: 'link', t: 'Καλωσορίσατε στη σελίδα του έργου σας', when: null });
+
+  return (
+    <div className="opf-stage opf-portal" data-theme={theme} style={{ minHeight: '100vh', background: 'var(--bg)', position: 'relative' }}>
+      <div style={{ maxWidth: 460, margin: '0 auto', paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom))' }}>
+        {/* hero */}
+        <div className="opf-phub">
+          <div className="opf-phub-logo">
+            {biz?.logoUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={biz.logoUrl} alt={biz.name} style={{ width: 52, height: 52, borderRadius: 15, objectFit: 'contain' }} />
+            ) : (
+              <OpfLogo size={52} radius={15} />
+            )}
+          </div>
+          <div className="opf-phub-biz">{biz?.name ?? 'Η επιχείρηση'}</div>
+          <div className="opf-phub-title">{view.title}</div>
+          <div className="opf-phub-sub">Το έργο σας σε ένα μέρος — προσφορά, ραντεβού και επικοινωνία.</div>
+          {view.locationLabel && (
+            <div className="opf-phub-loc"><OpfIcon name="pin" size={14} color="var(--muted)" stroke={2} /> {view.locationLabel}</div>
+          )}
+        </div>
+
+        {/* 4-tile launcher */}
+        <div className="opf-tiles">
+          <button className={'opf-tile opf-press' + (primaryOffer ? (offerReview ? ' opf-review' : '') : ' opf-off')} onClick={() => primaryOffer && setSheet('offer')} disabled={!primaryOffer}>
+            {offerBadge && <span className={'opf-tile-badge opf-tb-' + offerBadge.tone}>{offerBadge.t}</span>}
+            <div className="opf-tile-ic"><OpfIcon name="file" size={22} color="#fff" stroke={2.1} /></div>
+            <div className="opf-tile-t">Προσφορά</div>
+            <div className="opf-tile-s">{primaryOffer ? 'Προβολή & αποδοχή' : 'Δεν έχει σταλεί ακόμη'}</div>
+          </button>
+
+          <button className={'opf-tile opf-press' + (appt ? (apptReview ? ' opf-review' : '') : ' opf-off')} onClick={() => appt && setSheet('appt')} disabled={!appt}>
+            {apptBadge && <span className={'opf-tile-badge opf-tb-' + apptBadge.tone}>{apptBadge.t}</span>}
+            <div className="opf-tile-ic opf-ic-appt"><OpfIcon name="calendar" size={22} color="#fff" stroke={2.1} /></div>
+            <div className="opf-tile-t">Ραντεβού</div>
+            <div className="opf-tile-s">{appt ? 'Επιβεβαίωση ή αλλαγή' : 'Δεν έχει σταλεί ακόμη'}</div>
+          </button>
+
+          <button className="opf-tile opf-press" onClick={() => setSheet('files')}>
+            <div className="opf-tile-ic opf-ic-files"><OpfIcon name="image" size={22} color="#fff" stroke={2.1} /></div>
+            <div className="opf-tile-t">Φωτογραφίες</div>
+            <div className="opf-tile-s">Ανέβασμα αρχείων</div>
+          </button>
+
+          <button className="opf-tile opf-press" onClick={() => setSheet('chat')}>
+            <div className="opf-tile-ic opf-ic-chat"><OpfIcon name="message" size={22} color="#fff" stroke={2.1} /></div>
+            <div className="opf-tile-t">Απορία</div>
+            <div className="opf-tile-s">Στείλτε μας μήνυμα</div>
+          </button>
+        </div>
+
+        {/* updates feed */}
+        <div className="opf-psec">Ενημερώσεις</div>
+        <div className="opf-ufeed">
+          {updates.map((u, i) => (
+            <div key={i} className="opf-update-row">
+              <div className="opf-update-ic"><OpfIcon name={u.ic} size={17} color="var(--brand)" stroke={2} /></div>
+              <div className="opf-update-main">
+                <div className="opf-update-t">{u.t}</div>
+                {u.when && <div className="opf-update-when">{fmtWhen(u.when)}</div>}
+              </div>
             </div>
           ))}
         </div>
-      )}
-      <div className="opf-portal-composer">
-        <input ref={composerRef} className="opf-inp" placeholder="Γράψτε την ερώτησή σας…" value={text}
-          onChange={(e) => { setText(e.target.value); if (status === 'error' || status === 'rate') setStatus('idle'); }}
-          onKeyDown={(e) => { if (e.key === 'Enter') void send(); }} maxLength={1000} />
-        <button className="opf-pj-send opf-press" onClick={() => void send()} disabled={status === 'sending' || !text.trim()} aria-label="Αποστολή">
-          <OpfIcon name="send" size={19} color="#fff" stroke={2} />
-        </button>
+
+        {/* social + contact */}
+        <PortalFooter biz={biz} />
       </div>
-      {status === 'error' && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Δεν στάλθηκε. Δοκιμάστε ξανά.</p>}
-      {status === 'rate' && <p style={{ color: 'var(--danger)', fontSize: 12.5, marginTop: 8 }}>Πολλά αιτήματα. Δοκιμάστε ξανά σε λίγο.</p>}
+
+      {/* bottom sheets */}
+      <OfferSheet open={sheet === 'offer'} onClose={() => setSheet(null)} token={token} offer={primaryOffer} payments={view.payments} biz={biz}
+        accepted={offerAccepted} onAccepted={() => setOfferAccepted(true)} onAsk={() => setSheet('chat')} />
+      <ApptSheet open={sheet === 'appt'} onClose={() => setSheet(null)} token={token} appt={appt} locationLabel={view.locationLabel}
+        confirmed={apptConfirmed} onConfirmed={() => setApptConfirmed(true)} />
+      <FilesSheet open={sheet === 'files'} onClose={() => setSheet(null)} token={token} />
+      <ChatSheet open={sheet === 'chat'} onClose={() => setSheet(null)} token={token} initial={view.messages} />
     </div>
   );
 }

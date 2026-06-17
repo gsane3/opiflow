@@ -56,14 +56,14 @@ describe('public-folder', () => {
 
     it('maps offers with customer-facing labels (draft → neutral)', () => {
       expect(view.offers).toEqual([
-        { id: 'off-1', offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200, vatRate: null, lines: [], accepted: false, canAccept: true },
-        { id: 'off-2', offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0, vatRate: null, lines: [], accepted: false, canAccept: true },
+        { id: 'off-1', offerNumber: 'PR-1', statusLabel: 'Στάλθηκε', total: 1200, vatRate: null, lines: [], accepted: false, canAccept: true, createdAt: null },
+        { id: 'off-2', offerNumber: 'PR-2', statusLabel: 'Σε ετοιμασία', total: 0, vatRate: null, lines: [], accepted: false, canAccept: true, createdAt: null },
       ]);
     });
 
     it('maps appointments to date/time/typeLabel only', () => {
       expect(view.appointments).toEqual([
-        { id: 'task-1', date: '2999-12-31', time: '10:00', typeLabel: 'Ραντεβού', canRespond: true },
+        { id: 'task-1', date: '2999-12-31', time: '10:00', typeLabel: 'Ραντεβού', canRespond: true, createdAt: null },
       ]);
     });
 
@@ -79,7 +79,7 @@ describe('public-folder', () => {
       expect(view).not.toHaveProperty('notes');
       // the public view's top-level keys are an explicit allow-list
       expect(Object.keys(view).sort()).toEqual(
-        ['appointments', 'business', 'greetingName', 'messages', 'offers', 'payments', 'statusLabel', 'statusMessage', 'step', 'title'],
+        ['appointments', 'business', 'greetingName', 'locationLabel', 'messages', 'offers', 'payments', 'statusLabel', 'statusMessage', 'step', 'title'],
       );
     });
 
