@@ -4,8 +4,8 @@
 // list (screens-customer.jsx): proj-card with status dot/pill + a 5-segment
 // mini-stepper + link/date foot, inside the prototype's design system
 // (opf-* CSS on .opf-stage). Tapping a card opens the full «Διαδικασία» screen
-// (ProjectProcess). Wired to the live folder APIs. Kept the original component
-// name + integration so MessengerTimeline needs no change.
+// (ProjectProcess). Wired to the live folder APIs. Used by the customer profile
+// (the «Έργα» section + the «Νέο έργο» / «Μήνυμα» round actions via signals).
 
 import { useCallback, useEffect, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
@@ -18,6 +18,7 @@ interface Folder { id: string; title: string; status: string; step?: number; cre
 const STATUS_LABEL: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Ολοκληρώθηκε', archived: 'Αρχειοθ.' };
 const STATUS_DOT: Record<string, string> = { open: 'new', in_progress: 'progress', done: 'won', archived: 'lost' };
 const STATUS_PILL: Record<string, string> = { open: 'pending', in_progress: 'sent', done: 'accepted', archived: 'pending' };
+const STATUS_RANK = (s: string) => (s === 'in_progress' ? 0 : s === 'open' ? 1 : s === 'done' ? 2 : 3);
 
 const ICON: Record<string, string> = {
   folder: 'M4 7.5A1.5 1.5 0 0 1 5.5 6h3.8a1.5 1.5 0 0 1 1.1.5l1 1.1a1.5 1.5 0 0 0 1.1.5h5.5A1.5 1.5 0 0 1 19.5 9.6V17a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 17z',
@@ -51,7 +52,7 @@ function countsLine(c?: FolderCounts): string {
   return parts.join(' · ');
 }
 
-export default function CustomerFoldersStrip({ customerId, onChanged, openCreateSignal }: { customerId: string; onChanged?: () => void; openCreateSignal?: number }) {
+export default function CustomerFoldersStrip({ customerId, onChanged, openCreateSignal, openLatestSignal }: { customerId: string; onChanged?: () => void; openCreateSignal?: number; openLatestSignal?: number }) {
   const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,6 +81,26 @@ export default function CustomerFoldersStrip({ customerId, onChanged, openCreate
     if (openCreateSignal && openCreateSignal > 0) { setTitle(''); setCreateErr(''); setCreating(true); }
   }, [openCreateSignal]);
 
+  // «Μήνυμα» round action: open the most relevant project (active first) where the
+  // chat lives, or the create sheet if the customer has no project yet (the
+  // project-first gate — you must create a project before messaging). The action
+  // is DEFERRED until folders have loaded, so an early tap never wrongly opens
+  // «Νέο έργο» for a customer who actually has projects.
+  const [pendingLatest, setPendingLatest] = useState(false);
+  useEffect(() => {
+    if (openLatestSignal && openLatestSignal > 0) setPendingLatest(true);
+  }, [openLatestSignal]);
+  useEffect(() => {
+    if (!pendingLatest || loading) return;
+    setPendingLatest(false);
+    if (folders.length > 0) {
+      const sorted = [...folders].sort((a, b) => STATUS_RANK(a.status) - STATUS_RANK(b.status));
+      setOpenId(sorted[0].id);
+    } else {
+      setTitle(''); setCreateErr(''); setCreating(true);
+    }
+  }, [pendingLatest, loading, folders]);
+
   async function refresh() { await load(); onChanged?.(); }
 
   async function createFolder() {
@@ -100,10 +121,7 @@ export default function CustomerFoldersStrip({ customerId, onChanged, openCreate
   }
 
   // Active first; show all (matches the prototype Projects list).
-  const list = [...folders].sort((a, b) => {
-    const rank = (s: string) => (s === 'in_progress' ? 0 : s === 'open' ? 1 : s === 'done' ? 2 : 3);
-    return rank(a.status) - rank(b.status);
-  });
+  const list = [...folders].sort((a, b) => STATUS_RANK(a.status) - STATUS_RANK(b.status));
 
   return (
     <div className="opf-stage" data-theme={theme} style={{ background: 'var(--bg)' }}>
