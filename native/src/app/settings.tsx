@@ -167,14 +167,26 @@ export default function SettingsScreen() {
         setBiz(b.business);
         setBizForm({
           name: b.business.name ?? '',
+          legal_name: b.business.legal_name ?? '',
+          trade_name: b.business.trade_name ?? '',
+          owner_first_name: b.business.owner_first_name ?? '',
+          owner_last_name: b.business.owner_last_name ?? '',
           phone: b.business.phone ?? '',
           email: b.business.email ?? '',
+          website: b.business.website ?? '',
+          facebook_url: b.business.facebook_url ?? '',
+          instagram_url: b.business.instagram_url ?? '',
           address: b.business.address ?? '',
+          address_line1: b.business.address_line1 ?? '',
+          address_line2: b.business.address_line2 ?? '',
+          postal_code: b.business.postal_code ?? '',
+          region: b.business.region ?? '',
           city: b.business.city ?? '',
           vat_number: b.business.vat_number ?? '',
           tax_office: b.business.tax_office ?? '',
           default_vat_rate: b.business.default_vat_rate != null ? String(b.business.default_vat_rate) : '24',
           default_offer_terms: b.business.default_offer_terms ?? '',
+          default_acceptance_text: b.business.default_acceptance_text ?? '',
         });
       }
       setCatalog(c?.items ?? []);
@@ -202,20 +214,39 @@ export default function SettingsScreen() {
     setBizBusy(true);
     try {
       const vat = parseFloat((bizForm.default_vat_rate ?? '24').replace(',', '.'));
+      // Sanitise so the server's website/postal_code validators never 400 the
+      // whole save: add a scheme to a bare domain; drop a postal code that isn't
+      // exactly 5 digits.
+      const wRaw = (bizForm.website ?? '').trim();
+      const website = wRaw ? (/^https?:\/\//.test(wRaw) ? wRaw : `https://${wRaw}`) : null;
+      const pcRaw = (bizForm.postal_code ?? '').trim();
+      const postalCode = /^\d{5}$/.test(pcRaw) ? pcRaw : null;
       const res = await apiPatch<{ ok?: boolean }>('/api/businesses/me', {
         name: bizForm.name || null,
         // The PATCH route requires type + preferred_contact_method; preserve the
         // loaded values (this form doesn't edit them) so the save isn't rejected.
         type: biz.type || 'other',
         preferred_contact_method: biz.preferred_contact_method || 'phone',
+        legal_name: bizForm.legal_name || null,
+        trade_name: bizForm.trade_name || null,
+        owner_first_name: bizForm.owner_first_name || null,
+        owner_last_name: bizForm.owner_last_name || null,
         phone: bizForm.phone || null,
         email: bizForm.email || null,
+        website,
+        facebook_url: bizForm.facebook_url || null,
+        instagram_url: bizForm.instagram_url || null,
         address: bizForm.address || null,
+        address_line1: bizForm.address_line1 || null,
+        address_line2: bizForm.address_line2 || null,
+        postal_code: postalCode,
+        region: bizForm.region || null,
         city: bizForm.city || null,
         vat_number: bizForm.vat_number || null,
         tax_office: bizForm.tax_office || null,
         default_vat_rate: Number.isFinite(vat) ? vat : 24,
         default_offer_terms: bizForm.default_offer_terms || null,
+        default_acceptance_text: bizForm.default_acceptance_text || null,
       });
       if (res?.ok) Alert.alert('✓', 'Αποθηκεύτηκε.');
       else Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
@@ -459,14 +490,30 @@ export default function SettingsScreen() {
           {/* Επιχείρηση */}
           <Section title="Επιχείρηση">
             <Input label="Όνομα επιχείρησης" value={bizForm.name ?? ''} onChangeText={setB('name')} />
+            <Input label="Επωνυμία (νομική)" value={bizForm.legal_name ?? ''} onChangeText={setB('legal_name')} />
+            <Input label="Διακριτικός τίτλος" value={bizForm.trade_name ?? ''} onChangeText={setB('trade_name')} />
+            <View style={styles.bankEditRow}>
+              <View style={{ flex: 1 }}><Input label="Όνομα υπευθύνου" value={bizForm.owner_first_name ?? ''} onChangeText={setB('owner_first_name')} /></View>
+              <View style={{ flex: 1 }}><Input label="Επώνυμο υπευθύνου" value={bizForm.owner_last_name ?? ''} onChangeText={setB('owner_last_name')} /></View>
+            </View>
             <Input label="Τηλέφωνο" value={bizForm.phone ?? ''} onChangeText={setB('phone')} keyboardType="phone-pad" />
             <Input label="Email" value={bizForm.email ?? ''} onChangeText={setB('email')} keyboardType="email-address" />
-            <Input label="Διεύθυνση" value={bizForm.address ?? ''} onChangeText={setB('address')} />
+            <Input label="Ιστότοπος" value={bizForm.website ?? ''} onChangeText={setB('website')} placeholder="https://…" />
+            <Input label="Facebook (URL)" value={bizForm.facebook_url ?? ''} onChangeText={setB('facebook_url')} />
+            <Input label="Instagram (URL ή @handle)" value={bizForm.instagram_url ?? ''} onChangeText={setB('instagram_url')} />
+            <Input label="Διεύθυνση" value={bizForm.address_line1 ?? bizForm.address ?? ''} onChangeText={setB('address_line1')} />
+            <Input label="Διεύθυνση (2η γραμμή)" value={bizForm.address_line2 ?? ''} onChangeText={setB('address_line2')} />
+            <View style={styles.bankEditRow}>
+              <View style={{ flex: 1 }}><Input label="Τ.Κ." value={bizForm.postal_code ?? ''} onChangeText={setB('postal_code')} keyboardType="numeric" /></View>
+              <View style={{ flex: 1 }}><Input label="Περιοχή" value={bizForm.region ?? ''} onChangeText={setB('region')} /></View>
+            </View>
             <Input label="Πόλη" value={bizForm.city ?? ''} onChangeText={setB('city')} />
             <Input label="ΑΦΜ" value={bizForm.vat_number ?? ''} onChangeText={setB('vat_number')} />
             <Input label="Δ.Ο.Υ." value={bizForm.tax_office ?? ''} onChangeText={setB('tax_office')} />
             <Input label="ΦΠΑ % (προεπιλογή)" value={bizForm.default_vat_rate ?? ''} onChangeText={setB('default_vat_rate')} keyboardType="decimal-pad" />
             <Input label="Όροι προσφοράς (προεπιλογή)" value={bizForm.default_offer_terms ?? ''} onChangeText={setB('default_offer_terms')} multiline />
+            <Input label="Κείμενο αποδοχής προσφοράς" value={bizForm.default_acceptance_text ?? ''} onChangeText={setB('default_acceptance_text')} multiline />
+            <ThemedText type="small" themeColor="textSecondary">Το λογότυπο ανεβαίνει από το web (opiflow.ai → Ρυθμίσεις).</ThemedText>
             <PrimaryButton label="Αποθήκευση" onPress={() => void saveBusiness()} busy={bizBusy} disabled={!biz} />
           </Section>
 
