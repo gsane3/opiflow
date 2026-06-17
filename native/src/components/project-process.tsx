@@ -1,18 +1,20 @@
-// Project «Διαδικασία» — native (Expo) port of the web ProjectProcess, 1:1 in
-// structure: a full-screen chat-first project screen. Top bar (switcher pill +
-// menu + «Προβολή ως πελάτης»), 5-step stepper, a chat timeline (messages as
-// bubbles; offers / appointments / payments / requests as cards), and a bottom
-// dock (Στοιχεία · Φωτό · Ραντεβού · Προσφορά + composer). Wired to the same live
-// folder APIs the web uses.
+// Project «Διαδικασία» — native chat-first project screen (a pushed route, not a
+// modal: proper full-screen + safe-area + tappable). Top bar (switcher pill + menu
+// + «Προβολή ως πελάτης»), a chat timeline (messages as bubbles; offers /
+// appointments / payments / requests as cards), and a bottom dock (Φωτό · Ραντεβού
+// · Προσφορά + composer). No progress bar — the user just acts freely. Wired to the
+// live folder APIs.
 
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
+import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
+import { ThemedView } from '@/components/themed-view';
 import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
@@ -20,8 +22,7 @@ import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatDate, formatEuro, todayYMD } from '@/lib/format';
 import { hapticSuccess } from '@/lib/haptics';
 
-const STEPS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'] as const;
-const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Ολοκληρώθηκε', archived: 'Αρχειοθετήθηκε' };
+const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Κερδισμένο', archived: 'Αρχειοθετήθηκε' };
 const OFFER_STATUS_GR: Record<string, string> = {
   draft: 'Σε ετοιμασία', ready_to_send: 'Σε ετοιμασία', sent_manually: 'Απεστάλη', sent_provider: 'Απεστάλη',
   accepted: 'Αποδεκτή', rejected: 'Απορρίφθηκε', expired: 'Έληξε', cancelled: 'Ακυρώθηκε',
@@ -34,7 +35,7 @@ const REJECT_MESSAGE = 'Καλησπέρα σας. Ευχαριστούμε πο
 const C_SUCCESS = '#18A06A';
 const C_WARN = '#E0922F';
 const C_DANGER = '#D14343';
-const C_INK = '#1A3550'; // dark navy for the appointment icon (matches web --ink-2), theme-safe
+const C_INK = '#1A3550';
 const DOT_COLOR: Record<string, string> = { open: Brand.primary, in_progress: C_WARN, done: C_SUCCESS, archived: '#9AA6B2' };
 const PAY_PCTS = [10, 20, 30, 50, 70, 100];
 
@@ -54,7 +55,6 @@ interface FolderDetail {
     intake: { items: DetailReq[] };
   };
 }
-export interface ProjectInitial { id: string; title: string; status: string; step?: number }
 
 const T = (s: string | null | undefined) => (s ? new Date(s).getTime() || 0 : 0);
 
@@ -65,15 +65,18 @@ type Item =
   | { kind: 'payment'; ts: number; data: FolderPayment }
   | { kind: 'req'; ts: number; data: DetailReq; photos: boolean };
 
-type SheetName = 'msg' | 'appt' | 'offer' | 'req' | 'payreq' | 'menu' | 'reject' | null;
+type SheetName = 'msg' | 'appt' | 'offer' | 'photos' | 'payreq' | 'menu' | 'reject' | null;
+interface OfferRow { desc: string; price: string }
 
-export function ProjectProcess({
-  visible, folderId, customerId, initial, onClose, onChanged,
-}: {
-  visible: boolean; folderId: string; customerId: string; initial: ProjectInitial; onClose: () => void; onChanged?: () => void;
-}) {
+export default function ProjectProcessScreen() {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const router = useRouter();
+  const params = useLocalSearchParams<{ id?: string; folderId?: string; title?: string; status?: string }>();
+  const customerId = String(params.id ?? '');
+  const folderId = String(params.folderId ?? '');
+  const initialTitle = params.title ?? 'Έργο';
+  const initialStatus = params.status ?? 'open';
 
   const [detail, setDetail] = useState<FolderDetail | null>(null);
   const [payments, setPayments] = useState<FolderPayment[]>([]);
@@ -82,10 +85,9 @@ export function ProjectProcess({
   const [busy, setBusy] = useState(false);
 
   const [sheet, setSheet] = useState<SheetName>(null);
-  const [reqPhotos, setReqPhotos] = useState(false);
   const [msg, setMsg] = useState('');
-  const [oDesc, setODesc] = useState('');
-  const [oAmount, setOAmount] = useState('');
+  const [oRows, setORows] = useState<OfferRow[]>([{ desc: '', price: '' }]);
+  const [oNotes, setONotes] = useState('');
   const [aTitle, setATitle] = useState('');
   const [aDate, setADate] = useState('');
   const [payKind, setPayKind] = useState<'deposit' | 'balance'>('deposit');
@@ -103,18 +105,15 @@ export function ProjectProcess({
     } catch { setError(true); } finally { setLoading(false); }
   }, [folderId]);
 
-  useEffect(() => {
-    if (visible) { setLoading(true); setError(false); void load(); }
-  }, [visible, load]);
+  useEffect(() => { void load(); }, [load]);
 
-  const refresh = useCallback(async () => { await load(); onChanged?.(); }, [load, onChanged]);
+  const refresh = useCallback(async () => { await load(); }, [load]);
 
   const offers = detail?.sections.offers.items ?? [];
   const firstOffer = offers[0];
   const f = detail?.folder;
-  const status = f?.status ?? initial.status;
-  const step = f?.step ?? initial.step ?? 0;
-  const title = f?.title ?? initial.title;
+  const status = f?.status ?? initialStatus;
+  const title = f?.title ?? initialTitle;
 
   const timeline = useMemo<Item[]>(() => {
     if (!detail) return [];
@@ -138,8 +137,7 @@ export function ProjectProcess({
       if (r?.ok) await refresh();
     } catch { Alert.alert('Σφάλμα', 'Η ενέργεια απέτυχε.'); } finally { setBusy(false); }
   }
-  async function advanceStep() { await patchFolder({ step: Math.min(step + 1, 4) }); setSheet(null); }
-  async function completeProject() { await patchFolder({ step: 4, status: 'done' }); setSheet(null); }
+  async function completeProject() { await patchFolder({ status: 'done' }); setSheet(null); }
 
   async function post(path: string, body: unknown): Promise<boolean> {
     try {
@@ -155,18 +153,22 @@ export function ProjectProcess({
     setBusy(true);
     try { if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); void hapticSuccess(); await refresh(); } } finally { setBusy(false); }
   }
-  async function sendRequest() {
+  async function sendPhotosRequest() {
+    setBusy(true);
+    try { if (await post(`/api/customers/${customerId}/upload-link`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); } } finally { setBusy(false); }
+  }
+  const offerTotal = useMemo(() => oRows.reduce((sum, r) => sum + (Number(r.price.replace(',', '.')) || 0), 0), [oRows]);
+  async function submitOffer() {
+    const items = oRows
+      .map((r, i) => ({ description: r.desc.trim(), quantity: 1, unitPrice: Number(r.price.replace(',', '.')) || 0, sortOrder: i }))
+      .filter((it) => it.description && it.unitPrice >= 0);
+    if (items.length === 0) { Alert.alert('Προσφορά', 'Συμπλήρωσε τουλάχιστον μία γραμμή (περιγραφή + τιμή).'); return; }
     setBusy(true);
     try {
-      const path = reqPhotos ? 'upload-link' : 'intake-link';
-      if (await post(`/api/customers/${customerId}/${path}`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); }
+      if (await post('/api/offers', { customerId, workFolderId: folderId, status: 'ready_to_send', notes: oNotes.trim() || null, items })) {
+        setORows([{ desc: '', price: '' }]); setONotes(''); setSheet(null); await refresh();
+      }
     } finally { setBusy(false); }
-  }
-  async function submitOffer() {
-    const desc = oDesc.trim(); const amount = Number(oAmount.replace(',', '.'));
-    if (!desc || !isFinite(amount) || amount < 0) { Alert.alert('Προσφορά', 'Γράψε περιγραφή και ποσό.'); return; }
-    setBusy(true);
-    try { if (await post('/api/offers', { customerId, workFolderId: folderId, items: [{ description: desc, quantity: 1, unitPrice: amount }] })) { setODesc(''); setOAmount(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
   }
   async function submitAppt() {
     const t = aTitle.trim(); if (!t) { Alert.alert('Ραντεβού', 'Γράψε τίτλο.'); return; }
@@ -203,114 +205,90 @@ export function ProjectProcess({
         await apiPost(`/api/customers/${customerId}/message`, { text: REJECT_MESSAGE }).catch(() => {});
         await apiPatch(`/api/customers/${customerId}`, { status: 'lost' }).catch(() => {});
         setSheet(null);
-        onChanged?.();
-        onClose();
+        router.back();
       } finally { setBusy(false); }
     })();
   }
 
   const grossOf = (pct: number) => (firstOffer?.total != null ? Math.round(firstOffer.total * pct) / 100 : 0);
+  const setRow = (i: number, k: keyof OfferRow) => (v: string) => setORows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+    <ThemedView style={styles.fill}>
+      <Stack.Screen options={{ headerShown: false }} />
       <KeyboardAvoidingView style={styles.fill} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <SafeAreaView edges={['top']} style={styles.fill}>
-        {/* top bar */}
-        <View style={styles.topbar}>
-          <Pressable onPress={onClose} hitSlop={10} style={styles.iconBtn}>
-            <Ionicons name="chevron-back" size={28} color={Brand.primary} />
-          </Pressable>
-          <View style={styles.switchPill}>
-            <View style={[styles.dot, { backgroundColor: DOT_COLOR[status] ?? Brand.primary }]} />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <ThemedText type="smallBold" numberOfLines={1} style={styles.switchTitle}>{title}</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                {(detail?.customer?.name ?? 'Πελάτης')} · {STATUS_LABELS[status] ?? status}
-              </ThemedText>
-            </View>
-          </View>
-          <Pressable onPress={() => setSheet('menu')} hitSlop={8} style={styles.roundBtn}>
-            <Ionicons name="ellipsis-horizontal" size={20} color={Brand.primary} />
-          </Pressable>
-          <Pressable onPress={() => void previewPortal()} hitSlop={8} style={styles.roundBtn}>
-            <Ionicons name="eye-outline" size={20} color={Brand.primary} />
-          </Pressable>
-        </View>
-
-        {/* stepper */}
-        <View style={styles.stepper}>
-          {STEPS.map((s, i) => {
-            const done = i < step;
-            const now = i === step;
-            return (
-              <View key={s} style={styles.stepWrap}>
-                <View style={styles.stepCol}>
-                  <View style={[styles.stepDot, done && styles.stepDotDone, now && styles.stepDotNow]}>
-                    {done ? <Ionicons name="checkmark" size={13} color="#fff" /> : <ThemedText style={[styles.stepNum, now && styles.stepNumNow]}>{i + 1}</ThemedText>}
-                  </View>
-                  <ThemedText style={[styles.stepLabel, now && styles.stepLabelNow]} numberOfLines={1}>{s}</ThemedText>
-                </View>
-                {i < STEPS.length - 1 ? <View style={[styles.stepBar, done && styles.stepBarDone]} /> : null}
+        <SafeAreaView edges={['top']} style={styles.fill}>
+          {/* top bar */}
+          <View style={styles.topbar}>
+            <Pressable onPress={() => router.back()} hitSlop={10} style={styles.iconBtn}>
+              <Ionicons name="chevron-back" size={28} color={Brand.primary} />
+            </Pressable>
+            <View style={styles.switchPill}>
+              <View style={[styles.dot, { backgroundColor: DOT_COLOR[status] ?? Brand.primary }]} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <ThemedText type="smallBold" numberOfLines={1} style={styles.switchTitle}>{title}</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                  {(detail?.customer?.name ?? 'Πελάτης')} · {STATUS_LABELS[status] ?? status}
+                </ThemedText>
               </View>
-            );
-          })}
-        </View>
-
-        {/* timeline */}
-        {loading ? (
-          <View style={styles.center}><ActivityIndicator color={Brand.primary} /></View>
-        ) : error ? (
-          <View style={styles.center}>
-            <ThemedText themeColor="textSecondary">Δεν φορτώθηκαν τα στοιχεία.</ThemedText>
-            <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => { setLoading(true); void load(); }} />
-          </View>
-        ) : (
-          <ScrollView style={styles.fill} contentContainerStyle={styles.body}>
-            {timeline.map((it) => (
-              <TimelineRow
-                key={`${it.kind}:${it.data.id}`}
-                it={it}
-                busy={busy}
-                c={c}
-                styles={styles}
-                onConfirm={confirmPayment}
-                onPayReq={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }}
-                onOpenOffer={setPreviewOfferId}
-              />
-            ))}
-            <ThemedText type="small" themeColor="textSecondary" style={styles.endHint}>
-              Όλα όσα στέλνεις εδώ τα βλέπει ο πελάτης στο link του.
-            </ThemedText>
-          </ScrollView>
-        )}
-
-        {/* dock */}
-        <SafeAreaView edges={['bottom']} style={styles.dockSafe}>
-          <View style={styles.quickRow}>
-            <DockBtn icon="clipboard-outline" label="Στοιχεία" styles={styles} onPress={() => { setReqPhotos(false); setSheet('req'); }} />
-            <DockBtn icon="image-outline" label="Φωτό" styles={styles} onPress={() => { setReqPhotos(true); setSheet('req'); }} />
-            <DockBtn icon="calendar-outline" label="Ραντεβού" styles={styles} onPress={() => { setATitle(title); setADate(''); setSheet('appt'); }} />
-            <DockBtn icon="document-text-outline" label="Προσφορά" styles={styles} onPress={() => { setODesc(''); setOAmount(''); setSheet('offer'); }} />
-          </View>
-          <View style={styles.composer}>
-            <Pressable onPress={() => setSheet('msg')} style={styles.composerAi} hitSlop={6}>
-              <Ionicons name="sparkles" size={18} color={Brand.onPrimary} />
+            </View>
+            <Pressable onPress={() => setSheet('menu')} hitSlop={8} style={styles.roundBtn}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={Brand.primary} />
             </Pressable>
-            <TextInput
-              style={styles.composerInput}
-              placeholder="Μήνυμα στον πελάτη…"
-              placeholderTextColor={c.textFaint}
-              value={msg}
-              onChangeText={setMsg}
-              onSubmitEditing={() => void sendMessage()}
-              returnKeyType="send"
-            />
-            <Pressable onPress={() => void sendMessage()} style={styles.composerSend} hitSlop={6} disabled={!msg.trim()}>
-              <Ionicons name="send" size={18} color={Brand.onPrimary} />
+            <Pressable onPress={() => void previewPortal()} hitSlop={8} style={styles.roundBtn}>
+              <Ionicons name="eye-outline" size={20} color={Brand.primary} />
             </Pressable>
           </View>
+
+          {/* timeline */}
+          {loading ? (
+            <View style={styles.center}><ActivityIndicator color={Brand.primary} /></View>
+          ) : error ? (
+            <View style={styles.center}>
+              <ThemedText themeColor="textSecondary">Δεν φορτώθηκαν τα στοιχεία.</ThemedText>
+              <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => { setLoading(true); void load(); }} />
+            </View>
+          ) : (
+            <ScrollView style={styles.fill} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+              {timeline.length === 0 ? (
+                <ThemedText type="small" themeColor="textSecondary" style={styles.endHint}>
+                  Ξεκίνα: στείλε προσφορά, ραντεβού ή μήνυμα. Ό,τι στέλνεις εδώ το βλέπει ο πελάτης στο link του.
+                </ThemedText>
+              ) : (
+                <>
+                  {timeline.map((it) => (
+                    <TimelineRow key={`${it.kind}:${it.data.id}`} it={it} busy={busy} c={c} styles={styles}
+                      onConfirm={confirmPayment}
+                      onPayReq={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }}
+                      onOpenOffer={setPreviewOfferId} />
+                  ))}
+                  <ThemedText type="small" themeColor="textSecondary" style={styles.endHint}>
+                    Όλα όσα στέλνεις εδώ τα βλέπει ο πελάτης στο link του.
+                  </ThemedText>
+                </>
+              )}
+            </ScrollView>
+          )}
+
+          {/* dock */}
+          <SafeAreaView edges={['bottom']} style={styles.dockSafe}>
+            <View style={styles.quickRow}>
+              <DockBtn icon="image-outline" label="Φωτό" styles={styles} onPress={() => setSheet('photos')} />
+              <DockBtn icon="calendar-outline" label="Ραντεβού" styles={styles} onPress={() => { setATitle(title); setADate(''); setSheet('appt'); }} />
+              <DockBtn icon="document-text-outline" label="Προσφορά" styles={styles} onPress={() => { setORows([{ desc: '', price: '' }]); setONotes(''); setSheet('offer'); }} />
+            </View>
+            <View style={styles.composer}>
+              <Pressable onPress={() => setSheet('msg')} style={styles.composerAi} hitSlop={6}>
+                <Ionicons name="sparkles" size={18} color={Brand.onPrimary} />
+              </Pressable>
+              <TextInput style={styles.composerInput} placeholder="Μήνυμα στον πελάτη…" placeholderTextColor={c.textFaint}
+                value={msg} onChangeText={setMsg} onSubmitEditing={() => void sendMessage()} returnKeyType="send" />
+              <Pressable onPress={() => void sendMessage()} style={styles.composerSend} hitSlop={6} disabled={!msg.trim()}>
+                <Ionicons name="send" size={18} color={Brand.onPrimary} />
+              </Pressable>
+            </View>
+          </SafeAreaView>
         </SafeAreaView>
-      </SafeAreaView>
       </KeyboardAvoidingView>
 
       {/* sheets */}
@@ -325,21 +303,39 @@ export function ProjectProcess({
         <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή στο link'} busy={busy} disabled={!aTitle.trim()} onPress={() => void submitAppt()} />
       </SheetModal>
 
+      {/* offer sheet — multi-line (description + price, add rows); VAT added server-side */}
       <SheetModal visible={sheet === 'offer'} title="Αποστολή προσφοράς" onClose={() => setSheet(null)}>
-        <Input label="Περιγραφή" value={oDesc} onChangeText={setODesc} placeholder="π.χ. Τοποθέτηση κλιματιστικού" />
-        <Input label="Ποσό (€)" value={oAmount} onChangeText={setOAmount} keyboardType="decimal-pad" placeholder="0" />
-        <ThemedText type="smallBold" style={[styles.ink, { textAlign: 'right' }]}>Ποσό: {formatEuro(Number(oAmount.replace(',', '.')) || 0)}</ThemedText>
-        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή στο link'} busy={busy} disabled={!oDesc.trim()} onPress={() => void submitOffer()} />
+        {oRows.map((r, i) => (
+          <View key={i} style={styles.offerRow}>
+            <View style={{ flex: 1 }}>
+              <Input label={`Περιγραφή ${i + 1}`} value={r.desc} onChangeText={setRow(i, 'desc')} placeholder="π.χ. Υλικά" />
+            </View>
+            <View style={styles.offerPriceCol}>
+              <Input label="€" value={r.price} onChangeText={setRow(i, 'price')} keyboardType="decimal-pad" placeholder="0" />
+            </View>
+            {oRows.length > 1 ? (
+              <Pressable onPress={() => setORows((rs) => rs.filter((_, idx) => idx !== i))} hitSlop={8} style={styles.offerRemove}>
+                <Ionicons name="close-circle" size={22} color={c.textFaint} />
+              </Pressable>
+            ) : null}
+          </View>
+        ))}
+        <Pressable onPress={() => setORows((rs) => [...rs, { desc: '', price: '' }])} style={({ pressed }) => [styles.addRow, pressed && styles.dim]}>
+          <Ionicons name="add" size={18} color={Brand.primary} />
+          <ThemedText type="small" style={styles.addRowText}>Προσθήκη γραμμής</ThemedText>
+        </Pressable>
+        <Input label="Σημειώσεις (προαιρετικό)" value={oNotes} onChangeText={setONotes} multiline />
+        <ThemedText type="smallBold" style={[styles.ink, { textAlign: 'right' }]}>Σύνολο (χωρίς ΦΠΑ): {formatEuro(offerTotal)}</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'right', marginTop: -4 }}>Το ΦΠΑ προστίθεται αυτόματα.</ThemedText>
+        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή στο link'} busy={busy} onPress={() => void submitOffer()} />
       </SheetModal>
 
-      <SheetModal visible={sheet === 'req'} title={reqPhotos ? 'Αίτημα φωτογραφιών' : 'Αίτημα στοιχείων'} onClose={() => setSheet(null)}>
+      <SheetModal visible={sheet === 'photos'} title="Αίτημα φωτογραφιών" onClose={() => setSheet(null)}>
         <View style={styles.infoBox}>
-          <Ionicons name={reqPhotos ? 'image-outline' : 'clipboard-outline'} size={22} color={Brand.primary} />
-          <ThemedText type="small" style={[styles.ink, { flex: 1 }]}>
-            {reqPhotos ? 'Ο πελάτης θα ανεβάσει φωτογραφίες μέσα από το link του έργου.' : 'Ο πελάτης θα συμπληρώσει τα στοιχεία του (διεύθυνση, ΑΦΜ κ.λπ.) μέσα από το link.'}
-          </ThemedText>
+          <Ionicons name="image-outline" size={22} color={Brand.primary} />
+          <ThemedText type="small" style={[styles.ink, { flex: 1 }]}>Ο πελάτης θα ανεβάσει φωτογραφίες του χώρου μέσα από το link του έργου.</ThemedText>
         </View>
-        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'} busy={busy} onPress={() => void sendRequest()} />
+        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'} busy={busy} onPress={() => void sendPhotosRequest()} />
       </SheetModal>
 
       <SheetModal visible={sheet === 'payreq'} title="Αίτημα πληρωμής" onClose={() => setSheet(null)}>
@@ -375,10 +371,9 @@ export function ProjectProcess({
       </SheetModal>
 
       <SheetModal visible={sheet === 'menu'} title="Ενέργειες έργου" onClose={() => setSheet(null)}>
-        <MenuItem icon="arrow-forward" label="Παράλειψη βήματος" styles={styles} c={c} onPress={() => void advanceStep()} />
-        <MenuItem icon="checkmark-circle" label="Ολοκλήρωση έργου" styles={styles} c={c} tint={C_SUCCESS} onPress={() => void completeProject()} />
-        <MenuItem icon="card-outline" label="Αίτημα πληρωμής" styles={styles} c={c} onPress={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} />
-        <MenuItem icon="close-circle" label="Απόρριψη πελάτη" styles={styles} c={c} tint={C_DANGER} danger onPress={() => setSheet('reject')} />
+        <MenuItem icon="checkmark-circle" label="Ολοκλήρωση (Κερδισμένο)" styles={styles} tint={C_SUCCESS} onPress={() => void completeProject()} />
+        <MenuItem icon="card-outline" label="Αίτημα πληρωμής" styles={styles} onPress={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} />
+        <MenuItem icon="close-circle" label="Απόρριψη πελάτη" styles={styles} tint={C_DANGER} danger onPress={() => setSheet('reject')} />
       </SheetModal>
 
       <SheetModal visible={sheet === 'reject'} title="Απόρριψη πελάτη" onClose={() => setSheet(null)}>
@@ -392,7 +387,7 @@ export function ProjectProcess({
 
       {/* offer preview (opened from the timeline «Άνοιγμα PDF» link) */}
       <OfferPreviewSheet offerId={previewOfferId} onClose={() => setPreviewOfferId(null)} onChanged={() => void refresh()} />
-    </Modal>
+    </ThemedView>
   );
 }
 
@@ -528,7 +523,7 @@ function DockBtn({ icon, label, onPress, styles }: { icon: keyof typeof Ionicons
   );
 }
 
-function MenuItem({ icon, label, onPress, styles, c, tint, danger }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; styles: ReturnType<typeof makeStyles>; c: ThemePalette; tint?: string; danger?: boolean }) {
+function MenuItem({ icon, label, onPress, styles, tint, danger }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; styles: ReturnType<typeof makeStyles>; tint?: string; danger?: boolean }) {
   return (
     <Pressable onPress={onPress} style={({ pressed }) => [styles.menuItem, pressed && styles.dim]}>
       <View style={[styles.menuIc, { backgroundColor: tint ? `${tint}22` : Brand.primarySoft }]}>
@@ -551,23 +546,9 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   dot: { width: 9, height: 9, borderRadius: 5, flexShrink: 0 },
   roundBtn: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: Brand.primarySoft },
 
-  stepper: { flexDirection: 'row', alignItems: 'flex-start', paddingHorizontal: Spacing.three, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: c.borderFaint, backgroundColor: c.card },
-  stepWrap: { flexDirection: 'row', alignItems: 'flex-start', flex: 1 },
-  stepCol: { alignItems: 'center', gap: 5, width: 52 },
-  stepDot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: c.surface, borderWidth: 1.5, borderColor: c.border },
-  stepDotDone: { backgroundColor: C_SUCCESS, borderColor: 'transparent' },
-  stepDotNow: { backgroundColor: Brand.primary, borderColor: 'transparent' },
-  stepNum: { fontSize: 12, fontWeight: '800', color: c.textFaint },
-  stepNumNow: { color: '#fff' },
-  stepLabel: { fontSize: 10, fontWeight: '600', color: c.textFaint },
-  stepLabelNow: { color: Brand.primary },
-  stepBar: { flex: 1, height: 2, borderRadius: 2, backgroundColor: c.border, marginTop: 11 },
-  stepBarDone: { backgroundColor: C_SUCCESS },
-
   body: { padding: Spacing.three, gap: Spacing.two, paddingBottom: Spacing.five },
-  endHint: { textAlign: 'center', marginTop: Spacing.two, paddingHorizontal: Spacing.four, lineHeight: 18 },
+  endHint: { textAlign: 'center', marginTop: Spacing.three, paddingHorizontal: Spacing.four, lineHeight: 18 },
 
-  // bubbles
   bubbleRow: { flexDirection: 'row', marginVertical: 2 },
   rowRight: { justifyContent: 'flex-end' },
   rowLeft: { justifyContent: 'flex-start' },
@@ -578,7 +559,6 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   bubbleWhen: { fontSize: 11, color: c.textFaint, alignSelf: 'flex-end' },
   bubbleWhenTech: { color: 'rgba(255,255,255,0.8)' },
 
-  // event cards (right-aligned, technician side)
   cardWrapRight: { alignItems: 'flex-end' },
   evCard: { width: '94%', backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.borderFaint, borderTopWidth: 2.5, borderTopColor: Brand.primary, padding: Spacing.three, gap: Spacing.two },
   evTop: { flexDirection: 'row', alignItems: 'center', gap: 11 },
@@ -603,7 +583,6 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   acceptedBtnText: { color: '#fff', fontWeight: '700' },
   payActions: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 },
 
-  // dock
   dockSafe: { borderTopWidth: 1, borderTopColor: c.borderFaint, backgroundColor: c.card },
   quickRow: { flexDirection: 'row', gap: 8, paddingHorizontal: Spacing.three, paddingTop: 10 },
   dockBtn: { flex: 1, alignItems: 'center', gap: 4, paddingVertical: 9, borderRadius: 14, backgroundColor: Brand.primarySoft },
@@ -613,7 +592,6 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   composerInput: { flex: 1, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 11, fontSize: 15, color: c.text },
   composerSend: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: Brand.primary },
 
-  // sheets
   infoBox: { flexDirection: 'row', gap: 12, alignItems: 'flex-start', backgroundColor: c.surface, borderRadius: 16, padding: 15, marginBottom: Spacing.two },
   quoteBox: { marginTop: 4, marginBottom: Spacing.two, padding: 12, borderRadius: 12, backgroundColor: c.surface },
   quoteText: { color: c.textSecondary, fontStyle: 'italic', lineHeight: 20 },
@@ -629,6 +607,12 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   pctTextOn: { color: '#fff' },
   amountBox: { backgroundColor: Brand.primarySoft, borderRadius: 16, padding: 16, marginBottom: 16, alignItems: 'center', gap: 3 },
   amountBig: { fontSize: 28, fontWeight: '800', color: Brand.primary, letterSpacing: -0.6 },
+
+  offerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
+  offerPriceCol: { width: 96 },
+  offerRemove: { paddingBottom: 12 },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, marginBottom: 4 },
+  addRowText: { color: Brand.primary, fontWeight: '700' },
 
   menuItem: { flexDirection: 'row', alignItems: 'center', gap: 13, padding: 14, borderRadius: 14, backgroundColor: c.surface, marginBottom: 9 },
   menuIc: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
