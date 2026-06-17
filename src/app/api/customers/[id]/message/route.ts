@@ -33,6 +33,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!text) return NextResponse.json({ ok: false, error: 'empty_text' }, { status: 400 });
   if (text.length > MAX_TEXT) return NextResponse.json({ ok: false, error: 'too_long' }, { status: 400 });
   const channelOverride = raw.channel === 'sms' || raw.channel === 'viber' ? raw.channel : null;
+  const workFolderId = typeof raw.workFolderId === 'string' && raw.workFolderId.trim() ? raw.workFolderId.trim() : null;
 
   // Load the customer (scoped to this business) for phone + preferred channel.
   const { data: customer } = await supabase
@@ -50,6 +51,20 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const phone = c.mobile_phone || c.phone || c.landline_phone;
   if (!phone) {
     return NextResponse.json({ ok: false, error: 'no_phone' }, { status: 400 });
+  }
+
+  // If filing into a project, verify the folder belongs to this business + customer
+  // before tagging (so the message shows in the right project's portal chat).
+  let folderTag: string | null = null;
+  if (workFolderId) {
+    const { data: f } = await supabase
+      .from('work_folders')
+      .select('id')
+      .eq('id', workFolderId)
+      .eq('business_id', businessId)
+      .eq('customer_id', customerId)
+      .maybeSingle();
+    if (f) folderTag = workFolderId;
   }
 
   const referenceId = `msg:${businessId.slice(0, 8)}:${customerId.slice(0, 8)}:${Date.now().toString(36)}`;
@@ -79,6 +94,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     referenceId,
     providerRequestId,
     providerMessageId,
+    workFolderId: folderTag,
   });
 
   return NextResponse.json({ ok: true, channel: result.channel, fallbackApplied: result.fallbackApplied });

@@ -30,6 +30,8 @@ export interface RecordOutboundMessageParams {
   /** Apifon request_id / message_id, when the send returned them. */
   providerRequestId?: string | null;
   providerMessageId?: string | null;
+  /** Optional work folder to file the message under (project thread + portal chat). */
+  workFolderId?: string | null;
 }
 
 export interface RecordOutboundMessageResult {
@@ -57,6 +59,7 @@ export async function recordOutboundMessage(
         status: 'sent',
         phone: params.phone ?? null,
         summary: params.summary,
+        ...(params.workFolderId ? { work_folder_id: params.workFolderId } : {}),
       })
       .select('id')
       .single();

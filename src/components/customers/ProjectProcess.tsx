@@ -174,7 +174,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   async function sendMessage() {
     const t = msg.trim(); if (!t) return;
     setBusy(true);
-    try { if (await post(`/api/customers/${customerId}/message`, { text: t })) { setMsg(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
+    try { if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
   }
   async function sendRequest() {
     setBusy(true);

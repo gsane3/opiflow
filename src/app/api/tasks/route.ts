@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { resolveWorkFolderForCreate } from '@/lib/server/folder-link';
+import { notifyFolderUpdate } from '@/lib/server/notify-folder-update';
 
 export const runtime = 'nodejs';
 
@@ -307,6 +308,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'task_create_failed' }, { status: 500 });
     }
 
+    // γ — auto-notify the customer when a new appointment is filed into their project.
+    if (folderLink.workFolderId && (raw.type === 'book_appointment' || raw.type === 'visit_customer')) {
+      void notifyFolderUpdate({ businessId, workFolderId: folderLink.workFolderId, what: 'νέο ραντεβού' }).catch(() => {});
+    }
     return NextResponse.json(
       { ok: true, task: dbToTask(asTaskRow(data)) },
       { status: 201 }

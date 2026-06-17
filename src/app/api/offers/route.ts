@@ -8,6 +8,7 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { parseOfferItems, calculateOfferTotals } from '@/lib/offer-totals';
 import { resolveWorkFolderForCreate } from '@/lib/server/folder-link';
+import { notifyFolderUpdate } from '@/lib/server/notify-folder-update';
 
 export const runtime = 'nodejs';
 
@@ -439,6 +440,10 @@ export async function POST(request: NextRequest) {
     }
 
     const insertedItems = (itemsData as unknown[]).map(asOfferItemRow);
+    // γ — auto-notify the customer when an offer is filed into their project.
+    if (folderLink.workFolderId) {
+      void notifyFolderUpdate({ businessId, workFolderId: folderLink.workFolderId, what: 'νέα προσφορά' }).catch(() => {});
+    }
     return NextResponse.json(
       { ok: true, offer: dbToOffer(offer, insertedItems) },
       { status: 201 }
