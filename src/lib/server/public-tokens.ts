@@ -58,6 +58,12 @@ export function hashToken(rawToken: string): string {
   return crypto.createHash('sha256').update(rawToken, 'utf8').digest('hex');
 }
 
+// Canonical public domain for customer-facing links (sent via SMS/Viber/email).
+// These links MUST use a stable, branded host — never a per-deployment Vercel
+// preview URL (e.g. opiflow-<hash>-sane127.vercel.app), which is ugly, may rotate,
+// and isn't the address customers should see. Overridable via NEXT_PUBLIC_APP_URL.
+const CANONICAL_PUBLIC_APP_URL = 'https://opiflow.ai';
+
 /** Public app origin (no trailing slash) used to build customer-facing links. */
 export function getPublicAppUrl(): string {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
@@ -66,11 +72,14 @@ export function getPublicAppUrl(): string {
     return appUrl.replace(/\/$/, '');
   }
 
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}`;
+  // Local dev: keep links on localhost so they're clickable while developing.
+  if (process.env.NODE_ENV !== 'production') {
+    return 'http://localhost:3000';
   }
 
-  return 'http://localhost:3000';
+  // Any production/preview build with no explicit override → the branded domain.
+  // (Deliberately NOT VERCEL_URL: customer links must point at the stable host.)
+  return CANONICAL_PUBLIC_APP_URL;
 }
 
 /**
