@@ -56,6 +56,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const [note, setNote] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
+  const [intakeBusy, setIntakeBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -83,6 +84,36 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
       const res = await fetch(`/api/customers/${customerId}`, { method: 'PATCH', headers, body: JSON.stringify({ notes: note }) });
       if (res.ok) { setNoteSaved(true); setTimeout(() => setNoteSaved(false), 2000); }
     } catch { /* non-fatal */ } finally { setNoteSaving(false); }
+  }
+
+  // «Ζήτα στοιχεία» (web parity with native): customer-level intake-link request.
+  async function sendIntake() {
+    if (!window.confirm('Θα σταλεί σύνδεσμος στον πελάτη (Viber → SMS) για να συμπληρώσει τα στοιχεία του. Συνέχεια;')) return;
+    setIntakeBusy(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch(`/api/customers/${customerId}/intake-link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'send' }) });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; sent?: boolean; reason?: string; fallbackReason?: string };
+      if (res.ok && j.ok) {
+        window.alert(j.sent === false ? `Ετοιμάστηκε ο σύνδεσμος (δεν στάλθηκε αυτόματα: ${j.reason ?? j.fallbackReason ?? '—'}).` : 'Ο σύνδεσμος στάλθηκε στον πελάτη.');
+      } else {
+        window.alert('Δεν ήταν δυνατή η αποστολή. Δοκίμασε ξανά.');
+      }
+    } catch { window.alert('Σφάλμα σύνδεσης.'); } finally { setIntakeBusy(false); }
+  }
+
+  // «Απόρριψη πελάτη» — mark status=lost (web parity with native).
+  async function rejectCustomer() {
+    if ((cust?.status ?? 'new') === 'lost') return;
+    if (!window.confirm('Να σημανθεί ο πελάτης ως «Χαμένος»;')) return;
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch(`/api/customers/${customerId}`, { method: 'PATCH', headers, body: JSON.stringify({ status: 'lost' }) });
+      if (res.ok) void load();
+      else window.alert('Δεν ήταν δυνατή η ενημέρωση.');
+    } catch { window.alert('Σφάλμα σύνδεσης.'); }
   }
 
   const name = cust?.name ?? cust?.companyName ?? 'Πελάτης';
@@ -120,6 +151,10 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
           <button className="opf-round-act opf-press" onClick={() => setCreateSignal((n) => n + 1)}>
             <div className="opf-round-circle"><OpfIcon name="folderPlus" size={22} color="var(--brand)" stroke={2} /></div>
             <span style={{ color: 'var(--ink-2)' }}>Νέο έργο</span>
+          </button>
+          <button className="opf-round-act opf-press" onClick={() => void sendIntake()} disabled={intakeBusy}>
+            <div className="opf-round-circle"><OpfIcon name="clipboard" size={22} color="var(--brand)" stroke={2} /></div>
+            <span style={{ color: 'var(--ink-2)' }}>Ζήτα στοιχεία</span>
           </button>
           <button className={'opf-round-act opf-press' + (cust?.address ? '' : ' opf-off')} onClick={() => cust?.address && window.open(buildMapsUrl(cust.address), '_blank')}>
             <div className="opf-round-circle"><OpfIcon name="map" size={22} color={cust?.address ? 'var(--brand)' : 'var(--muted)'} stroke={2} /></div>
@@ -170,6 +205,17 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
           <textarea className="opf-ta" placeholder="Σημείωση ορατή μόνο σε εσένα…" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
           <button className="opf-btn-primary opf-full opf-press" onClick={() => void saveNote()}>{noteSaving ? 'Αποθήκευση…' : noteSaved ? 'Αποθηκεύτηκε ✓' : 'Αποθήκευση σημείωσης'}</button>
         </div>
+
+        {/* Reject / mark-lost (web parity with native) */}
+        {status !== 'lost' && (
+          <button
+            className="opf-press"
+            onClick={() => void rejectCustomer()}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 14, padding: '12px', borderRadius: 14, background: 'transparent', color: 'var(--danger)', fontWeight: 700, fontSize: 14 }}
+          >
+            <OpfIcon name="x" size={17} color="var(--danger)" stroke={2.4} /> Απόρριψη πελάτη
+          </button>
+        )}
       </div>
 
       {/* Edit-details popup — opened by the pencil; re-loads the profile on save. */}
