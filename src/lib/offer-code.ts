@@ -25,7 +25,10 @@ function initialOf(word: string): string {
   const first = word.trim().charAt(0).toUpperCase();
   if (!first) return '';
   if (GREEK_TO_LATIN[first]) return GREEK_TO_LATIN[first];
-  if (/[A-Z0-9]/.test(first)) return first; // already Latin / a digit
+  // Letters only — keeping digits out of the code guarantees the offer-number
+  // running counter (extracted from the numeric segments) can never be fooled
+  // by a digit-leading customer/project word.
+  if (/[A-Z]/.test(first)) return first;
   return '';
 }
 

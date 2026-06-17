@@ -378,21 +378,24 @@ export async function POST(
     }
 
     // postal_code / region (migration 053) in their OWN isolated update so a
-    // pre-053 deployment can't fail the core intake submission above.
-    let extras: CustomerExtras = { postalCode: null, region: null };
+    // pre-053 deployment can't fail the core intake submission above. Write only
+    // the field(s) the customer actually filled — never null out a prefilled
+    // value because the other field was left blank.
+    let extras = await loadCustomerExtras(supabase, customer.id, customer.business_id);
     if (postalCode || region) {
+      const extraUpdate: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (postalCode) extraUpdate.postal_code = postalCode;
+      if (region) extraUpdate.region = region;
       try {
         await supabase
           .from('customers')
-          .update({ postal_code: postalCode, region, updated_at: new Date().toISOString() })
+          .update(extraUpdate)
           .eq('id', customer.id)
           .eq('business_id', customer.business_id);
-        extras = { postalCode, region };
+        extras = { postalCode: postalCode ?? extras.postalCode, region: region ?? extras.region };
       } catch {
         // pre-053 → swallowed; intake submission already succeeded.
       }
-    } else {
-      extras = await loadCustomerExtras(supabase, customer.id, customer.business_id);
     }
 
     await markIntakeTokenSubmitted(tokenRow.id);
