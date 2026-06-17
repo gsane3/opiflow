@@ -8,6 +8,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { listBankAccounts, createBankAccount, updateBankAccount, deleteBankAccount, syncPrimaryBank } from '@/lib/server/bank-accounts';
 
 export const runtime = 'nodejs';
 
@@ -73,7 +74,7 @@ export async function PATCH(request: NextRequest) {
 
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
+  const { businessId } = auth.ctx;
 
   let body: unknown;
   try {
@@ -94,23 +95,31 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
+  // This endpoint edits the PRIMARY bank account. It writes THROUGH to the
+  // business_bank_accounts table (single source of truth) + re-syncs the mirror,
+  // so it stays consistent with the web multi-account manager (and the still-used
+  // native bank editor) instead of writing businesses.bank_* directly.
   try {
-    const { data, error } = await supabase
-      .from('businesses')
-      .update({
-        bank_beneficiary: cleanText(raw.beneficiary),
-        bank_name: cleanText(raw.bank),
-        bank_iban: iban,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', businessId)
-      .select('bank_beneficiary, bank_name, bank_iban')
-      .maybeSingle();
-    if (error || !data) {
-      // Most likely cause pre-deploy: migration 048 not applied yet.
-      return NextResponse.json({ ok: false, error: 'bank_unavailable' }, { status: 503 });
+    const beneficiary = cleanText(raw.beneficiary);
+    const bank = cleanText(raw.bank);
+
+    if (!iban) {
+      // Clearing the bank: drop the primary account (next becomes primary, if any).
+      const accounts = await listBankAccounts(businessId);
+      if (accounts.length > 0) await deleteBankAccount(businessId, accounts[0].id);
+      else await syncPrimaryBank(businessId);
+      return NextResponse.json({ ok: true, bank: mapBank(null) });
     }
-    return NextResponse.json({ ok: true, bank: mapBank(data as unknown as BankRow) });
+
+    const accounts = await listBankAccounts(businessId);
+    const primary = accounts[0];
+    const saved = primary
+      ? await updateBankAccount(businessId, primary.id, { beneficiary, bankName: bank, iban })
+      : await createBankAccount(businessId, { beneficiary, bankName: bank, iban });
+    return NextResponse.json({
+      ok: true,
+      bank: { beneficiary: saved?.beneficiary ?? beneficiary, bank: saved?.bankName ?? bank, iban: saved?.iban ?? iban },
+    });
   } catch {
     return NextResponse.json({ ok: false, error: 'bank_unavailable' }, { status: 503 });
   }
