@@ -155,6 +155,8 @@ export default function CustomerProfileScreen() {
           landlinePhone: cu.landlinePhone ?? '',
           email: cu.email ?? '',
           address: cu.address ?? '',
+          postalCode: cu.postalCode ?? '',
+          region: cu.region ?? '',
           preferredContactMethod: (cu as { preferredContactMethod?: string }).preferredContactMethod ?? 'phone',
           source: cu.source ?? 'other',
           needsSummary: cu.needsSummary ?? '',
@@ -299,6 +301,8 @@ export default function CustomerProfileScreen() {
         landlinePhone: form.landlinePhone || null,
         email: form.email || null,
         address: form.address || null,
+        postalCode: form.postalCode || null,
+        region: form.region || null,
         preferredContactMethod: form.preferredContactMethod || null,
         source: form.source || null,
         needsSummary: form.needsSummary || null,
@@ -478,7 +482,9 @@ export default function CustomerProfileScreen() {
                 disabled={!customer.address}
                 onPress={() =>
                   Linking.openURL(
-                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(customer.address ?? '')}`,
+                    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      [customer.address, customer.postalCode, customer.region].filter(Boolean).join(', '),
+                    )}`,
                   )
                 }
               />
@@ -490,7 +496,11 @@ export default function CustomerProfileScreen() {
             <InfoRow icon="call" label="Κινητό" value={customer.mobilePhone} />
             <InfoRow icon="call-outline" label="Σταθερό" value={customer.landlinePhone} />
             <InfoRow icon="mail" label="Email" value={customer.email} />
-            <InfoRow icon="location" label="Διεύθυνση" value={customer.address} />
+            <InfoRow
+              icon="location"
+              label="Διεύθυνση"
+              value={[customer.address, [customer.postalCode, customer.region].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null}
+            />
             <InfoRow icon="sparkles" label="Ανάγκες" value={customer.needsSummary} />
             {!customer.mobilePhone && !customer.landlinePhone && !customer.email && !customer.address ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.emptyRow}>
@@ -645,6 +655,14 @@ export default function CustomerProfileScreen() {
         <Input label="Σταθερό" value={form.landlinePhone ?? ''} onChangeText={set('landlinePhone')} keyboardType="phone-pad" />
         <Input label="Email" value={form.email ?? ''} onChangeText={set('email')} keyboardType="email-address" />
         <Input label="Διεύθυνση" value={form.address ?? ''} onChangeText={set('address')} />
+        <View style={styles.twoCol}>
+          <View style={{ flex: 1 }}>
+            <Input label="Τ.Κ." value={form.postalCode ?? ''} onChangeText={set('postalCode')} keyboardType="numeric" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Input label="Περιοχή" value={form.region ?? ''} onChangeText={set('region')} />
+          </View>
+        </View>
         <ThemedText type="small" themeColor="textSecondary">
           Προτιμώμενο κανάλι
         </ThemedText>

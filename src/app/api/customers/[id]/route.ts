@@ -94,6 +94,10 @@ interface CustomerRow {
   next_best_action: string | null;
   memory_updated_at: string | null;
   pinned?: boolean;
+  // migration 053 — read tolerantly, may be absent pre-053
+  postal_code?: string | null;
+  region?: string | null;
+  imported_from_phone?: boolean | null;
 }
 
 function dbToCustomer(row: CustomerRow) {
@@ -107,6 +111,9 @@ function dbToCustomer(row: CustomerRow) {
     landlinePhone: row.landline_phone,
     email: row.email,
     address: row.address,
+    postalCode: row.postal_code ?? null,
+    region: row.region ?? null,
+    importedFromPhone: row.imported_from_phone ?? false,
     source: row.source,
     status: row.status,
     opportunityValue: row.opportunity_value,
@@ -175,6 +182,25 @@ export async function GET(
       if (!pinErr && pinRow) customer.pinned = (pinRow as { pinned?: boolean }).pinned ?? false;
     } catch {
       // pre-044 → pinned stays false
+    }
+
+    // postal_code / region / imported_from_phone (migration 053) — tolerant read
+    // so the edit sheet can prefill ΤΚ / Περιοχή before 053 is applied.
+    try {
+      const { data: extra, error: extraErr } = await supabase
+        .from('customers')
+        .select('postal_code, region, imported_from_phone')
+        .eq('id', id)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      if (!extraErr && extra) {
+        const r = extra as { postal_code: string | null; region: string | null; imported_from_phone: boolean | null };
+        customer.postalCode = r.postal_code ?? null;
+        customer.region = r.region ?? null;
+        customer.importedFromPhone = r.imported_from_phone ?? false;
+      }
+    } catch {
+      // pre-053 → fields stay null/false
     }
 
     return NextResponse.json({ ok: true, customer });
@@ -261,6 +287,14 @@ export async function PATCH(
     }
     if ('lastContactAt' in raw) { updateFields.last_contact_at = str(raw.lastContactAt); hasUpdate = true; }
 
+    // postal_code / region (migration 053) are written in a separate isolated
+    // update so a pre-053 deployment can't fail the core PATCH. Detect them here
+    // and force a save even when they're the only edited fields.
+    const extraPostal = 'postalCode' in raw ? str(raw.postalCode) : undefined;
+    const extraRegion = 'region' in raw ? str(raw.region) : undefined;
+    const wantsExtras = extraPostal !== undefined || extraRegion !== undefined;
+    if (wantsExtras) hasUpdate = true;
+
     let hasMemoryFieldUpdate = false;
     if ('statusSummary' in raw) { updateFields.status_summary = str(raw.statusSummary); hasUpdate = true; hasMemoryFieldUpdate = true; }
     if ('businessNotes' in raw) { updateFields.business_notes = str(raw.businessNotes); hasUpdate = true; hasMemoryFieldUpdate = true; }
@@ -303,7 +337,26 @@ export async function PATCH(
       return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, customer: dbToCustomer(asCustomerRow(data)) });
+    const patched = dbToCustomer(asCustomerRow(data));
+
+    if (wantsExtras) {
+      try {
+        const extraUpdate: Record<string, unknown> = {};
+        if (extraPostal !== undefined) extraUpdate.postal_code = extraPostal;
+        if (extraRegion !== undefined) extraUpdate.region = extraRegion;
+        await supabase
+          .from('customers')
+          .update(extraUpdate)
+          .eq('id', id)
+          .eq('business_id', businessId);
+        if (extraPostal !== undefined) patched.postalCode = extraPostal;
+        if (extraRegion !== undefined) patched.region = extraRegion;
+      } catch {
+        // pre-053 → swallowed; the core PATCH already succeeded.
+      }
+    }
+
+    return NextResponse.json({ ok: true, customer: patched });
   } catch {
     return NextResponse.json({ ok: false, error: 'customer_update_failed' }, { status: 500 });
   }

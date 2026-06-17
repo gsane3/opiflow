@@ -6,8 +6,11 @@ export interface IntakeCustomer {
   crmNumber: string | null;
   displayName: string;
   phoneMasked: string | null;
+  companyName: string | null;
   email: string | null;
   address: string | null;
+  postalCode: string | null;
+  region: string | null;
   notes: string | null;
   needsSummary: string | null;
   intakeStatus: string;
@@ -75,8 +78,12 @@ export default function IntakeFormClient({
   const [business, setBusiness] = useState<IntakeBusiness | null>(initialBusiness);
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [companyName, setCompanyName] = useState(initialCustomer?.companyName ?? '');
   const [email, setEmail] = useState(initialCustomer?.email ?? '');
   const [address, setAddress] = useState(initialCustomer?.address ?? '');
+  const [postalCode, setPostalCode] = useState(initialCustomer?.postalCode ?? '');
+  const [region, setRegion] = useState(initialCustomer?.region ?? '');
+  const [needsSummary, setNeedsSummary] = useState(initialCustomer?.needsSummary ?? '');
   const [comments, setComments] = useState('');
   const [preferredContactMethod, setPreferredContactMethod] =
     useState<PreferredContactMethod>('viber');
@@ -115,8 +122,12 @@ export default function IntakeFormClient({
 
         setCustomer(json.customer);
         if (json.business) setBusiness(json.business);
+        setCompanyName(json.customer.companyName ?? '');
         setEmail(json.customer.email ?? '');
         setAddress(json.customer.address ?? '');
+        setPostalCode(json.customer.postalCode ?? '');
+        setRegion(json.customer.region ?? '');
+        setNeedsSummary(json.customer.needsSummary ?? '');
         setMessage('Συμπληρώστε τα στοιχεία σας για να ολοκληρώσουμε την καρτέλα.');
       } catch {
         if (!cancelled) {
@@ -153,8 +164,12 @@ export default function IntakeFormClient({
         body: JSON.stringify({
           firstName,
           lastName,
+          companyName,
           email,
           address,
+          postalCode,
+          region,
+          needsSummary,
           comments,
           preferredContactMethod,
         }),
@@ -261,6 +276,18 @@ export default function IntakeFormClient({
               </div>
 
               <label className="block">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Εταιρεία <span className="font-normal text-zinc-400">(προαιρετικό)</span></span>
+                <input
+                  name="companyName"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                  autoComplete="organization"
+                  className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
+                  placeholder="π.χ. Παπαδόπουλος Ο.Ε."
+                />
+              </label>
+
+              <label className="block">
                 <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Email</span>
                 <input
                   name="email"
@@ -281,9 +308,47 @@ export default function IntakeFormClient({
                   name="address"
                   value={address}
                   onChange={(event) => setAddress(event.target.value)}
-                  autoComplete="street-address"
+                  autoComplete="address-line1"
                   className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
-                  placeholder="Οδός, αριθμός, περιοχή"
+                  placeholder="Οδός & αριθμός"
+                />
+              </label>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Τ.Κ.</span>
+                  <input
+                    name="postalCode"
+                    value={postalCode}
+                    onChange={(event) => setPostalCode(event.target.value)}
+                    autoComplete="postal-code"
+                    inputMode="numeric"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
+                    placeholder="π.χ. 11521"
+                  />
+                </label>
+
+                <label className="block">
+                  <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Περιοχή</span>
+                  <input
+                    name="region"
+                    value={region}
+                    onChange={(event) => setRegion(event.target.value)}
+                    autoComplete="address-level2"
+                    className="mt-1 h-12 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 text-base outline-none focus:border-indigo-400"
+                    placeholder="π.χ. Αμπελόκηποι"
+                  />
+                </label>
+              </div>
+
+              <label className="block">
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">Τι χρειάζεστε; <span className="font-normal text-zinc-400">(προαιρετικό)</span></span>
+                <textarea
+                  name="needsSummary"
+                  value={needsSummary}
+                  onChange={(event) => setNeedsSummary(event.target.value)}
+                  className="mt-1 min-h-20 w-full rounded-xl border border-zinc-200 dark:border-white/10 bg-white dark:bg-[#0f1923] px-4 py-3 text-base outline-none focus:border-indigo-400"
+                  placeholder="Σύντομη περιγραφή της εργασίας/ανάγκης σας."
                 />
               </label>
 

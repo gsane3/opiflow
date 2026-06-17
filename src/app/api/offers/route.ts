@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { parseOfferItems, calculateOfferTotals } from '@/lib/offer-totals';
+import { buildOfferCode } from '@/lib/offer-code';
 import { resolveWorkFolderForCreate } from '@/lib/server/folder-link';
 import { notifyFolderUpdate } from '@/lib/server/notify-folder-update';
 
@@ -136,19 +137,32 @@ async function validateTaskBelongsToBusiness(
   return data !== null;
 }
 
-// Generate the next OFFER-YYYY-N number for the business.
-// The running number N is a single business-global sequence shared across ALL
-// customers and ALL years: customer A getting OFFER-2026-15 means customer B's
-// next offer is OFFER-2026-16. We derive N from the highest trailing number across
-// every existing offer_number for the business (regardless of year prefix) + 1, so
-// the sequence never resets. The current year is still used in the visible prefix.
-// Race risk is acceptable at private beta scale, consistent with crm_number in customers API.
+// Extract the running counter N from an offer_number string, robust to both the
+// current format OFFER-{N}-{YYYY}-{CODE} and the legacy OFFER-{YYYY}-{N}: take
+// the max numeric segment after dropping any year-like 4-digit value.
+function extractOfferSeq(offerNumber: string | null): number {
+  if (!offerNumber) return 0;
+  const nums = (offerNumber.match(/\d+/g) ?? []).map((s) => parseInt(s, 10)).filter((n) => !isNaN(n));
+  if (nums.length === 0) return 0;
+  const seqs = nums.filter((n) => !(n >= 2000 && n <= 2100));
+  const pool = seqs.length > 0 ? seqs : nums;
+  return Math.max(...pool);
+}
+
+// Generate the next offer number for the business in the form
+// OFFER-{N}-{YYYY}-{CODE} (feedback #6). N is a single business-global running
+// sequence shared across ALL customers and years (never resets); YYYY is the
+// current year; CODE is a short distinguishing code from the customer + project
+// (omitted when empty → OFFER-{N}-{YYYY}). N is taken from the atomic counter
+// (migration 043) or, as a pre-043 fallback, derived from existing numbers.
 async function generateOfferNumber(
   supabase: SupabaseClient,
-  businessId: string
+  businessId: string,
+  code = ''
 ): Promise<string> {
   const year = new Date().getFullYear();
-  const prefix = `OFFER-${year}-`;
+  const suffix = code ? `-${code}` : '';
+  const build = (n: number) => `OFFER-${n}-${year}${suffix}`;
 
   // Atomic per-business counter (migration 043): one UPDATE..RETURNING instead
   // of fetching every offer row, and no duplicate-number race.
@@ -156,7 +170,7 @@ async function generateOfferNumber(
     const { data: n, error } = await supabase.rpc('take_next_offer_number', {
       p_business_id: businessId,
     });
-    if (!error && typeof n === 'number' && n > 0) return `${prefix}${n}`;
+    if (!error && typeof n === 'number' && n > 0) return build(n);
   } catch {
     // pre-043 schema — fall back to the legacy scan below
   }
@@ -167,16 +181,35 @@ async function generateOfferNumber(
     .eq('business_id', businessId);
   let maxN = 0;
   for (const row of ((data ?? []) as unknown as { offer_number: string | null }[])) {
-    const num = row.offer_number;
-    if (!num) continue;
-    // Take the trailing integer regardless of the prefix/year so the sequence is
-    // a single global running counter for the whole business.
-    const match = num.match(/(\d+)\s*$/);
-    if (!match) continue;
-    const n = parseInt(match[1], 10);
-    if (!isNaN(n) && n > maxN) maxN = n;
+    const n = extractOfferSeq(row.offer_number);
+    if (n > maxN) maxN = n;
   }
-  return `${prefix}${maxN + 1}`;
+  return build(maxN + 1);
+}
+
+// Fetch the customer name + project title to build the offer code (#6). Both are
+// optional; a failure simply yields an empty code (offer still gets a number).
+async function loadOfferCodeContext(
+  supabase: SupabaseClient,
+  businessId: string,
+  customerId: string | null,
+  workFolderId: string | null
+): Promise<string> {
+  try {
+    const [custRes, folderRes] = await Promise.all([
+      customerId
+        ? supabase.from('customers').select('name, company_name').eq('id', customerId).eq('business_id', businessId).maybeSingle()
+        : Promise.resolve({ data: null }),
+      workFolderId
+        ? supabase.from('work_folders').select('title').eq('id', workFolderId).eq('business_id', businessId).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    const cust = custRes.data as { name: string | null; company_name: string | null } | null;
+    const folder = folderRes.data as { title: string | null } | null;
+    return buildOfferCode(cust?.name ?? cust?.company_name ?? null, folder?.title ?? null);
+  } catch {
+    return '';
+  }
 }
 
 function dbToOfferItem(row: OfferItemRow) {
@@ -371,9 +404,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: folderLink.error }, { status: folderLink.status });
     }
 
-    // offer number: use provided or generate
+    // offer number: use provided or generate with a customer/project code (#6)
+    const offerCode = await loadOfferCodeContext(
+      supabase,
+      businessId,
+      customerId,
+      folderLink.workFolderId ?? null
+    );
     const offerNumber =
-      str(raw.offerNumber) ?? (await generateOfferNumber(supabase, businessId));
+      str(raw.offerNumber) ?? (await generateOfferNumber(supabase, businessId, offerCode));
 
     // Compute totals server-side; client-supplied subtotal/vatAmount/total are ignored
     const { subtotal, vatAmount, total, lineTotals } = calculateOfferTotals(items, vatRate);
