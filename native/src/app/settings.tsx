@@ -4,7 +4,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -15,7 +15,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useThemeMode } from '@/lib/theme-mode';
-import { formatEuro } from '@/lib/format';
+import { formatDate, formatEuro } from '@/lib/format';
 import { getIncomingState } from '@/lib/twilio-state';
 import type { Business, CatalogItem } from '@/lib/types';
 
@@ -44,6 +44,15 @@ interface MessagingSettings {
   weeklySummaryEnabled: boolean;
 }
 
+const PLAN_LABEL: Record<string, string> = { starter: 'Starter', pro: 'Pro', team: 'Team' };
+const SUB_STATUS: Record<string, string> = {
+  trialing: 'Δοκιμή',
+  active: 'Ενεργό',
+  pending_manual_review: 'Σε αξιολόγηση',
+  cancelled: 'Ακυρωμένο',
+  past_due: 'Εκκρεμεί πληρωμή',
+};
+
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const email = session?.user?.email ?? '';
@@ -52,6 +61,39 @@ export default function SettingsScreen() {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
   const { isDark, setDark } = useThemeMode();
+
+  // ----- subscription (read-only view) + account deletion (store requirement) -----
+  const [sub, setSub] = useState<{ plan_key: string; status: string; trial_ends_at: string | null } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  useEffect(() => {
+    let on = true;
+    apiGet<{ subscription?: { plan_key: string; status: string; trial_ends_at: string | null } | null }>('/api/businesses/me')
+      .then((r) => { if (on) setSub(r?.subscription ?? null); })
+      .catch(() => {});
+    return () => { on = false; };
+  }, []);
+
+  const doDeleteAccount = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await apiPost('/api/account/delete', {});
+      await signOut();
+    } catch {
+      Alert.alert('Σφάλμα', 'Η διαγραφή απέτυχε. Δοκίμασε ξανά.');
+      setDeleting(false);
+    }
+  }, [signOut]);
+
+  const confirmDeleteAccount = useCallback(() => {
+    Alert.alert(
+      'Διαγραφή λογαριασμού',
+      'Θα διαγραφούν οριστικά η επιχείρηση και ΟΛΑ τα δεδομένα σου (πελάτες, προσφορές, κλήσεις, ραντεβού). Δεν αναιρείται. Συνέχεια;',
+      [
+        { text: 'Ακύρωση', style: 'cancel' },
+        { text: 'Διαγραφή', style: 'destructive', onPress: () => void doDeleteAccount() },
+      ],
+    );
+  }, [doDeleteAccount]);
 
   const [phone, setPhone] = useState(getIncomingState());
   useEffect(() => {
@@ -605,12 +647,41 @@ export default function SettingsScreen() {
           {/* Λογαριασμός */}
           <Section title="Λογαριασμός">
             <Row label="Email" value={email || '—'} />
+            <Row
+              label="Συνδρομή"
+              value={sub ? `${PLAN_LABEL[sub.plan_key] ?? sub.plan_key} · ${SUB_STATUS[sub.status] ?? sub.status}` : '—'}
+            />
+            {sub?.status === 'trialing' && sub.trial_ends_at ? (
+              <Row label="Δοκιμή έως" value={formatDate(sub.trial_ends_at)} />
+            ) : null}
             <Row label="Έκδοση εφαρμογής" value={version} />
+            <View style={styles.linkRow}>
+              <Pressable onPress={() => void Linking.openURL('https://www.opiflow.ai/privacy')} hitSlop={6}>
+                <ThemedText type="small" style={styles.link}>Απόρρητο</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => void Linking.openURL('https://www.opiflow.ai/terms')} hitSlop={6}>
+                <ThemedText type="small" style={styles.link}>Όροι χρήσης</ThemedText>
+              </Pressable>
+              <Pressable onPress={() => void Linking.openURL('mailto:support@opiflow.ai')} hitSlop={6}>
+                <ThemedText type="small" style={styles.link}>Υποστήριξη</ThemedText>
+              </Pressable>
+            </View>
           </Section>
 
           <Pressable onPress={signOut} style={({ pressed }) => [styles.signout, pressed && styles.pressed]}>
             <Ionicons name="log-out-outline" size={18} color="#D14343" />
             <ThemedText style={styles.signoutText}>Αποσύνδεση</ThemedText>
+          </Pressable>
+
+          {/* In-app account deletion — required by Apple 5.1.1(v) + Google Play. */}
+          <Pressable
+            onPress={confirmDeleteAccount}
+            disabled={deleting}
+            style={({ pressed }) => [styles.deleteAccount, (pressed || deleting) && styles.pressed]}>
+            <Ionicons name="trash-outline" size={16} color={c.textFaint} />
+            <ThemedText type="small" themeColor="textSecondary">
+              {deleting ? 'Διαγραφή…' : 'Διαγραφή λογαριασμού'}
+            </ThemedText>
           </Pressable>
         </ScrollView>
         </KeyboardAvoidingView>
@@ -669,4 +740,13 @@ const makeStyles = (c: ThemePalette) =>
     },
     signoutText: { color: '#D14343', fontSize: 15, fontWeight: '700' },
     pressed: { opacity: 0.6 },
+    linkRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.four, paddingTop: Spacing.two },
+    link: { color: Brand.primary, fontWeight: '600' },
+    deleteAccount: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 6,
+      paddingVertical: Spacing.three,
+    },
   });
