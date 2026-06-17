@@ -24,12 +24,13 @@ interface CustomerFull {
   name: string | null; companyName: string | null;
   mobilePhone: string | null; landlinePhone: string | null;
   email: string | null; address: string | null;
+  postalCode: string | null; region: string | null;
   source: string | null; preferredContactMethod: string | null; needsSummary: string | null;
 }
 
 const EMPTY = {
   firstName: '', lastName: '', companyName: '', mobilePhone: '', landlinePhone: '',
-  email: '', address: '', preferredContactMethod: 'phone', source: '', needsSummary: '',
+  email: '', address: '', postalCode: '', region: '', preferredContactMethod: 'phone', source: '', needsSummary: '',
 };
 
 async function authHeaders(): Promise<Record<string, string> | null> {
@@ -65,6 +66,7 @@ export default function CustomerEditSheet({
           firstName: parts[0] ?? '', lastName: parts.slice(1).join(' '),
           companyName: c.companyName ?? '', mobilePhone: c.mobilePhone ?? '',
           landlinePhone: c.landlinePhone ?? '', email: c.email ?? '', address: c.address ?? '',
+          postalCode: c.postalCode ?? '', region: c.region ?? '',
           preferredContactMethod: c.preferredContactMethod ?? 'phone', source: c.source ?? '', needsSummary: c.needsSummary ?? '',
         });
       }
@@ -87,6 +89,7 @@ export default function CustomerEditSheet({
           companyName: form.companyName || null,
           mobilePhone: form.mobilePhone || null, phone: form.mobilePhone || null,
           landlinePhone: form.landlinePhone || null, email: form.email || null, address: form.address || null,
+          postalCode: form.postalCode || null, region: form.region || null,
           preferredContactMethod: form.preferredContactMethod || 'phone',
           source: form.source || null, needsSummary: form.needsSummary || null,
         }),
@@ -119,7 +122,11 @@ export default function CustomerEditSheet({
                 <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Σταθερό</span><input className="opf-inp" inputMode="tel" value={form.landlinePhone} onChange={(e) => setForm((f) => ({ ...f, landlinePhone: e.target.value }))} /></label>
               </div>
               <label className="opf-field"><span className="opf-field-label">Email</span><input className="opf-inp" inputMode="email" value={form.email} onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))} /></label>
-              <label className="opf-field"><span className="opf-field-label">Διεύθυνση</span><input className="opf-inp" value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></label>
+              <label className="opf-field"><span className="opf-field-label">Διεύθυνση</span><input className="opf-inp" value={form.address} placeholder="Οδός & αριθμός" onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} /></label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <label className="opf-field" style={{ flex: '0 0 38%' }}><span className="opf-field-label">Τ.Κ.</span><input className="opf-inp" inputMode="numeric" value={form.postalCode} onChange={(e) => setForm((f) => ({ ...f, postalCode: e.target.value }))} /></label>
+                <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Περιοχή</span><input className="opf-inp" value={form.region} onChange={(e) => setForm((f) => ({ ...f, region: e.target.value }))} /></label>
+              </div>
               <label className="opf-field"><span className="opf-field-label">Προτιμώμενο κανάλι</span>
                 <select className="opf-inp" value={form.preferredContactMethod} onChange={(e) => setForm((f) => ({ ...f, preferredContactMethod: e.target.value }))}>
                   {CONTACT_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}

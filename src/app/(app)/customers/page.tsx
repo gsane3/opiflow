@@ -1,12 +1,11 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button, Card, EmptyState, BottomSheet, SheetRow } from '@/components/ui';
 import { Skeleton } from '@/components/ui/Skeleton';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
-import { norm } from '@/lib/search';
 import CustomerCard from '@/components/customers/CustomerCard';
 
 // API response type
@@ -79,19 +78,21 @@ function mapCustomer(dto: CustomerDto): Customer {
   };
 }
 
-// Quick-filter values. 'offers' is a synthetic filter that matches any
-// legacy offer status (offer_drafted | offer_sent) for back-compat.
+// Quick-filter values. Filtering is server-side (parity with the native list):
+// 'awaiting' → ?awaiting=1 (inbound-call contacts with no name yet); the four
+// statuses map to ?status=. This also fixes the old client-side 100-row cap.
 type QuickFilter =
   | 'all'
+  | 'awaiting'
   | 'new'
   | 'in_progress'
   | 'won'
-  | 'lost'
-  | 'offers';
+  | 'lost';
 
-// The 4 status chips always shown inline.
+// Status chips shown inline.
 const PRIMARY_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: 'all', label: 'Όλοι' },
+  { value: 'awaiting', label: 'Αναμονή στοιχείων' },
   { value: 'new', label: 'Νέοι' },
   { value: 'in_progress', label: 'Σε εξέλιξη' },
   { value: 'won', label: 'Κερδισμένοι' },
@@ -102,112 +103,81 @@ const ADVANCED_FILTERS: { value: QuickFilter; label: string }[] = [
   { value: 'lost', label: 'Χαμένοι' },
 ];
 
-const OFFER_STATUSES = new Set<CustomerStatus>(['offer_drafted', 'offer_sent']);
+const PAGE_SIZE = 100;
 
 type PageMessage = 'no_session' | 'fetch_error' | null;
 
 export default function CustomersPage() {
   const [hydrated, setHydrated] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [message, setMessage] = useState<PageMessage>(null);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [canLoadMore, setCanLoadMore] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
+  // Sequence guard: a slow response for an old query/filter must not overwrite a newer one.
+  const loadSeq = useRef(0);
 
+  // Debounce free-text search before re-querying the server.
   useEffect(() => {
-    let cancelled = false;
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
 
-    async function load() {
-      setLoading(true);
+  const load = useCallback(async (offset: number, append: boolean) => {
+    const seq = ++loadSeq.current;
+    if (append) setLoadingMore(true); else setLoading(true);
 
-      let supabase: ReturnType<typeof createBrowserSupabaseClient>;
-      try {
-        supabase = createBrowserSupabaseClient();
-      } catch {
-        if (!cancelled) {
-          setMessage('fetch_error');
-          setHydrated(true);
-          setLoading(false);
-        }
-        return;
-      }
-
-      const { data: { session } } = await supabase.auth.getSession();
-
-      if (!session) {
-        if (!cancelled) {
-          setMessage('no_session');
-          setCustomers([]);
-          setHydrated(true);
-          setLoading(false);
-        }
-        return;
-      }
-
-      try {
-        const res = await fetch('/api/customers?limit=100', {
-          headers: { Authorization: `Bearer ${session.access_token}` },
-        });
-        const json = await res.json() as { ok?: boolean; customers?: CustomerDto[]; error?: string };
-
-        if (!cancelled) {
-          if (json.ok && Array.isArray(json.customers)) {
-            setCustomers(json.customers.map(mapCustomer));
-            setMessage(null);
-          } else {
-            setCustomers([]);
-            setMessage('fetch_error');
-          }
-          setHydrated(true);
-          setLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setCustomers([]);
-          setMessage('fetch_error');
-          setHydrated(true);
-          setLoading(false);
-        }
-      }
+    let supabase: ReturnType<typeof createBrowserSupabaseClient>;
+    try {
+      supabase = createBrowserSupabaseClient();
+    } catch {
+      if (seq === loadSeq.current) { setMessage('fetch_error'); setHydrated(true); setLoading(false); setLoadingMore(false); }
+      return;
     }
 
-    load();
-    return () => { cancelled = true; };
-  }, [refreshTick]);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      if (seq === loadSeq.current) { setMessage('no_session'); setCustomers([]); setHydrated(true); setLoading(false); setLoadingMore(false); }
+      return;
+    }
 
-  const hasFilter = search.trim() !== '' || quickFilter !== 'all';
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    if (debouncedSearch) params.set('q', debouncedSearch);
+    if (quickFilter === 'awaiting') params.set('awaiting', '1');
+    else if (quickFilter !== 'all') params.set('status', quickFilter);
 
-  const filtered = useMemo(() => {
-    const q = norm(search.trim());
-    // Normalise phone-like queries: strip spaces, dashes, parentheses, dots
-    const qPhone = search.trim().replace(/[\s\-().+]/g, '');
-    const normPhone = (s: string) => s.replace(/[\s\-().+]/g, '');
-    return customers.filter((c) => {
-      if (q) {
-        const hit =
-          norm(c.name).includes(q) ||
-          norm(c.companyName).includes(q) ||
-          norm(c.email).includes(q) ||
-          norm(c.needsSummary).includes(q) ||
-          norm(c.crmNumber ?? '').includes(q) ||
-          norm(c.phone).includes(q) ||
-          norm(c.mobilePhone ?? '').includes(q) ||
-          norm(c.landlinePhone ?? '').includes(q) ||
-          (qPhone.length >= 4 && normPhone(c.phone).includes(qPhone)) ||
-          (qPhone.length >= 4 && normPhone(c.mobilePhone ?? '').includes(qPhone)) ||
-          (qPhone.length >= 4 && normPhone(c.landlinePhone ?? '').includes(qPhone));
-        if (!hit) return false;
+    try {
+      const res = await fetch(`/api/customers?${params.toString()}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const json = await res.json() as { ok?: boolean; customers?: CustomerDto[]; error?: string };
+      if (seq !== loadSeq.current) return; // a newer query already won
+      if (json.ok && Array.isArray(json.customers)) {
+        const mapped = json.customers.map(mapCustomer);
+        setCustomers((prev) => (append ? [...prev, ...mapped] : mapped));
+        setCanLoadMore(json.customers.length === PAGE_SIZE);
+        setMessage(null);
+      } else {
+        if (!append) setCustomers([]);
+        setMessage('fetch_error');
       }
-      if (quickFilter === 'offers') {
-        if (!OFFER_STATUSES.has(c.status)) return false;
-      } else if (quickFilter !== 'all' && c.status !== quickFilter) {
-        return false;
-      }
-      return true;
-    });
-  }, [customers, search, quickFilter]);
+    } catch {
+      if (seq !== loadSeq.current) return;
+      if (!append) setCustomers([]);
+      setMessage('fetch_error');
+    } finally {
+      if (seq === loadSeq.current) { setHydrated(true); setLoading(false); setLoadingMore(false); }
+    }
+  }, [debouncedSearch, quickFilter]);
+
+  useEffect(() => { void load(0, false); }, [load, refreshTick]);
+
+  const hasFilter = debouncedSearch !== '' || quickFilter !== 'all';
 
   // The label of an active "advanced" filter (one not shown as a primary chip),
   // surfaced as a removable active chip so it stays visible.
@@ -394,60 +364,76 @@ export default function CustomersPage() {
             {hasFilter ? 'Αποτελέσματα αναζήτησης' : 'Όλοι οι πελάτες'}
           </p>
           <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-            {filtered.length}
+            {customers.length}{canLoadMore ? '+' : ''}
           </span>
         </div>
       )}
 
       {/* Customer list */}
       {customers.length === 0 ? (
-        <Card padding="none">
-          <EmptyState
-            title="Δεν υπάρχουν πελάτες ακόμα."
-            action={
-              <Link
-                href="/customers/new"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors select-none hover:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
-              >
-                <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+        hasFilter ? (
+          <Card padding="none" className="motion-safe:animate-[fadeIn_0.18s]">
+            <EmptyState
+              icon={
+                <svg className="h-6 w-6" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
                 </svg>
-                Νέος πελάτης
-              </Link>
-            }
-          />
-        </Card>
-      ) : filtered.length === 0 ? (
-        <Card padding="none" className="motion-safe:animate-[fadeIn_0.18s]">
-          <EmptyState
-            icon={
-              <svg className="h-6 w-6" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-              </svg>
-            }
-            title="Δεν βρέθηκαν πελάτες με αυτά τα κριτήρια."
-            action={
+              }
+              title="Δεν βρέθηκαν πελάτες με αυτά τα κριτήρια."
+              action={
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={() => {
+                    setSearch('');
+                    setQuickFilter('all');
+                  }}
+                >
+                  Καθαρισμός φίλτρων
+                </Button>
+              }
+            />
+          </Card>
+        ) : (
+          <Card padding="none">
+            <EmptyState
+              title="Δεν υπάρχουν πελάτες ακόμα."
+              action={
+                <Link
+                  href="/customers/new"
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white transition-colors select-none hover:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white"
+                >
+                  <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                  </svg>
+                  Νέος πελάτης
+                </Link>
+              }
+            />
+          </Card>
+        )
+      ) : (
+        <>
+          <ul className="grid grid-cols-1 gap-3 motion-safe:animate-[fadeIn_0.18s] md:grid-cols-2">
+            {customers.map((customer) => (
+              <li key={customer.id}>
+                <CustomerCard customer={customer} />
+              </li>
+            ))}
+          </ul>
+          {canLoadMore && (
+            <div className="flex justify-center pt-1">
               <Button
                 variant="secondary"
                 size="md"
-                onClick={() => {
-                  setSearch('');
-                  setQuickFilter('all');
-                }}
+                disabled={loadingMore}
+                onClick={() => void load(customers.length, true)}
               >
-                Καθαρισμός φίλτρων
+                {loadingMore ? 'Φόρτωση…' : 'Φόρτωσε περισσότερους'}
               </Button>
-            }
-          />
-        </Card>
-      ) : (
-        <ul className="grid grid-cols-1 gap-3 motion-safe:animate-[fadeIn_0.18s] md:grid-cols-2">
-          {filtered.map((customer) => (
-            <li key={customer.id}>
-              <CustomerCard customer={customer} />
-            </li>
-          ))}
-        </ul>
+            </div>
+          )}
+        </>
       )}
 
       {/* "Περισσότερα φίλτρα" sheet */}
