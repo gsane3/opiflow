@@ -249,33 +249,33 @@ export async function PATCH(request: NextRequest) {
 
     // Build the update payload. Only editable profile fields are accepted.
     // Sensitive and system fields (owner_id, business_phone_number, subscription
-    // fields, etc.) are never included. logo_url is added below when a valid
-    // logoDataUrl was provided.
+    // fields, etc.) are never included.
+    //
+    // CRITICAL (partial-update safety): optional fields are written ONLY when the
+    // caller actually sent the key. A partial PATCH — e.g. the native settings
+    // form, which omits website/social/legal-name/address/acceptance-text — must
+    // never null out fields it didn't touch (those render on the public portal +
+    // offer PDF). The three required fields are always validated + present.
     const updates: Record<string, unknown> = {
       name,
       type,
       preferred_contact_method: preferredContactMethod,
-      phone:                    patchStr(raw.phone),
-      email:                    patchStr(raw.email),
-      address:                  patchStr(raw.address),
-      city:                     patchStr(raw.city),
-      vat_number:               patchStr(raw.vat_number),
-      tax_office:               patchStr(raw.tax_office),
-      default_offer_terms:      patchStr(raw.default_offer_terms),
-      default_acceptance_text:  patchStr(raw.default_acceptance_text),
-      legal_name:               patchStr(raw.legal_name),
-      trade_name:               patchStr(raw.trade_name),
-      owner_first_name:         patchStr(raw.owner_first_name),
-      owner_last_name:          patchStr(raw.owner_last_name),
-      address_line1:            patchStr(raw.address_line1),
-      address_line2:            patchStr(raw.address_line2),
-      postal_code:              postalCodeRaw,
-      region:                   patchStr(raw.region),
-      website:                  websiteRaw,
-      facebook_url:             patchStr(raw.facebook_url),
-      instagram_url:            patchStr(raw.instagram_url),
       updated_at:               new Date().toISOString(),
     };
+
+    // Plain string fields (body key === column name); '' → null clears, omitted → untouched.
+    const OPTIONAL_STR_FIELDS = [
+      'phone', 'email', 'address', 'city', 'vat_number', 'tax_office',
+      'default_offer_terms', 'default_acceptance_text', 'legal_name', 'trade_name',
+      'owner_first_name', 'owner_last_name', 'address_line1', 'address_line2',
+      'region', 'facebook_url', 'instagram_url',
+    ] as const;
+    for (const f of OPTIONAL_STR_FIELDS) {
+      if (f in raw) updates[f] = patchStr(raw[f]);
+    }
+    // Validated optional fields (validation above already ran on these).
+    if ('postal_code' in raw) updates.postal_code = postalCodeRaw;
+    if ('website' in raw) updates.website = websiteRaw;
     if (defaultVatRate !== undefined) {
       updates.default_vat_rate = defaultVatRate;
     }

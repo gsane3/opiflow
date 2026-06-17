@@ -1,13 +1,15 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
 
 import { AiSheetProvider } from '@/components/ai-sheet';
 import AppTabs from '@/components/app-tabs';
 import { LoginScreen } from '@/components/login-screen';
+import { NeedsSetupScreen } from '@/components/needs-setup-screen';
 import { Brand } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { apiGet, ApiError } from '@/lib/api';
 import { AuthProvider, useAuth } from '@/lib/auth';
 import { ThemeModeProvider } from '@/lib/theme-mode';
 import { getIncomingState } from '@/lib/twilio-state';
@@ -47,6 +49,49 @@ function ThemedNavigation() {
 function Gate() {
   const { session, loading } = useAuth();
   const userId = session?.user?.id;
+
+  // Onboarding/activation gate (parity with the web AppShell): a signed-in user
+  // with NO business (404) or a not-allowed subscription (activationAllowed
+  // false) must finish setup on the website — otherwise they'd land in an empty
+  // app and (for OAuth signups) never get billed. Network/5xx fails OPEN so a
+  // flaky connection never bricks the app.
+  const [bizState, setBizState] = useState<'checking' | 'ok' | 'needs'>('checking');
+  const [recheck, setRecheck] = useState(0);
+  const bizStateRef = useRef(bizState);
+  bizStateRef.current = bizState;
+
+  useEffect(() => {
+    if (!userId) {
+      setBizState('checking');
+      return;
+    }
+    let cancelled = false;
+    setBizState('checking');
+    (async () => {
+      try {
+        const res = await apiGet<{ ok?: boolean; activationAllowed?: boolean }>('/api/businesses/me');
+        if (!cancelled) setBizState(res?.activationAllowed ? 'ok' : 'needs');
+      } catch (e) {
+        if (cancelled) return;
+        // 404 = no business yet → needs setup. Anything else (network/5xx) fails
+        // open; a 401 already triggers sign-out in the api layer.
+        setBizState(e instanceof ApiError && e.status === 404 ? 'needs' : 'ok');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, recheck]);
+
+  // When the user returns from finishing setup on the website, re-check.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active' && bizStateRef.current === 'needs') setRecheck((n) => n + 1);
+    });
+    return () => sub.remove();
+  }, []);
+
+  const retrySetup = useCallback(() => setRecheck((n) => n + 1), []);
 
   useEffect(() => {
     if (!userId) return;
@@ -88,6 +133,18 @@ function Gate() {
 
   if (!session) {
     return <LoginScreen />;
+  }
+
+  if (bizState === 'checking') {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={Brand.primary} />
+      </View>
+    );
+  }
+
+  if (bizState === 'needs') {
+    return <NeedsSetupScreen onRetry={retrySetup} />;
   }
 
   return (
