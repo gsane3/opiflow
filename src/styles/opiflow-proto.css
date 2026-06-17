@@ -669,5 +669,63 @@
 .opf-portal-upload { display: flex; align-items: center; justify-content: center; gap: 9px; margin: 16px 20px 0; padding: 16px; border-radius: var(--radius-card); background: var(--tint); border: 1.5px dashed color-mix(in srgb, var(--brand) 35%, transparent); color: var(--brand); font-size: 15px; font-weight: 700; width: calc(100% - 40px); }
 
 
+/* ============ CUSTOMER PORTAL v2 (clean launcher: tiles + sheets + feed) ====== */
+/* full-page portal (no device frame): sheets fix to the viewport, centred to the
+   max-460 column so they sit at the bottom regardless of page scroll. */
+.opf-portal .opf-sheet-wrap { position: fixed; top: 0; bottom: 0; left: 50%; right: auto; transform: translateX(-50%); width: 100%; max-width: 460px; }
+
+/* centred hero hub */
+.opf-phub { text-align: center; padding: 22px 24px 6px; }
+.opf-phub-logo { display: flex; justify-content: center; margin-bottom: 12px; }
+.opf-phub-biz { font-size: 13px; font-weight: 700; color: var(--muted); letter-spacing: .2px; }
+.opf-phub-title { font-size: 24px; font-weight: 800; letter-spacing: -.5px; color: var(--ink); margin-top: 4px; display: inline-block; }
+.opf-phub-sub { font-size: 14.5px; color: var(--muted); margin-top: 8px; line-height: 1.45; }
+.opf-phub-loc { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: var(--muted); margin-top: 10px; background: var(--surface); border: 1px solid var(--line-2); padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow-card); }
+
+/* 4-tile launcher */
+.opf-tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 16px 18px 0; }
+.opf-tile { position: relative; text-align: left; padding: 16px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-card); min-height: 124px; display: flex; flex-direction: column; }
+.opf-tile-ic { width: 46px; height: 46px; border-radius: 14px; display: flex; align-items: center; justify-content: center; margin-bottom: 12px; background: linear-gradient(150deg, var(--brand), var(--brand-deep)); box-shadow: 0 5px 13px color-mix(in srgb, var(--brand) 30%, transparent); }
+.opf-tile-ic.opf-ic-appt { background: linear-gradient(150deg, var(--ink-2), var(--ink)); box-shadow: 0 5px 13px color-mix(in srgb, var(--ink) 28%, transparent); }
+.opf-tile-ic.opf-ic-files { background: linear-gradient(150deg, #2cc27e, var(--success)); box-shadow: 0 5px 13px rgba(24,160,106,0.3); }
+.opf-tile-ic.opf-ic-chat { background: linear-gradient(150deg, var(--warn), color-mix(in srgb, var(--warn) 70%, #b5651a)); box-shadow: 0 5px 13px color-mix(in srgb, var(--warn) 30%, transparent); }
+.opf-tile-t { font-size: 16.5px; font-weight: 800; letter-spacing: -.2px; color: var(--ink); margin-top: auto; }
+.opf-tile-s { font-size: 13px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+.opf-tile-badge { position: absolute; top: 14px; right: 14px; min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; font-size: 11.5px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.opf-tb-brand { background: var(--tint-2); color: var(--brand); }
+.opf-tb-warn { background: color-mix(in srgb, var(--warn) 20%, var(--surface)); color: var(--warn); }
+.opf-tb-ok { background: color-mix(in srgb, var(--success) 18%, var(--surface)); color: var(--success); }
+/* needs-review: brand ring + soft pulse to pull attention */
+.opf-tile.opf-review { border-color: color-mix(in srgb, var(--brand) 45%, transparent); box-shadow: var(--shadow-card), 0 0 0 3px color-mix(in srgb, var(--brand) 12%, transparent); }
+.opf-tile.opf-review .opf-tile-badge { animation: opfBadgePulse 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: no-preference) { @keyframes opfBadgePulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 40%, transparent); } 50% { box-shadow: 0 0 0 5px transparent; } } }
+/* not-sent yet: greyed out, not clickable */
+.opf-tile.opf-off { filter: grayscale(1); opacity: .5; box-shadow: none; pointer-events: none; }
+.opf-tile.opf-off .opf-tile-ic { background: var(--surface-2) !important; box-shadow: none !important; }
+.opf-tile.opf-off .opf-tile-ic svg path { stroke: var(--muted) !important; }
+
+/* section title */
+.opf-psec { font-size: 17px; font-weight: 800; letter-spacing: -.3px; color: var(--ink); margin: 24px 22px 11px; }
+
+/* updates feed */
+.opf-ufeed { margin: 0 18px; background: var(--surface); border-radius: 20px; border: 1px solid var(--line-2); box-shadow: var(--shadow-card); padding: 4px 16px; }
+.opf-update-row { display: flex; align-items: center; gap: 13px; padding: 13px 0; border-bottom: 1px solid var(--line-2); }
+.opf-update-row:last-child { border-bottom: none; }
+.opf-update-ic { width: 36px; height: 36px; border-radius: 11px; background: var(--tint); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.opf-update-main { flex: 1; min-width: 0; }
+.opf-update-t { font-size: 14.5px; font-weight: 650; color: var(--ink); }
+.opf-update-when { font-size: 12px; color: var(--muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+/* social + contact footer */
+.opf-pcontact { display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 14px; font-weight: 650; color: var(--ink-2); margin: 14px 24px 0; }
+.opf-psocial { display: flex; align-items: center; justify-content: center; gap: 12px; margin: 22px 24px 0; }
+.opf-psoc { width: 46px; height: 46px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line-2); box-shadow: var(--shadow-card); display: flex; align-items: center; justify-content: center; }
+.opf-phelp { text-align: center; font-size: 12.5px; color: var(--muted); margin: 8px 24px 6px; line-height: 1.5; }
+.opf-appt-loc { display: flex; align-items: center; gap: 7px; font-size: 14px; color: var(--ink-2); margin-top: 14px; }
+
+/* files sheet */
+.opf-files-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.opf-file-thumb { aspect-ratio: 1; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; }
+
 /* brand tokens (prototype defaults) */
 .opf-stage{--brand:#2A86C5;--brand-deep:#1A3550;}

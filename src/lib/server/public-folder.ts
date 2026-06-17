@@ -99,6 +99,7 @@ export interface OfferRowForPublic {
   total: number | null;
   valid_until: string | null;
   vat_rate?: number | null;
+  created_at?: string | null;
 }
 // Safe, customer-facing line of the customer's OWN offer (their quote).
 export interface OfferItemRowForPublic {
@@ -113,6 +114,7 @@ export interface TaskRowForPublic {
   due_time: string | null;
   type: string;
   status: string;
+  created_at?: string | null;
 }
 export interface MessageRowForPublic {
   direction: string;
@@ -163,6 +165,8 @@ export interface PublicFolderOffer {
   accepted: boolean;
   /** Whether the customer can still accept this offer (not final, not expired). */
   canAccept: boolean;
+  /** When the offer was created (ISO) — drives the «Ενημερώσεις» feed timestamp. */
+  createdAt: string | null;
 }
 export interface PublicFolderAppointment {
   id: string;
@@ -171,6 +175,8 @@ export interface PublicFolderAppointment {
   typeLabel: string;
   /** Whether the customer can still confirm / request a time change. */
   canRespond: boolean;
+  /** When the appointment was created (ISO) — drives the «Ενημερώσεις» feed timestamp. */
+  createdAt: string | null;
 }
 export interface PublicFolderMessage {
   direction: 'in' | 'out';
@@ -181,6 +187,8 @@ export interface PublicFolderView {
   business: PublicFolderBusiness | null;
   /** The customer's own first name, for the portal greeting (null if unknown). */
   greetingName: string | null;
+  /** The job/customer location (the customer's own address) for the hero chip + appointment (null if unknown). */
+  locationLabel: string | null;
   title: string;
   statusLabel: string;
   statusMessage: string;
@@ -221,10 +229,12 @@ export function toPublicFolderView(
   payments: PaymentRowForPublic[] = [],
   greetingName: string | null = null,
   offerLines: Record<string, { description: string; lineTotal: number }[]> = {},
+  locationLabel: string | null = null,
 ): PublicFolderView {
   return {
     business: mapPublicBusiness(business),
     greetingName,
+    locationLabel,
     title: folder.title,
     statusLabel: folderStatusLabel(folder.status),
     statusMessage: folderStatusMessage(folder.status),
@@ -247,6 +257,7 @@ export function toPublicFolderView(
       lines: offerLines[o.id] ?? [],
       accepted: o.status === 'accepted',
       canAccept: offerCanRespond({ status: o.status, valid_until: o.valid_until }),
+      createdAt: o.created_at ?? null,
     })),
     appointments: appointments.map((t) => ({
       id: t.id,
@@ -254,6 +265,7 @@ export function toPublicFolderView(
       time: t.due_time,
       typeLabel: APPOINTMENT_TYPE_LABELS[t.type] ?? 'Ραντεβού',
       canRespond: appointmentCanRespond({ status: t.status, type: t.type, due_date: t.due_date }),
+      createdAt: t.created_at ?? null,
     })),
     // Defensive: even though the query filters by status, drop anything not in
     // the public allowlist before mapping to the safe shape.
@@ -305,13 +317,13 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .maybeSingle(),
       supabase
         .from('offers')
-        .select('id, offer_number, status, total, valid_until, vat_rate')
+        .select('id, offer_number, status, total, valid_until, vat_rate, created_at')
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .order('created_at', { ascending: false }),
       supabase
         .from('tasks')
-        .select('id, due_date, due_time, type, status')
+        .select('id, due_date, due_time, type, status, created_at')
         .eq('business_id', token.business_id)
         .eq('work_folder_id', token.work_folder_id)
         .in('type', APPOINTMENT_TASK_TYPES as unknown as string[])
@@ -342,11 +354,11 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
         .eq('work_folder_id', token.work_folder_id)
         .in('status', PUBLIC_PAYMENT_STATUSES as unknown as string[])
         .order('created_at', { ascending: false }),
-      // The customer's OWN first name for the portal greeting (their own data,
-      // their own link). Scoped to this business; only `name` is selected.
+      // The customer's OWN first name (greeting) + address (location chip) — their
+      // own data, their own link. Scoped to this business; nothing else selected.
       supabase
         .from('customers')
-        .select('name')
+        .select('name, address')
         .eq('id', (folder.customer_id ?? '') as string)
         .eq('business_id', token.business_id)
         .maybeSingle(),
@@ -358,9 +370,11 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     const messages = ((msgRes.data ?? []) as unknown[]) as MessageRowForPublic[];
     const payments = ((payRes.data ?? []) as unknown[]) as PaymentRowForPublic[];
 
-    // The customer's OWN first name for the greeting.
-    const custName = (custRes.data as { name?: string | null } | null)?.name ?? null;
+    // The customer's OWN first name for the greeting + address for the location chip.
+    const custRow = custRes.data as { name?: string | null; address?: string | null } | null;
+    const custName = custRow?.name ?? null;
     const greetingName = custName ? (custName.trim().split(/\s+/)[0] || null) : null;
+    const locationLabel = custRow?.address?.trim() || null;
 
     // Offer line items (the customer's own quote breakdown), scoped to this
     // business + the offers already scoped to this folder. Best-effort.
@@ -391,7 +405,7 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
       extendExpiryHours: isTerminalFolderStatus(folder.status) ? undefined : FOLDER_TOKEN_EXPIRY_HOURS,
     }).catch(() => {});
 
-    return toPublicFolderView(folder, business, offers, appointments, messages, payments, greetingName, offerLines);
+    return toPublicFolderView(folder, business, offers, appointments, messages, payments, greetingName, offerLines, locationLabel);
   } catch {
     return null;
   }
