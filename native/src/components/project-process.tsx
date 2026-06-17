@@ -66,7 +66,8 @@ type Item =
   | { kind: 'req'; ts: number; data: DetailReq; photos: boolean };
 
 type SheetName = 'msg' | 'appt' | 'offer' | 'photos' | 'payreq' | 'menu' | 'reject' | null;
-interface OfferRow { desc: string; price: string }
+interface OfferRow { desc: string; qty: string; price: string }
+const VAT_RATES = ['0', '6', '13', '17', '24'] as const;
 
 export default function ProjectProcessScreen() {
   const c = useTheme();
@@ -86,7 +87,8 @@ export default function ProjectProcessScreen() {
 
   const [sheet, setSheet] = useState<SheetName>(null);
   const [msg, setMsg] = useState('');
-  const [oRows, setORows] = useState<OfferRow[]>([{ desc: '', price: '' }]);
+  const [oRows, setORows] = useState<OfferRow[]>([{ desc: '', qty: '1', price: '' }]);
+  const [oVat, setOVat] = useState('24');
   const [oNotes, setONotes] = useState('');
   const [aTitle, setATitle] = useState('');
   const [aDate, setADate] = useState('');
@@ -157,16 +159,27 @@ export default function ProjectProcessScreen() {
     setBusy(true);
     try { if (await post(`/api/customers/${customerId}/upload-link`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); } } finally { setBusy(false); }
   }
-  const offerTotal = useMemo(() => oRows.reduce((sum, r) => sum + (Number(r.price.replace(',', '.')) || 0), 0), [oRows]);
+  const parseNum = (s: string) => Number((s ?? '').replace(',', '.'));
+  const offerNet = useMemo(
+    () => oRows.reduce((sum, r) => {
+      const q = parseNum(r.qty); const qty = q > 0 ? q : 1;
+      return sum + qty * (parseNum(r.price) || 0);
+    }, 0),
+    [oRows],
+  );
+  const offerGross = offerNet * (1 + (Number(oVat) || 0) / 100);
   async function submitOffer() {
     const items = oRows
-      .map((r, i) => ({ description: r.desc.trim(), quantity: 1, unitPrice: Number(r.price.replace(',', '.')) || 0, sortOrder: i }))
+      .map((r, i) => {
+        const q = parseNum(r.qty);
+        return { description: r.desc.trim(), quantity: q > 0 ? q : 1, unitPrice: parseNum(r.price) || 0, sortOrder: i };
+      })
       .filter((it) => it.description && it.unitPrice >= 0);
     if (items.length === 0) { Alert.alert('Προσφορά', 'Συμπλήρωσε τουλάχιστον μία γραμμή (περιγραφή + τιμή).'); return; }
     setBusy(true);
     try {
-      if (await post('/api/offers', { customerId, workFolderId: folderId, status: 'ready_to_send', notes: oNotes.trim() || null, items })) {
-        setORows([{ desc: '', price: '' }]); setONotes(''); setSheet(null); await refresh();
+      if (await post('/api/offers', { customerId, workFolderId: folderId, status: 'ready_to_send', vatRate: Number(oVat) || 0, notes: oNotes.trim() || null, items })) {
+        setORows([{ desc: '', qty: '1', price: '' }]); setOVat('24'); setONotes(''); setSheet(null); await refresh();
       }
     } finally { setBusy(false); }
   }
@@ -275,7 +288,7 @@ export default function ProjectProcessScreen() {
             <View style={styles.quickRow}>
               <DockBtn icon="image-outline" label="Φωτό" styles={styles} onPress={() => setSheet('photos')} />
               <DockBtn icon="calendar-outline" label="Ραντεβού" styles={styles} onPress={() => { setATitle(title); setADate(''); setSheet('appt'); }} />
-              <DockBtn icon="document-text-outline" label="Προσφορά" styles={styles} onPress={() => { setORows([{ desc: '', price: '' }]); setONotes(''); setSheet('offer'); }} />
+              <DockBtn icon="document-text-outline" label="Προσφορά" styles={styles} onPress={() => { setORows([{ desc: '', qty: '1', price: '' }]); setOVat('24'); setONotes(''); setSheet('offer'); }} />
             </View>
             <View style={styles.composer}>
               <Pressable onPress={() => setSheet('msg')} style={styles.composerAi} hitSlop={6}>
@@ -310,8 +323,11 @@ export default function ProjectProcessScreen() {
             <View style={{ flex: 1 }}>
               <Input label={`Περιγραφή ${i + 1}`} value={r.desc} onChangeText={setRow(i, 'desc')} placeholder="π.χ. Υλικά" />
             </View>
+            <View style={styles.offerQtyCol}>
+              <Input label="Ποσ." value={r.qty} onChangeText={setRow(i, 'qty')} keyboardType="decimal-pad" placeholder="1" />
+            </View>
             <View style={styles.offerPriceCol}>
-              <Input label="€" value={r.price} onChangeText={setRow(i, 'price')} keyboardType="decimal-pad" placeholder="0" />
+              <Input label="Τιμή €" value={r.price} onChangeText={setRow(i, 'price')} keyboardType="decimal-pad" placeholder="0" />
             </View>
             {oRows.length > 1 ? (
               <Pressable onPress={() => setORows((rs) => rs.filter((_, idx) => idx !== i))} hitSlop={8} style={styles.offerRemove}>
@@ -320,13 +336,21 @@ export default function ProjectProcessScreen() {
             ) : null}
           </View>
         ))}
-        <Pressable onPress={() => setORows((rs) => [...rs, { desc: '', price: '' }])} style={({ pressed }) => [styles.addRow, pressed && styles.dim]}>
+        <Pressable onPress={() => setORows((rs) => [...rs, { desc: '', qty: '1', price: '' }])} style={({ pressed }) => [styles.addRow, pressed && styles.dim]}>
           <Ionicons name="add" size={18} color={Brand.primary} />
           <ThemedText type="small" style={styles.addRowText}>Προσθήκη γραμμής</ThemedText>
         </Pressable>
         <Input label="Σημειώσεις (προαιρετικό)" value={oNotes} onChangeText={setONotes} multiline />
-        <ThemedText type="smallBold" style={[styles.ink, { textAlign: 'right' }]}>Σύνολο (χωρίς ΦΠΑ): {formatEuro(offerTotal)}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'right', marginTop: -4 }}>Το ΦΠΑ προστίθεται αυτόματα.</ThemedText>
+        <ThemedText type="small" themeColor="textSecondary">ΦΠΑ</ThemedText>
+        <View style={styles.pctRow}>
+          {VAT_RATES.map((v) => (
+            <Pressable key={v} onPress={() => setOVat(v)} style={[styles.pctChip, oVat === v && styles.pctChipOn]}>
+              <ThemedText type="small" style={oVat === v ? styles.segTextOn : styles.segText}>{v}%</ThemedText>
+            </Pressable>
+          ))}
+        </View>
+        <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'right' }}>Καθαρή αξία: {formatEuro(offerNet)}</ThemedText>
+        <ThemedText type="smallBold" style={[styles.ink, { textAlign: 'right' }]}>Σύνολο (με ΦΠΑ {oVat}%): {formatEuro(offerGross)}</ThemedText>
         <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή προσφοράς'} busy={busy} onPress={() => void submitOffer()} />
       </SheetModal>
 
@@ -609,7 +633,8 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   amountBig: { fontSize: 28, fontWeight: '800', color: Brand.primary, letterSpacing: -0.6 },
 
   offerRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
-  offerPriceCol: { width: 96 },
+  offerQtyCol: { width: 52 },
+  offerPriceCol: { width: 82 },
   offerRemove: { paddingBottom: 12 },
   addRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, marginBottom: 4 },
   addRowText: { color: Brand.primary, fontWeight: '700' },
