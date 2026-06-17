@@ -460,7 +460,8 @@ export default function IntakeFormClient({
           ) : null}
 
           <p className="mt-6 text-center text-sm text-zinc-500 dark:text-zinc-400">
-            Ιδιωτική σελίδα — μόνο εσείς και η επιχείρηση έχετε πρόσβαση.
+            Ιδιωτική σελίδα — μόνο εσείς και η επιχείρηση έχετε πρόσβαση.{' '}
+            <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline hover:text-zinc-700 dark:hover:text-zinc-300">Πολιτική Απορρήτου</a>
           </p>
         </section>
       </div>

@@ -427,6 +427,10 @@ function PortalFooter({ biz }: { biz: Biz }) {
       )}
       {biz.phone && <div className="opf-pcontact">Επικοινωνία: {biz.phone}</div>}
       <div className="opf-phelp">Φιλικά, Opiflow Assistant για λογαριασμό του {biz.name}</div>
+      <div className="opf-phelp" style={{ marginTop: 6 }}>
+        Τα στοιχεία που καταχωρείτε επεξεργάζονται για την εξυπηρέτησή σας από τον/την {biz.name}.{' '}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand)', textDecoration: 'underline' }}>Πολιτική Απορρήτου</a>
+      </div>
     </>
   );
 }
