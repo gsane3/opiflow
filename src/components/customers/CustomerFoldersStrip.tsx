@@ -155,9 +155,6 @@ export default function CustomerFoldersStrip({ customerId, onChanged, openCreate
                   <div className="opf-proj-card-title">{p.title}</div>
                   <div className={`opf-ev-status opf-st-${STATUS_PILL[p.status] ?? 'pending'}`}>{STATUS_LABEL[p.status] ?? p.status}</div>
                 </div>
-                <div className="opf-proj-steps-mini">
-                  {[0, 1, 2, 3, 4].map((i) => <span key={i} className={'opf-psm' + (i <= (p.step ?? 0) ? ' opf-on' : '')} />)}
-                </div>
                 <div className="opf-proj-card-foot"><Icon name="link" size={13} color="var(--muted)" /> {cl || 'Άνοιγμα έργου'} · {formatDateGr(p.updatedAt)}</div>
               </button>
             );

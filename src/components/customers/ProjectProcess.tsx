@@ -41,7 +41,6 @@ function Icon({ name, size = 24, color = 'currentColor', stroke = 1.9 }: { name:
   );
 }
 
-const STEPS = ['Επαφή', 'Προσφορά', 'Πληρωμή', 'Ραντεβού', 'Τέλος'] as const;
 const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Ολοκληρώθηκε', archived: 'Αρχειοθετήθηκε' };
 const STATUS_DOT: Record<string, string> = { open: 'new', in_progress: 'progress', done: 'won', archived: 'lost' };
 const OFFER_STATUS_GR: Record<string, string> = {
@@ -161,9 +160,9 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) await refresh();
     } finally { setBusy(false); }
   }
-  const step = detail?.folder.step ?? 0;
-  async function advanceStep() { await patchFolder({ step: Math.min(step + 1, 4) }); setSheet(null); }
-  async function completeProject() { await patchFolder({ step: 4, status: 'done' }); setSheet(null); }
+  // No step/stepper: the project is run «act freely» (parity with native). The
+  // public portal does not render progress, and folder.step is no longer written.
+  async function completeProject() { await patchFolder({ status: 'done' }); setSheet(null); }
 
   async function post(path: string, body: unknown): Promise<boolean> {
     const headers = await authHeaders();
@@ -252,22 +251,6 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
           <button className="opf-g-round opf-press" onClick={() => void previewPortal()} aria-label="preview"><Icon name="eye" size={19} color="var(--brand)" stroke={2} /></button>
         </div>
 
-        {/* stepper */}
-        <div className="opf-stepper">
-          {STEPS.map((s, i) => {
-            const state = i < step ? 'done' : i === step ? 'now' : 'todo';
-            return (
-              <span key={s} style={{ display: 'contents' }}>
-                <div className={`opf-step opf-${state}`}>
-                  <div className="opf-step-dot">{i < step ? <Icon name="check" size={13} color="#fff" stroke={2.8} /> : <span>{i + 1}</span>}</div>
-                  <span className="opf-step-label">{s}</span>
-                </div>
-                {i < STEPS.length - 1 && <div className={'opf-step-bar' + (i < step ? ' opf-done' : '')} />}
-              </span>
-            );
-          })}
-        </div>
-
         {/* timeline */}
         <div className="opf-pj-body">
           {loading ? (
@@ -341,8 +324,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
 
         {/* menu sheet */}
         <Sheet open={sheet === 'menu'} title="Ενέργειες έργου" onClose={() => setSheet(null)}>
-          <button className="opf-menu-item opf-press" onClick={() => void advanceStep()}><div className="opf-menu-ic"><Icon name="arrowR" size={19} color="var(--brand)" stroke={2} /></div> Παράλειψη βήματος</button>
-          <button className="opf-menu-item opf-press" onClick={() => void completeProject()}><div className="opf-menu-ic opf-ok"><Icon name="check" size={19} color="var(--success)" stroke={2.4} /></div> Ολοκλήρωση έργου</button>
+          <button className="opf-menu-item opf-press" onClick={() => void completeProject()}><div className="opf-menu-ic opf-ok"><Icon name="check" size={19} color="var(--success)" stroke={2.4} /></div> Ολοκλήρωση έργου (Κερδισμένο)</button>
           <button className="opf-menu-item opf-press" onClick={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }}><div className="opf-menu-ic"><Icon name="euro" size={19} color="var(--brand)" stroke={2} /></div> Αίτημα πληρωμής</button>
           <button className="opf-menu-item opf-press" onClick={() => setSheet('reject')}><div className="opf-menu-ic opf-danger" style={{ background: 'color-mix(in srgb, var(--danger) 14%, transparent)' }}><Icon name="x" size={19} color="var(--danger)" stroke={2.4} /></div> <span style={{ color: 'var(--danger)', fontWeight: 700 }}>Απόρριψη πελάτη</span></button>
         </Sheet>
