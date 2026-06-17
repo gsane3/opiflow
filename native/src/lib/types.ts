@@ -123,6 +123,18 @@ export interface Business {
   default_acceptance_text?: string | null;
   preferred_contact_method?: string | null;
   business_phone_number?: string | null;
+  // Structured identity/branding (web parity) — render on the public portal + offer PDF.
+  legal_name?: string | null;
+  trade_name?: string | null;
+  owner_first_name?: string | null;
+  owner_last_name?: string | null;
+  address_line1?: string | null;
+  address_line2?: string | null;
+  postal_code?: string | null;
+  region?: string | null;
+  website?: string | null;
+  facebook_url?: string | null;
+  instagram_url?: string | null;
 }
 
 /** Service-catalog item (GET/POST /api/catalog — camelCase in/out). */
