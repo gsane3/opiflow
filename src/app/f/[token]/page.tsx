@@ -4,27 +4,10 @@
 // "link unavailable" message. Only safe, customer-facing data is rendered.
 
 import { loadPublicFolder, type PublicFolderView } from '@/lib/server/public-folder';
-import QuestionForm from './QuestionForm';
-import Stepper from '@/components/customers/Stepper';
-import OfferAcceptButton from './OfferAcceptButton';
-import AppointmentRespond from './AppointmentRespond';
-import PaymentCard from './PaymentCard';
+import PortalView from './PortalView';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-const STATUS_TONE: Record<string, string> = {
-  Νέο: 'bg-indigo-50 text-indigo-700',
-  'Σε εξέλιξη': 'bg-amber-50 text-amber-700',
-  Ολοκληρώθηκε: 'bg-green-50 text-green-700',
-  Αρχειοθετήθηκε: 'bg-zinc-100 text-zinc-600',
-};
-
-function formatDate(date: string | null): string {
-  if (!date) return '';
-  const [y, m, d] = date.split('T')[0].split('-');
-  return y && m && d ? `${d}-${m}-${y}` : date;
-}
 
 function Unavailable() {
   return (
@@ -43,137 +26,5 @@ export default async function FolderPublicPage({ params }: { params: Promise<{ t
 
   if (!view) return <Unavailable />;
 
-  const tone = STATUS_TONE[view.statusLabel] ?? 'bg-zinc-100 text-zinc-600';
-
-  return (
-    <main className="min-h-screen bg-[#F5F5F7] px-4 py-8">
-      <div className="mx-auto w-full max-w-md space-y-4">
-        {/* Business header */}
-        {view.business && (
-          <header className="flex items-center gap-3 rounded-3xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60">
-            {view.business.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={view.business.logoUrl} alt={view.business.name} className="h-12 w-12 rounded-xl object-contain" />
-            ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-indigo-50 text-lg font-bold text-indigo-700">
-                {view.business.name.slice(0, 1).toUpperCase()}
-              </div>
-            )}
-            <div className="min-w-0">
-              <p className="truncate text-base font-semibold text-zinc-900">{view.business.name}</p>
-              {view.business.phone && <p className="truncate text-sm text-zinc-500">{view.business.phone}</p>}
-            </div>
-          </header>
-        )}
-
-        {/* Folder */}
-        <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Το έργο σας</p>
-          <h1 className="mt-1 text-xl font-bold text-zinc-900">{view.title}</h1>
-          <div className="mt-2 flex items-center gap-2">
-            <span className={`rounded-full px-3 py-1 text-xs font-semibold ${tone}`}>{view.statusLabel}</span>
-            {view.statusMessage && <span className="text-sm text-zinc-500">{view.statusMessage}</span>}
-          </div>
-          <div className="mt-4">
-            <Stepper step={view.step} />
-          </div>
-        </section>
-
-        {/* Offers */}
-        {view.offers.length > 0 && (
-          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Προσφορές</p>
-            <ul className="mt-2 space-y-2">
-              {view.offers.map((o) => (
-                <li key={o.id} className="rounded-xl bg-zinc-50 px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-zinc-900">{o.offerNumber}</p>
-                      <p className="text-xs text-zinc-500">{o.statusLabel}</p>
-                    </div>
-                    {typeof o.total === 'number' && (
-                      <span className="shrink-0 text-sm font-semibold tabular-nums text-zinc-800">€{o.total.toLocaleString('el-GR')}</span>
-                    )}
-                  </div>
-                  <a
-                    href={`/f/${encodeURIComponent(token)}/offer/${o.id}`}
-                    className="mt-2 inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 hover:text-indigo-700"
-                  >
-                    Προβολή &amp; PDF →
-                  </a>
-                  {o.canAccept && <OfferAcceptButton token={token} offerId={o.id} />}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Payments — amount + IBAN + «Δήλωσα την κατάθεση» (self-report) */}
-        {view.payments.length > 0 && (
-          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Πληρωμές</p>
-            <p className="mt-1 text-xs text-zinc-500">Κατάθεση στον παρακάτω λογαριασμό. Μετά την κατάθεση, πατήστε «Δήλωσα την κατάθεση».</p>
-            <ul className="mt-2 space-y-2">
-              {view.payments.map((p) => (
-                <PaymentCard key={p.id} token={token} payment={p} bankName={view.business?.bankName ?? null} beneficiary={view.business?.bankBeneficiary ?? null} />
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Appointments */}
-        {view.appointments.length > 0 && (
-          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Ραντεβού</p>
-            <ul className="mt-2 space-y-2">
-              {view.appointments.map((a) => (
-                <li key={a.id} className="rounded-xl bg-zinc-50 px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium text-zinc-900">
-                      {formatDate(a.date)}
-                      {a.time ? ` · ${a.time}` : ''}
-                    </span>
-                    <span className="shrink-0 text-xs text-zinc-500">{a.typeLabel}</span>
-                  </div>
-                  {a.canRespond && <AppointmentRespond token={token} taskId={a.id} date={a.date} time={a.time} />}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        {/* Empty placeholder when nothing is linked yet */}
-        {view.offers.length === 0 && view.appointments.length === 0 && view.payments.length === 0 && (
-          <section className="rounded-3xl bg-white p-5 text-center shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-sm text-zinc-500">Δεν υπάρχει κάτι ακόμα. Θα ενημερωθείτε για κάθε νεότερο.</p>
-          </section>
-        )}
-
-        {/* Q&A thread — the customer↔business message exchange (no internal briefs) */}
-        {view.messages.length > 0 && (
-          <section className="rounded-3xl bg-white p-5 shadow-sm ring-1 ring-zinc-200/60">
-            <p className="text-xs font-semibold uppercase tracking-widest text-zinc-400">Συνομιλία</p>
-            <div className="mt-3 space-y-2">
-              {view.messages.map((m, i) => (
-                <div key={i} className={`flex ${m.direction === 'out' ? 'justify-start' : 'justify-end'}`}>
-                  <div
-                    className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ${
-                      m.direction === 'out' ? 'bg-zinc-100 text-zinc-800' : 'bg-indigo-600 text-white'
-                    }`}
-                  >
-                    {m.text}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* Ask a question about this job */}
-        <QuestionForm token={token} />
-
-        <p className="px-2 pt-2 text-center text-xs text-zinc-400">Επικοινωνήστε μαζί μας αν χρειάζεστε βοήθεια.</p>
-      </div>
-    </main>
-  );
+  return <PortalView token={token} view={view} />;
 }
