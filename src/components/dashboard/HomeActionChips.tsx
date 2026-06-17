@@ -72,7 +72,7 @@ export default function HomeActionChips() {
   useEffect(() => { void load(); }, [load]);
 
   function openCustomer(id: string | null) {
-    if (id) { setOpenView(null); router.push(`/customers/${id}/chat`); }
+    if (id) { setOpenView(null); router.push(`/customers/${id}`); }
   }
 
   const list = openView === 'appts' ? appts : callbacks;

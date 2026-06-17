@@ -12,7 +12,7 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { buildMapsUrl } from '@/lib/maps';
 import { OpfIcon } from '@/components/opf/icon';
 import CustomerFoldersStrip from '@/components/customers/CustomerFoldersStrip';
-import CustomerInfoPanel from '@/components/customers/CustomerInfoPanel';
+import CustomerEditSheet from '@/components/customers/CustomerEditSheet';
 
 interface CustomerFull {
   id: string; name: string | null; companyName: string | null;
@@ -41,6 +41,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const [loading, setLoading] = useState(true);
   const [createSignal, setCreateSignal] = useState(0);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [msgSignal, setMsgSignal] = useState(0);
   const [note, setNote] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
@@ -102,7 +103,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
             <div className="opf-round-circle"><OpfIcon name="phone" size={22} color={phone ? 'var(--brand)' : 'var(--muted)'} stroke={2} /></div>
             <span style={{ color: phone ? 'var(--ink-2)' : 'var(--muted)' }}>Κλήση</span>
           </button>
-          <button className="opf-round-act opf-press" onClick={() => router.push(`/customers/${customerId}/chat`)}>
+          <button className="opf-round-act opf-press" onClick={() => setMsgSignal((n) => n + 1)}>
             <div className="opf-round-circle"><OpfIcon name="message" size={22} color="var(--brand)" stroke={2} /></div>
             <span style={{ color: 'var(--ink-2)' }}>Μήνυμα</span>
           </button>
@@ -125,7 +126,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
         )}
 
         {/* Έργα — the faithful projects section */}
-        <CustomerFoldersStrip customerId={customerId} onChanged={() => void load()} openCreateSignal={createSignal} />
+        <CustomerFoldersStrip customerId={customerId} onChanged={() => void load()} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
 
         {/* Στοιχεία */}
         <div className="opf-sec-title"><div className="opf-sec-title-l"><OpfIcon name="phone" size={19} color="var(--brand)" /> <span>Στοιχεία</span></div></div>
@@ -159,8 +160,8 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
         </div>
       </div>
 
-      {/* Edit-details panel — opened by the pencil; re-loads the profile on close. */}
-      <CustomerInfoPanel customerId={customerId} open={infoOpen} onClose={() => { setInfoOpen(false); void load(); }} callBriefs={[]} initialSection="contact" />
+      {/* Edit-details popup — opened by the pencil; re-loads the profile on save. */}
+      <CustomerEditSheet customerId={customerId} open={infoOpen} onClose={() => setInfoOpen(false)} onSaved={() => void load()} />
     </div>
   );
 }
