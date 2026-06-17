@@ -3,8 +3,9 @@
 // Customer card = the prototype's ProfileScreen (screens-customer.jsx), ported
 // 1:1 with the prototype's own CSS (opf-* on .opf-stage) and wired to the real
 // customer APIs. Hero (avatar + name + status pill) · round actions (Κλήση /
-// Μήνυμα / Νέο project / Χάρτης) · AI call-brief card · Έργα (the faithful
-// projects section) · Στοιχεία · internal note. Rendered inside the app shell.
+// Μήνυμα / Νέο project / Χάρτης) · Έργα (the faithful projects section) ·
+// Ιστορικό κλήσεων (tap a call → its brief) · internal note. Contact details are
+// edited via the pencil (CustomerEditSheet). Rendered inside the app shell.
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
@@ -19,7 +20,16 @@ interface CustomerFull {
   phone: string | null; mobilePhone: string | null; landlinePhone: string | null;
   email: string | null; address: string | null; notes: string | null; status: string | null;
 }
-interface TimelineItem { type: string; body: string | null; occurredAt: string }
+interface TimelineItem { id: string; type: string; title: string; body: string | null; occurredAt: string; side: 'us' | 'customer' }
+
+function fmtCallTime(s: string): string {
+  if (!s) return '';
+  try {
+    const d = new Date(s);
+    if (Number.isNaN(d.getTime())) return s;
+    return d.toLocaleString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  } catch { return s; }
+}
 
 const STATUS_LABEL: Record<string, string> = { new: 'Νέος', in_progress: 'Σε εξέλιξη', won: 'Κερδισμένος', lost: 'Χαμένος' };
 const STATUS_PILL: Record<string, string> = { in_progress: 'opf-s-progress', won: 'opf-s-won', lost: 'opf-s-lost' };
@@ -37,7 +47,8 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const router = useRouter();
   const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [cust, setCust] = useState<CustomerFull | null>(null);
-  const [brief, setBrief] = useState<{ body: string; when: string } | null>(null);
+  const [calls, setCalls] = useState<TimelineItem[]>([]);
+  const [expandedCall, setExpandedCall] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createSignal, setCreateSignal] = useState(0);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -58,9 +69,8 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
       if (c?.ok && c.customer) { setCust(c.customer); setNote(c.customer.notes ?? ''); }
       const t = (await tRes.json().catch(() => ({}))) as { ok?: boolean; items?: TimelineItem[]; timeline?: TimelineItem[] };
       const items = t.items ?? t.timeline ?? [];
-      const calls = items.filter((i) => i.type === 'call' && (i.body ?? '').trim());
-      const last = calls[calls.length - 1];
-      if (last) setBrief({ body: (last.body ?? '').trim(), when: last.occurredAt });
+      // Call history — newest first; tap a call to reveal its brief/content.
+      setCalls(items.filter((i) => i.type === 'call').reverse());
     } catch { /* non-fatal */ } finally { setLoading(false); }
   }, [customerId]);
   useEffect(() => { void load(); }, [load]);
@@ -117,39 +127,41 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
           </button>
         </div>
 
-        {/* AI call brief */}
-        {brief && (
-          <div className="opf-card opf-brief-card">
-            <div className="opf-brief-head"><OpfIcon name="sparkles" size={17} color="#fff" stroke={2.1} /> Σύνοψη κλήσης <span className="opf-brief-ai">AI</span></div>
-            <div className="opf-brief-text" style={{ paddingBottom: 16 }}>{brief.body}</div>
-          </div>
-        )}
-
         {/* Έργα — the faithful projects section */}
         <CustomerFoldersStrip customerId={customerId} onChanged={() => void load()} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
 
-        {/* Στοιχεία */}
-        <div className="opf-sec-title"><div className="opf-sec-title-l"><OpfIcon name="phone" size={19} color="var(--brand)" /> <span>Στοιχεία</span></div></div>
-        {phone && (
-          <button className="opf-card opf-detail-card opf-press" onClick={() => router.push(`/calls?num=${encodeURIComponent(phone)}`)} style={{ textAlign: 'left' }}>
-            <div className="opf-detail-ic"><OpfIcon name="phone" size={20} color="var(--brand)" stroke={2} /></div>
-            <div><div className="opf-detail-k">Τηλέφωνο</div><div className="opf-detail-v">{phone}</div></div>
-          </button>
-        )}
-        {cust?.email && (
-          <div className="opf-card opf-detail-card">
-            <div className="opf-detail-ic"><OpfIcon name="mail" size={20} color="var(--brand)" stroke={2} /></div>
-            <div><div className="opf-detail-k">Email</div><div className="opf-detail-v" style={{ wordBreak: 'break-all' }}>{cust.email}</div></div>
-          </div>
-        )}
-        {cust?.address && (
-          <a className="opf-card opf-detail-card opf-press" href={buildMapsUrl(cust.address)} target="_blank" rel="noopener noreferrer">
-            <div className="opf-detail-ic"><OpfIcon name="map" size={20} color="var(--brand)" stroke={2} /></div>
-            <div><div className="opf-detail-k">Διεύθυνση</div><div className="opf-detail-v">{cust.address}</div></div>
-          </a>
-        )}
-        {!phone && !cust?.email && !cust?.address && !loading && (
-          <div className="opf-empty-card">Δεν υπάρχουν στοιχεία ακόμα.</div>
+        {/* Ιστορικό κλήσεων — tap a call to reveal its brief/content */}
+        <div className="opf-sec-title"><div className="opf-sec-title-l"><OpfIcon name="phone" size={19} color="var(--brand)" /> <span>Ιστορικό κλήσεων</span></div></div>
+        {calls.length === 0 && !loading ? (
+          <div className="opf-empty-card">Δεν υπάρχουν κλήσεις ακόμα.</div>
+        ) : (
+          calls.map((cl) => {
+            const open = expandedCall === cl.id;
+            return (
+              <button
+                key={cl.id}
+                className="opf-card opf-press"
+                onClick={() => setExpandedCall(open ? null : cl.id)}
+                style={{ display: 'block', width: '100%', textAlign: 'left', padding: 14 }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--tint)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <OpfIcon name="phone" size={20} color="var(--brand)" stroke={2} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{cl.title}</div>
+                    <div style={{ fontSize: 13, color: 'var(--muted)' }}>{fmtCallTime(cl.occurredAt)}</div>
+                  </div>
+                  <OpfIcon name={open ? 'chevronD' : 'chevronR'} size={18} color="var(--muted)" stroke={2} />
+                </div>
+                {open && (
+                  <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)', fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+                    {cl.body?.trim() ? cl.body : 'Δεν υπάρχει περιεχόμενο για αυτή την κλήση.'}
+                  </div>
+                )}
+              </button>
+            );
+          })
         )}
 
         {/* Internal note */}
