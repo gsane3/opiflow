@@ -25,7 +25,7 @@
 // the per-customer cap of 2 reminders.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
+import { checkCronSecret } from '@/lib/server/cron-auth';
 import {
   createServiceSupabaseClient,
   createCustomerIntakeToken,
@@ -77,46 +77,10 @@ interface ReminderRunResult {
 // Secret gating
 // ---------------------------------------------------------------------------
 
-/**
- * Validate the cron secret. Returns null on success, or a NextResponse to
- * short-circuit the request with.
- *
- * - If CRON_SECRET is set: require an exact (constant-time) match on the
- *   `x-cron-secret` header OR the `?secret=` query param.
- * - If CRON_SECRET is unset: fail closed in production (503), allow in non-prod.
- */
-function checkCronSecret(request: NextRequest): NextResponse | null {
-  const expected = process.env.CRON_SECRET?.trim() ?? '';
-
-  if (!expected) {
-    if (process.env.NODE_ENV === 'production') {
-      console.error(
-        '[intake-reminder cron] CRON_SECRET is not set in production — rejecting.'
-      );
-      return NextResponse.json(
-        { ok: false, error: 'cron_not_configured' },
-        { status: 503 }
-      );
-    }
-    // Non-prod: allow unauthenticated so local/dev runs work.
-    console.warn(
-      '[intake-reminder cron] CRON_SECRET is not set — endpoint is UNAUTHENTICATED (non-prod).'
-    );
-    return null;
-  }
-
-  const headerSecret = request.headers.get('x-cron-secret') ?? '';
-  const querySecret = request.nextUrl.searchParams.get('secret') ?? '';
-
-  if (
-    timingSafeEqualSecret(headerSecret, expected) ||
-    timingSafeEqualSecret(querySecret, expected)
-  ) {
-    return null;
-  }
-
-  return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 });
-}
+// Cron auth uses the shared guard (src/lib/server/cron-auth.ts) which also
+// accepts `Authorization: Bearer <CRON_SECRET>` — what Vercel Cron sends — so the
+// vercel.json daily schedule authenticates (the old inline guard only accepted
+// x-cron-secret/?secret= and silently 401'd Vercel's own invocation).
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -333,7 +297,7 @@ async function runReminderSweep(): Promise<ReminderRunResult> {
 // ---------------------------------------------------------------------------
 
 async function handle(request: NextRequest): Promise<NextResponse> {
-  const gate = checkCronSecret(request);
+  const gate = checkCronSecret(request, 'intake-reminder cron');
   if (gate) return gate;
 
   try {

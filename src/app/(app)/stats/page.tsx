@@ -84,7 +84,8 @@ function mapTask(d: Record<string, unknown>): Task {
 // ---------------------------------------------------------------------------
 
 // Offer statuses considered "open" (not yet won/lost), used as pipeline fallback.
-const OPEN_OFFER_STATUSES = new Set<string>(['draft', 'ready_to_send', 'sent_manually']);
+// Includes sent_provider to match native + the dashboard count.
+const OPEN_OFFER_STATUSES = new Set<string>(['draft', 'ready_to_send', 'sent_manually', 'sent_provider']);
 // Offer statuses considered "won" this month.
 const WON_OFFER_STATUSES = new Set<string>(['accepted']);
 

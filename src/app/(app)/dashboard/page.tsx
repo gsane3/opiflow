@@ -9,7 +9,9 @@ import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicat
 import HomeActionChips from '@/components/dashboard/HomeActionChips';
 import AttentionInboxBar from '@/components/layout/AttentionInboxBar';
 
-const OPEN_OFFER_STATUSES = new Set<string>(['draft', 'ready_to_send', 'sent_manually']);
+// Keep in sync with native — include sent_provider so the «ανοιχτές προσφορές»
+// count matches across web and native for the same account.
+const OPEN_OFFER_STATUSES = new Set<string>(['draft', 'ready_to_send', 'sent_manually', 'sent_provider']);
 
 interface DashboardData {
   customers: Customer[];
