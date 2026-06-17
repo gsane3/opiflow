@@ -281,9 +281,11 @@ export default function LandingPage() {
       <footer className="border-t border-zinc-100">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 sm:flex-row">
           <Logo />
-          <div className="flex items-center gap-5 text-sm text-zinc-500">
+          <div className="flex flex-wrap items-center justify-center gap-5 text-sm text-zinc-500">
             <Link href="/login" className="transition hover:text-zinc-800">Σύνδεση</Link>
             <Link href="/register" className="transition hover:text-zinc-800">Εγγραφή</Link>
+            <Link href="/privacy" className="transition hover:text-zinc-800">Απόρρητο</Link>
+            <Link href="/terms" className="transition hover:text-zinc-800">Όροι χρήσης</Link>
           </div>
           <p className="text-xs text-zinc-400">© 2026 opiflow.ai</p>
         </div>
