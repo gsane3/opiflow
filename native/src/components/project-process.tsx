@@ -294,13 +294,13 @@ export default function ProjectProcessScreen() {
       {/* sheets */}
       <SheetModal visible={sheet === 'msg'} title="Μήνυμα στον πελάτη" onClose={() => setSheet(null)}>
         <Input value={msg} onChangeText={setMsg} placeholder="Γράψε μήνυμα…" multiline />
-        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή στο link'} busy={busy} disabled={!msg.trim()} onPress={() => void sendMessage()} />
+        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή μηνύματος'} busy={busy} disabled={!msg.trim()} onPress={() => void sendMessage()} />
       </SheetModal>
 
       <SheetModal visible={sheet === 'appt'} title="Αποστολή ραντεβού" onClose={() => setSheet(null)}>
         <Input label="Τίτλος" value={aTitle} onChangeText={setATitle} placeholder="π.χ. Επίσκεψη για μέτρηση" />
         <Input label="Ημερομηνία (ΗΗ-ΜΜ-ΕΕΕΕ)" value={aDate} onChangeText={setADate} placeholder={todayYMD().split('-').reverse().join('-')} />
-        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή στο link'} busy={busy} disabled={!aTitle.trim()} onPress={() => void submitAppt()} />
+        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή ραντεβού'} busy={busy} disabled={!aTitle.trim()} onPress={() => void submitAppt()} />
       </SheetModal>
 
       {/* offer sheet — multi-line (description + price, add rows); VAT added server-side */}
@@ -327,7 +327,7 @@ export default function ProjectProcessScreen() {
         <Input label="Σημειώσεις (προαιρετικό)" value={oNotes} onChangeText={setONotes} multiline />
         <ThemedText type="smallBold" style={[styles.ink, { textAlign: 'right' }]}>Σύνολο (χωρίς ΦΠΑ): {formatEuro(offerTotal)}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary" style={{ textAlign: 'right', marginTop: -4 }}>Το ΦΠΑ προστίθεται αυτόματα.</ThemedText>
-        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή στο link'} busy={busy} onPress={() => void submitOffer()} />
+        <PrimaryButton label={busy ? 'Αποστολή…' : 'Αποστολή προσφοράς'} busy={busy} onPress={() => void submitOffer()} />
       </SheetModal>
 
       <SheetModal visible={sheet === 'photos'} title="Αίτημα φωτογραφιών" onClose={() => setSheet(null)}>

@@ -346,10 +346,12 @@ export default function CustomerProfileScreen() {
 
   function rejectCustomer() {
     if (customer?.status === 'lost') return;
-    Alert.alert('Απόρριψη πελάτη', 'Ο πελάτης θα σημανθεί ως «Χαμένος».', [
-      { text: 'Απόρριψη + ενημέρωση πελάτη', onPress: () => void markLost(true) },
-      { text: 'Απόρριψη χωρίς μήνυμα', style: 'destructive', onPress: () => void markLost(false) },
+    // Cancel first + clearly worded so a tired tap can't fire the
+    // customer-facing message option by accident.
+    Alert.alert('Απόρριψη πελάτη', 'Ο πελάτης θα σημανθεί ως «Χαμένος». Θέλετε να του στείλετε και ενημέρωση;', [
       { text: 'Ακύρωση', style: 'cancel' },
+      { text: 'Απόρριψη χωρίς μήνυμα', style: 'destructive', onPress: () => void markLost(false) },
+      { text: 'Απόρριψη + αποστολή μηνύματος', onPress: () => void markLost(true) },
     ]);
   }
 
@@ -433,7 +435,7 @@ export default function CustomerProfileScreen() {
         </View>
       </SafeAreaView>
 
-      {loading ? (
+      {loading && !customer ? (
         <View style={styles.center}>
           <ActivityIndicator color={Brand.primary} />
         </View>
@@ -475,7 +477,7 @@ export default function CustomerProfileScreen() {
               />
               <Quick icon="chatbubble-ellipses" label="Μήνυμα" onPress={() => setMsgSignal((n) => n + 1)} />
               <Quick icon="add-circle" label="Νέο έργο" onPress={() => setCreateSignal((n) => n + 1)} />
-              <Quick icon="clipboard-outline" label="Στοιχεία" onPress={sendIntake} />
+              <Quick icon="clipboard-outline" label="Ζήτα στοιχεία" onPress={sendIntake} />
               <Quick
                 icon="map"
                 label="Χάρτης"
@@ -770,7 +772,7 @@ function Quick({
       <View style={styles.quickCircle}>
         <Ionicons name={icon} size={20} color={Brand.primary} />
       </View>
-      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7} style={styles.quickLabel}>
+      <ThemedText type="small" themeColor="textSecondary" numberOfLines={2} style={styles.quickLabel}>
         {label}
       </ThemedText>
     </Pressable>
@@ -879,7 +881,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   badgeText: { color: Brand.primary, fontSize: 13, fontWeight: '700' },
   quickRow: { flexDirection: 'row', justifyContent: 'space-between', alignSelf: 'stretch', marginTop: Spacing.three },
   quick: { alignItems: 'center', gap: 4, width: 62 },
-  quickLabel: { fontSize: 12, textAlign: 'center' },
+  quickLabel: { fontSize: 12, lineHeight: 15, textAlign: 'center' },
   quickCircle: { width: 48, height: 48, borderRadius: 24, backgroundColor: c.surface, alignItems: 'center', justifyContent: 'center' },
 
   group: { gap: 6 },

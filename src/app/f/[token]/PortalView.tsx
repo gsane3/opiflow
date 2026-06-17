@@ -451,13 +451,13 @@ export default function PortalView({ token, view }: { token: string; view: Publi
   if (primaryOffer) {
     if (offerReview) offerBadge = { t: 'Ελέγξτε', tone: 'brand' };
     else if (offerAccepted && paymentOutstanding) offerBadge = { t: 'Πληρωμή', tone: 'warn' };
-    else if (offerAccepted) offerBadge = { t: '✓', tone: 'ok' };
+    else if (offerAccepted) offerBadge = { t: 'Έγινε', tone: 'ok' };
   }
 
   const apptHandled = appt ? (apptConfirmed || !appt.canRespond) : false;
   const apptReview = !!(appt && !apptHandled);
   const apptBadge: { t: string; tone: 'brand' | 'ok' } | null = appt
-    ? (apptHandled ? { t: '✓', tone: 'ok' } : { t: 'Ελέγξτε', tone: 'brand' })
+    ? (apptHandled ? { t: 'Έγινε', tone: 'ok' } : { t: 'Ελέγξτε', tone: 'brand' })
     : null;
 
   // ── updates feed (newest-ish first; welcome last) ──
@@ -497,14 +497,14 @@ export default function PortalView({ token, view }: { token: string; view: Publi
             {offerBadge && <span className={'opf-tile-badge opf-tb-' + offerBadge.tone}>{offerBadge.t}</span>}
             <div className="opf-tile-ic"><OpfIcon name="file" size={22} color="#fff" stroke={2.1} /></div>
             <div className="opf-tile-t">Προσφορά</div>
-            <div className="opf-tile-s">{primaryOffer ? 'Προβολή & αποδοχή' : 'Δεν έχει σταλεί ακόμη'}</div>
+            <div className="opf-tile-s">{primaryOffer ? 'Προβολή & αποδοχή' : 'Θα εμφανιστεί μόλις σταλεί'}</div>
           </button>
 
           <button className={'opf-tile opf-press' + (appt ? (apptReview ? ' opf-review' : '') : ' opf-off')} onClick={() => appt && setSheet('appt')} disabled={!appt}>
             {apptBadge && <span className={'opf-tile-badge opf-tb-' + apptBadge.tone}>{apptBadge.t}</span>}
             <div className="opf-tile-ic opf-ic-appt"><OpfIcon name="calendar" size={22} color="#fff" stroke={2.1} /></div>
             <div className="opf-tile-t">Ραντεβού</div>
-            <div className="opf-tile-s">{appt ? 'Επιβεβαίωση ή αλλαγή' : 'Δεν έχει σταλεί ακόμη'}</div>
+            <div className="opf-tile-s">{appt ? 'Επιβεβαίωση ή αλλαγή' : 'Θα εμφανιστεί μόλις σταλεί'}</div>
           </button>
 
           <button className="opf-tile opf-press" onClick={() => setSheet('files')}>
