@@ -11,7 +11,9 @@ export const REQUIRED_SERVER_ENV = [
 export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   anthropic: ['ANTHROPIC_API_KEY'],
   openai: ['OPENAI_API_KEY'],
-  email: ['RESEND_API_KEY', 'EMAIL_FROM'],
+  // email (RESEND_API_KEY/EMAIL_FROM) intentionally NOT tracked here: links are
+  // delivered via Viber→SMS, so email is not used. The send-channel still falls
+  // back gracefully if a row ever has email as its preferred channel.
   viber: ['APIFON_CLIENT_ID', 'APIFON_API_KEY'],
   telephony: ['PHONE_SIP_WSS_URL', 'PHONE_SIP_USERNAME', 'PHONE_SIP_PASSWORD'],
   // Per-user SIP provisioning switch: when set (a valid 32-byte key), the browser
