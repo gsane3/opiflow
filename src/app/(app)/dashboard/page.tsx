@@ -3,29 +3,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
-import { getEffectiveStatus } from '@/lib/types';
 import type { Customer, Task, Offer, CallRecord, TaskBaseStatus, CommunicationRecord } from '@/lib/types';
 import NextActionsSection from '@/components/dashboard/NextActionsSection';
 import RecentCommunicationsSection from '@/components/dashboard/RecentCommunicationsSection';
 import HomeActionChips from '@/components/dashboard/HomeActionChips';
 import AttentionInboxBar from '@/components/layout/AttentionInboxBar';
 
-const LEAD_STATUSES = new Set<string>([
-  'new',
-  'in_progress',
-]);
 const OPEN_OFFER_STATUSES = new Set<string>(['draft', 'ready_to_send', 'sent_manually']);
-const PRIORITY_ORDER: Record<string, number> = { high: 0, normal: 1, low: 2 };
-
-type FocusTone = 'red' | 'amber' | 'indigo';
-
-interface FocusCard {
-  tone: FocusTone;
-  label: string;
-  title: string;
-  customerName?: string;
-  primaryHref: string;
-}
 
 interface DashboardData {
   customers: Customer[];
@@ -113,44 +97,6 @@ function ChevronRight() {
       viewBox="0 0 24 24"
     >
       <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-    </svg>
-  );
-}
-
-// Icon inside the focus card action bubble. Colour is inherited from the bubble
-// (currentColor) so it follows the focusCard tone.
-function FocusIcon({ tone }: { tone: FocusTone }) {
-  if (tone === 'indigo') {
-    return (
-      <svg
-        className="h-5 w-5"
-        fill="none"
-        strokeWidth={1.7}
-        stroke="currentColor"
-        viewBox="0 0 24 24"
-      >
-        <path
-          strokeLinecap="round"
-          strokeLinejoin="round"
-          d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"
-        />
-      </svg>
-    );
-  }
-  // Task (red / amber)
-  return (
-    <svg
-      className="h-5 w-5"
-      fill="none"
-      strokeWidth={1.7}
-      stroke="currentColor"
-      viewBox="0 0 24 24"
-    >
-      <path
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"
-      />
     </svg>
   );
 }
@@ -443,23 +389,6 @@ export default function DashboardPage() {
   // Data computations
   // ---------------------------------------------------------------------------
 
-  const leads = customers
-    .filter((c) => LEAD_STATUSES.has(c.status))
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-
-  const urgentTasks = tasks
-    .filter((t) => {
-      const eff = getEffectiveStatus(t);
-      return eff === 'due_today' || eff === 'overdue';
-    })
-    .sort((a, b) => {
-      const ea = getEffectiveStatus(a);
-      const eb = getEffectiveStatus(b);
-      if (ea === 'overdue' && eb !== 'overdue') return -1;
-      if (eb === 'overdue' && ea !== 'overdue') return 1;
-      return (PRIORITY_ORDER[a.priority] ?? 1) - (PRIORITY_ORDER[b.priority] ?? 1);
-    });
-
   const openOffers = offers.filter((o) => OPEN_OFFER_STATUSES.has(o.status));
 
   const customerMap: Record<string, string> = Object.fromEntries(
@@ -476,80 +405,6 @@ export default function DashboardPage() {
   // Time-of-day greeting for the eyebrow (Καλημέρα before 18:00, else Καλησπέρα).
   const greeting = now.getHours() < 18 ? 'Καλημέρα' : 'Καλησπέρα';
 
-  // ---------------------------------------------------------------------------
-  // Focus card selection
-  // Priority: overdue task > due-today task > offer ready to send > lead needing follow-up
-  // ---------------------------------------------------------------------------
-
-  const overdueTask = urgentTasks.find((t) => getEffectiveStatus(t) === 'overdue') ?? null;
-  const todayTask = overdueTask
-    ? null
-    : (urgentTasks.find((t) => getEffectiveStatus(t) === 'due_today') ?? null);
-  const readyOffer =
-    overdueTask || todayTask
-      ? null
-      : (openOffers.find((o) => o.status === 'ready_to_send') ?? null);
-  const focusLead =
-    overdueTask || todayTask || readyOffer ? null : (leads[0] ?? null);
-
-  const focusCard: FocusCard | null = overdueTask
-    ? {
-        tone: 'red',
-        label: 'Εκπρόθεσμη εργασία',
-        title: overdueTask.title,
-        customerName: overdueTask.customerId ? customerMap[overdueTask.customerId] : undefined,
-        primaryHref: overdueTask.customerId ? `/customers/${overdueTask.customerId}` : '/tasks',
-      }
-    : todayTask
-    ? {
-        tone: 'amber',
-        label: 'Χρειάζεται ενέργεια σήμερα',
-        title: todayTask.title,
-        customerName: todayTask.customerId ? customerMap[todayTask.customerId] : undefined,
-        primaryHref: todayTask.customerId ? `/customers/${todayTask.customerId}` : '/tasks',
-      }
-    : readyOffer
-    ? {
-        tone: 'indigo',
-        label: 'Προσφορά σε αναμονή',
-        title: `Προσφορά ${readyOffer.offerNumber}`,
-        customerName: readyOffer.customerId ? customerMap[readyOffer.customerId] : undefined,
-        primaryHref: `/offers/${readyOffer.id}`,
-      }
-    : focusLead
-    ? {
-        tone: 'amber',
-        label: 'Να ξαναμιλήσω',
-        title: focusLead.name,
-        customerName: undefined,
-        primaryHref: `/customers/${focusLead.id}`,
-      }
-    : null;
-
-  // Derive the hero CTA without altering focusCard: prefer "Κλήση τώρα" only when the
-  // focused action is clearly a call-back task AND the customer has a phone on file.
-  const focusTask = overdueTask ?? todayTask ?? null;
-  const focusCustomer =
-    focusTask?.customerId
-      ? customers.find((c) => c.id === focusTask.customerId)
-      : focusLead ?? undefined;
-  const focusIsCall =
-    focusTask?.type === 'call_back' && !!focusCustomer?.phone;
-  const focusCtaLabel = focusIsCall ? 'Κλήση τώρα' : 'Άνοιγμα πελάτη';
-
-  // Hero left-accent color per focusCard tone (card stays white).
-  const HERO_ACCENT: Record<FocusTone, string> = {
-    red: 'border-l-red-500',
-    amber: 'border-l-amber-500',
-    indigo: 'border-l-indigo-500',
-  };
-
-  // Icon-bubble color per focusCard tone (the FocusIcon inherits via currentColor).
-  const HERO_BUBBLE: Record<FocusTone, string> = {
-    red: 'bg-red-50 text-red-500',
-    amber: 'bg-amber-50 text-amber-600',
-    indigo: 'bg-indigo-50 text-indigo-500',
-  };
 
   // Stat card computations
   const monthStart = new Date();
@@ -612,49 +467,6 @@ export default function DashboardPage() {
 
       {/* Today's chips: appointments + call-backs (tap → agenda/callback popup) */}
       <HomeActionChips />
-
-      {/* Hero card - the single most important pending action */}
-      {focusCard ? (
-        <div
-          className={`rounded-[28px] border-l-4 bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 ${HERO_ACCENT[focusCard.tone]}`}
-        >
-          <div className="flex items-start gap-3">
-            {/* Icon bubble (color driven by focusCard tone) */}
-            <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${HERO_BUBBLE[focusCard.tone]}`}>
-              <FocusIcon tone={focusCard.tone} />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-semibold text-indigo-600">Κάνε αυτό τώρα</p>
-              {focusCard.customerName && (
-                <p className="mt-1 text-sm font-medium text-zinc-600 dark:text-zinc-300">{focusCard.customerName}</p>
-              )}
-              <p className="text-[19px] font-bold leading-snug text-zinc-900 dark:text-zinc-100">
-                {focusCard.title}
-              </p>
-              <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-300">{focusCard.label}</p>
-            </div>
-          </div>
-          <Link
-            href={focusCard.primaryHref}
-            className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-          >
-            {focusCtaLabel}
-          </Link>
-        </div>
-      ) : (
-        <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
-          <p className="text-[19px] font-bold leading-snug text-zinc-900 dark:text-zinc-100">Όλα τακτοποιημένα</p>
-          <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-            Δεν υπάρχει κάτι επείγον αυτή τη στιγμή.
-          </p>
-          <Link
-            href="/customers/new"
-            className="mt-5 flex h-12 w-full items-center justify-center rounded-2xl bg-indigo-600 text-base font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2"
-          >
-            Προσθήκη πελάτη
-          </Link>
-        </div>
-      )}
 
       {/* Four simple count cards (2x2 on mobile) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
