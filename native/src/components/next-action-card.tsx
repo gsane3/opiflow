@@ -8,7 +8,7 @@
 // no_action / null (and degrades gracefully before migration 054 is applied).
 
 import { Ionicons } from '@expo/vector-icons';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
@@ -45,16 +45,21 @@ const ACTION_ICON: Record<NextActionType, keyof typeof Ionicons.glyphMap> = {
 };
 
 export default function NextActionCard({
-  endpoint, refreshKey = 0, onExecute,
+  endpoint, refreshKey = 0, onExecute, onLoaded,
 }: {
   endpoint: string;
   refreshKey?: number;
   onExecute: (actionType: NextActionType) => void;
+  /** Fired after each GET resolves — lets the AttentionCard read the freshly
+   *  persisted next_actions row, avoiding a contradictory attention state. */
+  onLoaded?: () => void;
 }) {
   const c = useTheme();
   const styles = makeStyles(c);
   const [action, setAction] = useState<ClientNextAction | null>(null);
   const [hidden, setHidden] = useState(false);
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
 
   const load = useCallback(async () => {
     try {
@@ -62,6 +67,7 @@ export default function NextActionCard({
       if (r?.ok && r.action && r.action.actionType !== 'no_action') { setAction(r.action); setHidden(false); }
       else setAction(null);
     } catch { setAction(null); }
+    finally { onLoadedRef.current?.(); }
   }, [endpoint]);
 
   useEffect(() => { void load(); }, [load, refreshKey]);

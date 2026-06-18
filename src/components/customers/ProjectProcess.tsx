@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import NextActionCard, { type NextActionType } from '@/components/customers/NextActionCard';
+import AttentionCard from '@/components/customers/AttentionCard';
 
 // ── Icon set (ported verbatim from the prototype icons.jsx) ──────────────────
 const ICON_PATHS: Record<string, string> = {
@@ -116,6 +117,9 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   const [payKind, setPayKind] = useState<'deposit' | 'balance'>('deposit');
   const [payPct, setPayPct] = useState(30);
   const [naKey, setNaKey] = useState(0);
+  // Bumped after the NBA card finishes a GET → the Attention card then re-reads
+  // (so it sees the freshly-persisted next_actions row, never contradicting it).
+  const [attnKey, setAttnKey] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -279,7 +283,8 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
             <div className="opf-pj-end">Δεν φορτώθηκαν τα στοιχεία.</div>
           ) : (
             <>
-              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} />
+              <AttentionCard endpoint={`/api/folders/${folderId}/attention`} refreshKey={attnKey} onExecute={(t) => onNextAction(t as NextActionType)} />
+              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} onLoaded={() => setAttnKey((n) => n + 1)} />
               {timeline.map((it) => <Row key={`${it.kind}:${it.data.id}`} it={it} busy={busy} onConfirm={confirmPayment} onPayReq={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} onOpenOffer={(id) => router.push(`/offers/${id}`)} />)}
               <div className="opf-pj-end">Όλα όσα στέλνεις εδώ τα βλέπει ο πελάτης στο link του.</div>
             </>
