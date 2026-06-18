@@ -14,6 +14,7 @@ import { buildMapsUrl } from '@/lib/maps';
 import { OpfIcon } from '@/components/opf/icon';
 import CustomerFoldersStrip from '@/components/customers/CustomerFoldersStrip';
 import CustomerEditSheet from '@/components/customers/CustomerEditSheet';
+import NextActionCard, { type NextActionType } from '@/components/customers/NextActionCard';
 
 interface CustomerFull {
   id: string; name: string | null; companyName: string | null;
@@ -51,6 +52,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const [expandedCall, setExpandedCall] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createSignal, setCreateSignal] = useState(0);
+  const [naKey, setNaKey] = useState(0);
   const [infoOpen, setInfoOpen] = useState(false);
   const [msgSignal, setMsgSignal] = useState(0);
   const [note, setNote] = useState('');
@@ -72,6 +74,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
       const items = t.items ?? t.timeline ?? [];
       // Call history — newest first; tap a call to reveal its brief/content.
       setCalls(items.filter((i) => i.type === 'call').reverse());
+      setNaKey((n) => n + 1); // re-evaluate the Next Best Action after a reload
     } catch { /* non-fatal */ } finally { setLoading(false); }
   }, [customerId]);
   useEffect(() => { void load(); }, [load]);
@@ -114,6 +117,12 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
       if (res.ok) void load();
       else window.alert('Δεν ήταν δυνατή η ενημέρωση.');
     } catch { window.alert('Σφάλμα σύνδεσης.'); }
+  }
+
+  // «Εκτέλεση» on the customer-scope card. The ranker only emits create_work_folder
+  // here (no folder yet) → open the existing «Νέο έργο» sheet. Never auto-sends.
+  function onNextAction(t: NextActionType) {
+    if (t === 'create_work_folder') setCreateSignal((n) => n + 1);
   }
 
   const name = cust?.name ?? cust?.companyName ?? 'Πελάτης';
@@ -160,6 +169,12 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
             <div className="opf-round-circle"><OpfIcon name="map" size={22} color={cust?.address ? 'var(--brand)' : 'var(--muted)'} stroke={2} /></div>
             <span style={{ color: cust?.address ? 'var(--ink-2)' : 'var(--muted)' }}>Χάρτης</span>
           </button>
+        </div>
+
+        {/* Single Next Best Action — shown only while the customer has no έργο yet
+            (the endpoint returns null once a folder exists; the folder card takes over). */}
+        <div style={{ padding: '0 16px' }}>
+          <NextActionCard endpoint={`/api/customers/${customerId}/next-action`} refreshKey={naKey} onExecute={onNextAction} />
         </div>
 
         {/* Έργα — the faithful projects section */}

@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
+import NextActionCard, { type NextActionType } from '@/components/customers/NextActionCard';
 
 // ── Icon set (ported verbatim from the prototype icons.jsx) ──────────────────
 const ICON_PATHS: Record<string, string> = {
@@ -114,6 +115,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   const [aDate, setADate] = useState('');
   const [payKind, setPayKind] = useState<'deposit' | 'balance'>('deposit');
   const [payPct, setPayPct] = useState(30);
+  const [naKey, setNaKey] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -131,7 +133,25 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   }, [folderId]);
   useEffect(() => { void load(); }, [load]);
 
-  async function refresh() { await load(); onChanged?.(); }
+  async function refresh() { await load(); setNaKey((n) => n + 1); onChanged?.(); }
+
+  // «Εκτέλεση» on the single Next Best Action card → open the matching, already-
+  // implemented flow. Nothing is auto-sent to the customer; the tech still
+  // reviews/sends inside each sheet. create_work_folder never appears in folder
+  // scope (a folder already exists), so it is a safe no-op here.
+  function onNextAction(t: NextActionType) {
+    switch (t) {
+      case 'share_folder_link': void previewPortal(); break;
+      case 'request_photos': setReqPhotos(true); setSheet('req'); break;
+      case 'request_customer_details': setReqPhotos(false); setSheet('req'); break;
+      case 'create_offer': setODesc(''); setOAmount(''); setSheet('offer'); break;
+      case 'schedule_appointment': setATitle(f?.title ?? ''); setADate(''); setSheet('appt'); break;
+      case 'send_follow_up':
+      case 'reply_to_customer': setSheet('msg'); break;
+      case 'mark_work_done': void completeProject(); break;
+      default: break;
+    }
+  }
 
   const offers = detail?.sections.offers.items ?? [];
   const firstOffer = offers[0];
@@ -259,6 +279,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
             <div className="opf-pj-end">Δεν φορτώθηκαν τα στοιχεία.</div>
           ) : (
             <>
+              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} />
               {timeline.map((it) => <Row key={`${it.kind}:${it.data.id}`} it={it} busy={busy} onConfirm={confirmPayment} onPayReq={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} onOpenOffer={(id) => router.push(`/offers/${id}`)} />)}
               <div className="opf-pj-end">Όλα όσα στέλνεις εδώ τα βλέπει ο πελάτης στο link του.</div>
             </>

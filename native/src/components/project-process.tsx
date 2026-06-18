@@ -21,6 +21,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatDate, formatEuro, todayYMD } from '@/lib/format';
 import { hapticSuccess } from '@/lib/haptics';
+import NextActionCard, { type NextActionType } from '@/components/next-action-card';
 
 const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Κερδισμένο', archived: 'Αρχειοθετήθηκε' };
 const OFFER_STATUS_GR: Record<string, string> = {
@@ -95,6 +96,7 @@ export default function ProjectProcessScreen() {
   const [payKind, setPayKind] = useState<'deposit' | 'balance'>('deposit');
   const [payPct, setPayPct] = useState(30);
   const [previewOfferId, setPreviewOfferId] = useState<string | null>(null);
+  const [naKey, setNaKey] = useState(0);
 
   const load = useCallback(async () => {
     try {
@@ -109,13 +111,40 @@ export default function ProjectProcessScreen() {
 
   useEffect(() => { void load(); }, [load]);
 
-  const refresh = useCallback(async () => { await load(); }, [load]);
+  const refresh = useCallback(async () => { await load(); setNaKey((n) => n + 1); }, [load]);
 
   const offers = detail?.sections.offers.items ?? [];
   const firstOffer = offers[0];
   const f = detail?.folder;
   const status = f?.status ?? initialStatus;
   const title = f?.title ?? initialTitle;
+
+  // «Εκτέλεση» on the single Next Best Action card → open the matching, already-
+  // implemented flow. Nothing is auto-sent to the customer; the tech reviews/sends
+  // inside each sheet. create_work_folder never appears in folder scope.
+  function onNextAction(t: NextActionType) {
+    switch (t) {
+      case 'share_folder_link': void previewPortal(); break;
+      case 'request_photos': setSheet('photos'); break;
+      case 'request_customer_details': confirmSendDetails(); break;
+      case 'create_offer': setORows([{ desc: '', qty: '1', price: '' }]); setOVat('24'); setONotes(''); setSheet('offer'); break;
+      case 'schedule_appointment': setATitle(title); setADate(''); setSheet('appt'); break;
+      case 'send_follow_up':
+      case 'reply_to_customer': setSheet('msg'); break;
+      case 'mark_work_done': void completeProject(); break;
+      default: break;
+    }
+  }
+  function confirmSendDetails() {
+    Alert.alert('Αίτημα στοιχείων', 'Να σταλεί σύνδεσμος στον πελάτη για να συμπληρώσει τα στοιχεία του;', [
+      { text: 'Άκυρο', style: 'cancel' },
+      { text: 'Αποστολή', onPress: () => void sendDetailsRequest() },
+    ]);
+  }
+  async function sendDetailsRequest() {
+    setBusy(true);
+    try { if (await post(`/api/customers/${customerId}/intake-link`, { mode: 'send', workFolderId: folderId })) await refresh(); } finally { setBusy(false); }
+  }
 
   const timeline = useMemo<Item[]>(() => {
     if (!detail) return [];
@@ -263,6 +292,7 @@ export default function ProjectProcessScreen() {
             </View>
           ) : (
             <ScrollView style={styles.fill} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
+              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} />
               {timeline.length === 0 ? (
                 <ThemedText type="small" themeColor="textSecondary" style={styles.endHint}>
                   Ξεκίνα: στείλε προσφορά, ραντεβού ή μήνυμα. Ό,τι στέλνεις εδώ το βλέπει ο πελάτης στο link του.
