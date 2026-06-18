@@ -60,7 +60,6 @@ export default function CallsScreen() {
   const [speaker, setSpeaker] = useState(false);
   const [showDtmf, setShowDtmf] = useState(false);
   const [dtmfSent, setDtmfSent] = useState('');
-  const [debug, setDebug] = useState('');
 
   const [recent, setRecent] = useState<Communication[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
@@ -105,7 +104,6 @@ export default function CallsScreen() {
       if (!number) return;
       if (target) setNum(target);
       void hapticTap();
-      setDebug('');
       setStatus('connecting');
       try {
         // Load the voice SDK on-demand (never at startup — see _layout.tsx).
@@ -150,11 +148,9 @@ export default function CallsScreen() {
           },
         );
         setCall(handle);
-      } catch (e) {
+      } catch {
         setStatus(null);
-        const msg = e instanceof Error ? e.message : 'Άγνωστο σφάλμα.';
-        setDebug('ERROR: ' + msg);
-        Alert.alert('Αποτυχία κλήσης', msg);
+        Alert.alert('Αποτυχία κλήσης', 'Δεν ήταν δυνατή η κλήση. Δοκίμασε ξανά.');
       }
     },
     [num, loadRecent],
@@ -225,12 +221,6 @@ export default function CallsScreen() {
                 <ThemedText style={styles.numberPlaceholder}>Εισήγαγε αριθμό</ThemedText>
               )}
             </View>
-
-            {debug ? (
-              <ThemedText type="small" themeColor="textSecondary" style={styles.debug}>
-                {debug}
-              </ThemedText>
-            ) : null}
 
             <View style={styles.pad}>
               {KEYS.map((row, i) => (
@@ -448,7 +438,6 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   display: { minHeight: 84, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.two, paddingHorizontal: Spacing.four },
   number: { fontSize: 34, lineHeight: 44, fontWeight: '700', letterSpacing: 1, color: c.text },
   numberPlaceholder: { fontSize: 17, fontWeight: '500', color: c.textFaint },
-  debug: { textAlign: 'center', paddingHorizontal: Spacing.four },
   pad: { gap: Spacing.three, marginTop: Spacing.one },
   row: { flexDirection: 'row', gap: Spacing.four, justifyContent: 'center' },
   key: { width: KEY, height: KEY, borderRadius: KEY / 2, backgroundColor: c.card, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.borderFaint, ...Shadow.card },
@@ -479,7 +468,9 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   overlayControls: { flexDirection: 'row', gap: Spacing.four },
   ctrlRound: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   ctrlActive: { backgroundColor: 'rgba(255,255,255,0.45)' },
-  hangup: { backgroundColor: '#E5484D' },
+  // Solid destructive red (app standard) + 135° rotated handset = the universal
+  // "end call" affordance; stands out from the translucent mute/speaker/keypad.
+  hangup: { backgroundColor: '#D14343' },
   hangupIcon: { transform: [{ rotate: '135deg' }] },
 
   dtmfPad: { gap: Spacing.two, alignItems: 'center' },

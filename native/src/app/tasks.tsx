@@ -10,7 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ChipSelect } from '@/components/ui';
+import { ChipSelect, PrimaryButton } from '@/components/ui';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch } from '@/lib/api';
@@ -19,7 +19,7 @@ import type { Customer, Task } from '@/lib/types';
 
 const TYPE_LABEL: Record<string, string> = {
   call_back: 'Κλήση πίσω',
-  follow_up_offer: 'Follow-up προσφοράς',
+  follow_up_offer: 'Παρακολούθηση προσφοράς',
   send_offer: 'Αποστολή προσφοράς',
   ask_for_photos_documents: 'Αίτημα στοιχείων',
   book_appointment: 'Ραντεβού',
@@ -43,6 +43,7 @@ export default function TasksScreen() {
   const [done, setDone] = useState<Task[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
@@ -57,8 +58,10 @@ export default function TasksScreen() {
       const map: Record<string, string> = {};
       for (const cu of c?.customers ?? []) map[cu.id] = cu.name ?? 'Πελάτης';
       setNames(map);
+      setError(false);
     } catch {
-      // keep last; pull-to-refresh retries
+      // Distinguish a network error from a genuinely empty list.
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -125,6 +128,11 @@ export default function TasksScreen() {
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={Brand.primary} /></View>
+      ) : error && list.length === 0 ? (
+        <View style={styles.center}>
+          <ThemedText themeColor="textSecondary" style={styles.errorText}>Δεν φορτώθηκαν τα στοιχεία.</ThemedText>
+          <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => { setLoading(true); void load(); }} />
+        </View>
       ) : list.length === 0 ? (
         <View style={styles.center}>
           <ThemedText themeColor="textSecondary">
@@ -141,29 +149,36 @@ export default function TasksScreen() {
             const overdue = tab !== 'done' && item.dueDate < today;
             const isDone = item.status === 'completed';
             return (
-              <Pressable
-                onPress={() => item.customerId && router.push({ pathname: '/customers/[id]', params: { id: item.customerId } })}
-                onLongPress={() => !isDone && actions(item)}
-                style={({ pressed }) => [styles.row, pressed && styles.pressed]}>
+              <View style={styles.card}>
+                <Pressable
+                  onPress={() => item.customerId && router.push({ pathname: '/customers/[id]', params: { id: item.customerId } })}
+                  onLongPress={() => !isDone && actions(item)}
+                  style={({ pressed }) => [styles.rowMain, pressed && styles.pressed]}>
+                  {isDone ? <Ionicons name="checkmark-circle" size={24} color="#1B8A4C" /> : null}
+                  <View style={styles.body}>
+                    <ThemedText type="smallBold" numberOfLines={1}>{item.title}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={overdue ? styles.overdue : undefined}>
+                      {[names[item.customerId ?? ''], TYPE_LABEL[item.type] ?? null, `${overdue ? 'Εκπρόθεσμο · ' : ''}${item.dueDate.split('-').reverse().join('-')}${item.dueTime ? ` ${item.dueTime}` : ''}`].filter(Boolean).join(' · ')}
+                    </ThemedText>
+                  </View>
+                  {!isDone ? (
+                    <Pressable accessibilityRole="button" accessibilityLabel="Περισσότερες ενέργειες" onPress={() => actions(item)} hitSlop={8} style={styles.more}>
+                      <Ionicons name="ellipsis-horizontal" size={20} color={c.textFaint} />
+                    </Pressable>
+                  ) : null}
+                </Pressable>
+                {/* Primary action made visible (was hidden behind long-press). */}
                 {!isDone ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Ολοκλήρωση" onPress={() => void complete(item)} hitSlop={8} style={({ pressed }) => [styles.check, pressed && styles.pressed]}>
-                    <Ionicons name="ellipse-outline" size={24} color={Brand.primary} />
-                  </Pressable>
-                ) : (
-                  <Ionicons name="checkmark-circle" size={24} color="#1B8A4C" />
-                )}
-                <View style={styles.body}>
-                  <ThemedText type="smallBold" numberOfLines={1}>{item.title}</ThemedText>
-                  <ThemedText type="small" themeColor="textSecondary" numberOfLines={1} style={overdue ? styles.overdue : undefined}>
-                    {[names[item.customerId ?? ''], TYPE_LABEL[item.type] ?? null, `${overdue ? 'Εκπρόθεσμο · ' : ''}${item.dueDate.split('-').reverse().join('-')}${item.dueTime ? ` ${item.dueTime}` : ''}`].filter(Boolean).join(' · ')}
-                  </ThemedText>
-                </View>
-                {!isDone ? (
-                  <Pressable accessibilityRole="button" accessibilityLabel="Ενέργειες" onPress={() => actions(item)} hitSlop={8} style={styles.more}>
-                    <Ionicons name="ellipsis-horizontal" size={18} color={c.textFaint} />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Ολοκλήρωση"
+                    onPress={() => void complete(item)}
+                    style={({ pressed }) => [styles.completeBtn, pressed && styles.pressed]}>
+                    <Ionicons name="checkmark-circle-outline" size={18} color={Brand.primary} />
+                    <ThemedText type="small" style={styles.completeBtnText}>Ολοκλήρωση</ThemedText>
                   </Pressable>
                 ) : null}
-              </Pressable>
+              </View>
             );
           }}
         />
@@ -181,10 +196,13 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   tabsWrap: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.two, paddingTop: Spacing.one },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },
-  check: { },
+  card: { backgroundColor: c.surface, borderRadius: 14, marginBottom: Spacing.two, overflow: 'hidden' },
+  rowMain: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, padding: Spacing.three },
   body: { flex: 1, gap: 2 },
   more: { padding: 4 },
+  completeBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.one, borderTopWidth: 1, borderTopColor: c.border, paddingVertical: 10 },
+  completeBtnText: { color: Brand.primary, fontWeight: '700' },
   overdue: { color: '#D14343', fontWeight: '700' },
+  errorText: { marginBottom: Spacing.three },
   pressed: { opacity: 0.6 },
 });

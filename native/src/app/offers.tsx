@@ -11,7 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { ChipSelect } from '@/components/ui';
+import { ChipSelect, PrimaryButton } from '@/components/ui';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
@@ -48,6 +48,7 @@ export default function OffersScreen() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -61,8 +62,10 @@ export default function OffersScreen() {
       const map: Record<string, string> = {};
       for (const cu of c?.customers ?? []) map[cu.id] = cu.name ?? 'Πελάτης';
       setNames(map);
+      setError(false);
     } catch {
-      // keep last; pull-to-refresh retries
+      // Distinguish a network error from a genuinely empty list.
+      setError(true);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -102,6 +105,11 @@ export default function OffersScreen() {
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={Brand.primary} /></View>
+      ) : error && list.length === 0 ? (
+        <View style={styles.center}>
+          <ThemedText themeColor="textSecondary" style={styles.errorText}>Δεν φορτώθηκαν τα στοιχεία.</ThemedText>
+          <PrimaryButton label="Δοκίμασε ξανά" tone="outline" onPress={() => { setLoading(true); void load(); }} />
+        </View>
       ) : list.length === 0 ? (
         <View style={styles.center}>
           <ThemedText themeColor="textSecondary">Καμία προσφορά.</ThemedText>
@@ -156,6 +164,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   title: { fontSize: 22 },
   tabsWrap: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.two, paddingTop: Spacing.one },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
+  errorText: { marginBottom: Spacing.three },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
   summary: { paddingBottom: Spacing.two },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, marginBottom: Spacing.two },

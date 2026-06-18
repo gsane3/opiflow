@@ -245,7 +245,7 @@ function fmtEur(n: number): string {
 
 const CMD_EXAMPLES = [
   'Ποια ραντεβού έχω σήμερα;',
-  'Δημιούργησε task να καλέσω τον Δημητρίου αύριο',
+  'Δημιούργησε εργασία να καλέσω τον Δημητρίου αύριο',
   'Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10',
   'Ετοίμασε προσφορά για τον Αλεξάνδρου, υλικά 3500 ευρώ, εργατικά 500',
   'Ακύρωσε το ραντεβού με τον Καραγιάννη αύριο',
@@ -978,22 +978,17 @@ export default function CmdPage() {
 
         {!cmdInput.trim() && !isListening && !isLoading && (
           <div className="space-y-1.5">
-            <p className="text-xs text-zinc-400 dark:text-zinc-500">Παραδείγματα:</p>
+            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">Παραδείγματα εντολών</p>
+            <p className="text-xs text-zinc-400 dark:text-zinc-500">Γράψε ή υπαγόρευσε κάτι σαν τα παρακάτω.</p>
             <div className="flex flex-wrap gap-1.5">
+              {/* Static examples — not clickable (display only). */}
               {CMD_EXAMPLES.map((example) => (
-                <button
+                <span
                   key={example}
-                  type="button"
-                  onClick={() => {
-                    setCmdInput(example);
-                    setResult(null);
-                    setSavedResult(false);
-                    setCmdError('');
-                  }}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-left text-xs text-zinc-600 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 dark:border-white/10 dark:bg-[#1e2b38] dark:text-zinc-300"
+                  className="rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-left text-xs text-zinc-600 dark:border-white/10 dark:bg-[#1e2b38] dark:text-zinc-300"
                 >
                   {example}
-                </button>
+                </span>
               ))}
             </div>
           </div>
