@@ -114,7 +114,10 @@ function foldGreek(s: string): string {
 const RE_QUOTE = /προσφορ|κοστολογ|κοστο|τιμη|τιμες|προυπολογ|quote|estimate/;
 const RE_PHOTOS = /φωτογραφ|φωτο|εικον|βιντεο/;
 const RE_DETAILS = /διευθυνσ|στοιχει|αφμ|τιμολογ|email|@|δικαιολογ|εγγραφ/;
-const RE_APPOINTMENT = /ραντεβ|επισκεψ|επισκεφ|αυτοψ|appointment|ημερομην|μερα|ωρα|visit/;
+// NB: bare `μερα`/`ωρα` are intentionally NOT here — they false-positive on
+// «καλημέρα», «σήμερα», «ωραία», «ωραίο». Only ραντεβού/επίσκεψη/αυτοψία roots,
+// «ημερομην» and explicit visit-intent phrases count as an appointment signal.
+const RE_APPOINTMENT = /ραντεβ|επισκεψ|επισκεφ|αυτοψ|ημερομην|appointment|visit|να περασω|θα περασω|να ερθω|θα ερθω/;
 const RE_CALLBACK = /θα σε παρω|θα σας παρω|callback|call ?back|ξαναπαρ|επανερχ|να με παρ/;
 const RE_JOB = /δουλει|εργασ|τοποθετ|επισκευ|συντηρ|εγκατασ|βλαβ|προβλημα|αλλαγη|μετρηση/;
 
@@ -318,7 +321,15 @@ export function reconcileNextAction(
   if (active) {
     if (active.status === 'snoozed') {
       const due = ms(active.due_at);
-      if (due != null && due > nowMs) return { kind: 'none' }; // still snoozed → hidden
+      const stillSnoozed = due != null && due > nowMs;
+      if (stillSnoozed) {
+        // A CLEARLY higher-priority action (lower number) breaks through the snooze;
+        // a same/lower-priority candidate (or no_action) respects it until due_at.
+        if (!isNoAction && candidate.priority < active.priority) {
+          return { kind: 'insert', supersedeId: active.id };
+        }
+        return { kind: 'none' };
+      }
       // Snooze expired → re-evaluate. If nothing is pending now, close it.
       if (isNoAction) return { kind: 'retire', id: active.id };
       return { kind: 'insert', supersedeId: active.id };
@@ -378,17 +389,4 @@ export function toClientAction(
     dueAt: row.due_at,
     persistent,
   };
-}
-
-// Scope filter pairs used by the store's DB queries. Exported so the cross-business
-// safety invariant (every query is scoped by business_id) is unit-testable.
-export function nextActionScopeFilter(
-  businessId: string,
-  customerId: string,
-  workFolderId: string | null,
-): Array<[string, string | null]> {
-  const base: Array<[string, string | null]> = [['business_id', businessId]];
-  if (workFolderId) base.push(['work_folder_id', workFolderId]);
-  else base.push(['customer_id', customerId]);
-  return base;
 }

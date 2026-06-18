@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   rankNextAction, describeNextAction, reconcileNextAction, toClientAction,
-  nextActionScopeFilter, briefFlags, isNextActionType,
+  briefFlags, isNextActionType,
   type NextActionSignals, type NextActionRecord,
 } from '../next-action';
 
@@ -160,18 +160,79 @@ describe('reconcileNextAction — lifecycle / one-active-per-scope', () => {
     const rows: NextActionRecord[] = [{ id: 'a', action_type: 'create_offer', status: 'snoozed', priority: 50, due_at: new Date(NOW + 3600_000).toISOString(), updated_at: new Date(NOW).toISOString() }];
     expect(reconcileNextAction(none, rows, NOW)).toEqual({ kind: 'none' });
   });
-});
 
-describe('cross-business safety + no internal exposure', () => {
-  it('every scope query is filtered by business_id', () => {
-    const f = nextActionScopeFilter('biz-1', 'cust-1', 'folder-1');
-    expect(f[0]).toEqual(['business_id', 'biz-1']);
-    expect(f.some(([k]) => k === 'business_id')).toBe(true);
-    const c = nextActionScopeFilter('biz-2', 'cust-2', null);
-    expect(c[0]).toEqual(['business_id', 'biz-2']);
-    expect(c).toContainEqual(['customer_id', 'cust-2']);
+  // ── Snooze + higher-priority breakthrough (must-fix #1) ──
+  const snoozedLow: NextActionRecord = {
+    id: 'snz', action_type: 'send_follow_up', status: 'snoozed', priority: 100,
+    due_at: new Date(NOW + 3600_000).toISOString(), updated_at: new Date(NOW).toISOString(),
+  };
+
+  it('keeps a not-yet-due snoozed low-priority action hidden for a same/lower-priority candidate', () => {
+    const samePriority = { actionType: 'send_follow_up' as const, priority: 100, confidence: 0.5, sourceEventType: null };
+    const lowerPriority = { actionType: 'mark_work_done' as const, priority: 110, confidence: 0.7, sourceEventType: null };
+    expect(reconcileNextAction(samePriority, [snoozedLow], NOW)).toEqual({ kind: 'none' });
+    expect(reconcileNextAction(lowerPriority, [snoozedLow], NOW)).toEqual({ kind: 'none' });
   });
 
+  it('supersedes a not-yet-due snoozed action when a clearly higher-priority candidate appears', () => {
+    const higher = { actionType: 'reply_to_customer' as const, priority: 90, confidence: 0.8, sourceEventType: 'inbound_message' };
+    expect(reconcileNextAction(higher, [snoozedLow], NOW)).toEqual({ kind: 'insert', supersedeId: 'snz' });
+  });
+
+  it('returns the higher-priority action to the client when it breaks through a snooze', () => {
+    const higher = { actionType: 'reply_to_customer' as const, priority: 90, confidence: 0.8, sourceEventType: 'inbound_message' };
+    const decision = reconcileNextAction(higher, [snoozedLow], NOW);
+    expect(decision.kind).toBe('insert');
+    // The row the store would insert + return carries the higher-priority action, not the snoozed one.
+    const client = toClientAction(
+      { id: 'na2', action_type: higher.actionType, title: 'Απάντησε στον πελάτη', explanation: '', confidence: higher.confidence, due_at: null },
+      true,
+    );
+    expect(client.actionType).toBe('reply_to_customer');
+  });
+});
+
+describe('appointment keyword precision (must-fix #2)', () => {
+  it('common words/greetings do NOT count as an appointment signal', () => {
+    for (const w of ['καλημέρα', 'σήμερα', 'ωραία', 'ωραίο', 'μια ώρα', 'καλησπέρα']) {
+      expect(briefFlags(w).appointment, w).toBe(false);
+    }
+  });
+
+  it('real appointment signals DO count', () => {
+    for (const w of ['ραντεβού', 'επίσκεψη', 'αυτοψία', 'ημερομηνία', 'να περάσω', 'θα έρθω αύριο']) {
+      expect(briefFlags(w).appointment, w).toBe(true);
+    }
+  });
+
+  it('«καλημέρα, θέλω προσφορά» → create_offer, NOT schedule_appointment', () => {
+    const r = rankNextAction(folder({ briefText: 'Καλημέρα, θέλω προσφορά για την εργασία' }));
+    expect(r.actionType).toBe('create_offer');
+  });
+
+  it('«σήμερα θέλω μια τιμή» → create_offer, NOT schedule_appointment', () => {
+    const r = rankNextAction(folder({ briefText: 'Σήμερα θέλω μια τιμή' }));
+    expect(r.actionType).not.toBe('schedule_appointment');
+    expect(r.actionType).toBe('create_offer');
+  });
+
+  it('«ωραία, στείλε προσφορά» → create_offer, NOT schedule_appointment', () => {
+    const r = rankNextAction(folder({ briefText: 'Ωραία, στείλε προσφορά' }));
+    expect(r.actionType).toBe('create_offer');
+  });
+
+  it('«να κλείσουμε ραντεβού» → schedule_appointment', () => {
+    const r = rankNextAction(folder({ briefText: 'Να κλείσουμε ραντεβού' }));
+    expect(r.actionType).toBe('schedule_appointment');
+  });
+
+  it('«να περάσω για αυτοψία» → schedule_appointment', () => {
+    const r = rankNextAction(folder({ briefText: 'Να περάσω για αυτοψία' }));
+    expect(r.actionType).toBe('schedule_appointment');
+  });
+});
+
+describe('no internal exposure', () => {
   it('the client shape exposes only safe fields (no business/customer/folder/source ids, no brief)', () => {
     const client = toClientAction(
       { id: 'x', action_type: 'create_offer', title: 'Δημιουργία προσφοράς', explanation: 'Ο πελάτης ζήτησε τιμή.', confidence: 0.8, due_at: null },

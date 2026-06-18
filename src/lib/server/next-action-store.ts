@@ -10,11 +10,11 @@
 // The brief text is read ONLY to keyword-match inside the ranker — it never lands
 // in a stored/returned field. The public /f/[token] portal does not touch this.
 
-import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { createServerSupabaseClient } from '../supabase/server';
 import {
   rankNextAction, describeNextAction, reconcileNextAction, toClientAction,
   type NextActionSignals, type NextActionRecord, type ClientNextAction, type RankedNextAction,
-} from '@/lib/server/next-action';
+} from './next-action';
 
 type SupabaseServer = ReturnType<typeof createServerSupabaseClient>;
 
