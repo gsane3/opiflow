@@ -9,7 +9,7 @@
 // already-implemented flow — nothing is auto-sent to the customer. Renders nothing
 // for no_action / null (and degrades gracefully before migration 054 is applied).
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { OpfIcon } from '@/components/opf/icon';
 
@@ -51,7 +51,7 @@ async function authHeaders(): Promise<Record<string, string> | null> {
 }
 
 export default function NextActionCard({
-  endpoint, refreshKey = 0, onExecute,
+  endpoint, refreshKey = 0, onExecute, onLoaded,
 }: {
   /** Base next-action endpoint, e.g. `/api/folders/{id}/next-action`. */
   endpoint: string;
@@ -59,10 +59,15 @@ export default function NextActionCard({
   refreshKey?: number;
   /** Open the matching existing flow for this action type. */
   onExecute: (actionType: NextActionType) => void;
+  /** Fired after each GET resolves — lets a sibling (AttentionCard) read the
+   *  freshly-persisted next_actions row, avoiding a state contradiction. */
+  onLoaded?: () => void;
 }) {
   const [action, setAction] = useState<ClientNextAction | null>(null);
   const [hidden, setHidden] = useState(false);
   const [busy, setBusy] = useState(false);
+  const onLoadedRef = useRef(onLoaded);
+  onLoadedRef.current = onLoaded;
 
   const load = useCallback(async () => {
     try {
@@ -77,6 +82,7 @@ export default function NextActionCard({
         setAction(null);
       }
     } catch { /* non-fatal — the card simply doesn't show */ }
+    finally { onLoadedRef.current?.(); }
   }, [endpoint]);
 
   useEffect(() => { void load(); }, [load, refreshKey]);

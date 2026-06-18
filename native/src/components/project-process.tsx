@@ -22,6 +22,7 @@ import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatDate, formatEuro, todayYMD } from '@/lib/format';
 import { hapticSuccess } from '@/lib/haptics';
 import NextActionCard, { type NextActionType } from '@/components/next-action-card';
+import AttentionCard from '@/components/attention-card';
 
 const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Κερδισμένο', archived: 'Αρχειοθετήθηκε' };
 const OFFER_STATUS_GR: Record<string, string> = {
@@ -97,6 +98,7 @@ export default function ProjectProcessScreen() {
   const [payPct, setPayPct] = useState(30);
   const [previewOfferId, setPreviewOfferId] = useState<string | null>(null);
   const [naKey, setNaKey] = useState(0);
+  const [attnKey, setAttnKey] = useState(0); // bumped after NBA loads → attention re-reads (no contradiction)
 
   const load = useCallback(async () => {
     try {
@@ -292,7 +294,8 @@ export default function ProjectProcessScreen() {
             </View>
           ) : (
             <ScrollView style={styles.fill} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} />
+              <AttentionCard endpoint={`/api/folders/${folderId}/attention`} refreshKey={attnKey} onExecute={(t) => onNextAction(t as NextActionType)} />
+              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} onLoaded={() => setAttnKey((n) => n + 1)} />
               {timeline.length === 0 ? (
                 <ThemedText type="small" themeColor="textSecondary" style={styles.endHint}>
                   Ξεκίνα: στείλε προσφορά, ραντεβού ή μήνυμα. Ό,τι στέλνεις εδώ το βλέπει ο πελάτης στο link του.
