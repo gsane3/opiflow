@@ -27,6 +27,7 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { ChipSelect, Input, ListRow, PrimaryButton, SheetModal } from '@/components/ui';
 import { WorkFoldersSection } from '@/components/work-folders-section';
+import NextActionCard, { type NextActionType } from '@/components/next-action-card';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
@@ -121,6 +122,7 @@ export default function CustomerProfileScreen() {
   // «Νέο έργο» opens the create sheet — both via signals to WorkFoldersSection.
   const [msgSignal, setMsgSignal] = useState(0);
   const [createSignal, setCreateSignal] = useState(0);
+  const [naKey, setNaKey] = useState(0);
 
   const [thumbs, setThumbs] = useState<Record<string, string>>({});
   const [galleryIndex, setGalleryIndex] = useState<number | null>(null);
@@ -168,6 +170,7 @@ export default function CustomerProfileScreen() {
       setBriefs((feed?.items ?? []).filter((it) => it.type === 'call' && it.body).reverse());
       if (!sRes.error && Array.isArray(sRes.data)) setSessions(sRes.data as unknown as UploadSession[]);
       setLoadError(false);
+      setNaKey((n) => n + 1); // re-evaluate the Next Best Action after a reload
     } catch {
       setLoadError(true);
     } finally {
@@ -410,6 +413,12 @@ export default function CustomerProfileScreen() {
     }
   }
 
+  // «Εκτέλεση» on the customer-scope card. The ranker only emits create_work_folder
+  // here (no folder yet) → open the existing «Νέο έργο» sheet. Never auto-sends.
+  function onNextAction(t: NextActionType) {
+    if (t === 'create_work_folder') setCreateSignal((n) => n + 1);
+  }
+
   const win = Dimensions.get('window');
   const toggle = (key: Exclude<Expanded, null>) => setExpanded((e) => (e === key ? null : key));
 
@@ -492,6 +501,10 @@ export default function CustomerProfileScreen() {
               />
             </View>
           </View>
+
+          {/* Single Next Best Action — shown only while the customer has no έργο yet
+              (the endpoint returns null once a folder exists; the folder card takes over). */}
+          <NextActionCard endpoint={`/api/customers/${customerId}/next-action`} refreshKey={naKey} onExecute={onNextAction} />
 
           {/* Στοιχεία */}
           <GroupCard title="Στοιχεία">
