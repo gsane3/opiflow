@@ -234,14 +234,14 @@ export function CallActionSheet({
         // Post-call intake prompt: now that we have a contact for this number,
         // offer to immediately ask them for their job details (Viber → SMS).
         // Useful both ways — an unknown number we just called or that called us.
-        Alert.alert('Επαφή δημιουργήθηκε', 'Να σταλεί αίτημα στοιχείων στον πελάτη (Viber → SMS);', [
+        Alert.alert('Να σταλεί αίτημα αποστολής στοιχείων;', 'Αν η επαφή δεν έχει Viber, θα σταλεί αυτόματα SMS. Αν είναι σταθερό, θα πρέπει να βάλεις τα στοιχεία χειροκίνητα.', [
           { text: 'Όχι', style: 'cancel', onPress: onClose },
           {
-            text: 'Αποστολή αιτήματος',
+            text: 'Ναι',
             onPress: async () => {
               try {
                 const r = await apiPost<{ sent?: boolean; error?: string }>(`/api/customers/${newId}/intake-link`, { mode: 'send' });
-                Alert.alert(r?.sent ? '✓' : 'Αποστολή', r?.sent ? 'Στάλθηκε αίτημα στοιχείων.' : 'Δεν στάλθηκε (λείπει κινητό;).');
+                Alert.alert(r?.sent ? '✓' : 'Αποστολή', r?.sent ? 'Στάλθηκε αίτημα στοιχείων.' : 'Δεν στάλθηκε (λείπει κινητό; βάλε στοιχεία χειροκίνητα).');
               } catch {
                 Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε.');
               } finally {
