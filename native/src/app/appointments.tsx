@@ -9,12 +9,14 @@
 // and PATCHing dueDate/dueTime). Those response flows are intentionally NOT
 // ported here yet — this screen surfaces the agenda + send-link only.
 
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { AppointmentsCalendar } from '@/components/appointments-calendar';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { PrimaryButton, SheetModal } from '@/components/ui';
@@ -55,6 +57,18 @@ export default function AppointmentsScreen() {
   const [sending, setSending] = useState(false);
   const [linkError, setLinkError] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
+
+  // List vs Google-style calendar/day view (persisted, parity with web).
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list');
+  useEffect(() => {
+    AsyncStorage.getItem('opiflow:appt-view')
+      .then((v) => { if (v === 'calendar' || v === 'list') setViewMode(v); })
+      .catch(() => {});
+  }, []);
+  const changeViewMode = (m: 'list' | 'calendar') => {
+    setViewMode(m);
+    AsyncStorage.setItem('opiflow:appt-view', m).catch(() => {});
+  };
 
   const load = useCallback(async () => {
     try {
@@ -185,10 +199,30 @@ export default function AppointmentsScreen() {
         </View>
       </SafeAreaView>
 
+      {/* List ↔ Calendar toggle */}
+      <View style={styles.toggle}>
+        {(['list', 'calendar'] as const).map((m) => (
+          <Pressable
+            key={m}
+            onPress={() => changeViewMode(m)}
+            style={[styles.toggleBtn, viewMode === m && styles.toggleBtnActive]}>
+            <ThemedText type="smallBold" style={viewMode === m ? styles.toggleTextActive : styles.toggleText}>
+              {m === 'list' ? 'Λίστα' : 'Ημερολόγιο'}
+            </ThemedText>
+          </Pressable>
+        ))}
+      </View>
+
       {loading ? (
         <View style={styles.center}>
           <ActivityIndicator color={Brand.primary} />
         </View>
+      ) : viewMode === 'calendar' ? (
+        <AppointmentsCalendar
+          appointments={appts}
+          names={names}
+          onSelect={(t) => t.customerId && router.push({ pathname: '/customers/[id]', params: { id: t.customerId } })}
+        />
       ) : rows.length === 0 ? (
         <View style={styles.center}>
           <ThemedText themeColor="textSecondary">Δεν υπάρχουν ραντεβού.</ThemedText>
@@ -316,6 +350,11 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   back: { padding: 4 },
   title: { fontSize: 22 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.four },
+  toggle: { flexDirection: 'row', gap: 4, marginHorizontal: Spacing.four, marginTop: Spacing.three, backgroundColor: c.surface, borderRadius: 12, padding: 4 },
+  toggleBtn: { flex: 1, height: 38, borderRadius: 9, alignItems: 'center', justifyContent: 'center' },
+  toggleBtnActive: { backgroundColor: c.card, shadowColor: '#11273B', shadowOpacity: 0.08, shadowRadius: 4, shadowOffset: { width: 0, height: 1 }, elevation: 2 },
+  toggleText: { color: c.textSecondary },
+  toggleTextActive: { color: Brand.primary },
   list: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
   groupHeader: { color: c.textSecondary, letterSpacing: 0.6, marginTop: Spacing.three, marginBottom: Spacing.one },
   groupHeaderOverdue: { color: '#D14343' },
