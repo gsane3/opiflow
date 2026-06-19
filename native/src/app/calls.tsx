@@ -15,10 +15,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { LinearGradient } from 'expo-linear-gradient';
+
 import { CallActionSheet } from '@/components/call-action-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Brand, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
+import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
 import { hapticTap } from '@/lib/haptics';
@@ -61,6 +63,7 @@ export default function CallsScreen() {
   const [showDtmf, setShowDtmf] = useState(false);
   const [dtmfSent, setDtmfSent] = useState('');
   const [debug, setDebug] = useState('');
+  const [callSeconds, setCallSeconds] = useState(0);
 
   const [recent, setRecent] = useState<Communication[]>([]);
   const [recentLoading, setRecentLoading] = useState(false);
@@ -76,6 +79,14 @@ export default function CallsScreen() {
       setTab('keypad');
     }
   }, [prefill]);
+
+  // Live mm:ss timer once connected (parity with the incoming modal + web B5).
+  useEffect(() => {
+    if (status !== 'connected') { setCallSeconds(0); return; }
+    setCallSeconds(0);
+    const id = setInterval(() => setCallSeconds((s) => s + 1), 1000);
+    return () => clearInterval(id);
+  }, [status]);
 
   const loadRecent = useCallback(async () => {
     setRecentLoading(true);
@@ -192,6 +203,8 @@ export default function CallsScreen() {
   }
 
   const inCall = call !== null || status === 'connecting';
+  const callTimer = `${Math.floor(callSeconds / 60)}:${String(callSeconds % 60).padStart(2, '0')}`;
+  const ringing = status === 'connecting' || status === 'ringing';
 
   return (
     <ThemedView style={styles.container}>
@@ -354,17 +367,20 @@ export default function CallsScreen() {
         }}
       />
 
-      {/* In-call overlay */}
+      {/* In-call overlay — branded full-screen (parity with the incoming modal + web B5) */}
       {inCall ? (
-        <View style={styles.overlay}>
+        <LinearGradient colors={[...BrandGradient]} style={styles.overlay}>
           <SafeAreaView style={styles.overlaySafe}>
             <View style={styles.overlayTop}>
-              <ThemedText style={styles.overlayNumber}>{num}</ThemedText>
+              <View style={styles.overlayAvatar}>
+                <Ionicons name="call" size={48} color="#FFFFFF" />
+              </View>
+              <ThemedText style={styles.overlayNumber} numberOfLines={1}>{num || 'Κλήση'}</ThemedText>
               <View style={styles.overlayStatusRow}>
-                {status === 'connecting' || status === 'ringing' ? (
-                  <ActivityIndicator color="#FFFFFF" />
-                ) : null}
-                <ThemedText style={styles.overlayStatus}>{status ? STATUS_LABEL[status] : ''}</ThemedText>
+                {ringing ? <ActivityIndicator color="#FFFFFF" /> : null}
+                <ThemedText style={styles.overlayStatus}>
+                  {status === 'connected' ? callTimer : status ? STATUS_LABEL[status] : ''}
+                </ThemedText>
               </View>
             </View>
             <View style={styles.overlayBottom}>
@@ -389,22 +405,34 @@ export default function CallsScreen() {
                 </View>
               ) : null}
               <View style={styles.overlayControls}>
-                <Pressable accessibilityRole="button" accessibilityLabel="Σίγαση" onPress={toggleMute} style={[styles.ctrlRound, muted && styles.ctrlActive]}>
-                  <Ionicons name={muted ? 'mic-off' : 'mic'} size={24} color="#FFFFFF" />
-                </Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel="Ηχείο" onPress={toggleSpeaker} style={[styles.ctrlRound, speaker && styles.ctrlActive]}>
-                  <Ionicons name="volume-high" size={24} color="#FFFFFF" />
-                </Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel="Πληκτρολόγιο" onPress={() => setShowDtmf((v) => !v)} style={[styles.ctrlRound, showDtmf && styles.ctrlActive]}>
-                  <Ionicons name="keypad" size={24} color="#FFFFFF" />
-                </Pressable>
-                <Pressable accessibilityRole="button" accessibilityLabel="Τερματισμός" onPress={hangup} style={[styles.ctrlRound, styles.hangup]}>
-                  <Ionicons name="call" size={24} color="#FFFFFF" style={styles.hangupIcon} />
-                </Pressable>
+                <View style={styles.ctrlCol}>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Σίγαση" onPress={toggleMute} style={({ pressed }) => [styles.ctrlRound, muted && styles.ctrlInvert, pressed && styles.pressed]}>
+                    <Ionicons name={muted ? 'mic-off' : 'mic'} size={26} color={muted ? Brand.navy : '#FFFFFF'} />
+                  </Pressable>
+                  <ThemedText style={styles.ctrlLabel}>{muted ? 'Άρση' : 'Σίγαση'}</ThemedText>
+                </View>
+                <View style={styles.ctrlCol}>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Ηχείο" onPress={toggleSpeaker} style={({ pressed }) => [styles.ctrlRound, speaker && styles.ctrlActive, pressed && styles.pressed]}>
+                    <Ionicons name="volume-high" size={26} color="#FFFFFF" />
+                  </Pressable>
+                  <ThemedText style={styles.ctrlLabel}>Ηχείο</ThemedText>
+                </View>
+                <View style={styles.ctrlCol}>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Πληκτρολόγιο" onPress={() => setShowDtmf((v) => !v)} style={({ pressed }) => [styles.ctrlRound, showDtmf && styles.ctrlActive, pressed && styles.pressed]}>
+                    <Ionicons name="keypad" size={26} color="#FFFFFF" />
+                  </Pressable>
+                  <ThemedText style={styles.ctrlLabel}>Πλήκτρα</ThemedText>
+                </View>
+                <View style={styles.ctrlCol}>
+                  <Pressable accessibilityRole="button" accessibilityLabel="Τερματισμός" onPress={hangup} style={({ pressed }) => [styles.ctrlRound, styles.hangup, pressed && styles.pressed]}>
+                    <Ionicons name="call" size={26} color="#FFFFFF" style={styles.hangupIcon} />
+                  </Pressable>
+                  <ThemedText style={styles.ctrlLabel}>Τέλος</ThemedText>
+                </View>
               </View>
             </View>
           </SafeAreaView>
-        </View>
+        </LinearGradient>
       ) : null}
     </ThemedView>
   );
@@ -469,16 +497,20 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   missedText: { color: '#D14343' },
   recentCallBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
 
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: Brand.primary },
+  overlay: { ...StyleSheet.absoluteFillObject },
   overlaySafe: { flex: 1, justifyContent: 'space-between', alignItems: 'center', paddingVertical: Spacing.six },
   overlayTop: { alignItems: 'center', gap: Spacing.three, marginTop: Spacing.six },
-  overlayNumber: { color: '#FFFFFF', fontSize: 34, lineHeight: 44, fontWeight: '700', letterSpacing: 1 },
+  overlayAvatar: { width: 112, height: 112, borderRadius: 56, backgroundColor: 'rgba(255,255,255,0.15)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.two },
+  overlayNumber: { color: '#FFFFFF', fontSize: 30, lineHeight: 38, fontWeight: '800', letterSpacing: 0.5 },
   overlayStatusRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two },
-  overlayStatus: { color: 'rgba(255,255,255,0.9)', fontSize: 17 },
+  overlayStatus: { color: 'rgba(255,255,255,0.75)', fontSize: 16 },
   overlayBottom: { alignItems: 'center', gap: Spacing.four, marginBottom: Spacing.five },
-  overlayControls: { flexDirection: 'row', gap: Spacing.four },
-  ctrlRound: { width: 60, height: 60, borderRadius: 30, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
+  overlayControls: { flexDirection: 'row', gap: Spacing.three },
+  ctrlCol: { alignItems: 'center', gap: Spacing.two, width: 72 },
+  ctrlRound: { width: 64, height: 64, borderRadius: 32, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   ctrlActive: { backgroundColor: 'rgba(255,255,255,0.45)' },
+  ctrlInvert: { backgroundColor: '#FFFFFF' },
+  ctrlLabel: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '600' },
   hangup: { backgroundColor: '#E5484D' },
   hangupIcon: { transform: [{ rotate: '135deg' }] },
 
