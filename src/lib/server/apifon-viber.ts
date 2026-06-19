@@ -158,6 +158,18 @@ function buildApifonStatusCallbackUrl(): string | null {
   return url.toString();
 }
 
+// See apifon-sms.ts: logs ONLY Apifon's own rejection reason (never the recipient
+// number or message text) so a live test is diagnosable from the server logs.
+function logViberFailure(detail: { responseStatus: number | null; error: string; responseBody?: unknown }): void {
+  let body = '';
+  try {
+    body = detail.responseBody != null ? JSON.stringify(detail.responseBody).slice(0, 500) : '';
+  } catch {
+    body = '';
+  }
+  console.warn(`[apifon-viber] send failed status=${detail.responseStatus ?? 'n/a'} error=${detail.error}${body ? ` body=${body}` : ''}`);
+}
+
 async function parseResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
 
@@ -300,6 +312,7 @@ export async function sendIntakeViberMessage(
     const responseBody = await parseResponseBody(response);
 
     if (!response.ok) {
+      logViberFailure({ responseStatus: response.status, error: 'apifon_send_failed', responseBody });
       return {
         ok: false,
         skipped: false,
@@ -318,12 +331,14 @@ export async function sendIntakeViberMessage(
       messageId: extractMessageId(responseBody),
     };
   } catch (err) {
+    const error = err instanceof Error ? err.message : 'apifon_send_failed';
+    logViberFailure({ responseStatus: null, error });
     return {
       ok: false,
       skipped: false,
       responseStatus: null,
       responseBody: null,
-      error: err instanceof Error ? err.message : 'apifon_send_failed',
+      error,
     };
   }
 }
@@ -421,6 +436,7 @@ export async function sendViberMessage(
     const responseBody = await parseResponseBody(response);
 
     if (!response.ok) {
+      logViberFailure({ responseStatus: response.status, error: 'apifon_send_failed', responseBody });
       return {
         ok: false,
         skipped: false,
@@ -437,11 +453,13 @@ export async function sendViberMessage(
       messageId: extractMessageId(responseBody),
     };
   } catch (err) {
+    const error = err instanceof Error ? err.message : 'apifon_send_failed';
+    logViberFailure({ responseStatus: null, error });
     return {
       ok: false,
       skipped: false,
       responseStatus: null,
-      error: err instanceof Error ? err.message : 'apifon_send_failed',
+      error,
     };
   }
 }
