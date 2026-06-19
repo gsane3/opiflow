@@ -20,12 +20,10 @@ import { sendCustomerLinkEmail } from '@/lib/server/customer-email';
 import { recordOutboundMessage, extractProviderIds } from '@/lib/server/record-message';
 import {
   buildFolderUrl,
-  createCustomerFolderToken,
   extractRawTokenFromFolderUrl,
+  getOrCreateFolderToken,
   hashFolderToken,
   markFolderTokenSent,
-  revokePendingFolderTokens,
-  revokePreviewFolderTokens,
 } from '@/lib/server/folder-tokens';
 
 export const runtime = 'nodejs';
@@ -137,39 +135,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const now = new Date().toISOString();
 
     // -------------------------------------------------------------------------
-    // Open: non-destructive preview for the Project-page eye. Does NOT revoke the
-    // customer's delivered link — only clears prior UNDELIVERED preview tokens —
-    // then returns a fresh durable link (30-day rolling expiry). So previewing the
-    // portal never breaks the link the customer already received.
+    // Open / Draft: return the folder's DURABLE link. Reuses the existing live
+    // token (same /f/<token> URL every time) or creates one — never revokes, so a
+    // link already delivered to the customer keeps working. One stable link per Έργο.
     // -------------------------------------------------------------------------
-    if (mode === 'open') {
+    if (mode === 'open' || mode === 'draft') {
       try {
-        await revokePreviewFolderTokens({ businessId, workFolderId: folderId });
-        const tok = await createCustomerFolderToken({ businessId, workFolderId: folderId, sentChannel: null });
+        const tok = await getOrCreateFolderToken({ businessId, workFolderId: folderId });
         return NextResponse.json({
           ok: true,
-          mode: 'open',
-          sent: false,
-          responseUrl: tok.folderUrl,
-          message: buildFolderMessage(tok.folderUrl, businessName, folder.title),
-          recipient: selectViberPhone(customer),
-          fallbackReason: null,
-        });
-      } catch {
-        return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
-      }
-    }
-
-    // -------------------------------------------------------------------------
-    // Draft: rotate + create a token, return its URL + preview message.
-    // -------------------------------------------------------------------------
-    if (mode === 'draft') {
-      try {
-        await revokePendingFolderTokens({ businessId, workFolderId: folderId });
-        const tok = await createCustomerFolderToken({ businessId, workFolderId: folderId, sentChannel: null });
-        return NextResponse.json({
-          ok: true,
-          mode: 'draft',
+          mode,
           sent: false,
           responseUrl: tok.folderUrl,
           message: buildFolderMessage(tok.folderUrl, businessName, folder.title),
@@ -214,9 +189,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       folderUrl = buildFolderUrl(rawToken);
     } else {
       try {
-        await revokePendingFolderTokens({ businessId, workFolderId: folderId });
-        const tok = await createCustomerFolderToken({ businessId, workFolderId: folderId, sentChannel: 'viber' });
+        // Durable link: reuse the folder's live token (or create one) — no revoke.
+        const tok = await getOrCreateFolderToken({ businessId, workFolderId: folderId, sentChannel: 'viber' });
         folderUrl = tok.folderUrl;
+        verifiedTokenId = tok.row.id; // so the post-dispatch markFolderTokenSent records the channel
       } catch {
         return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
       }
