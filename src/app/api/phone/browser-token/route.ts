@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveBusinessContext } from '@/lib/api/auth';
 import { isSipProvisioningEnabled, decryptSecret } from '@/lib/server/sip-credentials';
 
 export const runtime = 'nodejs';
@@ -96,11 +97,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401, headers: NO_STORE });
     }
 
-    // Resolve the user's business.
+    // Resolve the user's business — membership-aware so invited team members can
+    // make calls, not only the original owner (was: businesses.owner_id match).
+    const resolved = await resolveBusinessContext(supabase, user.id);
+    if (!resolved) {
+      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404, headers: NO_STORE });
+    }
     const { data: business, error: businessError } = await supabase
       .from('businesses')
       .select('id, business_phone_number')
-      .eq('owner_id', user.id)
+      .eq('id', resolved.businessId)
       .maybeSingle();
 
     if (businessError) {
