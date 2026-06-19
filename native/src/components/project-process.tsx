@@ -43,7 +43,7 @@ const PAY_PCTS = [10, 20, 30, 50, 70, 100];
 
 interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
 interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
-interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string }
+interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string; readAt?: string | null }
 interface DetailReq { id: string; status: string; createdAt: string }
 interface FolderPayment { id: string; kind: string; pct: number | null; amount: number; status: string; createdAt: string }
 interface FolderDetail {
@@ -498,7 +498,10 @@ function TimelineRow({
       <View style={[styles.bubbleRow, tech ? styles.rowRight : styles.rowLeft]}>
         <View style={[styles.bubble, tech ? styles.bubbleTech : styles.bubbleCust]}>
           <ThemedText type="small" style={tech ? styles.bubbleTextTech : styles.ink}>{(m.summary ?? '').trim()}</ThemedText>
-          <ThemedText style={[styles.bubbleWhen, tech ? styles.bubbleWhenTech : undefined]}>{formatRelativeWhen(m.createdAt)}</ThemedText>
+          <ThemedText style={[styles.bubbleWhen, tech ? styles.bubbleWhenTech : undefined]}>
+            {formatRelativeWhen(m.createdAt)}
+            {tech ? (m.readAt ? ` ✓✓ Διαβάστηκε ${formatRelativeWhen(m.readAt)}` : ' ✓') : ''}
+          </ThemedText>
         </View>
       </View>
     );
