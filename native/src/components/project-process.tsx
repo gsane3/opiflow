@@ -18,7 +18,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatDate, formatEuro, todayYMD } from '@/lib/format';
 import { hapticSuccess } from '@/lib/haptics';
 import NextActionCard, { type NextActionType } from '@/components/next-action-card';
@@ -253,6 +253,30 @@ export default function ProjectProcessScreen() {
       } finally { setBusy(false); }
     })();
   }
+  // «Διαγραφή έργου» — permanently delete this work folder (customer link + next
+  // actions cascade-removed; offers/appointments/messages stay in the customer's
+  // history). Confirm first, then leave the screen.
+  function confirmDeleteFolder() {
+    setSheet(null);
+    Alert.alert(
+      'Διαγραφή έργου',
+      'Το έργο θα διαγραφεί οριστικά. Ο σύνδεσμος του πελάτη παύει να ισχύει. Οι προσφορές, τα ραντεβού και τα μηνύματα παραμένουν στο ιστορικό του πελάτη. Η ενέργεια δεν αναιρείται.',
+      [
+        { text: 'Άκυρο', style: 'cancel' },
+        { text: 'Διαγραφή', style: 'destructive', onPress: () => void deleteFolder() },
+      ],
+    );
+  }
+  async function deleteFolder() {
+    setBusy(true);
+    try {
+      const r = await apiDelete<{ ok?: boolean }>(`/api/folders/${folderId}`);
+      if (r?.ok) router.back();
+      else Alert.alert('Σφάλμα', 'Δεν διαγράφηκε το έργο.');
+    } catch (e) {
+      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Η διαγραφή απέτυχε.');
+    } finally { setBusy(false); }
+  }
 
   const grossOf = (pct: number) => (firstOffer?.total != null ? Math.round(firstOffer.total * pct) / 100 : 0);
   const setRow = (i: number, k: keyof OfferRow) => (v: string) => setORows((rs) => rs.map((r, idx) => (idx === i ? { ...r, [k]: v } : r)));
@@ -431,6 +455,7 @@ export default function ProjectProcessScreen() {
         <MenuItem icon="checkmark-circle" label="Ολοκλήρωση (Κερδισμένο)" styles={styles} tint={C_SUCCESS} onPress={() => void completeProject()} />
         <MenuItem icon="card-outline" label="Αίτημα πληρωμής" styles={styles} onPress={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }} />
         <MenuItem icon="close-circle" label="Απόρριψη πελάτη" styles={styles} tint={C_DANGER} danger onPress={() => setSheet('reject')} />
+        <MenuItem icon="trash-outline" label="Διαγραφή έργου" styles={styles} tint={C_DANGER} danger onPress={confirmDeleteFolder} />
       </SheetModal>
 
       <SheetModal visible={sheet === 'reject'} title="Απόρριψη πελάτη" onClose={() => setSheet(null)}>

@@ -32,6 +32,7 @@ const ICON_PATHS: Record<string, string> = {
   arrowR: 'M5 12h14M13 6l6 6-6 6',
   euro: 'M16.5 7.2A5 5 0 0 0 8 11h7M8 13h6.5A5 5 0 0 1 6 16M5 11h2M5 13h2',
   folderPlus: 'M4 7.5A1.5 1.5 0 0 1 5.5 6h3.8a1.5 1.5 0 0 1 1.1.5l1 1.1a1.5 1.5 0 0 0 1.1.5h5.5A1.5 1.5 0 0 1 19.5 9.6V17a1.5 1.5 0 0 1-1.5 1.5H5.5A1.5 1.5 0 0 1 4 17zM12 11v4M10 13h4',
+  trash: 'M6 7.5h12M9.5 7.5V6a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M7 7.5l.7 11a1.5 1.5 0 0 0 1.5 1.4h5.6a1.5 1.5 0 0 0 1.5-1.4l.7-11M10.5 11v6M13.5 11v6',
 };
 function Icon({ name, size = 24, color = 'currentColor', stroke = 1.9 }: { name: string; size?: number; color?: string; stroke?: number }) {
   const d = ICON_PATHS[name];
@@ -96,7 +97,7 @@ type Item =
   | { kind: 'req'; ts: number; data: DetailReq; photos: boolean };
 const T = (s: string | null | undefined) => (s ? new Date(s).getTime() || 0 : 0);
 
-type SheetName = 'msg' | 'appt' | 'offer' | 'req' | 'payreq' | 'menu' | 'reject' | null;
+type SheetName = 'msg' | 'appt' | 'offer' | 'req' | 'payreq' | 'menu' | 'reject' | 'delete' | null;
 
 export default function ProjectProcess({ folderId, customerId, onClose, onChanged }: { folderId: string; customerId: string; onClose: () => void; onChanged?: () => void }) {
   const router = useRouter();
@@ -254,6 +255,22 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       onClose();
     } finally { setBusy(false); }
   }
+  // «Διαγραφή έργου» — permanently delete this work folder. Its customer link +
+  // next actions are removed (FK cascade); offers/appointments/messages stay in the
+  // customer's history (FK set-null). After success, close and refresh the list.
+  async function deleteFolder() {
+    setBusy(true);
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch(`/api/folders/${folderId}`, { method: 'DELETE', headers });
+      if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) {
+        setSheet(null);
+        onChanged?.();
+        onClose();
+      }
+    } finally { setBusy(false); }
+  }
 
   const f = detail?.folder;
   const grossOf = (pct: number) => (firstOffer?.total != null ? Math.round(firstOffer.total * pct) / 100 : 0);
@@ -353,12 +370,18 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
           <button className="opf-menu-item opf-press" onClick={() => void completeProject()}><div className="opf-menu-ic opf-ok"><Icon name="check" size={19} color="var(--success)" stroke={2.4} /></div> Ολοκλήρωση έργου (Κερδισμένο)</button>
           <button className="opf-menu-item opf-press" onClick={() => { setPayKind('deposit'); setPayPct(30); setSheet('payreq'); }}><div className="opf-menu-ic"><Icon name="euro" size={19} color="var(--brand)" stroke={2} /></div> Αίτημα πληρωμής</button>
           <button className="opf-menu-item opf-press" onClick={() => setSheet('reject')}><div className="opf-menu-ic opf-danger" style={{ background: 'color-mix(in srgb, var(--danger) 14%, transparent)' }}><Icon name="x" size={19} color="var(--danger)" stroke={2.4} /></div> <span style={{ color: 'var(--danger)', fontWeight: 700 }}>Απόρριψη πελάτη</span></button>
+          <button className="opf-menu-item opf-press" onClick={() => setSheet('delete')}><div className="opf-menu-ic opf-danger" style={{ background: 'color-mix(in srgb, var(--danger) 14%, transparent)' }}><Icon name="trash" size={19} color="var(--danger)" stroke={2.2} /></div> <span style={{ color: 'var(--danger)', fontWeight: 700 }}>Διαγραφή έργου</span></button>
         </Sheet>
 
         {/* reject customer sheet */}
         <Sheet open={sheet === 'reject'} title="Απόρριψη πελάτη" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void rejectCustomer()} style={{ background: 'var(--danger)' }}><Icon name="x" size={18} color="#fff" stroke={2.4} /><span>{busy ? 'Αποστολή…' : 'Αποστολή & απόρριψη'}</span></button>}>
           <div className="opf-req-info"><Icon name="message" size={22} color="var(--danger)" stroke={2} /><span>Στέλνουμε ένα ευγενικό μήνυμα στον πελάτη και σημαίνουμε τον πελάτη ως «Χαμένο».</span></div>
           <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'var(--surface-2, rgba(0,0,0,0.045))', fontSize: 13.5, color: 'var(--ink-2)', lineHeight: 1.5, fontStyle: 'italic' }}>«{REJECT_MESSAGE}»</div>
+        </Sheet>
+
+        {/* delete project sheet */}
+        <Sheet open={sheet === 'delete'} title="Διαγραφή έργου" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void deleteFolder()} style={{ background: 'var(--danger)' }}><Icon name="trash" size={18} color="#fff" stroke={2.2} /><span>{busy ? 'Διαγραφή…' : 'Οριστική διαγραφή'}</span></button>}>
+          <div className="opf-req-info"><Icon name="trash" size={22} color="var(--danger)" stroke={2} /><span>Το έργο θα διαγραφεί οριστικά. Ο σύνδεσμος του πελάτη παύει να ισχύει. Οι προσφορές, τα ραντεβού και τα μηνύματα παραμένουν στο ιστορικό του πελάτη. Η ενέργεια δεν αναιρείται.</span></div>
         </Sheet>
       </div>
     </div>
