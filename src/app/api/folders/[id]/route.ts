@@ -329,3 +329,53 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: 'folder_update_failed' }, { status: 500 });
   }
 }
+
+// ---------------------------------------------------------------------------
+// DELETE /api/folders/[id] — permanently delete one Έργο (work folder).
+// Business-scoped (a folder from another business resolves as 404 → never touched).
+// FK constraints handle dependents (migration 046/048/054): customer_folder_tokens +
+// next_actions are ON DELETE CASCADE (removed with the folder); offers / tasks /
+// communications / intake + upload tokens / payment_requests are ON DELETE SET NULL
+// (kept and simply unlinked — they remain in the customer's history). So a single
+// scoped delete is safe and cannot be blocked by a FK. Raw DB errors are never returned.
+// ---------------------------------------------------------------------------
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
+
+  try {
+    const { id: folderId } = await params;
+
+    // Confirm it exists AND belongs to this business, so we 404 instead of
+    // silently succeeding on a missing folder or one owned by someone else.
+    const { data: existing, error: findErr } = await supabase
+      .from('work_folders')
+      .select('id')
+      .eq('id', folderId)
+      .eq('business_id', businessId)
+      .maybeSingle();
+    if (findErr) {
+      return NextResponse.json({ ok: false, error: 'folder_delete_failed' }, { status: 500 });
+    }
+    if (!existing) {
+      return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
+    }
+
+    const { error: delErr } = await supabase
+      .from('work_folders')
+      .delete()
+      .eq('id', folderId)
+      .eq('business_id', businessId);
+    if (delErr) {
+      return NextResponse.json({ ok: false, error: 'folder_delete_failed' }, { status: 500 });
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch {
+    return NextResponse.json({ ok: false, error: 'folder_delete_failed' }, { status: 500 });
+  }
+}
