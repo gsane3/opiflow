@@ -10,6 +10,8 @@ config per user. For each Opiflow business it:
        OPIFLOW_PJSIP_FILE     one WebRTC endpoint/auth/aor per business (cloned from
                               the known-good `yorgospro001` template),
        OPIFLOW_DIALPLAN_FILE  [opiflow-inbound] mapping each DID -> its biz endpoint,
+                              plus [opiflow-outbound], a Gosub target mapping the
+                              outbound caller-ID (business DID) -> its disclosure clip,
   3. reloads pjsip / dialplan ONLY if a file actually changed.
 
 It NEVER touches the existing trunk / yorgospro001 / groundwire config. Activation
@@ -292,8 +294,9 @@ users.sort(key=lambda t: t[0])
 
 
 # Resolve each business's call-recording disclosure clip ONCE (own-voice WAV synced
-# to SOUNDS_DIR, else the global default). Used by BOTH the pjsip endpoint (outbound
-# A()) and the inbound dialplan (Playback), so the message plays in both directions.
+# to SOUNDS_DIR, else the global default). Used by the inbound dialplan (Playback via
+# [opiflow-inbound]) AND the outbound path ([opiflow-outbound], a Gosub keyed by the
+# business DID), so the message plays in both directions.
 disc_by_username = {}
 for (_u, _pw, _did) in users:
     _data_url = disclosure_by_biz.get(biz_by_username.get(_u))
@@ -316,13 +319,32 @@ def did_30form(did):
     return d
 
 
+def did_forms(did):
+    """Every digit form the OUTBOUND caller-ID (the business DID) might take, so the
+    [opiflow-outbound] lookup matches whatever the trunk/Twilio asserts: the canonical
+    30XXXXXXXXXX form (what from-webrtc stamps as ${OPIFLOW_DID} and what the Twilio
+    webhook sends as callerId), its bare local form, and the raw stored digits."""
+    forms = set()
+    d30 = did_30form(did)
+    if d30:
+        forms.add(d30)
+        if d30.startswith("30") and len(d30) > 10:
+            forms.add(d30[2:])
+    d = digits(did)
+    if d:
+        forms.add(d)
+    return forms
+
+
 def pjsip_block(u, pw, did, disc):
     # set_var=OPIFLOW_DID makes the business's own DID available on every channel
     # that originates from this endpoint, so from-webrtc can stamp it as the
-    # outbound caller-ID (PAI/RPID) — per InterTelecom's 30XXXXXXXXXX format.
-    # set_var=OPIFLOW_DISCLOSURE selects this business's call-recording disclosure
-    # clip (own voice, else the global default) so from-webrtc can A()-announce it
-    # to the customer on OUTBOUND calls.
+    # outbound caller-ID (PAI/RPID) — per InterTelecom's 30XXXXXXXXXX format — AND
+    # use it as the [opiflow-outbound] Gosub key to resolve OPIFLOW_DISCLOSURE.
+    # set_var=OPIFLOW_DISCLOSURE is also stamped here, but ONLY the inbound leg (which
+    # originates from this endpoint) inherits it; the OUTBOUND legs enter from-twilio /
+    # from-webrtc off the trunk, so they resolve the clip via the [opiflow-outbound]
+    # lookup instead (keyed by the business DID — see below).
     d30 = did_30form(did)
     return f"""[{u}]
 type=endpoint
@@ -396,6 +418,52 @@ for (u, _pw, did) in users:
             f" same => n,Set(OPIFLOW_DISCLOSURE={disc})\n"
             f" same => n,Goto(from-intertelecom,s,1)\n"
         )
+
+
+# --- generate OUTBOUND disclosure lookup -------------------------------------
+# Outbound legs (technician -> customer) enter the MANUAL from-twilio / from-webrtc
+# contexts off the trunk, so they don't inherit set_var=OPIFLOW_DISCLOSURE from the
+# biz_<hex> endpoint. Those contexts Gosub here with the outbound caller-ID (the
+# business DID — ${OPIFLOW_DID} on the WebRTC path, ${CALLERID(num)} on the Twilio
+# path) to resolve the SAME per-business clip, then Dial with A(${OPIFLOW_DISCLOSURE}).
+# Only own-voice businesses need an explicit entry; every other (and any unrecognised)
+# caller-ID hits the _X. catch-all -> global default. The context is ALWAYS emitted
+# (even with zero own-voice clips) so the Gosub target always exists.
+dp += "\n"
+dp += "; Outbound caller-ID (business DID) -> disclosure clip. Gosub target for the\n"
+dp += "; manual from-twilio / from-webrtc contexts; call it BEFORE the Dial:\n"
+dp += ";   from-webrtc:  same => n,Gosub(opiflow-outbound,${OPIFLOW_DID},1)\n"
+dp += ";   from-twilio:  same => n,Gosub(opiflow-outbound,${CALLERID(num)},1)\n"
+dp += "; then Dial(...,A(${OPIFLOW_DISCLOSURE})). Unrecognised DID -> global default.\n"
+dp += "[opiflow-outbound]\n"
+seen_out = set()
+for (u, _pw, did) in users:
+    disc = disc_by_username.get(u, DISCLOSURE_DEFAULT)
+    if disc == DISCLOSURE_DEFAULT:
+        continue  # default-clip businesses are covered by the catch-all below
+    for f in sorted(did_forms(did)):
+        if f in seen_out:
+            continue
+        seen_out.add(f)
+        dp += (
+            f"exten => {f},1,Set(OPIFLOW_DISCLOSURE={disc})\n"
+            f" same => n,Return()\n"
+        )
+# Catch-all: any DID without an own clip (and any caller-ID we don't recognise) gets
+# the global default, so A(${OPIFLOW_DISCLOSURE}) is never empty after the Gosub.
+# Explicit own-voice keys are always plus-stripped digit forms (did_forms strips '+'),
+# matching the runtime caller-ID this system produces (Twilio callerId is plus-stripped;
+# OPIFLOW_DID = did_30form, no plus). The _+X. catch-all is defense-in-depth: a literal
+# '+' is NOT matched by _X. or s, so without it a (future/foreign) +E.164 caller-ID
+# would Gosub a missing extension and error — this maps it to the default instead.
+dp += (
+    f"exten => _X.,1,Set(OPIFLOW_DISCLOSURE={DISCLOSURE_DEFAULT})\n"
+    f" same => n,Return()\n"
+    f"exten => _+X.,1,Set(OPIFLOW_DISCLOSURE={DISCLOSURE_DEFAULT})\n"
+    f" same => n,Return()\n"
+    f"exten => s,1,Set(OPIFLOW_DISCLOSURE={DISCLOSURE_DEFAULT})\n"
+    f" same => n,Return()\n"
+)
 
 
 # --- dry run: print and exit --------------------------------------------------
