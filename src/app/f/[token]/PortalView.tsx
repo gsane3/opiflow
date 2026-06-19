@@ -177,23 +177,25 @@ function PaymentBlock({ token, payment, biz }: { token: string; payment: Payment
 
 // ── OFFER sheet ──────────────────────────────────────────────────────────────
 function OfferSheet({
-  open, onClose, token, offer, payments, biz, accepted, onAccepted, onAsk,
+  open, onClose, token, offer, payments, biz, accepted, rejected, onAccepted, onRejected, onAsk,
 }: {
   open: boolean; onClose: () => void; token: string; offer: Offer | null; payments: Payment[]; biz: Biz;
-  accepted: boolean; onAccepted: () => void; onAsk: () => void;
+  accepted: boolean; rejected: boolean; onAccepted: () => void; onRejected: () => void; onAsk: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
 
-  async function accept() {
+  async function respond(response: 'accepted' | 'rejected') {
     if (!offer) return;
     setBusy(true); setError(false);
     try {
       const res = await fetch(`/api/f/${encodeURIComponent(token)}/offer/${offer.id}/accept`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response: 'accepted' }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ response }),
       });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean };
-      if (res.ok && j?.ok) onAccepted(); else setError(true);
+      if (res.ok && j?.ok) { if (response === 'accepted') onAccepted(); else onRejected(); }
+      else setError(true);
     } catch { setError(true); } finally { setBusy(false); }
   }
 
@@ -223,13 +225,35 @@ function OfferSheet({
                 </p>
               )}
             </>
-          ) : offer.canAccept ? (
-            <div className="opf-portal-btns">
-              <button className="opf-portal-accept opf-press" onClick={() => void accept()} disabled={busy}>
-                <OpfIcon name="check" size={18} color="#fff" stroke={2.4} /> {busy ? 'Γίνεται…' : 'Αποδοχή'}
-              </button>
-              <button className="opf-portal-ghost opf-press" onClick={onAsk}>Έχω απορία</button>
+          ) : rejected ? (
+            <div className="opf-accepted-tag" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>
+              <OpfIcon name="x" size={16} color="var(--muted)" stroke={2.4} /> Η προσφορά απορρίφθηκε
             </div>
+          ) : offer.canAccept ? (
+            !confirmReject ? (
+              <>
+                <div className="opf-portal-btns">
+                  <button className="opf-portal-accept opf-press" onClick={() => void respond('accepted')} disabled={busy}>
+                    <OpfIcon name="check" size={18} color="#fff" stroke={2.4} /> {busy ? 'Γίνεται…' : 'Αποδοχή'}
+                  </button>
+                  <button className="opf-portal-ghost opf-press" onClick={onAsk}>Έχω απορία</button>
+                </div>
+                <button className="opf-press" onClick={() => setConfirmReject(true)} disabled={busy}
+                  style={{ display: 'block', width: '100%', marginTop: 10, padding: '10px', background: 'transparent', color: 'var(--danger)', fontWeight: 700, fontSize: 13.5, borderRadius: 12 }}>
+                  Απόρριψη προσφοράς
+                </button>
+              </>
+            ) : (
+              <div style={{ marginTop: 4 }}>
+                <p style={{ fontSize: 14, color: 'var(--ink-2)', marginBottom: 10 }}>Σίγουρα θέλετε να απορρίψετε την προσφορά;</p>
+                <div className="opf-portal-btns">
+                  <button className="opf-portal-accept opf-press" onClick={() => void respond('rejected')} disabled={busy} style={{ background: 'var(--danger)' }}>
+                    <OpfIcon name="x" size={18} color="#fff" stroke={2.4} /> {busy ? 'Γίνεται…' : 'Ναι, απόρριψη'}
+                  </button>
+                  <button className="opf-portal-ghost opf-press" onClick={() => setConfirmReject(false)} disabled={busy}>Άκυρο</button>
+                </div>
+              </div>
+            )
           ) : (
             <div className="opf-accepted-tag" style={{ background: 'var(--surface-2)', color: 'var(--muted)' }}>{offer.statusLabel}</div>
           )}
@@ -470,13 +494,17 @@ export default function PortalView({ token, view }: { token: string; view: Publi
   const appt = view.appointments[0] ?? null;
 
   const [offerAccepted, setOfferAccepted] = useState<boolean>(primaryOffer?.accepted ?? false);
+  // Local reject flag — a server-rejected offer already has canAccept=false (so no
+  // nag on reload); this only suppresses the «Ελέγξτε» nag immediately after the
+  // customer rejects this session.
+  const [offerRejected, setOfferRejected] = useState<boolean>(false);
   // Seed from the server so a confirmed appointment stays «Έγινε» after reload.
   const [apptConfirmed, setApptConfirmed] = useState<boolean>(appt?.confirmed ?? false);
 
   const paymentOutstanding = view.payments.some((p) => p.status !== 'confirmed');
 
   // ── tile state ──
-  const offerReview = !!(primaryOffer && primaryOffer.canAccept && !offerAccepted);
+  const offerReview = !!(primaryOffer && primaryOffer.canAccept && !offerAccepted && !offerRejected);
   let offerBadge: { t: string; tone: 'brand' | 'warn' | 'ok' } | null = null;
   if (primaryOffer) {
     if (offerReview) offerBadge = { t: 'Ελέγξτε', tone: 'brand' };
@@ -570,7 +598,7 @@ export default function PortalView({ token, view }: { token: string; view: Publi
 
       {/* bottom sheets */}
       <OfferSheet open={sheet === 'offer'} onClose={() => setSheet(null)} token={token} offer={primaryOffer} payments={view.payments} biz={biz}
-        accepted={offerAccepted} onAccepted={() => setOfferAccepted(true)} onAsk={() => setSheet('chat')} />
+        accepted={offerAccepted} rejected={offerRejected} onAccepted={() => setOfferAccepted(true)} onRejected={() => setOfferRejected(true)} onAsk={() => setSheet('chat')} />
       <ApptSheet open={sheet === 'appt'} onClose={() => setSheet(null)} token={token} appt={appt} locationLabel={view.locationLabel}
         confirmed={apptConfirmed} onConfirmed={() => setApptConfirmed(true)} />
       <FilesSheet open={sheet === 'files'} onClose={() => setSheet(null)} token={token} />
