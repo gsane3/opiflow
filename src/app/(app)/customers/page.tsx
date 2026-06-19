@@ -195,6 +195,13 @@ export default function CustomersPage() {
   const hasImported = customers.some((c) => importedIds.has(c.id));
   const visibleCustomers = hideImported ? customers.filter((c) => !importedIds.has(c.id)) : customers;
 
+  // Selected-row tick for the «Ταξινόμηση & φίλτρα» sheet.
+  const checkIcon = (
+    <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={2.2} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+    </svg>
+  );
+
   // The label of an active "advanced" filter (one not shown as a primary chip),
   // surfaced as a removable active chip so it stays visible.
   const activeAdvancedLabel = ADVANCED_FILTERS.find((f) => f.value === quickFilter)?.label ?? null;
@@ -363,43 +370,18 @@ export default function CustomersPage() {
             </button>
           )}
 
+          {/* Sort + view options live in the sheet to keep this row simple (B6). */}
           <button
             type="button"
             onClick={() => setMoreFiltersOpen(true)}
-            className="min-h-[40px] rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-4 py-1.5 text-sm font-medium text-zinc-700 dark:text-zinc-200 transition active:scale-[0.97] hover:bg-zinc-200 dark:hover:bg-white/10"
+            className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full bg-zinc-100 px-4 py-1.5 text-sm font-medium text-zinc-700 transition active:scale-[0.97] hover:bg-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-200 dark:hover:bg-white/10"
           >
-            Περισσότερα φίλτρα
+            <svg className="h-4 w-4" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M6 12h12m-9 5.25h6" />
+            </svg>
+            Ταξινόμηση & φίλτρα
+            {(sortByName || hideImported) && <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-600" />}
           </button>
-
-          {/* U7 — alphabetical (Α–Ω) toggle. */}
-          <button
-            type="button"
-            onClick={() => setSortByName((v) => !v)}
-            aria-pressed={sortByName}
-            className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
-              sortByName
-                ? 'bg-indigo-600 text-white'
-                : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/10'
-            }`}
-          >
-            Αλφαβητικά Α–Ω
-          </button>
-
-          {/* U6 — hide phone-imported contacts (shown only when some exist). */}
-          {hasImported && (
-            <button
-              type="button"
-              onClick={() => setHideImported((v) => !v)}
-              aria-pressed={hideImported}
-              className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
-                hideImported
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/10'
-              }`}
-            >
-              Απόκρυψη επαφών κινητού
-            </button>
-          )}
         </div>
       </div>
 
@@ -483,18 +465,47 @@ export default function CustomersPage() {
         </>
       )}
 
-      {/* "Περισσότερα φίλτρα" sheet */}
+      {/* Ταξινόμηση & φίλτρα sheet */}
       <BottomSheet
         open={moreFiltersOpen}
         onClose={() => setMoreFiltersOpen(false)}
-        title="Περισσότερα φίλτρα"
-        description="Διάλεξε κατάσταση πελάτη"
+        title="Ταξινόμηση & φίλτρα"
       >
+        <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Ταξινόμηση</p>
+        <div className="space-y-1">
+          <SheetRow
+            label="Πιο πρόσφατοι πρώτα"
+            trailing={!sortByName ? checkIcon : undefined}
+            onClick={() => { setSortByName(false); setMoreFiltersOpen(false); }}
+          />
+          <SheetRow
+            label="Αλφαβητικά (Α–Ω)"
+            trailing={sortByName ? checkIcon : undefined}
+            onClick={() => { setSortByName(true); setMoreFiltersOpen(false); }}
+          />
+        </div>
+
+        {hasImported && (
+          <>
+            <p className="mt-4 px-1 pb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Προβολή</p>
+            <div className="space-y-1">
+              <SheetRow
+                label="Απόκρυψη επαφών κινητού"
+                description="Κρύψε επαφές που εισήχθησαν από το βιβλίο διευθύνσεων"
+                trailing={hideImported ? checkIcon : undefined}
+                onClick={() => setHideImported((v) => !v)}
+              />
+            </div>
+          </>
+        )}
+
+        <p className="mt-4 px-1 pb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Κατάσταση</p>
         <div className="space-y-1">
           {ADVANCED_FILTERS.map((f) => (
             <SheetRow
               key={f.value}
               label={f.label}
+              trailing={quickFilter === f.value ? checkIcon : undefined}
               onClick={() => {
                 setQuickFilter(f.value);
                 setMoreFiltersOpen(false);
