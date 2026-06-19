@@ -17,7 +17,7 @@ export default function PrivacyPage() {
         <div className="mt-8 space-y-7 text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-200">
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Υπεύθυνος επεξεργασίας</h2>
-            <p>Opiflow. Επικοινωνία για θέματα προσωπικών δεδομένων: <a href="mailto:privacy@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">privacy@opiflow.ai</a>.</p>
+            <p>Υπεύθυνος επεξεργασίας για τα δεδομένα του λογαριασμού σας είναι η <b>Αντιπλημμυρικά Ελλάδος ΙΚΕ</b> (ΓΕΜΗ 194339601000, ΑΦΜ 803311450), Μάρκου Μπότσαρη 84 &amp; Κύπρου, 122 41 Αιγάλεω, Αθήνα. Επικοινωνία για θέματα προσωπικών δεδομένων: <a href="mailto:info@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">info@opiflow.ai</a>.</p>
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Τι δεδομένα συλλέγουμε</h2>
@@ -34,7 +34,7 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Τρίτοι πάροχοι (υπο‑εκτελούντες)</h2>
-            <p>Χρησιμοποιούμε αξιόπιστους παρόχους αποκλειστικά για τη λειτουργία: Supabase (βάση/αποθήκευση), Anthropic & OpenAI (AI), Apifon (Viber), Resend (email), πάροχο τηλεφωνίας/SIP, και πάροχο φιλοξενίας. Δεν πουλάμε δεδομένα.</p>
+            <p>Χρησιμοποιούμε αξιόπιστους παρόχους αποκλειστικά για τη λειτουργία: Supabase (βάση & αποθήκευση), Anthropic, OpenAI & Deepgram (τεχνητή νοημοσύνη & μεταγραφή φωνής), Apifon (Viber/SMS), Twilio και τον πάροχο τηλεφωνικών γραμμών (τηλεφωνία), Vercel (φιλοξενία) και Sentry (παρακολούθηση σφαλμάτων). Δεν πουλάμε δεδομένα.</p>
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Διατήρηση</h2>
@@ -42,15 +42,12 @@ export default function PrivacyPage() {
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Τα δικαιώματά σας (GDPR)</h2>
-            <p>Έχετε δικαίωμα πρόσβασης, διόρθωσης, διαγραφής, φορητότητας (εξαγωγή), περιορισμού και εναντίωσης. Η εξαγωγή πελατών είναι διαθέσιμη μέσα στην εφαρμογή (Ρυθμίσεις → Δεδομένα). Για διαγραφή λογαριασμού & δεδομένων επικοινωνήστε στο <a href="mailto:privacy@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">privacy@opiflow.ai</a>. Έχετε επίσης δικαίωμα καταγγελίας στην Αρχή Προστασίας Δεδομένων Προσωπικού Χαρακτήρα.</p>
+            <p>Έχετε δικαίωμα πρόσβασης, διόρθωσης, διαγραφής, φορητότητας (εξαγωγή), περιορισμού και εναντίωσης. Η εξαγωγή πελατών είναι διαθέσιμη μέσα στην εφαρμογή (Ρυθμίσεις → Δεδομένα). Για διαγραφή λογαριασμού & δεδομένων επικοινωνήστε στο <a href="mailto:info@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">info@opiflow.ai</a>. Έχετε επίσης δικαίωμα καταγγελίας στην Αρχή Προστασίας Δεδομένων Προσωπικού Χαρακτήρα (dpa.gr).</p>
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">Ασφάλεια</h2>
             <p>Εφαρμόζουμε κρυπτογράφηση κατά τη μεταφορά και στην αποθήκευση, απομόνωση δεδομένων ανά επιχείρηση και έλεγχο πρόσβασης. Καμία μέθοδος δεν είναι 100% ασφαλής, αλλά λαμβάνουμε εύλογα μέτρα.</p>
           </section>
-          <p className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3 text-xs text-zinc-400 dark:text-zinc-500">
-            Το παρόν κείμενο είναι πρότυπο και πρέπει να ελεγχθεί από νομικό σύμβουλο/DPO πριν τη δημόσια κυκλοφορία.
-          </p>
         </div>
       </div>
     </main>

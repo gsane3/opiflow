@@ -14,6 +14,12 @@ export default function TermsPage() {
         <h1 className="mt-6 text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">Όροι Χρήσης</h1>
         <p className="mt-2 text-sm text-zinc-400 dark:text-zinc-500">Τελευταία ενημέρωση: Ιούνιος 2026</p>
 
+        <div className="mt-5 rounded-2xl border border-zinc-200 dark:border-[#26374a] bg-zinc-50 dark:bg-[#16222e] px-4 py-3 text-[13.5px] leading-relaxed text-zinc-600 dark:text-zinc-300">
+          <b className="text-zinc-900 dark:text-zinc-100">Πάροχος υπηρεσίας:</b> Αντιπλημμυρικά Ελλάδος ΙΚΕ · ΓΕΜΗ 194339601000 · ΑΦΜ 803311450<br />
+          Έδρα: Μάρκου Μπότσαρη 84 &amp; Κύπρου, 122 41 Αιγάλεω, Αθήνα<br />
+          Επικοινωνία: <a href="mailto:info@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">info@opiflow.ai</a>
+        </div>
+
         <div className="mt-8 space-y-7 text-[15px] leading-relaxed text-zinc-700 dark:text-zinc-200">
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">1. Η υπηρεσία</h2>
@@ -33,7 +39,12 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">5. Συνδρομή & χρεώσεις</h2>
-            <p>Η πρόσβαση μπορεί να απαιτεί συνδρομή. Οι χρεώσεις, η ανανέωση και η ακύρωση περιγράφονται κατά την εγγραφή. Η χρήση τηλεφωνίας και μηνυμάτων ενδέχεται να χρεώνεται βάσει κατανάλωσης.</p>
+            <p>Η πρόσβαση στην υπηρεσία παρέχεται με μηνιαία συνδρομή ανά επιχείρηση:</p>
+            <ul className="mt-2 ml-4 list-disc space-y-1">
+              <li><b>Βασικό:</b> 24,95€ + ΦΠΑ 24% τον μήνα (30,94€ με ΦΠΑ) — διαχείριση πελατών, προσφορές, ραντεβού, αιτήματα στοιχείων/φωτογραφιών και αυτοματισμοί.</li>
+              <li><b>Με Τηλεφωνία:</b> 39,95€ + ΦΠΑ 24% τον μήνα (49,54€ με ΦΠΑ) — όλα τα παραπάνω και επαγγελματικό τηλέφωνο, κλήσεις και αυτόματη σύνοψη κλήσεων με AI.</li>
+            </ul>
+            <p className="mt-2">Οι τιμές αναγράφονται χωρίς ΦΠΑ· προστίθεται ΦΠΑ 24%. Η συνδρομή <b>ανανεώνεται αυτόματα κάθε μήνα</b> μέχρι να την ακυρώσετε. Μπορείτε να ακυρώσετε οποτεδήποτε από τις Ρυθμίσεις ή με email στο <a href="mailto:info@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">info@opiflow.ai</a>· η ακύρωση ισχύει στο τέλος της τρέχουσας περιόδου χρέωσης. Έχετε δικαίωμα <b>υπαναχώρησης εντός 14 ημερών</b> από την έναρξη της συνδρομής. Ο τρόπος πληρωμής ορίζεται κατά την εγγραφή. Η χρήση τηλεφωνίας και μηνυμάτων ενδέχεται να χρεώνεται επιπλέον βάσει κατανάλωσης.</p>
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">6. AI</h2>
@@ -49,11 +60,12 @@ export default function TermsPage() {
           </section>
           <section>
             <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">9. Επικοινωνία</h2>
-            <p>Για ερωτήσεις: <a href="mailto:support@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">support@opiflow.ai</a>.</p>
+            <p>Για ερωτήσεις: <a href="mailto:info@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">info@opiflow.ai</a>.</p>
           </section>
-          <p className="rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3 text-xs text-zinc-400 dark:text-zinc-500">
-            Το παρόν κείμενο είναι πρότυπο και πρέπει να ελεγχθεί από νομικό σύμβουλο πριν τη δημόσια κυκλοφορία.
-          </p>
+          <section>
+            <h2 className="mb-1.5 text-lg font-semibold text-zinc-900 dark:text-zinc-100">10. Εφαρμοστέο δίκαιο</h2>
+            <p>Οι παρόντες όροι διέπονται από το ελληνικό δίκαιο. Για κάθε διαφορά αρμόδια είναι τα δικαστήρια των Αθηνών.</p>
+          </section>
         </div>
       </div>
     </main>

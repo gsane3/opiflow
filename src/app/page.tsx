@@ -287,7 +287,10 @@ export default function LandingPage() {
             <Link href="/privacy" className="transition hover:text-zinc-800">Απόρρητο</Link>
             <Link href="/terms" className="transition hover:text-zinc-800">Όροι χρήσης</Link>
           </div>
-          <p className="text-xs text-zinc-400">© 2026 opiflow.ai</p>
+          <p className="text-center text-xs leading-relaxed text-zinc-400 sm:text-right">
+            © 2026 opiflow.ai<br />
+            Αντιπλημμυρικά Ελλάδος ΙΚΕ · ΑΦΜ 803311450 · ΓΕΜΗ 194339601000
+          </p>
         </div>
       </footer>
     </div>
