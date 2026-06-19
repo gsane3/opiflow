@@ -7,7 +7,6 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { Offer, OfferStatus, Task, Customer, BusinessProfile } from '@/lib/types';
 import { fmtEur, lineTotal } from '@/lib/offer-calculations';
 import OfferStatusBadge, { OFFER_STATUS_LABELS } from './OfferStatusBadge';
-import SendOfferLink from './SendOfferLink';
 import OfferAcceptanceDemoSection from './OfferAcceptanceDemoSection';
 import DemoStepBanner from '@/components/common/DemoStepBanner';
 import GuidedDemoBanner from '@/components/common/GuidedDemoBanner';
@@ -1006,24 +1005,9 @@ export default function OfferPreview({ offerId }: Props) {
         )}
       </section>
 
-      {/* Send the acceptance link via Viber/SMS with an editable message */}
-      {loadedFromBackend && (
-        <SendOfferLink
-          offerId={offer.id}
-          bp={bp}
-          onSent={() =>
-            setOffer((o) =>
-              o
-                ? {
-                    ...o,
-                    status: o.status === 'draft' || o.status === 'ready_to_send' ? 'sent_manually' : o.status,
-                    updatedAt: new Date().toISOString(),
-                  }
-                : o,
-            )
-          }
-        />
-      )}
+      {/* Offers are now sent to the customer from inside the Έργο (work folder) via
+          its portal link, so the old standalone "send offer link" panel was removed
+          here — opening an offer just shows the offer, no redundant send menu. */}
 
       {/* Acceptance demo - only for demo/local offers */}
       {!loadedFromBackend && (
