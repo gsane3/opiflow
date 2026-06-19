@@ -28,13 +28,13 @@
 - [x] **A6 · #16** «Καρφίτσωμα» πελάτη: ταξινόμηση pinned-first σε επίπεδο **DB** (όχι in-memory στη σελίδα) → οι καρφιτσωμένοι μένουν στην κορυφή και με σελιδοποίηση. — PR #316
 
 ## 🟡 B — Δικά σου features
-- [ ] **B1 · U4 · M** 👤 Αρχική: προτεινόμενες ενέργειες (NBA) όπως στο τσατ. *(dashboard + NextActionCard)*
-- [ ] **B2 · U7 · M** 👤 Επαφές αλφαβητικά + καρτέλα «Χωρίς στοιχεία» στην αρχική. *(customers list + αρχική)*
-- [ ] **B3 · U6 · S** 👤 Ξεχωριστά: επαφές κινητού vs επαφές app. *(customers list badge/filter)*
-- [ ] **B4 · U12 · L** 👤 Ρυθμίσεις σε κατηγορίες/υποκατηγορίες. *(settings shell)*
-- [ ] **B5 · U11 · L** 👤 Premium/branded οθόνη κλήσης (κατά τη διάρκεια). *(native calls.tsx + web in-call)*
-- [ ] **B6 · U3 · L** 👤 Συνέπεια spacing/παραθύρων (πρότυπο «Νέο έργο») + κουμπιά κολλητά στη σελίδα-λινκ. *(global)*
-- [ ] **B7 · #4/U5 · L** 👤 Native εισερχόμενες: απάντηση κλήσης + ειδοποίηση αναπάντητων όταν κλειστή. *(native twilio + ring modal · θέλει build+device test)*
+- [~] **B1 · U4** Αρχική NBA όπως στο τσατ — **DEFER (owner design + perf):** το CAM engine είναι per-folder/customer· business-wide aggregate = N+1 (~7 queries × κάθε folder) + side-effectful persist. Η αρχική ΕΧΕΙ ήδη «Τι πρέπει να γίνει τώρα» (HomeActionChips + NextActionsSection). Χρειάζεται απόφαση: single CAM card για τον top πελάτη ή λίστα; + read-only aggregate για perf.
+- [x] **B2 · U7** Επαφές **αλφαβητικά** (server `sort=name`, pins-first διατηρείται) + toggle «Αλφαβητικά Α–Ω». Το «Χωρίς στοιχεία» καλύπτεται ήδη από το filter «Αναμονή στοιχείων» (inbound χωρίς όνομα). — PR #317
+- [x] **B3 · U6** Επαφές κινητού vs app: toggle «Απόκρυψη επαφών κινητού» (web parity με native, `importedFromPhone`, εμφανίζεται μόνο όταν υπάρχουν). — PR #317
+- [ ] **B4 · U12 · L** 👤 Ρυθμίσεις σε κατηγορίες/υποκατηγορίες — **DEFER (μεγάλο redesign):** θέλει information-architecture απόφαση του owner (ποιες κατηγορίες/σειρά). *(settings shell)*
+- [ ] **B5 · U11 · L** 👤 Premium/branded οθόνη κλήσης — **DEFER (design + device):** native calls.tsx + web in-call· θέλει εικαστική κατεύθυνση + δοκιμή σε συσκευή.
+- [ ] **B6 · U3 · L** 👤 Συνέπεια spacing/παραθύρων — **DEFER (global design pass):** ο web `/customers` list είναι ακόμη Tailwind ενώ το προφίλ/έργο είναι opf-prototype· χρειάζεται ενιαία απόφαση migration.
+- [ ] **B7 · #4/U5 · L** 👤 Native εισερχόμενες κλήσεις — **DEFER (owner/device):** θέλει build + δοκιμή σε συσκευή + Twilio Android FCM push credential (O-item).
 
 ## 🟢 Γ — Polish / μικρότερα (από τον έλεγχο)
 - [ ] **Γ1 · #25 · S** Απόρριψη προσφοράς από πελάτη / σταμάτημα «Ελέγξτε» nag.
