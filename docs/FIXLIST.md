@@ -25,7 +25,7 @@
 - [x] **A3 · #12** «Νέο έργο»: διορθωμένο copy (web+native) — δεν υπόσχεται αυτόματο SMS· ο σύνδεσμος στέλνεται από το έργο. — PR #313
 - [x] **A4 · #13/#14** Owner ενέργειες: error toast σε κάθε αποτυχία (ProjectProcess) + loading/error/not-found οθόνη στο προφίλ (CustomerProfile) — όχι πια σιωπηλές αποτυχίες / κενό «Πελάτης». — PR #314
 - [~] **A5 · U9/#9/#8** SMS: ο κώδικας (apifon-sms/viber) **ελέγχθηκε — σωστός** (mirrors το working Viber). Προστέθηκε privacy-safe logging της απόρριψης Apifon + οδηγός `docs/APIFON_SMS_LIVE_TEST.md`. — PR #315 · **⏳ μένει: ζωντανή δοκιμή με owner creds** (βλ. O-items) + recording webhook (PBX-config, owner).
-- [ ] **A6 · #16 · S** «Καρφίτσωμα» πελάτη χαλάει στη σελιδοποίηση. *(customers/route.ts)*
+- [x] **A6 · #16** «Καρφίτσωμα» πελάτη: ταξινόμηση pinned-first σε επίπεδο **DB** (όχι in-memory στη σελίδα) → οι καρφιτσωμένοι μένουν στην κορυφή και με σελιδοποίηση. — PR #316
 
 ## 🟡 B — Δικά σου features
 - [ ] **B1 · U4 · M** 👤 Αρχική: προτεινόμενες ενέργειες (NBA) όπως στο τσατ. *(dashboard + NextActionCard)*
