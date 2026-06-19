@@ -26,6 +26,8 @@ export interface Customer {
   pinned?: boolean;
   /** Imported from the phone address book (#9) — hideable in the list. */
   importedFromPhone?: boolean;
+  /** A call happened and the intake request is still unfilled → floats to the top. */
+  needsIntake?: boolean;
 }
 
 export interface Task {

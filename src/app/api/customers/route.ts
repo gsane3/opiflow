@@ -135,8 +135,15 @@ function dbToCustomer(row: CustomerRow) {
     memoryUpdatedAt: row.memory_updated_at,
     pinned: row.pinned ?? false,
     importedFromPhone: row.imported_from_phone ?? false,
+    // #2: a call happened and the customer still hasn't filled their details
+    // (intake request sent, awaiting). Set per-list in GET; default false here.
+    needsIntake: false,
   };
 }
+
+// Intake states that mean "we asked for details after a call and they haven't
+// been filled yet" — these contacts float to the very top of the list.
+const NEEDS_INTAKE_STATES = ['waiting_sms', 'reminder_sent'];
 
 // Cast helper: routes Supabase's untyped query result through unknown to CustomerRow.
 // Required because .select(stringVar) returns GenericStringError without a DB schema type.
@@ -255,7 +262,35 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'customers_query_failed' }, { status: 500 });
     }
 
-    const customers = ((data ?? []) as unknown[]).map((row) => dbToCustomer(asCustomerRow(row)));
+    let customers = ((data ?? []) as unknown[]).map((row) => dbToCustomer(asCustomerRow(row)));
+
+    // «Λείπουν στοιχεία» pinning (#2): contacts that had a call and were sent an
+    // intake request they still haven't filled float to the very TOP of the list
+    // (above pins + alphabetical), so the owner chases them first. Fetched as a
+    // separate query and prepended on the first page only — these belong on top,
+    // and the set is small. Skipped when a status/awaiting/search filter is active
+    // (those views are intentionally scoped). Tolerant: a pre-intake_status schema
+    // simply yields none.
+    const needsIntakeSet = new Set<string>();
+    if (offset === 0 && !awaiting && !statusParam && !q) {
+      try {
+        const { data: ni, error: niErr } = await supabase
+          .from('customers')
+          .select(CUSTOMER_COLUMNS)
+          .eq('business_id', businessId)
+          .in('intake_status', NEEDS_INTAKE_STATES)
+          .order('created_at', { ascending: false })
+          .limit(50);
+        if (!niErr && Array.isArray(ni) && ni.length > 0) {
+          const niCustomers = (ni as unknown[]).map((row) => dbToCustomer(asCustomerRow(row)));
+          for (const c of niCustomers) needsIntakeSet.add(c.id);
+          customers = [...niCustomers, ...customers.filter((c) => !needsIntakeSet.has(c.id))];
+        }
+      } catch {
+        // intake_status not filterable on an old schema → no needs-info pinning
+      }
+    }
+    for (const c of customers) c.needsIntake = needsIntakeSet.has(c.id);
 
     // Mark the pin flag on the returned rows so the client can render the pin
     // icon. Ordering is already done by the DB query above (pinned first), so we
