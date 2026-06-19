@@ -52,14 +52,17 @@ interface BusinessRow {
   email: string | null;
 }
 
+// Fetch the business by its resolved id (membership-aware via the auth context),
+// NOT by owner_id — otherwise an invited team member loses the business name in
+// the outgoing message and the email "from" address.
 async function getBusiness(
   supabase: SupabaseClient,
-  userId: string
+  businessId: string
 ): Promise<BusinessRow | null> {
   const { data } = await supabase
     .from('businesses')
     .select('id, name, email')
-    .eq('owner_id', userId)
+    .eq('id', businessId)
     .maybeSingle();
   return (data as unknown as BusinessRow | null) ?? null;
 }
@@ -159,7 +162,7 @@ export async function POST(
   const { supabase, userId, businessId } = auth.ctx;
 
   try {
-    const business = await getBusiness(supabase, userId);
+    const business = await getBusiness(supabase, businessId);
     const businessName = business?.name ?? null;
     const businessEmail = business?.email ?? null;
 

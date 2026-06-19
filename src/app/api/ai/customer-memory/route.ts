@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveBusinessContext } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
@@ -46,10 +47,13 @@ async function getBusinessContext(
   supabase: SupabaseClient,
   userId: string
 ): Promise<{ id: string; name: string; type: string } | null> {
+  // Membership-aware (not owner_id) so invited team members get their business.
+  const resolved = await resolveBusinessContext(supabase, userId);
+  if (!resolved) return null;
   const { data } = await supabase
     .from('businesses')
     .select('id, name, type')
-    .eq('owner_id', userId)
+    .eq('id', resolved.businessId)
     .maybeSingle();
   if (!data) return null;
   const row = data as unknown as { id: string; name: string | null; type: string | null };

@@ -41,7 +41,7 @@
 - [ ] **Γ2 · #26 · M** Portal: badge «Στάλθηκαν N φωτογραφίες».
 - [ ] **Γ3 · #29 · S** «Έχω απορία» να φέρει context προσφοράς στο τσατ.
 - [x] **Γ4 · #23** Λήξεις προσφοράς/ραντεβού: `isBeforeToday` συγκρίνει πλέον με την ημέρα **Αθήνας** (Intl/Europe/Athens, DST-correct), όχι UTC. — PR #318
-- [ ] **Γ5 · #45 · M** Routes που λύνουν business με owner_id → χαλάνε για προσκεκλημένα μέλη.
+- [x] **Γ5 · #45** Routes που έλυναν business με `owner_id` → τώρα membership-aware: `phone/browser-token` (κλήσεις!), `ai/customer-memory`, `number-requests` (resolveBusinessContext)· upload/intake/appointment-link φέρνουν το business by id. — PR #319
 - [ ] **Γ6 · #32 · S** Presence toggle «Σύντομα» — ξεκαθάρισμα (το DND ήδη ισχύει).
 - [ ] **Γ7 · #30 · S** Native in-call overlay εξαφανίζεται στιγμιαία σε αποτυχία.
 - [ ] **Γ8 · #51/#40 · S** Inbound: reject αντί νεκρού `<Say>` · log στο DND fail.

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { resolveBusinessContext } from '@/lib/api/auth';
 
 const ACTIVATION_ALLOWED_STATUSES = ['pending_manual_review', 'trialing', 'active'];
 
@@ -65,20 +66,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
     }
 
-    const { data: business, error: bizError } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('owner_id', user.id)
-      .maybeSingle();
-
-    if (bizError) {
-      return NextResponse.json({ ok: false, error: 'business_query_failed' }, { status: 500 });
-    }
-    if (!business) {
+    // Membership-aware (not owner_id) so invited team members resolve too.
+    const resolved = await resolveBusinessContext(supabase, user.id);
+    if (!resolved) {
       return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
     }
-
-    const biz = business as { id: string };
+    const biz = { id: resolved.businessId };
 
     const { data: reqRow } = await supabase
       .from('phone_number_requests')
@@ -141,10 +134,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'invalid_auth' }, { status: 401 });
     }
 
+    // Membership-aware (not owner_id) so invited team members resolve too.
+    const resolved = await resolveBusinessContext(supabase, user.id);
+    if (!resolved) {
+      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
+    }
     const { data: business, error: bizError } = await supabase
       .from('businesses')
       .select('id, city, business_phone_number')
-      .eq('owner_id', user.id)
+      .eq('id', resolved.businessId)
       .maybeSingle();
 
     if (bizError) {
