@@ -123,6 +123,10 @@ export default function BrowserPhone({
   const [callerInfo, setCallerInfo] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [outboundInput, setOutboundInput] = useState('');
+  // B5 — premium full-screen call overlay: live timer + mute toggle.
+  const [callSeconds, setCallSeconds] = useState(0);
+  const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
 
   // phoneStateRef lets JsSIP event handlers read current state without
   // stale closure captures. Always keep in sync with phoneState.
@@ -644,11 +648,40 @@ export default function BrowserPhone({
     transition('registered');
   }, [transition]);
 
+  // Live call timer while in_call; resets otherwise. Also clears mute on exit.
+  useEffect(() => {
+    if (phoneState !== 'in_call') {
+      setCallSeconds(0);
+      if (mutedRef.current) { mutedRef.current = false; setMuted(false); }
+      return;
+    }
+    setCallSeconds(0);
+    const id = window.setInterval(() => setCallSeconds((s) => s + 1), 1000);
+    return () => window.clearInterval(id);
+  }, [phoneState]);
+
+  // Toggle the local mic track (best-effort; never disrupts the call).
+  const toggleMute = useCallback(() => {
+    const pc = getSessionPc(sessionRef.current);
+    const next = !mutedRef.current;
+    if (pc) {
+      pc.getSenders().forEach((sender) => {
+        if (sender.track && sender.track.kind === 'audio') sender.track.enabled = !next;
+      });
+    }
+    mutedRef.current = next;
+    setMuted(next);
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
 
   const stateLabel = STATE_LABELS[phoneState];
+  // mm:ss for the in-call timer.
+  const callTimer = `${Math.floor(callSeconds / 60)}:${String(callSeconds % 60).padStart(2, '0')}`;
+  const callActive =
+    phoneState === 'incoming_call' || phoneState === 'calling' || phoneState === 'in_call';
 
   const badgeCls =
     phoneState === 'registered'
@@ -680,6 +713,67 @@ export default function BrowserPhone({
     : 'text-indigo-500';
 
   return (
+    <>
+      {/* B5 — premium full-screen call overlay (incoming / outbound ringing / in-call). */}
+      {callActive && (
+        <div className="fixed inset-0 z-[60] flex flex-col bg-brand-gradient text-white pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] motion-safe:animate-[fadeIn_0.2s_ease-out]">
+          {/* Caller block */}
+          <div className="flex flex-1 flex-col items-center justify-center px-8 text-center">
+            <div className={`grid h-28 w-28 place-items-center rounded-full bg-white/15 ring-1 ring-white/25 ${phoneState === 'incoming_call' || phoneState === 'calling' ? 'motion-safe:animate-pulse' : ''}`}>
+              <svg className="h-12 w-12 text-white" fill="none" strokeWidth={1.4} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+              </svg>
+            </div>
+            <p className="mt-7 text-2xl font-bold tracking-tight">{callerInfo ?? outboundInput ?? 'Άγνωστος'}</p>
+            <p className="mt-2 text-sm text-white/75">
+              {phoneState === 'incoming_call' ? 'Εισερχόμενη κλήση' : phoneState === 'calling' ? 'Κλήση…' : callTimer}
+            </p>
+            {phoneState === 'in_call' && recordingEnabled && (
+              <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-red-400" /> Ηχογράφηση — ενημέρωσε τον πελάτη
+              </span>
+            )}
+          </div>
+
+          {/* Controls */}
+          <div className="px-8 pb-12">
+            {phoneState === 'incoming_call' ? (
+              <div className="flex items-center justify-center gap-16">
+                <button type="button" onClick={handleDecline} className="flex flex-col items-center gap-2">
+                  <span className="grid h-16 w-16 place-items-center rounded-full bg-red-500 shadow-lg transition active:scale-95">
+                    <svg className="h-7 w-7 rotate-[135deg] text-white" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
+                  </span>
+                  <span className="text-xs text-white/85">Απόρριψη</span>
+                </button>
+                <button type="button" onClick={handleAnswer} className="flex flex-col items-center gap-2">
+                  <span className="grid h-16 w-16 place-items-center rounded-full bg-green-500 shadow-lg transition active:scale-95">
+                    <svg className="h-7 w-7 text-white" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
+                  </span>
+                  <span className="text-xs text-white/85">Απάντηση</span>
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-center gap-12">
+                {phoneState === 'in_call' && (
+                  <button type="button" onClick={toggleMute} className="flex flex-col items-center gap-2">
+                    <span className={`grid h-14 w-14 place-items-center rounded-full ring-1 ring-white/25 transition active:scale-95 ${muted ? 'bg-white text-[#1a3550]' : 'bg-white/15 text-white'}`}>
+                      <svg className="h-6 w-6" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />{muted && <path strokeLinecap="round" d="M4 4l16 16" />}</svg>
+                    </span>
+                    <span className="text-xs text-white/85">{muted ? 'Άρση σίγασης' : 'Σίγαση'}</span>
+                  </button>
+                )}
+                <button type="button" onClick={handleHangUp} className="flex flex-col items-center gap-2">
+                  <span className="grid h-16 w-16 place-items-center rounded-full bg-red-500 shadow-lg transition active:scale-95">
+                    <svg className="h-7 w-7 rotate-[135deg] text-white" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" /></svg>
+                  </span>
+                  <span className="text-xs text-white/85">{phoneState === 'calling' ? 'Ακύρωση' : 'Τερματισμός'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
       {/* Remote audio stream. Hidden from view. */}
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
@@ -895,5 +989,6 @@ export default function BrowserPhone({
         </div>
       </div>
     </div>
+    </>
   );
 }

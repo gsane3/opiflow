@@ -32,7 +32,7 @@
 - [x] **B2 · U7** Επαφές **αλφαβητικά** (server `sort=name`, pins-first διατηρείται) + toggle «Αλφαβητικά Α–Ω». Το «Χωρίς στοιχεία» καλύπτεται ήδη από το filter «Αναμονή στοιχείων» (inbound χωρίς όνομα). — PR #317
 - [x] **B3 · U6** Επαφές κινητού vs app: toggle «Απόκρυψη επαφών κινητού» (web parity με native, `importedFromPhone`, εμφανίζεται μόνο όταν υπάρχουν). — PR #317
 - [x] **B4 · U12** Ρυθμίσεις σε **κατηγορίες**: «Η επιχείρησή σου» (Επιχείρηση/Τραπεζικά/Κατάλογος) · «Επικοινωνία με πελάτες» (Τηλεφωνία/Πρότυπα/Ωράριο/Ειδοποιήσεις) · «Εφαρμογή» (Εμφάνιση/Δεδομένα) · «Λογαριασμός» + «Επισκόπηση» (Στατιστικά). — PR #323
-- [ ] **B5 · U11 · L** 👤 Premium/branded οθόνη κλήσης — **DEFER (design + device):** native calls.tsx + web in-call· θέλει εικαστική κατεύθυνση + δοκιμή σε συσκευή.
+- [x] **B5 · U11** Premium/branded οθόνη κλήσης (web): full-screen overlay με brand-gradient, μεγάλο avatar, live timer, mute, μεγάλα στρογγυλά κουμπιά Απάντηση/Απόρριψη/Τερματισμός + recording indicator. — PR #326 · *(η native call screen μένει για το device pass — B7)*
 - [x] **B6 · U3** Νέο customers design: card με brand avatar, καθαρή ιεραρχία (όνομα + status + τηλέφωνο) και highlighted «επόμενη ενέργεια»· ο γραμμή φίλτρων απλοποιήθηκε (sort + απόκρυψη κινητού πήγαν στο sheet «Ταξινόμηση & φίλτρα»). — PR #324
 - [ ] **B7 · #4/U5 · L** 👤 Native εισερχόμενες κλήσεις — **DEFER (owner/device):** θέλει build + δοκιμή σε συσκευή + Twilio Android FCM push credential (O-item).
 
