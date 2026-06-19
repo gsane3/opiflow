@@ -59,24 +59,62 @@ app/owner:
 ```
 
 ### Outbound — the customer is the CALLEE, so play it to them on answer
-Add the `A(...)` Dial option to the outbound `Dial()` (technician → customer). `A(x)`
-plays the announcement **to the answering party** (the customer) the moment they
-pick up, before the legs are bridged:
+Outbound legs (technician → customer) enter the `from-twilio` / `from-webrtc`
+contexts **off the trunk**, so they do **not** inherit the `OPIFLOW_DISCLOSURE`
+`set_var` from the business's pjsip endpoint (that only rides the inbound leg). So
+resolve the clip per call by `Gosub`-ing the generated `[opiflow-outbound]` lookup
+(keyed by the outbound caller-ID = the business DID) **before** the `Dial`, then add
+the `A(${OPIFLOW_DISCLOSURE})` option. `A(x)` plays the announcement **to the answering
+party** (the customer) the moment they pick up, before the legs are bridged:
 ```asterisk
-; before:  exten => _X.,n,Dial(SIP/intertelecom/${EXTEN},45,...)
-; after:   exten => _X.,n,Dial(SIP/intertelecom/${EXTEN},45,...A(${OPIFLOW_DISCLOSURE}))
+; resolve OPIFLOW_DISCLOSURE before the Dial (one line per context):
+;   from-webrtc (already stamps CALLERID(num)=${OPIFLOW_DID}):
+ same => n,Gosub(opiflow-outbound,${OPIFLOW_DID},1)
+;   from-twilio (Twilio sends callerId = the business DID):
+ same => n,Gosub(opiflow-outbound,${CALLERID(num)},1)
+
+; then on every outbound Dial, swap the hardcoded default for the resolved var:
+; before:  ...,n,Dial(PJSIP/${EXTEN}@intertelecom,60,...A(opiflow-call-recorded))
+; after:   ...,n,Dial(PJSIP/${EXTEN}@intertelecom,60,...A(${OPIFLOW_DISCLOSURE}))
 ```
-(If the `Dial` already has options, just append `A(${OPIFLOW_DISCLOSURE})` to them —
-options are concatenated, e.g. `tA(${OPIFLOW_DISCLOSURE})`. `OPIFLOW_DISCLOSURE` is
-stamped on each business's pjsip endpoint by the generator — see §5.)
+The `[opiflow-outbound]` context (generated — see §5) has an `_X.` catch-all → the
+global default clip, so the `Gosub` always leaves `OPIFLOW_DISCLOSURE` set (own voice
+for known DIDs, the default for everyone else) and `A(${OPIFLOW_DISCLOSURE})` is never
+empty. If a `Dial` already has options, just append `A(${OPIFLOW_DISCLOSURE})`, e.g.
+`tA(${OPIFLOW_DISCLOSURE})`.
 
 > Use `Playback` (non-interruptible) for the inbound disclosure so it can't be
 > skipped. `A()` on outbound is inherently played in full before bridging.
 
+## 2½. Deploy order (IMPORTANT — do these in sequence)
+
+The outbound `Gosub(opiflow-outbound,…)` only resolves if the generated
+`[opiflow-outbound]` context already exists. That context is written to
+`/etc/asterisk/extensions_opiflow.conf` (`#include`d) **only when the generator is
+re-run on the box** — there is **no cron**. So apply in this order:
+
+1. **Generator first.** Re-run it on the box (it writes the files and reloads only what
+   actually changed):
+   ```bash
+   SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… python3 /opt/opiflow/provision-asterisk.py
+   ```
+   Preview safely first with `--dry-run` (same env; writes nothing).
+2. **Verify the lookup exists:** `asterisk -rx "dialplan show opiflow-outbound"` — you
+   should see the `_X.` / `_+X.` / `s` catch-alls plus one entry per own-voice DID.
+3. **Then** hand-edit `from-twilio` / `from-webrtc` to add the `Gosub` and swap
+   `A(opiflow-call-recorded)` → `A(${OPIFLOW_DISCLOSURE})` (see §2 Outbound). Back up
+   `extensions.conf` first, then `dialplan reload`.
+
+⚠️ If you do step 3 **before** step 1, the `Gosub` targets a missing context and the
+outbound call errors **before** it dials. Always generator-first.
+
 ## 3. Apply + verify (non-disruptive)
 ```bash
 asterisk -rx "dialplan reload"
-asterisk -rx "dialplan show from-intertelecom" | grep -i playback   # confirm it's loaded
+asterisk -rx "dialplan show from-intertelecom" | grep -i playback     # inbound loaded
+asterisk -rx "dialplan show opiflow-outbound"                         # lookup present (catch-all + own-voice DIDs)
+asterisk -rx "dialplan show from-twilio"  | grep -iE 'gosub|A\('      # outbound resolves + announces
+asterisk -rx "dialplan show from-webrtc"  | grep -iE 'gosub|A\('
 ```
 Then make one **test inbound** call and one **test outbound** call and confirm you
 hear the message once, before the conversation connects.
@@ -93,16 +131,24 @@ Each user can record the disclosure in **their own voice** in the app (onboardin
 wizard → «Μήνυμα ηχογράφησης κλήσεων», or Ρυθμίσεις → Τηλεφωνία). It is saved to
 `businesses.recording_disclosure_audio` (migration **055**, a base64 data: URL).
 
-`scripts/provision-asterisk.py` (the cron-driven generator already running on the box)
-then, for each business that has a clip:
+`scripts/provision-asterisk.py` (run **manually** on the box — there is **no cron**;
+re-run it after any new/changed recording) then, for each business that has a clip:
 - decodes + transcodes it with `ffmpeg` to `${OPIFLOW_SOUNDS_DIR}/opiflow-disclosure-<hex>.wav`
   (8 kHz mono PCM; skipped when unchanged via a `.src.sha` sidecar), and
-- stamps `OPIFLOW_DISCLOSURE` = that file (else the global default) on **both** the
-  inbound exten (`[opiflow-inbound]`) and the business's pjsip endpoint (`set_var`).
+- exposes `OPIFLOW_DISCLOSURE` = that file (else the global default) to **both** directions:
+  - **inbound** — set directly on the `[opiflow-inbound]` exten (the leg originates from
+    the business's pjsip endpoint, which also carries the `set_var`), and
+  - **outbound** — via the generated `[opiflow-outbound]` Gosub lookup keyed by the
+    business DID. The `from-twilio` / `from-webrtc` legs enter off the trunk and do **not**
+    inherit the endpoint `set_var`, so they resolve the clip by caller-ID instead. Only
+    own-voice businesses get an explicit entry; `_X.` / `_+X.` catch-alls map every other
+    (and any unrecognised, incl. a leading-`+`) caller-ID to the global default, so the
+    `Gosub` can never miss. **Re-run the generator (see §2½) before adding the live `Gosub`.**
 
-So the two dialplan lines above — `Playback(${OPIFLOW_DISCLOSURE})` (inbound) and
-`A(${OPIFLOW_DISCLOSURE})` (outbound) — play the correct clip in **both directions**
-with **zero per-business dialplan edits**.
+So the dialplan lines above — `Playback(${OPIFLOW_DISCLOSURE})` (inbound) and
+`Gosub(opiflow-outbound,…)` + `A(${OPIFLOW_DISCLOSURE})` (outbound) — play the correct
+clip in **both directions** with **zero per-business dialplan edits** (the one-time
+manual edit adds the `Gosub` + swaps the `A()`; it is global, not per business).
 
 Requirements on the box: `ffmpeg` installed; `${OPIFLOW_SOUNDS_DIR}` (default
 `/var/lib/asterisk/sounds`) writable by the script; and the **global default clip from
