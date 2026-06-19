@@ -8,7 +8,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -86,6 +86,12 @@ export default function ProjectProcessScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Synchronous in-flight guard. setBusy is async, so two rapid taps on a send
+  // button both read busy=false and fire duplicate POSTs (a single send went out
+  // many times). busyRef blocks re-entry at the same tick; setBusy drives the UI.
+  const busyRef = useRef(false);
+  const beginBusy = () => { if (busyRef.current) return false; busyRef.current = true; setBusy(true); return true; };
+  const endBusy = () => { busyRef.current = false; setBusy(false); };
 
   const [sheet, setSheet] = useState<SheetName>(null);
   const [msg, setMsg] = useState('');
@@ -144,8 +150,8 @@ export default function ProjectProcessScreen() {
     ]);
   }
   async function sendDetailsRequest() {
-    setBusy(true);
-    try { if (await post(`/api/customers/${customerId}/intake-link`, { mode: 'send', workFolderId: folderId })) await refresh(); } finally { setBusy(false); }
+    if (!beginBusy()) return;
+    try { if (await post(`/api/customers/${customerId}/intake-link`, { mode: 'send', workFolderId: folderId })) await refresh(); } finally { endBusy(); }
   }
 
   const timeline = useMemo<Item[]>(() => {
@@ -164,11 +170,11 @@ export default function ProjectProcessScreen() {
 
   // ── actions ──
   async function patchFolder(updates: Record<string, unknown>) {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const r = await apiPatch<{ ok?: boolean }>(`/api/folders/${folderId}`, updates);
       if (r?.ok) await refresh();
-    } catch { Alert.alert('Σφάλμα', 'Η ενέργεια απέτυχε.'); } finally { setBusy(false); }
+    } catch { Alert.alert('Σφάλμα', 'Η ενέργεια απέτυχε.'); } finally { endBusy(); }
   }
   async function completeProject() { await patchFolder({ status: 'done' }); setSheet(null); }
 
@@ -183,12 +189,12 @@ export default function ProjectProcessScreen() {
   }
   async function sendMessage() {
     const t = msg.trim(); if (!t) return;
-    setBusy(true);
-    try { if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); void hapticSuccess(); await refresh(); } } finally { setBusy(false); }
+    if (!beginBusy()) return;
+    try { if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); void hapticSuccess(); await refresh(); } } finally { endBusy(); }
   }
   async function sendPhotosRequest() {
-    setBusy(true);
-    try { if (await post(`/api/customers/${customerId}/upload-link`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); } } finally { setBusy(false); }
+    if (!beginBusy()) return;
+    try { if (await post(`/api/customers/${customerId}/upload-link`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); } } finally { endBusy(); }
   }
   const parseNum = (s: string) => Number((s ?? '').replace(',', '.'));
   const offerNet = useMemo(
@@ -207,50 +213,50 @@ export default function ProjectProcessScreen() {
       })
       .filter((it) => it.description && it.unitPrice >= 0);
     if (items.length === 0) { Alert.alert('Προσφορά', 'Συμπλήρωσε τουλάχιστον μία γραμμή (περιγραφή + τιμή).'); return; }
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       if (await post('/api/offers', { customerId, workFolderId: folderId, status: 'ready_to_send', vatRate: Number(oVat) || 0, notes: oNotes.trim() || null, items })) {
         setORows([{ desc: '', qty: '1', price: '' }]); setOVat('24'); setONotes(''); setSheet(null); await refresh();
       }
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
   async function submitAppt() {
     const t = aTitle.trim(); if (!t) { Alert.alert('Ραντεβού', 'Γράψε τίτλο.'); return; }
     const raw = aDate.trim();
     const ymd = !raw ? todayYMD() : /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : dmyToYmd(raw);
     if (!ymd) { Alert.alert('Ημερομηνία', 'Γράψε ημερομηνία ΗΗ-ΜΜ-ΕΕΕΕ.'); return; }
-    setBusy(true);
-    try { if (await post('/api/tasks', { customerId, workFolderId: folderId, title: t, type: 'book_appointment', dueDate: ymd })) { setATitle(''); setADate(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
+    if (!beginBusy()) return;
+    try { if (await post('/api/tasks', { customerId, workFolderId: folderId, title: t, type: 'book_appointment', dueDate: ymd })) { setATitle(''); setADate(''); setSheet(null); await refresh(); } } finally { endBusy(); }
   }
   async function submitPayReq() {
     if (!firstOffer) return;
-    setBusy(true);
-    try { if (await post(`/api/folders/${folderId}/payment-request`, { kind: payKind, pct: payPct, offerId: firstOffer.id })) { setSheet(null); await refresh(); } } finally { setBusy(false); }
+    if (!beginBusy()) return;
+    try { if (await post(`/api/folders/${folderId}/payment-request`, { kind: payKind, pct: payPct, offerId: firstOffer.id })) { setSheet(null); await refresh(); } } finally { endBusy(); }
   }
   async function confirmPayment(id: string, st: 'confirmed' | 'cancelled') {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const r = await apiPatch<{ ok?: boolean }>(`/api/payments/${id}`, { status: st });
       if (r?.ok) await refresh();
-    } catch { Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.'); } finally { setBusy(false); }
+    } catch { Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.'); } finally { endBusy(); }
   }
   async function previewPortal() {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const r = await apiPost<{ ok?: boolean; responseUrl?: string }>(`/api/folders/${folderId}/link`, { mode: 'open' });
       if (r?.ok && r.responseUrl) await WebBrowser.openBrowserAsync(r.responseUrl);
       else Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.');
-    } catch { Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.'); } finally { setBusy(false); }
+    } catch { Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.'); } finally { endBusy(); }
   }
   function rejectCustomer() {
-    setBusy(true);
+    if (!beginBusy()) return;
     void (async () => {
       try {
         await apiPost(`/api/customers/${customerId}/message`, { text: REJECT_MESSAGE }).catch(() => {});
         await apiPatch(`/api/customers/${customerId}`, { status: 'lost' }).catch(() => {});
         setSheet(null);
         router.back();
-      } finally { setBusy(false); }
+      } finally { endBusy(); }
     })();
   }
   // «Διαγραφή έργου» — permanently delete this work folder (customer link + next
@@ -268,7 +274,7 @@ export default function ProjectProcessScreen() {
     );
   }
   async function deleteFolder() {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const r = await apiDelete<{ ok?: boolean }>(`/api/folders/${folderId}`);
       if (r?.ok) router.back();
@@ -281,7 +287,7 @@ export default function ProjectProcessScreen() {
             ? 'Έλεγξε τη σύνδεση.'
             : 'Η διαγραφή απέτυχε.';
       Alert.alert('Σφάλμα', msg);
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
 
   const grossOf = (pct: number) => (firstOffer?.total != null ? Math.round(firstOffer.total * pct) / 100 : 0);

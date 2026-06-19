@@ -107,6 +107,13 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Synchronous in-flight guard. React state updates are async, so two rapid
+  // clicks (or Enter+click) on a send button both read busy=false and fire
+  // duplicate POSTs — this is what caused a single send to go out many times.
+  // busyRef blocks re-entry at the same tick; setBusy still drives the UI.
+  const busyRef = useRef(false);
+  const beginBusy = () => { if (busyRef.current) return false; busyRef.current = true; setBusy(true); return true; };
+  const endBusy = () => { busyRef.current = false; setBusy(false); };
 
   const [sheet, setSheet] = useState<SheetName>(null);
   const [reqPhotos, setReqPhotos] = useState(false);
@@ -190,14 +197,14 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
 
   // ── actions ──────────────────────────────────────────────────────────────
   async function patchFolder(updates: Record<string, unknown>) {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const headers = await authHeaders();
       if (!headers) { fail('Λήξη σύνδεσης. Συνδέσου ξανά.'); return; }
       const res = await fetch(`/api/folders/${folderId}`, { method: 'PATCH', headers, body: JSON.stringify(updates) });
       if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) await refresh();
       else fail('Η ενέργεια απέτυχε. Δοκίμασε ξανά.');
-    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { setBusy(false); }
+    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { endBusy(); }
   }
   // No step/stepper: the project is run «act freely» (parity with native). The
   // public portal does not render progress, and folder.step is no longer written.
@@ -215,57 +222,57 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   }
   async function sendMessage() {
     const t = msg.trim(); if (!t) return;
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); await refresh(); }
       else fail('Το μήνυμα δεν στάλθηκε. Δοκίμασε ξανά.');
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
   async function sendRequest() {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const path = reqPhotos ? 'upload-link' : 'intake-link';
       if (await post(`/api/customers/${customerId}/${path}`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); }
       else fail('Το αίτημα δεν στάλθηκε. Δοκίμασε ξανά.');
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
   async function submitOffer() {
     const desc = oDesc.trim(); const amount = Number(oAmount.replace(',', '.'));
     if (!desc || !isFinite(amount) || amount < 0) { fail('Συμπλήρωσε περιγραφή και έγκυρο ποσό.'); return; }
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       if (await post('/api/offers', { customerId, workFolderId: folderId, items: [{ description: desc, quantity: 1, unitPrice: amount }] })) { setODesc(''); setOAmount(''); setSheet(null); await refresh(); }
       else fail('Η προσφορά δεν στάλθηκε. Δοκίμασε ξανά.');
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
   async function submitAppt() {
     const title = aTitle.trim(); if (!title) { fail('Συμπλήρωσε τίτλο ραντεβού.'); return; }
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       if (await post('/api/tasks', { customerId, workFolderId: folderId, title, type: 'book_appointment', dueDate: aDate || new Date().toISOString().split('T')[0] })) { setATitle(''); setSheet(null); await refresh(); }
       else fail('Το ραντεβού δεν στάλθηκε. Δοκίμασε ξανά.');
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
   async function submitPayReq() {
     if (!firstOffer) return;
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       if (await post(`/api/folders/${folderId}/payment-request`, { kind: payKind, pct: payPct, offerId: firstOffer.id })) { setSheet(null); await refresh(); }
       else fail('Το αίτημα πληρωμής δεν στάλθηκε. Δοκίμασε ξανά.');
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
   async function confirmPayment(id: string, status: 'confirmed' | 'cancelled') {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const headers = await authHeaders();
       if (!headers) { fail('Λήξη σύνδεσης. Συνδέσου ξανά.'); return; }
       const res = await fetch(`/api/payments/${id}`, { method: 'PATCH', headers, body: JSON.stringify({ status }) });
       if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) await refresh();
       else fail('Η ενέργεια πληρωμής απέτυχε. Δοκίμασε ξανά.');
-    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { setBusy(false); }
+    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { endBusy(); }
   }
   async function previewPortal() {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const headers = await authHeaders();
       if (!headers) { fail('Λήξη σύνδεσης. Συνδέσου ξανά.'); return; }
@@ -273,11 +280,11 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; responseUrl?: string };
       if (j?.ok && j.responseUrl) window.open(j.responseUrl, '_blank');
       else fail('Δεν άνοιξε ο σύνδεσμος. Δοκίμασε ξανά.');
-    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { setBusy(false); }
+    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { endBusy(); }
   }
   // «Απόρριψη πελάτη» — polite decline to the customer's link + mark customer «Χαμένος».
   async function rejectCustomer() {
-    setBusy(true);
+    if (!beginBusy()) return;
     try {
       const headers = await authHeaders();
       if (!headers) return;
@@ -286,13 +293,13 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       setSheet(null);
       onChanged?.();
       onClose();
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
   // «Διαγραφή έργου» — permanently delete this work folder. Its customer link +
   // next actions are removed (FK cascade); offers/appointments/messages stay in the
   // customer's history (FK set-null). After success, close and refresh the list.
   async function deleteFolder() {
-    setBusy(true);
+    if (!beginBusy()) return;
     setDelMsg(null);
     try {
       const headers = await authHeaders();
@@ -310,7 +317,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       }
     } catch {
       setDelMsg('Η διαγραφή απέτυχε. Δοκίμασε ξανά.');
-    } finally { setBusy(false); }
+    } finally { endBusy(); }
   }
 
   const f = detail?.folder;
