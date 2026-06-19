@@ -462,42 +462,8 @@ export default function SettingsScreen() {
             </View>
           </ThemedView>
 
-          {/* Τηλεφωνία */}
-          <Section title="Τηλεφωνία" initiallyOpen>
-            <Row label="Ο αριθμός σου" value={biz?.business_phone_number ?? '—'} />
-            <Row label="Τηλέφωνο app (εισερχόμενες)" value={phoneValue} />
-            <PrimaryButton
-              label="Επανασύνδεση τηλεφώνου"
-              tone="outline"
-              onPress={async () => {
-                const { registerForIncoming } = await import('@/lib/twilio');
-                void registerForIncoming();
-              }}
-            />
-            <View style={{ height: 12 }} />
-            <ThemedText type="smallBold">Μήνυμα ηχογράφησης κλήσεων</ThemedText>
-            <ThemedText type="small" themeColor="textSecondary">
-              Ηχογράφησέ το με τη φωνή σου — ακούγεται στον πελάτη πριν από κάθε κλήση.
-            </ThemedText>
-            <PrimaryButton label="Ηχογράφηση τώρα" tone="outline" onPress={() => setDiscModal(true)} />
-            <DisclosureRecorderModal
-              visible={discModal}
-              onClose={(saved) => { setDiscModal(false); if (saved) Alert.alert('✓', 'Το μήνυμα ηχογράφησης αποθηκεύτηκε.'); }}
-            />
-          </Section>
-
-          {/* Εμφάνιση */}
-          <Section title="Εμφάνιση" initiallyOpen>
-            <View style={styles.toggleRow}>
-              <View style={{ flex: 1 }}>
-                <ThemedText type="smallBold">Σκούρο θέμα</ThemedText>
-                <ThemedText type="small" themeColor="textSecondary">
-                  Ακολουθεί το σύστημα αν δεν το αλλάξεις χειροκίνητα.
-                </ThemedText>
-              </View>
-              <Switch value={isDark} onValueChange={setDark} trackColor={{ true: Brand.primary }} />
-            </View>
-          </Section>
+          {/* ───── Η επιχείρησή σου ───── */}
+          <GroupHeader title="Η επιχείρησή σου" />
 
           {/* Επιχείρηση */}
           <Section title="Επιχείρηση">
@@ -605,6 +571,33 @@ export default function SettingsScreen() {
             </ThemedText>
           </Section>
 
+          {/* ───── Επικοινωνία με πελάτες ───── */}
+          <GroupHeader title="Επικοινωνία με πελάτες" />
+
+          {/* Τηλεφωνία */}
+          <Section title="Τηλεφωνία" initiallyOpen>
+            <Row label="Ο αριθμός σου" value={biz?.business_phone_number ?? '—'} />
+            <Row label="Τηλέφωνο app (εισερχόμενες)" value={phoneValue} />
+            <PrimaryButton
+              label="Επανασύνδεση τηλεφώνου"
+              tone="outline"
+              onPress={async () => {
+                const { registerForIncoming } = await import('@/lib/twilio');
+                void registerForIncoming();
+              }}
+            />
+            <View style={{ height: 12 }} />
+            <ThemedText type="smallBold">Μήνυμα ηχογράφησης κλήσεων</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Ηχογράφησέ το με τη φωνή σου — ακούγεται στον πελάτη πριν από κάθε κλήση.
+            </ThemedText>
+            <PrimaryButton label="Ηχογράφηση τώρα" tone="outline" onPress={() => setDiscModal(true)} />
+            <DisclosureRecorderModal
+              visible={discModal}
+              onClose={(saved) => { setDiscModal(false); if (saved) Alert.alert('✓', 'Το μήνυμα ηχογράφησης αποθηκεύτηκε.'); }}
+            />
+          </Section>
+
           {/* Πρότυπα μηνυμάτων */}
           <Section title="Πρότυπα μηνυμάτων" count={snippets.length}>
             {snippets.map((s) => (
@@ -695,6 +688,22 @@ export default function SettingsScreen() {
             <PrimaryButton label="Αποθήκευση" onPress={() => void saveAutomations()} busy={autoBusy} disabled={!autoLoaded} />
           </Section>
 
+          {/* ───── Εφαρμογή ───── */}
+          <GroupHeader title="Εφαρμογή" />
+
+          {/* Εμφάνιση */}
+          <Section title="Εμφάνιση" initiallyOpen>
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">Σκούρο θέμα</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Ακολουθεί το σύστημα αν δεν το αλλάξεις χειροκίνητα.
+                </ThemedText>
+              </View>
+              <Switch value={isDark} onValueChange={setDark} trackColor={{ true: Brand.primary }} />
+            </View>
+          </Section>
+
           {/* Δεδομένα / Ειδοποιήσεις hint */}
           <Section title="Δεδομένα & Ειδοποιήσεις">
             <ThemedText type="small" themeColor="textSecondary">
@@ -702,6 +711,9 @@ export default function SettingsScreen() {
               www.opiflow.ai → Ρυθμίσεις. (Η εισαγωγή επαφών γίνεται από την καρτέλα «Πελάτες».)
             </ThemedText>
           </Section>
+
+          {/* ───── Λογαριασμός ───── */}
+          <GroupHeader title="Λογαριασμός" />
 
           {/* Λογαριασμός */}
           <Section title="Λογαριασμός">
@@ -762,6 +774,13 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
+// Category header (B4 parity with the web settings hub).
+function GroupHeader({ title }: { title: string }) {
+  const c = useTheme();
+  const styles = useMemo(() => makeStyles(c), [c]);
+  return <ThemedText style={styles.groupHeader}>{title}</ThemedText>;
+}
+
 const makeStyles = (c: ThemePalette) =>
   StyleSheet.create({
     container: { flex: 1 },
@@ -769,6 +788,7 @@ const makeStyles = (c: ThemePalette) =>
     kav: { flex: 1 },
     title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.three },
     content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four, gap: Spacing.three },
+    groupHeader: { marginTop: Spacing.two, marginBottom: -Spacing.one, marginLeft: Spacing.one, color: c.textFaint, fontWeight: '700', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
     card: { padding: Spacing.three, borderRadius: 16 },
     profile: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
     avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },

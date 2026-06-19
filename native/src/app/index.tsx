@@ -3,7 +3,6 @@
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -21,7 +20,7 @@ import { CallActionSheet } from '@/components/call-action-sheet';
 import { NotificationsSheet, type NotificationItem } from '@/components/notifications-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, SuccessGradient, type ThemePalette } from '@/constants/theme';
+import { BottomTabInset, Brand, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch } from '@/lib/api';
 import { hapticSuccess } from '@/lib/haptics';
@@ -227,12 +226,12 @@ export default function HomeScreen() {
             <>
               {/* Stats */}
               <View style={styles.statsRow}>
-                <StatCard icon="person-add" label="Νέοι (μήνας)" value={stats.newThisMonth} tone="brand" onPress={() => router.push('/customers/index')} />
-                <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} tone="ink" onPress={() => router.push('/appointments' as never)} />
+                <StatCard icon="person-add" label="Νέοι πελάτες" value={stats.newThisMonth} tone="brand" onPress={() => router.push('/customers/index')} />
+                <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} tone="sky" onPress={() => router.push('/appointments' as never)} />
               </View>
               <View style={styles.statsRow}>
-                <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} tone="warn" onPress={() => router.push('/tasks' as never)} />
-                <StatCard icon="document-text" label="Ανοιχτές προσφορές" value={stats.openOffers} tone="success" onPress={() => router.push('/offers' as never)} />
+                <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} tone="amber" onPress={() => router.push('/tasks' as never)} />
+                <StatCard icon="document-text" label="Προσφορές" value={stats.openOffers} tone="violet" onPress={() => router.push('/offers' as never)} />
               </View>
 
               {/* Today's appointments */}
@@ -396,11 +395,12 @@ export default function HomeScreen() {
   );
 }
 
-const STAT_TONES: Record<string, readonly [string, string]> = {
-  brand: BrandGradient,
-  ink: ['#1A3550', '#11273B'],
-  warn: ['#E0922F', '#B5651A'],
-  success: SuccessGradient,
+// Light-tinted accent chips per metric — parity with the web KPI cards (B1).
+const ACCENT_CHIP: Record<string, { bg: string; fg: string }> = {
+  brand:  { bg: '#E7F0F8', fg: '#2A86C5' }, // customers — water-blue
+  sky:    { bg: '#E6F1FA', fg: '#1E88C5' }, // appointments — sky
+  amber:  { bg: '#FBF1E0', fg: '#E0922F' }, // tasks — amber
+  violet: { bg: '#EEE9FA', fg: '#7C5CCB' }, // offers — violet
 };
 
 function StatCard({
@@ -414,16 +414,17 @@ function StatCard({
   label: string;
   value: number;
   onPress?: () => void;
-  tone?: 'brand' | 'ink' | 'warn' | 'success';
+  tone?: 'brand' | 'sky' | 'amber' | 'violet';
 }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
+  const chip = ACCENT_CHIP[tone];
   return (
     <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.statCardWrap, pressed && styles.pressed]}>
       <View style={styles.statCard}>
-        <LinearGradient colors={[...STAT_TONES[tone]]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.statIcon}>
-          <Ionicons name={icon} size={19} color="#FFFFFF" />
-        </LinearGradient>
+        <View style={[styles.statIcon, { backgroundColor: chip.bg }]}>
+          <Ionicons name={icon} size={20} color={chip.fg} />
+        </View>
         <ThemedText style={styles.statValue}>{value}</ThemedText>
         <ThemedText type="small" themeColor="textSecondary">
           {label}
