@@ -141,9 +141,12 @@ function dbToCustomer(row: CustomerRow) {
   };
 }
 
-// Intake states that mean "we asked for details after a call and they haven't
-// been filled yet" — these contacts float to the very top of the list.
-const NEEDS_INTAKE_STATES = ['waiting_sms', 'reminder_sent'];
+// Intake states that mean "we sent a details request and it isn't filled yet"
+// — these contacts float to the very top of the list. These are the actual DB
+// values (customers.intake_status CHECK): 'sent' = request delivered, 'opened' =
+// the customer opened the link but didn't submit. 'submitted' = done, 'expired'/
+// 'revoked' = soft-expired by the cron → both drop out of this set.
+const NEEDS_INTAKE_STATES = ['sent', 'opened'];
 
 // Cast helper: routes Supabase's untyped query result through unknown to CustomerRow.
 // Required because .select(stringVar) returns GenericStringError without a DB schema type.
