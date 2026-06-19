@@ -53,12 +53,13 @@ export default function CustomersListScreen() {
   const [error, setError] = useState<string | null>(null);
   const [q, setQ] = useState('');
   const [status, setStatus] = useState('');
-  // #9 — hide contacts that were imported from the phone address book.
-  const [hideImported, setHideImported] = useState(false);
-  // U7 parity — alphabetical sort (server ?sort=name). Ref so `load` (dep-free)
-  // reads the current value without re-creating the callback.
-  const [sortByName, setSortByName] = useState(false);
-  const sortByNameRef = useRef(false);
+  // #9 — phone-imported contacts are HIDDEN BY DEFAULT (owner request: app
+  // contacts only); a toggle reveals them.
+  const [hideImported, setHideImported] = useState(true);
+  // U7 parity — alphabetical is the DEFAULT (owner request). Ref so `load`
+  // (dep-free) reads the current value without re-creating the callback.
+  const [sortByName, setSortByName] = useState(true);
+  const sortByNameRef = useRef(true);
   const [addOpen, setAddOpen] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Sequence guard: a slow response for «γ» must not overwrite «γιάννης».
@@ -330,6 +331,11 @@ export default function CustomersListScreen() {
                           ? [item.companyName, phone].filter(Boolean).join(' · ') || '—'
                           : 'Αναμονή στοιχείων'}
                       </ThemedText>
+                      {item.needsIntake ? (
+                        <View style={styles.needsChip}>
+                          <ThemedText style={styles.needsChipText}>Λείπουν στοιχεία</ThemedText>
+                        </View>
+                      ) : null}
                     </View>
                     {item.address ? (
                       <Pressable
@@ -493,6 +499,8 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   mapsBtn: { width: 34, height: 34, borderRadius: 17, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
   nextAction: { flexDirection: 'row', alignItems: 'flex-start', gap: 6, marginTop: Spacing.two, marginLeft: 52, backgroundColor: Brand.primarySoft, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
   nextActionText: { flex: 1, color: Brand.navy },
+  needsChip: { alignSelf: 'flex-start', marginTop: 4, backgroundColor: '#FBE9C7', borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
+  needsChipText: { color: '#9A6200', fontSize: 11, fontWeight: '700' },
   statusDot: { position: 'absolute', right: -1, bottom: -1, width: 12, height: 12, borderRadius: 6, borderWidth: 2, borderColor: c.card },
   retry: { paddingHorizontal: Spacing.four, paddingVertical: Spacing.two, borderRadius: 12, backgroundColor: Brand.primary },
   retryText: { color: Brand.onPrimary, fontWeight: '700' },

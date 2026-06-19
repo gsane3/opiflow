@@ -40,7 +40,11 @@ export default function CustomerCard({ customer }: Props) {
     <div className="relative">
       <Link
         href={`/customers/${customer.id}`}
-        className="group block rounded-3xl bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:shadow-md hover:ring-indigo-300/70 active:scale-[0.99] dark:bg-[#17232f] dark:ring-white/10 dark:hover:ring-indigo-500/40"
+        className={`group block rounded-3xl bg-white p-4 shadow-sm ring-1 transition hover:shadow-md active:scale-[0.99] dark:bg-[#17232f] ${
+          customer.needsIntake
+            ? 'ring-amber-300/80 hover:ring-amber-400 dark:ring-amber-400/40'
+            : 'ring-zinc-200/60 hover:ring-indigo-300/70 dark:ring-white/10 dark:hover:ring-indigo-500/40'
+        }`}
       >
         <div className={`flex items-center gap-3.5 ${hasAddress ? 'pr-11' : ''}`}>
           {/* Brand avatar — initial */}
@@ -54,6 +58,11 @@ export default function CustomerCard({ customer }: Props) {
               {customer.name}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+              {customer.needsIntake && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700 ring-1 ring-amber-200 dark:bg-amber-400/15 dark:text-amber-300 dark:ring-amber-400/30">
+                  Λείπουν στοιχεία
+                </span>
+              )}
               <CustomerStatusBadge status={customer.status} />
               {displayPhone && (
                 <span className="text-xs tabular-nums text-zinc-500 dark:text-zinc-400">

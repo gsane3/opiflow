@@ -28,6 +28,7 @@ interface CustomerDto {
   createdAt: string;
   updatedAt: string;
   importedFromPhone?: boolean | null;
+  needsIntake?: boolean | null;
 }
 
 const VALID_SOURCES: readonly CustomerSource[] = [
@@ -76,6 +77,7 @@ function mapCustomer(dto: CustomerDto): Customer {
     lastContactAt: dto.lastContactAt ?? undefined,
     crmNumber: dto.crmNumber ?? undefined,
     intakeStatus: mapIntakeStatus(dto.intakeStatus),
+    needsIntake: dto.needsIntake ?? false,
   };
 }
 
@@ -117,13 +119,13 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
-  // U7 — alphabetical (Α–Ω) vs the default recency order. Server-side so it is
-  // correct across pagination, not just within the loaded page.
-  const [sortByName, setSortByName] = useState(false);
-  // U6 — distinguish contacts imported from the phone address book from real
-  // app/CRM leads. Mirrors native: a toggle to hide them, shown only when some
-  // exist. Filtering is client-side over the loaded rows (parity with native).
-  const [hideImported, setHideImported] = useState(false);
+  // U7 — alphabetical (Α–Ω) is now the DEFAULT (owner request); toggle to recency.
+  // Server-side so it is correct across pagination, not just within the loaded page.
+  const [sortByName, setSortByName] = useState(true);
+  // U6 — phone-imported contacts are HIDDEN BY DEFAULT (owner request: show app
+  // contacts only). A toggle reveals them; shown only when some exist. Filtering
+  // is client-side over the loaded rows (parity with native).
+  const [hideImported, setHideImported] = useState(true);
   const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [canLoadMore, setCanLoadMore] = useState(false);

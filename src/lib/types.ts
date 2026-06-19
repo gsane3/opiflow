@@ -103,6 +103,11 @@ export interface Customer {
   personalNotes?: string;
   nextBestAction?: string;
   memoryUpdatedAt?: string;
+  // List-view flags returned by GET /api/customers (not stored columns of the same name).
+  pinned?: boolean;
+  importedFromPhone?: boolean;
+  /** A call happened and the intake request is still unfilled → floats to the top. */
+  needsIntake?: boolean;
 }
 
 export type TaskType =
