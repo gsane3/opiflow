@@ -112,6 +112,9 @@ export default function TeamPanel() {
   }, [load]);
 
   const removeMember = useCallback(async (userId: string) => {
+    // Destructive: confirm before revoking a teammate's access (a mis-tap otherwise
+    // silently removes them).
+    if (typeof window !== 'undefined' && !window.confirm('Να αφαιρεθεί η πρόσβαση αυτού του μέλους;')) return;
     const t = await token();
     if (!t) return;
     await fetch('/api/team/members', {

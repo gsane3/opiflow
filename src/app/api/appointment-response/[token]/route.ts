@@ -132,9 +132,12 @@ function mapAppointmentForPublic(task: TaskRow) {
 // ---------------------------------------------------------------------------
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
 ) {
+  const limited = await publicLimiter(request);
+  if (limited) return limited;
+
   const { token: rawToken } = await params;
 
   // Validate token (hashes internally, queries DB with service_role)
