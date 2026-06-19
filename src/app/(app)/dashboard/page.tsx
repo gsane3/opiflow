@@ -107,28 +107,45 @@ function StatCard({
   label,
   value,
   href,
+  icon,
+  accent,
 }: {
   label: string;
   value: number;
   href: string;
+  icon: React.ReactNode;
+  /** Tailwind classes for the icon chip, e.g. 'bg-indigo-50 text-indigo-600'. */
+  accent: string;
 }) {
   return (
     <Link
       href={href}
-      className="flex flex-col justify-between gap-2 rounded-[28px] bg-white dark:bg-[#17232f] px-4 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10 transition active:bg-zinc-50/60 dark:active:bg-white/5"
+      className="group flex flex-col gap-3 rounded-3xl bg-white px-4 py-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:shadow-md hover:ring-indigo-200 active:scale-[0.98] dark:bg-[#17232f] dark:ring-white/10"
     >
-      <span className="text-xs font-medium leading-snug text-zinc-600 dark:text-zinc-300">{label}</span>
-      <div className="flex items-end justify-between">
+      <div className="flex items-center justify-between">
+        <span className={`grid h-10 w-10 place-items-center rounded-2xl ${accent}`}>{icon}</span>
+        <ChevronRight />
+      </div>
+      <div>
         <span
-          className={`text-3xl font-bold leading-none ${
-            value > 0 ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-300 dark:text-zinc-500'
+          className={`block text-3xl font-bold leading-none ${
+            value > 0 ? 'text-zinc-900 dark:text-zinc-100' : 'text-zinc-300 dark:text-zinc-600'
           }`}
         >
           {value}
         </span>
-        <ChevronRight />
+        <span className="mt-1.5 block text-xs font-medium leading-snug text-zinc-600 dark:text-zinc-300">{label}</span>
       </div>
     </Link>
+  );
+}
+
+// Small stat icon helper (keeps the 4-card grid declarations terse).
+function StatIcon({ path }: { path: string }) {
+  return (
+    <svg className="h-5 w-5" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+      <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+    </svg>
   );
 }
 
@@ -470,27 +487,35 @@ export default function DashboardPage() {
       {/* Today's chips: appointments + call-backs (tap → agenda/callback popup) */}
       <HomeActionChips />
 
-      {/* Four simple count cards (2x2 on mobile) */}
+      {/* Four KPI cards (2x2 on mobile) */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <StatCard
           label="Νέοι πελάτες"
           value={newCustomersThisMonth}
           href="/customers"
+          accent="bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300"
+          icon={<StatIcon path="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z" />}
         />
         <StatCard
           label="Να ξαναμιλήσω"
           value={followUpCount}
           href="/tasks"
+          accent="bg-amber-50 text-amber-600 dark:bg-amber-500/15 dark:text-amber-300"
+          icon={<StatIcon path="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />}
         />
         <StatCard
           label="Προσφορές"
           value={openOffers.length}
           href="/offers"
+          accent="bg-violet-50 text-violet-600 dark:bg-violet-500/15 dark:text-violet-300"
+          icon={<StatIcon path="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />}
         />
         <StatCard
           label="Ραντεβού"
           value={pendingApptTasks}
           href="/appointments"
+          accent="bg-sky-50 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300"
+          icon={<StatIcon path="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5" />}
         />
       </div>
 
