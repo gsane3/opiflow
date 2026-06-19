@@ -28,7 +28,7 @@
 - [x] **A6 · #16** «Καρφίτσωμα» πελάτη: ταξινόμηση pinned-first σε επίπεδο **DB** (όχι in-memory στη σελίδα) → οι καρφιτσωμένοι μένουν στην κορυφή και με σελιδοποίηση. — PR #316
 
 ## 🟡 B — Δικά σου features
-- [~] **B1 · U4** Αρχική NBA όπως στο τσατ — **DEFER (owner design + perf):** το CAM engine είναι per-folder/customer· business-wide aggregate = N+1 (~7 queries × κάθε folder) + side-effectful persist. Η αρχική ΕΧΕΙ ήδη «Τι πρέπει να γίνει τώρα» (HomeActionChips + NextActionsSection). Χρειάζεται απόφαση: single CAM card για τον top πελάτη ή λίστα; + read-only aggregate για perf.
+- [x] **B1 · U4** Αρχική design (όχι νέο NBA backend — ο owner ζήτησε μόνο design): premium KPI cards με χρωματιστά icon chips (πελάτες/follow-up/προσφορές/ραντεβού), καθαρότερη ιεραρχία & hover. Η αρχική έχει ήδη «Τι πρέπει να γίνει τώρα» (HomeActionChips + NextActionsSection). — PR #325
 - [x] **B2 · U7** Επαφές **αλφαβητικά** (server `sort=name`, pins-first διατηρείται) + toggle «Αλφαβητικά Α–Ω». Το «Χωρίς στοιχεία» καλύπτεται ήδη από το filter «Αναμονή στοιχείων» (inbound χωρίς όνομα). — PR #317
 - [x] **B3 · U6** Επαφές κινητού vs app: toggle «Απόκρυψη επαφών κινητού» (web parity με native, `importedFromPhone`, εμφανίζεται μόνο όταν υπάρχουν). — PR #317
 - [x] **B4 · U12** Ρυθμίσεις σε **κατηγορίες**: «Η επιχείρησή σου» (Επιχείρηση/Τραπεζικά/Κατάλογος) · «Επικοινωνία με πελάτες» (Τηλεφωνία/Πρότυπα/Ωράριο/Ειδοποιήσεις) · «Εφαρμογή» (Εμφάνιση/Δεδομένα) · «Λογαριασμός» + «Επισκόπηση» (Στατιστικά). — PR #323
