@@ -53,7 +53,7 @@
 ## ⚪ Owner-action / αργότερα
 - [ ] **O1 · #1 · S** Migration: GRANT στο `payment_requests` (να το γράψω, να το τρέξεις στο Supabase).
 - [ ] **O2 · #43** Επιβεβαίωση ότι δεν λείπει migration 049 στη ζωντανή βάση.
-- [ ] **O3 · Migration 055** (own-voice εισερχόμενες) + PBX Part 2 (own-voice εξερχόμενες).
+- [x] **O3 · Migration 055** εφαρμόστηκε ✅ + **PBX Part 2** έτοιμο: ο generator (`/opt/opiflow/provision-asterisk.py`) επιβεβαιώθηκε ότι διαβάζει το disclosure χωρίς σφάλμα (055 applied)· dialplan ήδη `A(${OPIFLOW_DISCLOSURE})` per-business με γενικό fallback. **Ενεργοποίηση own-voice:** owner ηχογραφεί στο Ρυθμίσεις→Τηλεφωνία → re-run generator (no-op μέχρι να υπάρχει recording).
 - [ ] **O4 · Stripe (L6/#2/#3/#5/#6/#7)** Entitlement/trial gate + σωστή τιμή ανά πλάνο + dunning — *όταν ανοίξεις χρεώσεις*.
 - [ ] **O5** Νέο Android build (έχει τα νέα fixes) + δοκιμή σε συσκευή.
 
