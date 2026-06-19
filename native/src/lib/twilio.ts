@@ -2,11 +2,11 @@
 // handlers), never at startup — importing @twilio/voice-react-native-sdk runs a
 // module-level `new NativeEventEmitter(nativeModule)` which crashes release builds
 // if it happens before the native module is ready (i.e. at launch).
-import { Call, Voice } from '@twilio/voice-react-native-sdk';
+import { Call, CallInvite, Voice } from '@twilio/voice-react-native-sdk';
 import { Platform } from 'react-native';
 
 import { apiGet, apiPost } from './api';
-import { type ActiveCall, type CallStatus, setIncomingState } from './twilio-state';
+import { type ActiveCall, type CallStatus, setIncomingState, setIncomingCall } from './twilio-state';
 
 let _voice: Voice | null = null;
 function getVoice(): Voice {
@@ -109,14 +109,81 @@ export async function placeCall(
   };
 }
 
+// Best-effort caller extraction from an invite/call (number or URI user-part).
+function inviteFrom(invite: CallInvite): string | null {
+  try {
+    const f = invite.getFrom();
+    return typeof f === 'string' && f.trim() ? f.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+// Log an answered INBOUND call to the CRM exactly once. The Twilio CallSid lets
+// the recording webhook attach the transcript + AI brief to this row (parity
+// with the outbound logCall in placeCall).
+function logInboundCall(call: Call, from: string | null, status: 'completed' | 'failed') {
+  const sid = (() => { try { return call.getSid(); } catch { return undefined; } })();
+  apiPost('/api/calls/log', {
+    direction: 'inbound',
+    status,
+    phone: from,
+    ...(sid ? { providerCallId: sid } : {}),
+  }).catch((e) => console.log('[twilio] inbound call log failed', e));
+}
+
+// Answer a ringing invite → wire the live Call into the incoming-call state so
+// the modal flips to its in-call view, and log the result to the CRM.
+async function acceptInvite(invite: CallInvite) {
+  const from = inviteFrom(invite);
+  let call: Call;
+  try {
+    call = await invite.accept();
+  } catch (e) {
+    console.log('[twilio] accept invite failed', e);
+    setIncomingCall(null);
+    return;
+  }
+
+  let logged = false;
+  const doLog = (status: 'completed' | 'failed') => {
+    if (logged) return;
+    logged = true;
+    logInboundCall(call, from, status);
+  };
+
+  setIncomingCall({
+    phase: 'connected',
+    from,
+    accept: () => { /* already connected */ },
+    reject: () => { try { void call.disconnect(); } catch { /* ignore */ } },
+    disconnect: () => { try { void call.disconnect(); } catch { /* ignore */ } },
+    mute: (on: boolean) => { try { void call.mute(on); } catch { /* ignore */ } },
+  });
+
+  call.on(Call.Event.Disconnected, () => { doLog('completed'); setIncomingCall(null); });
+  call.on(Call.Event.ConnectFailure, () => { doLog('failed'); setIncomingCall(null); });
+}
+
 let listenersWired = false;
 function wireIncomingListeners() {
   if (listenersWired) return;
   listenersWired = true;
   const voice = getVoice();
   try {
-    voice.on(Voice.Event.CallInvite, (invite: unknown) => {
-      console.log('[twilio] >>> CallInvite (incoming) <<<', invite);
+    voice.on(Voice.Event.CallInvite, (invite: CallInvite) => {
+      // Surface the ringing call to the global modal (B7). Accept/reject delegate
+      // to the SDK; the modal renders the branded ring screen.
+      setIncomingCall({
+        phase: 'ringing',
+        from: inviteFrom(invite),
+        accept: () => { void acceptInvite(invite); },
+        reject: () => { try { void invite.reject(); } catch { /* ignore */ } finally { setIncomingCall(null); } },
+        disconnect: () => { try { void invite.reject(); } catch { /* ignore */ } finally { setIncomingCall(null); } },
+        mute: () => { /* not muteable while ringing */ },
+      });
+      // Caller hung up before we answered → clear the ring modal.
+      invite.on(CallInvite.Event.Cancelled, () => { setIncomingCall(null); });
     });
     voice.on(Voice.Event.Registered, () => console.log('[twilio] Registered event'));
     voice.on(Voice.Event.Error, (e: unknown) => {
