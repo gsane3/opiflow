@@ -1468,11 +1468,10 @@ function IntakeLinkPrompt({
     <BottomSheet
       open
       onClose={onClose}
-      title="Αποστολή λινκ στοιχείων;"
+      title="Να σταλεί αίτημα αποστολής στοιχείων;"
       description={
-        phone
-          ? `Στείλε στον ${phone} έναν σύνδεσμο για να συμπληρώσει τα στοιχεία του.`
-          : 'Στείλε έναν σύνδεσμο για να συμπληρωθούν τα στοιχεία της επαφής.'
+        (phone ? `Θα σταλεί στον ${phone}. ` : '') +
+        'Αν η επαφή δεν έχει Viber, θα σταλεί αυτόματα SMS. Αν είναι σταθερό, θα πρέπει να βάλεις τα στοιχεία χειροκίνητα.'
       }
     >
       {state.phase === 'done' ? (
@@ -1496,7 +1495,7 @@ function IntakeLinkPrompt({
             disabled={busy}
             className="w-full rounded-2xl bg-indigo-600 py-3.5 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50"
           >
-            {busy ? 'Αποστολή…' : 'Ναι, στείλε'}
+            {busy ? 'Αποστολή…' : 'Ναι'}
           </button>
           <button
             type="button"
