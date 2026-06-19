@@ -151,8 +151,30 @@ export async function GET(
     });
     const messages = ((msgRes.data ?? []) as unknown[]).map((r) => {
       const m = r as { id: string; summary: string | null; direction: string; channel: string; created_at: string };
-      return { id: m.id, summary: m.summary, direction: m.direction, channel: m.channel, createdAt: m.created_at };
+      return { id: m.id, summary: m.summary, direction: m.direction, channel: m.channel, createdAt: m.created_at, readAt: null as string | null };
     });
+
+    // Read receipts (migration 057): tolerant merge so a pre-057 schema simply
+    // shows no «Διαβάστηκε». Kept out of the parallel query above so a missing
+    // read_at column can never break the core folder-detail fetch.
+    try {
+      const msgIds = messages.map((m) => m.id);
+      if (msgIds.length > 0) {
+        const { data: reads, error: readErr } = await supabase
+          .from('communications')
+          .select('id, read_at')
+          .eq('business_id', businessId)
+          .in('id', msgIds);
+        if (!readErr && Array.isArray(reads)) {
+          const readMap = new Map(
+            (reads as Array<{ id: string; read_at: string | null }>).map((r) => [r.id, r.read_at]),
+          );
+          for (const m of messages) m.readAt = readMap.get(m.id) ?? null;
+        }
+      }
+    } catch {
+      // pre-057 → no read receipts
+    }
     // NB: token_hash is never selected → never exposed.
     const photos = ((photoRes.data ?? []) as unknown[]).map((r) => {
       const u = r as { id: string; status: string; sent_channel: string | null; created_at: string; opened_at: string | null; completed_at: string | null };

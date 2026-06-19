@@ -58,7 +58,7 @@ const REJECT_MESSAGE = 'Καλησπέρα σας. Ευχαριστούμε πο
 
 interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
 interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
-interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string }
+interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string; readAt?: string | null }
 interface DetailReq { id: string; status: string; createdAt: string }
 interface FolderPayment { id: string; kind: string; pct: number | null; amount: number; status: string; createdAt: string }
 interface FolderDetail {
@@ -454,7 +454,16 @@ function Row({ it, busy, onConfirm, onPayReq, onOpenOffer }: { it: Item; busy: b
       <div className={'opf-bub ' + (tech ? 'opf-r' : 'opf-l')}>
         <div className={'opf-bubble ' + (tech ? 'opf-role-tech' : 'opf-role-cust')}>
           <div className="opf-bubble-text">{(m.summary ?? '').trim()}</div>
-          <div className="opf-bubble-when">{formatRelativeDateTimeGr(m.createdAt)}{tech && <Icon name="check" size={12} color="rgba(255,255,255,0.85)" stroke={2.6} />}</div>
+          <div className="opf-bubble-when">
+            {formatRelativeDateTimeGr(m.createdAt)}
+            {tech && m.readAt && <span style={{ marginLeft: 6 }}>· Διαβάστηκε {formatRelativeDateTimeGr(m.readAt)}</span>}
+            {tech && (
+              <span style={{ display: 'inline-flex', marginLeft: 4, verticalAlign: 'middle' }}>
+                <Icon name="check" size={12} color={m.readAt ? '#7CF0C4' : 'rgba(255,255,255,0.85)'} stroke={2.6} />
+                {m.readAt && <span style={{ marginLeft: -7, display: 'inline-flex' }}><Icon name="check" size={12} color="#7CF0C4" stroke={2.6} /></span>}
+              </span>
+            )}
+          </div>
         </div>
       </div>
     );

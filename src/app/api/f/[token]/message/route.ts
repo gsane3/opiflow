@@ -193,6 +193,28 @@ export async function GET(
       return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
     }
     const messages = mapPublicMessages(((data ?? []) as unknown[]) as MessageRowForPublic[]);
+
+    // The customer is viewing the conversation → mark the owner's outbound
+    // messages for this folder as read, and roll the token's last_visited_at.
+    // Best-effort + tolerant: read_at / last_visited_at are migration 057, so a
+    // missing column (pre-057) is ignored and read receipts just don't show yet.
+    try {
+      const ts = new Date().toISOString();
+      await supabase
+        .from('communications')
+        .update({ read_at: ts })
+        .eq('business_id', tokenRow.business_id)
+        .eq('work_folder_id', tokenRow.work_folder_id)
+        .eq('direction', 'outbound')
+        .is('read_at', null);
+      await supabase
+        .from('customer_folder_tokens')
+        .update({ last_visited_at: ts })
+        .eq('id', tokenRow.id);
+    } catch {
+      // pre-057 schema → no read receipts yet
+    }
+
     return NextResponse.json({ ok: true, messages }, { headers: { 'Cache-Control': 'no-store' } });
   } catch {
     return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
