@@ -5,6 +5,7 @@ import { ActivityIndicator, AppState, View } from 'react-native';
 
 import { AiSheetProvider } from '@/components/ai-sheet';
 import AppTabs from '@/components/app-tabs';
+import { IncomingCallModal } from '@/components/incoming-call-modal';
 import { LoginScreen } from '@/components/login-screen';
 import { NeedsSetupScreen } from '@/components/needs-setup-screen';
 import { Brand } from '@/constants/theme';
@@ -150,6 +151,8 @@ function Gate() {
   return (
     <AiSheetProvider>
       <AppTabs />
+      {/* Global ring/in-call overlay (B7). Renders null until a call invite arrives. */}
+      <IncomingCallModal />
     </AiSheetProvider>
   );
 }

@@ -34,7 +34,7 @@
 - [x] **B4 · U12** Ρυθμίσεις σε **κατηγορίες**: «Η επιχείρησή σου» (Επιχείρηση/Τραπεζικά/Κατάλογος) · «Επικοινωνία με πελάτες» (Τηλεφωνία/Πρότυπα/Ωράριο/Ειδοποιήσεις) · «Εφαρμογή» (Εμφάνιση/Δεδομένα) · «Λογαριασμός» + «Επισκόπηση» (Στατιστικά). — PR #323
 - [x] **B5 · U11** Premium/branded οθόνη κλήσης (web): full-screen overlay με brand-gradient, μεγάλο avatar, live timer, mute, μεγάλα στρογγυλά κουμπιά Απάντηση/Απόρριψη/Τερματισμός + recording indicator. — PR #326 · *(η native call screen μένει για το device pass — B7)*
 - [x] **B6 · U3** Νέο customers design: card με brand avatar, καθαρή ιεραρχία (όνομα + status + τηλέφωνο) και highlighted «επόμενη ενέργεια»· ο γραμμή φίλτρων απλοποιήθηκε (sort + απόκρυψη κινητού πήγαν στο sheet «Ταξινόμηση & φίλτρα»). — PR #324
-- [ ] **B7 · #4/U5 · L** 👤 Native εισερχόμενες κλήσεις — **DEFER (owner/device):** θέλει build + δοκιμή σε συσκευή + Twilio Android FCM push credential (O-item).
+- [~] **B7 · #4/U5** Native εισερχόμενες κλήσεις — **κώδικας έτοιμος** (PR #327): `CallInvite`→incoming-call state + accept/reject + `CallInvite.Event.Cancelled` + CRM log· global branded `IncomingCallModal` (ring → in-call με timer/mute/τερματισμό). native tsc ✅. **⏳ Δεν χτυπάει/δεν επαληθεύεται χωρίς: Twilio Android FCM push credential + νέο build + δοκιμή σε συσκευή** (O-items).
 
 ## 🟢 Γ — Polish / μικρότερα (από τον έλεγχο)
 - [x] **Γ1 · #25** Ο πελάτης μπορεί να **απορρίψει** προσφορά από το portal (κουμπί + confirm → υπάρχον endpoint `response:'rejected'`)· μετά την απόρριψη το tile σταματά το «Ελέγξτε» nag. — PR #321
