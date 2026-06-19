@@ -130,6 +130,20 @@ export function normalizeApifonMsisdn(rawPhone: string | null): string | null {
   return normalized;
 }
 
+// Diagnostic for the owner's live test: Apifon's own rejection reason (sender not
+// approved / scope not granted / no credit / bad request) surfaces in the server
+// logs. We deliberately log ONLY Apifon's response — never the recipient number
+// or the message text (privacy). Truncated so a huge body can't flood the logs.
+function logSmsFailure(detail: { responseStatus: number | null; error: string; responseBody?: unknown }): void {
+  let body = '';
+  try {
+    body = detail.responseBody != null ? JSON.stringify(detail.responseBody).slice(0, 500) : '';
+  } catch {
+    body = '';
+  }
+  console.warn(`[apifon-sms] send failed status=${detail.responseStatus ?? 'n/a'} error=${detail.error}${body ? ` body=${body}` : ''}`);
+}
+
 async function parseResponseBody(response: Response): Promise<unknown> {
   const text = await response.text();
 
@@ -261,6 +275,7 @@ export async function sendSmsMessage(params: SendSmsMessageParams): Promise<Send
     const responseBody = await parseResponseBody(response);
 
     if (!response.ok) {
+      logSmsFailure({ responseStatus: response.status, error: 'apifon_sms_send_failed', responseBody });
       return {
         ok: false,
         skipped: false,
@@ -278,11 +293,13 @@ export async function sendSmsMessage(params: SendSmsMessageParams): Promise<Send
       messageId: extractMessageId(responseBody),
     };
   } catch (err) {
+    const error = err instanceof Error ? err.message : 'apifon_sms_send_failed';
+    logSmsFailure({ responseStatus: null, error });
     return {
       ok: false,
       skipped: false,
       responseStatus: null,
-      error: err instanceof Error ? err.message : 'apifon_sms_send_failed',
+      error,
     };
   }
 }
