@@ -1,0 +1,22 @@
+-- Corrective service_role grants for migration 048 (payment_requests).
+--
+-- Migration 048 created public.payment_requests (+ enabled RLS) but, exactly like
+-- the activation tables fixed in migration 021, omitted explicit GRANT statements.
+-- service_role bypasses RLS, but PostgreSQL still denies table access at the
+-- privilege level BEFORE RLS is evaluated — so without a GRANT the server-side
+-- payment routes (createServiceSupabaseClient) can receive a permission-denied
+-- error when reading/writing payment_requests (owner confirm/cancel, the public
+-- portal «Δήλωσα την κατάθεση», the folder payment lists).
+--
+-- Adds the minimum required grant:
+--   service_role: SELECT, INSERT, UPDATE on payment_requests.
+--     Used by all server-side payment API routes.
+--     DELETE is intentionally NOT granted (consistent with migration 021); the
+--     app cancels a request via UPDATE (status = 'cancelled'), never a hard delete.
+--
+-- No table is altered. No RLS policy is modified. No anon/authenticated grant is
+-- added (payments are server-only; the public portal reads them through a
+-- service_role route gated by the folder token, not via an authenticated policy).
+-- GRANT is idempotent in PostgreSQL — this migration is safe to re-run.
+
+GRANT SELECT, INSERT, UPDATE ON public.payment_requests TO service_role;
