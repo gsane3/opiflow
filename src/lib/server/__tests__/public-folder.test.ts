@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   toPublicFolderView,
+  mapPublicMessages,
   folderStatusLabel,
   folderStatusMessage,
   type FolderRowForPublic,
@@ -8,6 +9,7 @@ import {
   type OfferRowForPublic,
   type TaskRowForPublic,
   type PaymentRowForPublic,
+  type MessageRowForPublic,
 } from '../public-folder';
 
 const folder: FolderRowForPublic = { title: 'Τοποθέτηση κλιματιστικού', status: 'in_progress' };
@@ -123,6 +125,21 @@ describe('public-folder', () => {
         { direction: 'out', text: 'Αύριο στις 10.', createdAt: '2026-06-01T10:05:00Z' },
       ]);
       expect(JSON.stringify(v.messages)).not.toContain('AI ΣΥΝΟΨΗ');
+    });
+
+    // The polled GET /api/f/[token]/message uses this same mapper, so the
+    // call-brief exclusion is asserted directly here too (defense in depth).
+    it('mapPublicMessages drops call briefs + blanks and maps direction (shared by the live-poll GET)', () => {
+      const rows: MessageRowForPublic[] = [
+        { direction: 'inbound', channel: 'sms', summary: 'Ερώτηση', created_at: '2026-06-01T10:00:00Z' },
+        { direction: 'outbound', channel: 'viber', summary: '  Απάντηση  ', created_at: '2026-06-01T10:05:00Z' },
+        { direction: 'inbound', channel: 'call', summary: 'AI ΣΥΝΟΨΗ ΚΛΗΣΗΣ', created_at: '2026-06-01T09:00:00Z' },
+        { direction: 'outbound', channel: 'email', summary: '   ', created_at: '2026-06-01T11:00:00Z' },
+      ];
+      expect(mapPublicMessages(rows)).toEqual([
+        { direction: 'in', text: 'Ερώτηση', createdAt: '2026-06-01T10:00:00Z' },
+        { direction: 'out', text: 'Απάντηση', createdAt: '2026-06-01T10:05:00Z' },
+      ]);
     });
 
     it('drops the business when there is no name and no logo', () => {

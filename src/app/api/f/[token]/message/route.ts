@@ -19,11 +19,15 @@ import {
   resolveFolderChannel,
   buildQuestionPreview,
 } from '@/lib/server/folder-question';
+import { mapPublicMessages, type MessageRowForPublic } from '@/lib/server/public-folder';
 
 export const runtime = 'nodejs';
 
 // Public endpoint — tighter limit than the read flows since this writes a row.
 const publicLimiter = makePublicLimiter(10, 60_000);
+// The GET below is polled by the open chat sheet (~every 12s) so the customer
+// sees the technician's replies live — more generous than the write limit.
+const readLimiter = makePublicLimiter(40, 60_000);
 
 interface FolderRow {
   customer_id: string;
@@ -137,4 +141,60 @@ export async function POST(
   });
 
   return NextResponse.json({ ok: true });
+}
+
+// Live chat read — the public /f/[token] page polls this while the chat sheet is
+// open so the customer sees the technician's replies without reloading. Same
+// fail-closed token rule as POST (hashed lookup; invalid/expired/revoked → 404).
+// Returns ONLY the safe Q&A thread shape; `channel='call'` AI briefs are excluded
+// by both the query and mapPublicMessages. Never returns raw DB errors.
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ token: string }> },
+) {
+  const limited = await readLimiter(request);
+  if (limited) return limited;
+
+  const { token: rawToken } = await params;
+
+  let tokenRow;
+  try {
+    tokenRow = await findValidFolderToken(rawToken);
+  } catch {
+    return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
+  }
+  if (!tokenRow) {
+    return NextResponse.json(
+      { ok: false, error: 'folder_link_invalid_or_expired' },
+      { status: 404, headers: { 'Cache-Control': 'no-store' } },
+    );
+  }
+
+  let supabase: ReturnType<typeof createServiceSupabaseClient>;
+  try {
+    supabase = createServiceSupabaseClient();
+  } catch {
+    return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
+  }
+
+  try {
+    // Mirrors loadPublicFolder's message query: only the customer↔business
+    // channels (call excluded), only delivered/seen-class statuses, oldest-first.
+    const { data, error } = await supabase
+      .from('communications')
+      .select('direction, channel, summary, created_at')
+      .eq('business_id', tokenRow.business_id)
+      .eq('work_folder_id', tokenRow.work_folder_id)
+      .in('channel', ['sms', 'viber', 'email'])
+      .in('status', ['completed', 'sent', 'delivered', 'seen'])
+      .order('created_at', { ascending: true })
+      .limit(50);
+    if (error) {
+      return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
+    }
+    const messages = mapPublicMessages(((data ?? []) as unknown[]) as MessageRowForPublic[]);
+    return NextResponse.json({ ok: true, messages }, { headers: { 'Cache-Control': 'no-store' } });
+  } catch {
+    return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
+  }
 }
