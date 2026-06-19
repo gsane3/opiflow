@@ -1,7 +1,7 @@
 // «Έργα» (Projects) section — native port of the web CustomerFoldersStrip:
 // «Έργα» header with a + button, rich project cards (status dot + pill + counts/date
-// foot — no progress bar), the «Νέο έργο» sheet (title + template chips + SMS-link
-// note + «Δημιουργία & αποστολή link»), and — on tap — the full-screen chat-first
+// foot — no progress bar), the «Νέο έργο» sheet (title + template chips + a note
+// that each project has one durable link the owner sends), and — on tap — the chat-first
 // «Διαδικασία» route. Wired to the live folder APIs.
 
 import { Ionicons } from '@expo/vector-icons';
@@ -141,7 +141,7 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
             <View style={styles.gateNum}><ThemedText style={styles.gateNumText}>1</ThemedText></View>
             <View style={{ flex: 1 }}>
               <ThemedText type="smallBold" style={styles.ink}>Δημιούργησε έργο</ThemedText>
-              <ThemedText type="small" themeColor="textSecondary">Απαραίτητο πριν στείλεις προσφορά, ραντεβού ή μήνυμα. Δημιουργεί link που στέλνεται στον πελάτη.</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary">Απαραίτητο πριν στείλεις προσφορά, ραντεβού ή μήνυμα. Κάθε έργο έχει μοναδικό σύνδεσμο που στέλνεις εσύ στον πελάτη.</ThemedText>
             </View>
           </View>
           <PrimaryButton label="Δημιουργία έργου" onPress={openCreate} />
@@ -185,9 +185,9 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
         </View>
         <View style={styles.linkNote}>
           <Ionicons name="link-outline" size={16} color={Brand.primary} />
-          <ThemedText type="small" style={[styles.ink, { flex: 1 }]}>Δημιουργείται link που στέλνεται με SMS — ο πελάτης βλέπει εκεί προσφορές, ραντεβού και συνομιλία.</ThemedText>
+          <ThemedText type="small" style={[styles.ink, { flex: 1 }]}>Κάθε έργο έχει έναν μοναδικό σύνδεσμο για τον πελάτη. Θα τον στείλεις μέσα από το έργο — με προσφορά, ραντεβού, μήνυμα ή «Κοινοποίηση συνδέσμου».</ThemedText>
         </View>
-        <PrimaryButton label={createBusy ? 'Δημιουργία…' : 'Δημιουργία & αποστολή link'} busy={createBusy} onPress={() => void createFolder()} />
+        <PrimaryButton label={createBusy ? 'Δημιουργία…' : 'Δημιουργία έργου'} busy={createBusy} onPress={() => void createFolder()} />
       </SheetModal>
     </View>
   );
