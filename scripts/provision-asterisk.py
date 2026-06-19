@@ -34,6 +34,7 @@ import re
 import sys
 import json
 import base64
+import hashlib
 import shutil
 import secrets
 import subprocess
@@ -78,6 +79,13 @@ DIALPLAN_FILE = env("OPIFLOW_DIALPLAN_FILE", "/etc/asterisk/extensions_opiflow.c
 TLS_CERT = env("OPIFLOW_TLS_CERT", "/etc/asterisk/tls/asterisk.pem")
 TLS_KEY = env("OPIFLOW_TLS_KEY", "/etc/asterisk/tls/asterisk.key")
 RING_ALSO = env("OPIFLOW_RING_ALSO", "groundwire001")
+# Per-business call-recording disclosure clip (the user records it in their own
+# voice in the app → businesses.recording_disclosure_audio as a base64 data URL).
+# We transcode it to an 8 kHz mono PCM WAV here and the dialplan plays it via the
+# OPIFLOW_DISCLOSURE channel var, falling back to the global default clip.
+SOUNDS_DIR = env("OPIFLOW_SOUNDS_DIR", "/var/lib/asterisk/sounds")
+DISCLOSURE_DEFAULT = env("OPIFLOW_DISCLOSURE_DEFAULT", "opiflow-call-recorded")
+FFMPEG = env("OPIFLOW_FFMPEG", "ffmpeg")
 
 
 def load_key():
@@ -181,6 +189,57 @@ def digits(s):
     return re.sub(r"\D", "", s or "")
 
 
+def hexname(username):
+    """biz_<32hex> -> <32hex> (the per-business sound-file suffix)."""
+    return username[4:] if username.startswith("biz_") else username
+
+
+def sync_disclosure(username, data_url):
+    """Decode the base64 data: URL and transcode it to an 8 kHz mono PCM WAV at
+    SOUNDS_DIR/opiflow-disclosure-<hex>.wav (Asterisk-native). Returns the sound
+    NAME (no extension) on success, else None (caller falls back to the default).
+    Skips the work when the source is unchanged (sha sidecar)."""
+    if not data_url or "," not in data_url:
+        return None
+    base = f"opiflow-disclosure-{hexname(username)}"
+    wav = os.path.join(SOUNDS_DIR, base + ".wav")
+    shafile = os.path.join(SOUNDS_DIR, base + ".src.sha")
+    sha = hashlib.sha256(data_url.encode()).hexdigest()[:16]
+    try:
+        if os.path.exists(wav) and os.path.exists(shafile) and open(shafile).read().strip() == sha:
+            return base  # unchanged → already in place
+    except Exception:
+        pass
+    try:
+        raw = base64.b64decode(data_url.split(",", 1)[1])
+    except Exception:
+        return None
+    tmp_in = os.path.join(SOUNDS_DIR, base + ".in")
+    try:
+        with open(tmp_in, "wb") as f:
+            f.write(raw)
+        r = subprocess.run(
+            [FFMPEG, "-y", "-i", tmp_in, "-ar", "8000", "-ac", "1", "-acodec", "pcm_s16le", wav],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+        if r.returncode != 0 or not os.path.exists(wav):
+            return None
+        try:
+            shutil.chown(wav, user="root", group="asterisk")
+        except Exception:
+            pass
+        with open(shafile, "w") as f:
+            f.write(sha)
+        return base
+    except Exception:
+        return None
+    finally:
+        try:
+            os.remove(tmp_in)
+        except Exception:
+            pass
+
+
 # --- ensure a row exists for every business with a number (idempotent) --------
 if not DRY:
     ensure_endpoint_rows()
@@ -194,6 +253,20 @@ did_by_biz = {}
 if biz_ids:
     rows = sb_get(f"businesses?id=in.({','.join(biz_ids)})&select=id,business_phone_number")
     did_by_biz = {b["id"]: b.get("business_phone_number") for b in rows}
+
+# Per-business call-recording disclosure clips, keyed by business_id. Tolerant: the
+# recording_disclosure_audio column is absent until migration 055 is applied, in
+# which case the filtered query 400s and every business uses the default clip.
+disclosure_by_biz = {}
+biz_by_username = {e.get("sip_username"): e.get("business_id") for e in endpoints}
+if biz_ids:
+    try:
+        drows = sb_get(
+            f"businesses?id=in.({','.join(biz_ids)})&recording_disclosure_audio=not.is.null&select=id,recording_disclosure_audio"
+        )
+        disclosure_by_biz = {b["id"]: b.get("recording_disclosure_audio") for b in drows}
+    except Exception as e:
+        sys.stderr.write(f"[provision] disclosure fetch skipped (migration 055 not applied?): {e}\n")
 
 users = []  # list of (username, password, did)
 for e in endpoints:
@@ -218,6 +291,18 @@ for e in endpoints:
 users.sort(key=lambda t: t[0])
 
 
+# Resolve each business's call-recording disclosure clip ONCE (own-voice WAV synced
+# to SOUNDS_DIR, else the global default). Used by BOTH the pjsip endpoint (outbound
+# A()) and the inbound dialplan (Playback), so the message plays in both directions.
+disc_by_username = {}
+for (_u, _pw, _did) in users:
+    _data_url = disclosure_by_biz.get(biz_by_username.get(_u))
+    if _data_url:
+        disc_by_username[_u] = (f"opiflow-disclosure-{hexname(_u)}" if DRY else sync_disclosure(_u, _data_url)) or DISCLOSURE_DEFAULT
+    else:
+        disc_by_username[_u] = DISCLOSURE_DEFAULT
+
+
 # --- generate pjsip endpoints (cloned from yorgospro001) ----------------------
 def did_30form(did):
     """Greek caller-ID form for PAI/RPID: 30XXXXXXXXXX (country code, no '+')."""
@@ -231,10 +316,13 @@ def did_30form(did):
     return d
 
 
-def pjsip_block(u, pw, did):
+def pjsip_block(u, pw, did, disc):
     # set_var=OPIFLOW_DID makes the business's own DID available on every channel
     # that originates from this endpoint, so from-webrtc can stamp it as the
     # outbound caller-ID (PAI/RPID) — per InterTelecom's 30XXXXXXXXXX format.
+    # set_var=OPIFLOW_DISCLOSURE selects this business's call-recording disclosure
+    # clip (own voice, else the global default) so from-webrtc can A()-announce it
+    # to the customer on OUTBOUND calls.
     d30 = did_30form(did)
     return f"""[{u}]
 type=endpoint
@@ -261,6 +349,7 @@ rtp_symmetric=yes
 force_rport=yes
 rewrite_contact=yes
 set_var=OPIFLOW_DID={d30}
+set_var=OPIFLOW_DISCLOSURE={disc}
 
 [{u}]
 type=auth
@@ -280,7 +369,7 @@ support_path=yes
 
 pjsip_out = "; AUTO-GENERATED by provision-asterisk.py — DO NOT EDIT BY HAND.\n"
 pjsip_out += "; One WebRTC endpoint per Opiflow business (cloned from yorgospro001).\n\n"
-pjsip_out += "\n".join(pjsip_block(u, pw, _d) for (u, pw, _d) in users)
+pjsip_out += "\n".join(pjsip_block(u, pw, _d, disc_by_username.get(u, DISCLOSURE_DEFAULT)) for (u, pw, _d) in users)
 
 
 # --- generate inbound DID routing --------------------------------------------
@@ -291,6 +380,7 @@ dp += "; Inbound DID -> per-user endpoint. Sets OPIFLOW_EP then reuses from-inte
 dp += "[opiflow-inbound]\n"
 seen = set()
 for (u, _pw, did) in users:
+    disc = disc_by_username.get(u, DISCLOSURE_DEFAULT)
     forms = set()
     d = digits(did)
     if d:
@@ -301,7 +391,11 @@ for (u, _pw, did) in users:
         if f in seen:
             continue
         seen.add(f)
-        dp += f"exten => {f},1,Set(OPIFLOW_EP={u})\n same => n,Goto(from-intertelecom,s,1)\n"
+        dp += (
+            f"exten => {f},1,Set(OPIFLOW_EP={u})\n"
+            f" same => n,Set(OPIFLOW_DISCLOSURE={disc})\n"
+            f" same => n,Goto(from-intertelecom,s,1)\n"
+        )
 
 
 # --- dry run: print and exit --------------------------------------------------
