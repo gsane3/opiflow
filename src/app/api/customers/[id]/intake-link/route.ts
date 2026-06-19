@@ -45,6 +45,30 @@ function str(val: unknown): string | null {
 }
 
 type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
+type ServiceClient = ReturnType<typeof createServiceSupabaseClient>;
+
+// After an intake request is actually delivered, flag the customer as awaiting
+// their details (intake_status='sent'). This is what floats the contact to the
+// top of the list («Λείπουν στοιχεία») and what the reminder/expire cron keys on.
+// Best-effort: never block the send response on this.
+async function markCustomerIntakeSent(
+  serviceClient: ServiceClient,
+  businessId: string,
+  customerId: string,
+  nowIso: string,
+): Promise<void> {
+  try {
+    await serviceClient
+      .from('customers')
+      .update({ intake_status: 'sent', updated_at: nowIso })
+      .eq('id', customerId)
+      .eq('business_id', businessId)
+      // Don't clobber a customer who already completed/submitted their intake.
+      .neq('intake_status', 'submitted');
+  } catch {
+    // non-fatal
+  }
+}
 
 interface BusinessRow {
   id: string;
@@ -371,6 +395,7 @@ export async function POST(
         }
       }
 
+      await markCustomerIntakeSent(serviceClient, businessId, customerId, now);
       return NextResponse.json({ ok: true, sent: true, fallbackReason: null });
     }
 
@@ -508,6 +533,7 @@ export async function POST(
       }
     }
 
+    await markCustomerIntakeSent(serviceClient, businessId, customerId, now);
     return NextResponse.json({
       ok: true,
       sent: true,

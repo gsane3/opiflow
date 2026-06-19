@@ -44,6 +44,9 @@ export const dynamic = 'force-dynamic';
 const STALE_AFTER_MS = 60 * 60 * 1000; // 1 hour
 const MAX_REMINDERS = 2; // never send more than 2 reminders per customer
 const BATCH_LIMIT = 50; // cap work per run
+// Soft-expire grace after the last (2nd) reminder — the owner's "6h after the
+// 24h mark". Approximate on the daily cron, which the owner accepted.
+const EXPIRE_GRACE_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,6 +73,7 @@ interface ReminderRunResult {
   ok: boolean;
   resent: number;
   skipped: number;
+  expired?: number;
   reason?: string;
 }
 
@@ -293,6 +297,63 @@ async function runReminderSweep(): Promise<ReminderRunResult> {
 }
 
 // ---------------------------------------------------------------------------
+// Soft-expire sweep
+//
+// Customers who were sent the intake request, received both reminders, and still
+// haven't submitted after a grace period are soft-expired: the token is marked
+// 'expired' and the customer's intake_status flips to 'expired'. That drops them
+// off the «Λείπουν στοιχεία» top-of-list (they stop being chased) — but the
+// contact record itself is KEPT (soft, recoverable), per the owner's choice.
+// ---------------------------------------------------------------------------
+
+async function runExpireSweep(): Promise<{ expired: number; reason?: string }> {
+  const supabase = createServiceSupabaseClient();
+  const now = new Date();
+  const graceBeforeIso = new Date(now.getTime() - EXPIRE_GRACE_MS).toISOString();
+
+  const { data, error } = await supabase
+    .from('customer_intake_tokens')
+    .select('id, business_id, customer_id')
+    .eq('status', 'sent')
+    .is('submitted_at', null)
+    .gte('reminder_count', MAX_REMINDERS)
+    .lt('reminder_sent_at', graceBeforeIso)
+    .limit(BATCH_LIMIT);
+
+  if (error) {
+    if (isMissingColumnError(error)) return { expired: 0, reason: 'migration_035_pending' };
+    console.error('[intake-reminder cron] expire query failed:', error.message);
+    return { expired: 0, reason: 'query_failed' };
+  }
+
+  const stale = (data ?? []) as Array<{ id: string; business_id: string; customer_id: string }>;
+  let expired = 0;
+  for (const tok of stale) {
+    try {
+      const ts = new Date().toISOString();
+      await supabase
+        .from('customer_intake_tokens')
+        .update({ status: 'expired', updated_at: ts })
+        .eq('id', tok.id);
+      await supabase
+        .from('customers')
+        .update({ intake_status: 'expired', updated_at: ts })
+        .eq('id', tok.customer_id)
+        .eq('business_id', tok.business_id)
+        .neq('intake_status', 'submitted');
+      expired += 1;
+    } catch (err) {
+      console.error(
+        '[intake-reminder cron] expire failed for token',
+        tok.id,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  return { expired };
+}
+
+// ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
 
@@ -302,6 +363,9 @@ async function handle(request: NextRequest): Promise<NextResponse> {
 
   try {
     const result = await runReminderSweep();
+    // Run the soft-expire sweep regardless of whether anything was re-sent.
+    const expireResult = await runExpireSweep();
+    result.expired = expireResult.expired;
     const status = result.ok ? 200 : 500;
     return NextResponse.json(result, { status });
   } catch (err) {
