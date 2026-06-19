@@ -228,7 +228,10 @@ export async function GET(request: NextRequest) {
       query = query.is('name', null).eq('source', 'inbound_call');
     }
 
-    const q = qParam?.trim();
+    // Strip PostgREST .or()/LIKE metacharacters so a Greek term with a comma,
+    // parens, % or * (e.g. an address, or "Παπαδόπουλος, Γιώργος") can't corrupt
+    // the filter or inject extra .or conditions.
+    const q = qParam?.trim().replace(/[%,()*\\]/g, '').trim();
     if (q) {
       query = query.or(
         `name.ilike.%${q}%,company_name.ilike.%${q}%,phone.ilike.%${q}%,mobile_phone.ilike.%${q}%,email.ilike.%${q}%`

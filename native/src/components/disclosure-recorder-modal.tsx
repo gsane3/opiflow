@@ -19,7 +19,9 @@ import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiPut } from '@/lib/api';
 
-const RECORD_URL = 'https://opiflow.ai/record-widget';
+// Use the canonical www host directly: the apex (opiflow.ai) 308-redirects to www,
+// and the WebView's originWhitelist would otherwise refuse the redirected page.
+const RECORD_URL = 'https://www.opiflow.ai/record-widget';
 
 export default function DisclosureRecorderModal({
   visible, onClose,
@@ -69,7 +71,7 @@ export default function DisclosureRecorderModal({
           mediaPlaybackRequiresUserAction={false}
           mediaCapturePermissionGrantType="grant"
           onPermissionRequest={(event: { grant: (resources: string[]) => void; resources: string[] }) => { event.grant(event.resources); }}
-          originWhitelist={['https://opiflow.ai/*']}
+          originWhitelist={['https://www.opiflow.ai/*', 'https://opiflow.ai/*']}
           style={styles.fill}
         />
         {saving ? (

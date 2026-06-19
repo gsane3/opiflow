@@ -365,6 +365,20 @@ export async function DELETE(
       return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
     }
 
+    // Guard money-landed payments: payment_requests.work_folder_id is ON DELETE
+    // SET NULL, so deleting a folder with declared/confirmed deposits would orphan
+    // those financial records. Block it (the owner can cancel the payment first).
+    // Best-effort: if the table query errors (e.g. pre-048), fall through and allow.
+    const { count: paidCount } = await supabase
+      .from('payment_requests')
+      .select('id', { count: 'exact', head: true })
+      .eq('business_id', businessId)
+      .eq('work_folder_id', folderId)
+      .in('status', ['declared', 'confirmed']);
+    if ((paidCount ?? 0) > 0) {
+      return NextResponse.json({ ok: false, error: 'folder_has_payments' }, { status: 409 });
+    }
+
     const { error: delErr } = await supabase
       .from('work_folders')
       .delete()

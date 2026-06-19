@@ -62,9 +62,12 @@ export function calculateOfferTotals(
   items: ValidOfferItem[],
   vatRate: number,
 ): { subtotal: number; vatAmount: number; total: number; lineTotals: number[] } {
+  // Defense in depth: clamp VAT to a sane 0–100% so a bad/absurd rate can never
+  // produce a negative or wildly inflated total stored + shown to the customer.
+  const safeRate = Math.min(Math.max(Number.isFinite(vatRate) ? vatRate : 0, 0), 100);
   const lineTotals = items.map((item) => round2(item.quantity * item.unitPrice));
   const subtotal = round2(lineTotals.reduce((s, t) => s + t, 0));
-  const vatAmount = round2((subtotal * vatRate) / 100);
+  const vatAmount = round2((subtotal * safeRate) / 100);
   const total = round2(subtotal + vatAmount);
   return { subtotal, vatAmount, total, lineTotals };
 }

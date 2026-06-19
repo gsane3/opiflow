@@ -1,12 +1,11 @@
 import type { Offer } from './types';
 import { fmtEur } from './offer-calculations';
 
-function formatDateGR(dateStr: string): string {
-  return new Date(dateStr + 'T00:00:00').toLocaleDateString('el-GR', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+function formatDateGR(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('el-GR', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
 export function buildEmailSubject(offer: Offer, businessName?: string): string {
@@ -27,8 +26,7 @@ export function buildEmailBody(offer: Offer, customerName?: string, businessName
 
 ${itemLines}
 
-Σύνολο (συμπ. ΦΠΑ ${offer.vatRate}%): ${fmtEur(offer.total)}
-Ισχύει μέχρι: ${formatDateGR(offer.validUntil)}
+Σύνολο (συμπ. ΦΠΑ ${offer.vatRate}%): ${fmtEur(offer.total)}${formatDateGR(offer.validUntil) ? `\nΙσχύει μέχρι: ${formatDateGR(offer.validUntil)}` : ''}
 
 Παραμένουμε στη διάθεσή σας για οποιαδήποτε πληροφορία ή διευκρίνιση.
 ${from}`;

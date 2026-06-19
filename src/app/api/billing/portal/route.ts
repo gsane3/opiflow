@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
   const customerId = await findCustomerIdByEmail(email);
   if (!customerId) return NextResponse.json({ ok: false, error: 'no_customer' }, { status: 404 });
 
-  const origin = request.headers.get('origin') ?? 'https://opiflow.vercel.app';
+  const origin = request.headers.get('origin') ?? 'https://opiflow.ai';
   const result = await createPortalSession({ customerId, returnUrl: `${origin}/settings` });
   if (!result.ok || typeof result.data.url !== 'string') {
     return NextResponse.json({ ok: false, error: 'portal_failed' }, { status: 502 });
