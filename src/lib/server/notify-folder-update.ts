@@ -7,7 +7,7 @@
 // preferred channel (Viber→SMS), and logs it to the project thread + portal chat.
 
 import { createServiceSupabaseClient } from './intake-tokens';
-import { createCustomerFolderToken } from './folder-tokens';
+import { getOrCreateFolderToken } from './folder-tokens';
 import { selectViberPhone } from './viber-phone';
 import { normalizeApifonMsisdn } from './apifon-viber';
 import { sendViaPreferredChannel } from './send-channel';
@@ -15,36 +15,15 @@ import { recordOutboundMessage, extractProviderIds } from './record-message';
 
 const OUTBOUND_SUMMARY = 'Ενημέρωση έργου';
 
-type ServiceClient = ReturnType<typeof createServiceSupabaseClient>;
-
 /**
- * The folder's durable customer portal URL. Stored on work_folders.portal_url
- * (migration 050) so every notification links to the SAME page. Tolerant of a
- * missing column (pre-050): mints a fresh token each call (still a working link).
+ * The folder's ONE durable customer portal URL — the SAME link the owner shares.
+ * getOrCreateFolderToken is the single source of truth (work_folders.portal_url,
+ * migration 050): it reuses the canonical link while live, else mints + stores one.
+ * Best-effort: returns null on any failure so a notification never breaks the create.
  */
-async function ensurePortalUrl(supabase: ServiceClient, businessId: string, workFolderId: string): Promise<string | null> {
+async function ensurePortalUrl(businessId: string, workFolderId: string): Promise<string | null> {
   try {
-    const { data, error } = await supabase
-      .from('work_folders')
-      .select('portal_url')
-      .eq('id', workFolderId)
-      .eq('business_id', businessId)
-      .maybeSingle();
-    if (!error) {
-      const stored = (data as { portal_url?: string | null } | null)?.portal_url?.trim();
-      if (stored) return stored;
-    }
-  } catch {
-    /* column absent (pre-050) — fall through to mint */
-  }
-
-  try {
-    const tok = await createCustomerFolderToken({ businessId, workFolderId, sentChannel: null });
-    try {
-      await supabase.from('work_folders').update({ portal_url: tok.folderUrl }).eq('id', workFolderId).eq('business_id', businessId);
-    } catch {
-      /* column absent — the link still works, just won't be remembered */
-    }
+    const tok = await getOrCreateFolderToken({ businessId, workFolderId });
     return tok.folderUrl;
   } catch {
     return null;
@@ -76,7 +55,7 @@ export async function notifyFolderUpdate(params: { businessId: string; workFolde
     const phone = selectViberPhone(customer);
     if (!phone || !normalizeApifonMsisdn(phone)) return; // no usable mobile → skip silently
 
-    const portalUrl = await ensurePortalUrl(supabase, businessId, workFolderId);
+    const portalUrl = await ensurePortalUrl(businessId, workFolderId);
     if (!portalUrl) return;
 
     const title = folder.title?.trim();

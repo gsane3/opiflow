@@ -108,6 +108,85 @@ export async function createCustomerFolderToken(params: {
   return { rawToken, tokenHash, folderUrl: buildFolderUrl(rawToken), row: data as FolderTokenRow };
 }
 
+/**
+ * ONE durable link per work folder. `work_folders.portal_url` (migration 050) is the
+ * single source of truth — it stores the full /f/<rawToken> URL — so the SAME link is
+ * reused everywhere (owner preview/share AND project-update notifications) and never
+ * changes. We reuse it while its token is still live; otherwise we mint a token and
+ * store it as the new portal_url. Nothing is ever revoked here, so a link already in
+ * the customer's hands keeps working. (Completion still closes the link via
+ * capFolderTokensExpiry — intentional and unaffected.)
+ *
+ * Tolerant of pre-050 (no portal_url column): the read/store errors are swallowed and
+ * we just mint a working token (not yet stable) — nothing breaks before the migration.
+ */
+export async function getOrCreateFolderToken(params: {
+  businessId: string;
+  workFolderId: string;
+  sentChannel?: 'viber' | 'sms' | 'email' | 'manual' | null;
+  sentToPhone?: string | null;
+}): Promise<CreateFolderTokenResult> {
+  const supabase = createServiceSupabaseClient();
+
+  // 1) Reuse the folder's canonical durable link if its token is still live.
+  let portalUrl: string | null = null;
+  try {
+    const { data, error } = await supabase
+      .from('work_folders')
+      .select('portal_url')
+      .eq('id', params.workFolderId)
+      .eq('business_id', params.businessId)
+      .maybeSingle();
+    if (!error) portalUrl = (data as { portal_url?: string | null } | null)?.portal_url?.trim() || null;
+  } catch {
+    /* pre-050 column absent → mint below */
+  }
+
+  if (portalUrl) {
+    const raw = extractRawTokenFromFolderUrl(portalUrl);
+    if (raw) {
+      let live: FolderTokenRow | null = null;
+      try {
+        live = await findValidFolderToken(raw);
+      } catch {
+        live = null; // transient DB error → treat as "mint a fresh one" (fail-safe)
+      }
+      if (live && live.business_id === params.businessId && live.work_folder_id === params.workFolderId) {
+        // Rolling refresh so the canonical link never lapses while in use (best-effort).
+        const refreshAt = new Date();
+        await supabase
+          .from('customer_folder_tokens')
+          .update({
+            expires_at: new Date(refreshAt.getTime() + DEFAULT_EXPIRY_HOURS * 60 * 60 * 1000).toISOString(),
+            updated_at: refreshAt.toISOString(),
+          })
+          .eq('id', live.id)
+          .eq('business_id', params.businessId)
+          .eq('work_folder_id', params.workFolderId);
+        return { rawToken: raw, tokenHash: live.token_hash, folderUrl: buildFolderUrl(raw), row: live };
+      }
+    }
+  }
+
+  // 2) No live canonical link → mint one and store it as the folder's portal_url.
+  const created = await createCustomerFolderToken({
+    businessId: params.businessId,
+    workFolderId: params.workFolderId,
+    sentChannel: params.sentChannel ?? null,
+    sentToPhone: params.sentToPhone ?? null,
+  });
+  try {
+    await supabase
+      .from('work_folders')
+      .update({ portal_url: created.folderUrl })
+      .eq('id', params.workFolderId)
+      .eq('business_id', params.businessId);
+  } catch {
+    /* pre-050 — the link still works, just isn't remembered as canonical */
+  }
+  return created;
+}
+
 /** Resolve a raw token to a live folder token (pending/sent/opened, not expired/revoked). */
 export async function findValidFolderToken(rawToken: string): Promise<FolderTokenRow | null> {
   const supabase = createServiceSupabaseClient();
