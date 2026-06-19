@@ -445,7 +445,8 @@ export default function PortalView({ token, view }: { token: string; view: Publi
   const appt = view.appointments[0] ?? null;
 
   const [offerAccepted, setOfferAccepted] = useState<boolean>(primaryOffer?.accepted ?? false);
-  const [apptConfirmed, setApptConfirmed] = useState<boolean>(false);
+  // Seed from the server so a confirmed appointment stays «Έγινε» after reload.
+  const [apptConfirmed, setApptConfirmed] = useState<boolean>(appt?.confirmed ?? false);
 
   const paymentOutstanding = view.payments.some((p) => p.status !== 'confirmed');
 

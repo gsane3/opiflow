@@ -20,7 +20,7 @@
 ---
 
 ## 🔴 A — Σπασμένα / πελατειακά (πάμε πρώτα)
-- [ ] **A1 · #10 · M** Ραντεβού: η επιβεβαίωση «ξαναγίνεται Ελέγξτε» στο reload → ο πελάτης νομίζει ότι δεν πέρασε. *(public-folder.ts, PortalView.tsx, appointment-respond.ts)*
+- [x] **A1 · #10** Ραντεβού: η επιβεβαίωση κρατάει πλέον (durable, χωρίς migration — seed από το μήνυμα αποδοχής). — PR #310
 - [ ] **A2 · #11 · M** Ο πελάτης δεν βλέπει τις απαντήσεις σου στο τσατ (χωρίς refresh/polling). *(PortalView.tsx + GET messages endpoint)*
 - [ ] **A3 · #12 · M** 👤 «Νέο έργο» λέει «θα σταλεί SMS» αλλά δεν στέλνει. *(CustomerFoldersStrip.tsx, folders POST)*
 - [ ] **A4 · #13/#14 · M** Owner ενέργειες (προσφορά/ραντεβού/edit) αποτυγχάνουν σιωπηλά · κενό προφίλ πελάτη χωρίς error/loading. *(ProjectProcess.tsx, CustomerProfile.tsx)*

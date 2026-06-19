@@ -175,6 +175,9 @@ export interface PublicFolderAppointment {
   typeLabel: string;
   /** Whether the customer can still confirm / request a time change. */
   canRespond: boolean;
+  /** True if the customer already accepted this appointment (durable across reloads —
+   *  derived from the persisted acceptance message, since task.status is not changed). */
+  confirmed: boolean;
   /** When the appointment was created (ISO) — drives the «Ενημερώσεις» feed timestamp. */
   createdAt: string | null;
 }
@@ -231,6 +234,12 @@ export function toPublicFolderView(
   offerLines: Record<string, { description: string; lineTotal: number }[]> = {},
   locationLabel: string | null = null,
 ): PublicFolderView {
+  // Persisted customer acceptances (inbound comm rows) — drive the durable
+  // appointment «confirmed» flag below so it survives a portal reload.
+  const acceptanceSummaries = messages
+    .filter((m) => m.direction === 'inbound' && typeof m.summary === 'string' && m.summary.includes('αποδέχτηκε το ραντεβού'))
+    .map((m) => m.summary as string);
+
   return {
     business: mapPublicBusiness(business),
     greetingName,
@@ -259,14 +268,22 @@ export function toPublicFolderView(
       canAccept: offerCanRespond({ status: o.status, valid_until: o.valid_until }),
       createdAt: o.created_at ?? null,
     })),
-    appointments: appointments.map((t) => ({
-      id: t.id,
-      date: t.due_date,
-      time: t.due_time,
-      typeLabel: APPOINTMENT_TYPE_LABELS[t.type] ?? 'Ραντεβού',
-      canRespond: appointmentCanRespond({ status: t.status, type: t.type, due_date: t.due_date }),
-      createdAt: t.created_at ?? null,
-    })),
+    appointments: appointments.map((t) => {
+      // The customer's acceptance is recorded as an inbound communications row
+      // («Ο πελάτης αποδέχτηκε το ραντεβού …»), not as a task-status change — so
+      // derive the durable «confirmed» flag from that message (matched by date when
+      // available). Keeps the portal showing «Έγινε» after a reload.
+      const confirmed = acceptanceSummaries.some((s) => (t.due_date ? s.includes(t.due_date) : true));
+      return {
+        id: t.id,
+        date: t.due_date,
+        time: t.due_time,
+        typeLabel: APPOINTMENT_TYPE_LABELS[t.type] ?? 'Ραντεβού',
+        canRespond: appointmentCanRespond({ status: t.status, type: t.type, due_date: t.due_date }) && !confirmed,
+        confirmed,
+        createdAt: t.created_at ?? null,
+      };
+    }),
     // Defensive: even though the query filters by status, drop anything not in
     // the public allowlist before mapping to the safe shape.
     payments: payments
