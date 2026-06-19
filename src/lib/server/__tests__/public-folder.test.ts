@@ -63,8 +63,16 @@ describe('public-folder', () => {
 
     it('maps appointments to date/time/typeLabel only', () => {
       expect(view.appointments).toEqual([
-        { id: 'task-1', date: '2999-12-31', time: '10:00', typeLabel: 'Ραντεβού', canRespond: true, createdAt: null },
+        { id: 'task-1', date: '2999-12-31', time: '10:00', typeLabel: 'Ραντεβού', canRespond: true, confirmed: false, createdAt: null },
       ]);
+    });
+
+    it('marks an appointment confirmed (durable) when a matching acceptance message exists', () => {
+      const v = toPublicFolderView(folder, business, [], appts, [
+        { direction: 'inbound', channel: 'sms', summary: 'Ο πελάτης αποδέχτηκε το ραντεβού 2999-12-31 10:00 μέσω δημόσιου link.', created_at: '2026-06-19T10:00:00Z' },
+      ]);
+      expect(v.appointments[0].confirmed).toBe(true);
+      expect(v.appointments[0].canRespond).toBe(false); // no longer nags the customer
     });
 
     it('NEVER leaks internal ids, internal notes, or business-only fields (security)', () => {
