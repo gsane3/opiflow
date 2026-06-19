@@ -202,6 +202,23 @@ export interface PublicFolderView {
   payments: PublicPayment[];
 }
 
+/**
+ * PURE — map safe communications rows to the public Q&A thread shape. Drops
+ * `channel='call'` rows (internal AI call briefs) and blank summaries, and maps
+ * the raw direction to the customer-facing 'in'/'out'. Shared by the initial
+ * server render (toPublicFolderView) and the live-polling GET so the chat thread
+ * has exactly one shaping rule.
+ */
+export function mapPublicMessages(messages: MessageRowForPublic[]): PublicFolderMessage[] {
+  return messages
+    .filter((m) => m.channel !== 'call' && typeof m.summary === 'string' && m.summary.trim().length > 0)
+    .map((m) => ({
+      direction: m.direction === 'outbound' ? ('out' as const) : ('in' as const),
+      text: (m.summary as string).trim(),
+      createdAt: m.created_at,
+    }));
+}
+
 function mapPublicBusiness(row: BusinessRowForPublic | null): PublicFolderBusiness | null {
   if (!row) return null;
   const name = row.trade_name?.trim() || row.legal_name?.trim() || row.name?.trim() || null;
@@ -249,14 +266,8 @@ export function toPublicFolderView(
     statusMessage: folderStatusMessage(folder.status),
     step: clampStep(folder.step),
     // The customer↔business message exchange. `channel='call'` rows (which hold
-    // internal AI call briefs) are excluded by BOTH the query and this filter.
-    messages: messages
-      .filter((m) => m.channel !== 'call' && typeof m.summary === 'string' && m.summary.trim().length > 0)
-      .map((m) => ({
-        direction: m.direction === 'outbound' ? ('out' as const) : ('in' as const),
-        text: (m.summary as string).trim(),
-        createdAt: m.created_at,
-      })),
+    // internal AI call briefs) are excluded by BOTH the query and the mapper.
+    messages: mapPublicMessages(messages),
     offers: offers.map((o) => ({
       id: o.id,
       offerNumber: o.offer_number ?? '—',

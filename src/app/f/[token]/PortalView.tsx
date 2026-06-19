@@ -356,6 +356,31 @@ function ChatSheet({ open, onClose, token, initial }: { open: boolean; onClose: 
   const [text, setText] = useState('');
   const [status, setStatus] = useState<'idle' | 'sending' | 'error' | 'rate'>('idle');
 
+  // Live updates: while the sheet is open, poll the folder-scoped messages
+  // endpoint (~12s) so the technician's replies appear without a reload. The
+  // server is the source of truth, but we only ADOPT a fetched list when it is
+  // at least as long as what we already show — so an in-flight optimistic send
+  // (appended below before the poll has caught up) is never momentarily wiped.
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    async function refresh() {
+      try {
+        const res = await fetch(`/api/f/${encodeURIComponent(token)}/message`, { headers: { Accept: 'application/json' } });
+        if (!res.ok) return;
+        const j = (await res.json().catch(() => null)) as { ok?: boolean; messages?: Msg[] } | null;
+        if (cancelled || !j?.ok || !Array.isArray(j.messages)) return;
+        const next = j.messages;
+        setMessages((prev) => (next.length >= prev.length ? next : prev));
+      } catch { /* keep showing what we have */ }
+    }
+    void refresh();
+    const id = setInterval(() => { if (!document.hidden) void refresh(); }, 12_000);
+    const onVisible = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { cancelled = true; clearInterval(id); document.removeEventListener('visibilitychange', onVisible); };
+  }, [open, token]);
+
   async function send() {
     const t = text.trim();
     if (!t || status === 'sending') return;
