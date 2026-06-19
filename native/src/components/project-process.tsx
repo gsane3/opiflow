@@ -19,7 +19,7 @@ import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
-import { dmyToYmd, formatDate, formatEuro, todayYMD } from '@/lib/format';
+import { dmyToYmd, formatDate, formatEuro, formatRelativeWhen, todayYMD } from '@/lib/format';
 import { hapticSuccess } from '@/lib/haptics';
 import NextActionCard, { type NextActionType } from '@/components/next-action-card';
 import AttentionCard from '@/components/attention-card';
@@ -498,7 +498,7 @@ function TimelineRow({
       <View style={[styles.bubbleRow, tech ? styles.rowRight : styles.rowLeft]}>
         <View style={[styles.bubble, tech ? styles.bubbleTech : styles.bubbleCust]}>
           <ThemedText type="small" style={tech ? styles.bubbleTextTech : styles.ink}>{(m.summary ?? '').trim()}</ThemedText>
-          <ThemedText style={[styles.bubbleWhen, tech ? styles.bubbleWhenTech : undefined]}>{formatDate(m.createdAt)}</ThemedText>
+          <ThemedText style={[styles.bubbleWhen, tech ? styles.bubbleWhenTech : undefined]}>{formatRelativeWhen(m.createdAt)}</ThemedText>
         </View>
       </View>
     );
@@ -521,7 +521,7 @@ function TimelineRow({
           ) : null}
           <View style={styles.evFoot}>
             <View style={[styles.evDot, { backgroundColor: Brand.primary }]} />
-            <ThemedText type="small" themeColor="textSecondary">Εσύ</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">Εσύ · {formatRelativeWhen(o.createdAt)}</ThemedText>
             <Pressable onPress={() => onOpenOffer(o.id)} hitSlop={6} style={styles.pdfLink}>
               <Ionicons name="document-text-outline" size={14} color={Brand.primary} />
               <ThemedText type="small" style={styles.pdfLinkText}>Άνοιγμα PDF</ThemedText>
@@ -582,6 +582,7 @@ function TimelineRow({
               <Pressable onPress={() => onConfirm(p.id, 'cancelled')} hitSlop={6}><ThemedText type="small" themeColor="textSecondary" style={{ fontWeight: '700' }}>Ακύρωση</ThemedText></Pressable>
             </View>
           ) : null}
+          <View style={styles.evFoot}><View style={[styles.evDot, { backgroundColor: Brand.primary }]} /><ThemedText type="small" themeColor="textSecondary">Εσύ · {formatRelativeWhen(p.createdAt)}</ThemedText></View>
         </View>
       </View>
     );
@@ -598,7 +599,7 @@ function TimelineRow({
           </View>
           <StatusPill label={done ? '✓' : '…'} tone={done ? 'ok' : 'warn'} styles={styles} />
         </View>
-        <View style={styles.evFoot}><View style={[styles.evDot, { backgroundColor: Brand.primary }]} /><ThemedText type="small" themeColor="textSecondary">Εσύ</ThemedText></View>
+        <View style={styles.evFoot}><View style={[styles.evDot, { backgroundColor: Brand.primary }]} /><ThemedText type="small" themeColor="textSecondary">Εσύ · {formatRelativeWhen(r.createdAt)}</ThemedText></View>
       </View>
     </View>
   );

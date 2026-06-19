@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { formatRelativeDateTimeGr } from '@/lib/date';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import NextActionCard, { type NextActionType } from '@/components/customers/NextActionCard';
 import AttentionCard from '@/components/customers/AttentionCard';
@@ -453,7 +454,7 @@ function Row({ it, busy, onConfirm, onPayReq, onOpenOffer }: { it: Item; busy: b
       <div className={'opf-bub ' + (tech ? 'opf-r' : 'opf-l')}>
         <div className={'opf-bubble ' + (tech ? 'opf-role-tech' : 'opf-role-cust')}>
           <div className="opf-bubble-text">{(m.summary ?? '').trim()}</div>
-          <div className="opf-bubble-when">{fmtDate(m.createdAt)}{tech && <Icon name="check" size={12} color="rgba(255,255,255,0.85)" stroke={2.6} />}</div>
+          <div className="opf-bubble-when">{formatRelativeDateTimeGr(m.createdAt)}{tech && <Icon name="check" size={12} color="rgba(255,255,255,0.85)" stroke={2.6} />}</div>
         </div>
       </div>
     );
@@ -470,7 +471,7 @@ function Row({ it, busy, onConfirm, onPayReq, onOpenOffer }: { it: Item; busy: b
               <div className={'opf-ev-status ' + (accepted ? 'opf-st-accepted' : 'opf-st-sent')}>{OFFER_STATUS_GR[o.status] ?? o.status}</div>
             </div>
             {o.total != null && <div className="opf-ev-total"><span>Σύνολο</span><b>{eur(o.total)}</b></div>}
-            <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ<span style={{ marginLeft: 8, color: 'var(--muted)', fontWeight: 500 }}>· {fmtDate(o.createdAt)}</span><span style={{ marginLeft: 'auto', color: 'var(--brand)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="file" size={13} color="var(--brand)" stroke={2} />Άνοιγμα PDF</span></div>
+            <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ<span style={{ marginLeft: 8, color: 'var(--muted)', fontWeight: 500 }}>· {formatRelativeDateTimeGr(o.createdAt)}</span><span style={{ marginLeft: 'auto', color: 'var(--brand)', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Icon name="file" size={13} color="var(--brand)" stroke={2} />Άνοιγμα PDF</span></div>
           </div>
         </div>
         {accepted && (
@@ -515,7 +516,7 @@ function Row({ it, busy, onConfirm, onPayReq, onOpenOffer }: { it: Item; busy: b
               <button className="opf-press" onClick={() => onConfirm(p.id, 'cancelled')} style={{ fontSize: 13, fontWeight: 700, color: 'var(--muted)', padding: '9px 6px' }}>Ακύρωση</button>
             </div>
           )}
-          <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ<span style={{ marginLeft: 8, color: 'var(--muted)', fontWeight: 500 }}>· {fmtDate(p.createdAt)}</span></div>
+          <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ<span style={{ marginLeft: 8, color: 'var(--muted)', fontWeight: 500 }}>· {formatRelativeDateTimeGr(p.createdAt)}</span></div>
         </div>
       </div>
     );
@@ -530,7 +531,7 @@ function Row({ it, busy, onConfirm, onPayReq, onOpenOffer }: { it: Item; busy: b
           <div className="opf-ev-card-h"><div className="opf-ev-card-title">{it.photos ? 'Αίτημα φωτογραφιών' : 'Αίτημα στοιχείων'}</div><div className="opf-ev-card-sub">{REQ_STATUS_GR[r.status] ?? r.status}</div></div>
           <div className={'opf-ev-status ' + (done ? 'opf-st-accepted' : 'opf-st-pending')}>{done ? '✓' : '…'}</div>
         </div>
-        <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ<span style={{ marginLeft: 8, color: 'var(--muted)', fontWeight: 500 }}>· {fmtDate(r.createdAt)}</span></div>
+        <div className="opf-ev-foot"><span className="opf-ev-dot opf-you" />Εσύ<span style={{ marginLeft: 8, color: 'var(--muted)', fontWeight: 500 }}>· {formatRelativeDateTimeGr(r.createdAt)}</span></div>
       </div>
     </div>
   );

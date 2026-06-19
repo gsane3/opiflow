@@ -29,6 +29,29 @@ export function formatWhen(iso?: string | null): string {
   return sameYear ? `${dm} ${pad(d.getHours())}:${pad(d.getMinutes())}` : `${dm}-${d.getFullYear()}`;
 }
 
+const WEEKDAYS_GR = ['Κυριακή', 'Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο'] as const;
+
+/**
+ * WhatsApp/Messenger-style timestamp: day label while recent, absolute date once
+ * older than a week — always with the time-of-day.
+ *   today → "Σήμερα 14:30" · yesterday → "Χθες 14:30" ·
+ *   2–6 days → "Τρίτη 14:30" · ≥7 days → "14-06-2026 14:30"
+ */
+export function formatRelativeWhen(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const now = new Date();
+  const dDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const nDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayDiff = Math.round((nDay.getTime() - dDay.getTime()) / 86_400_000);
+  if (dayDiff === 0) return `Σήμερα ${time}`;
+  if (dayDiff === 1) return `Χθες ${time}`;
+  if (dayDiff >= 2 && dayDiff <= 6) return `${WEEKDAYS_GR[d.getDay()]} ${time}`;
+  return `${pad(d.getDate())}-${pad(d.getMonth() + 1)}-${d.getFullYear()} ${time}`;
+}
+
 /** YYYY-MM-DD for "today" in local time (matches the API's dueDate convention). */
 export function todayYMD(): string {
   const d = new Date();
