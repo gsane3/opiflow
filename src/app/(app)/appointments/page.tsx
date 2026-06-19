@@ -4,7 +4,10 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Card, EmptyState } from '@/components/ui';
+import CalendarDayView from '@/components/appointments/CalendarDayView';
 import type { Task, Customer, TaskBaseStatus, TaskType, TaskPriority } from '@/lib/types';
+
+type ApptViewMode = 'list' | 'calendar';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -258,6 +261,19 @@ export default function AppointmentsPage() {
   const [cancelResult, setCancelResult] = useState<{ task: Task; customer: Customer | null; isFuture: boolean } | null>(null);
 
   const [selectedAppointment, setSelectedAppointment] = useState<Task | null>(null);
+
+  // List vs Google-style calendar/day view. Persisted across visits.
+  const [viewMode, setViewMode] = useState<ApptViewMode>('list');
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('opiflow:appt-view');
+      if (saved === 'calendar' || saved === 'list') setViewMode(saved);
+    } catch { /* ignore */ }
+  }, []);
+  const changeViewMode = (m: ApptViewMode) => {
+    setViewMode(m);
+    try { localStorage.setItem('opiflow:appt-view', m); } catch { /* ignore */ }
+  };
 
   // Time-change approval state
   const [approvingTimeChangeId, setApprovingTimeChangeId] = useState<string | null>(null);
@@ -997,6 +1013,33 @@ export default function AppointmentsPage() {
         )}
       </div>
 
+      {/* List ↔ Calendar toggle */}
+      <div className="flex rounded-2xl bg-zinc-100 p-1 dark:bg-[#1e2b38]">
+        {(['list', 'calendar'] as ApptViewMode[]).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => changeViewMode(m)}
+            className={`flex-1 rounded-xl py-2 text-sm font-semibold transition ${
+              viewMode === m
+                ? 'bg-white text-zinc-900 shadow-sm dark:bg-[#17232f] dark:text-zinc-100'
+                : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200'
+            }`}
+          >
+            {m === 'list' ? 'Λίστα' : 'Ημερολόγιο'}
+          </button>
+        ))}
+      </div>
+
+      {/* Calendar / day view */}
+      {viewMode === 'calendar' && (
+        <CalendarDayView
+          appointments={appointments}
+          customerName={(id) => (id ? customerMap[id] : undefined)}
+          onSelect={(t) => { clearDeliveryDraftState(); setSelectedAppointment(t); }}
+        />
+      )}
+
       {/* Inline creation form */}
       {formOpen && (
         <div className="rounded-[28px] bg-white dark:bg-[#17232f] p-5 shadow-sm ring-1 ring-indigo-200 space-y-4">
@@ -1125,7 +1168,7 @@ export default function AppointmentsPage() {
       )}
 
       {/* Empty state */}
-      {!hasAny && (
+      {viewMode === 'list' && !hasAny && (
         <Card padding="none">
           <EmptyState
             title="Δεν υπάρχουν ακόμα ραντεβού."
@@ -1135,7 +1178,7 @@ export default function AppointmentsPage() {
       )}
 
       {/* Grouped agenda */}
-      {hasAny && GROUP_ORDER.map((key) => {
+      {viewMode === 'list' && hasAny && GROUP_ORDER.map((key) => {
         const group = groups[key];
         if (group.length === 0) return null;
         return (
