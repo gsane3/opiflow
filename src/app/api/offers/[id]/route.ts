@@ -392,6 +392,9 @@ export async function PATCH(
         hasNewVatRate && raw.vatRate != null
           ? (optionalNumber(raw.vatRate) ?? existing.vat_rate)
           : existing.vat_rate;
+      if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
+        return NextResponse.json({ ok: false, error: 'invalid_vat_rate' }, { status: 400 });
+      }
 
       const { subtotal, vatAmount, total, lineTotals } = calculateOfferTotals(newItems, vatRate);
 

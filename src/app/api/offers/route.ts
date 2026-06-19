@@ -369,6 +369,9 @@ export async function POST(request: NextRequest) {
 
     // vatRate defaults to 24
     const vatRate = raw.vatRate != null ? (optionalNumber(raw.vatRate) ?? 24) : 24;
+    if (!Number.isFinite(vatRate) || vatRate < 0 || vatRate > 100) {
+      return NextResponse.json({ ok: false, error: 'invalid_vat_rate' }, { status: 400 });
+    }
 
     // offerDate defaults to today
     const offerDate = str(raw.offerDate) ?? todayStr();

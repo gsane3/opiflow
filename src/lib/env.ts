@@ -21,8 +21,10 @@ export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   sipPerUser: ['SIP_CRED_ENC_KEY'],
   webhookSecrets: ['PBX_WEBHOOK_SECRET', 'APIFON_WEBHOOK_SECRET'],
   // Stripe billing — when unset, the billing UI hides its upgrade/manage buttons.
+  // All three are required for checkout AND activation to actually work, so health
+  // only reports billing:true when payments can really function end-to-end.
   // (Native `push` is reported separately by /api/health via isPushEnabled().)
-  billing: ['STRIPE_SECRET_KEY'],
+  billing: ['STRIPE_SECRET_KEY', 'STRIPE_PRICE_ID', 'STRIPE_WEBHOOK_SECRET'],
   // Sentry error monitoring — when set, instrumentation.ts initialises the
   // server SDK and next.config wraps the build with withSentryConfig.
   monitoring: ['SENTRY_DSN'],

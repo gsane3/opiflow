@@ -274,7 +274,13 @@ export default function ProjectProcessScreen() {
       if (r?.ok) router.back();
       else Alert.alert('Σφάλμα', 'Δεν διαγράφηκε το έργο.');
     } catch (e) {
-      Alert.alert('Σφάλμα', e instanceof ApiError && e.isNetwork ? 'Έλεγξε τη σύνδεση.' : 'Η διαγραφή απέτυχε.');
+      const msg =
+        e instanceof ApiError && e.status === 409
+          ? 'Το έργο έχει δηλωμένες/επιβεβαιωμένες πληρωμές. Ακύρωσε πρώτα την πληρωμή.'
+          : e instanceof ApiError && e.isNetwork
+            ? 'Έλεγξε τη σύνδεση.'
+            : 'Η διαγραφή απέτυχε.';
+      Alert.alert('Σφάλμα', msg);
     } finally { setBusy(false); }
   }
 

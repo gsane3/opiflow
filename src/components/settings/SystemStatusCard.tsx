@@ -15,8 +15,7 @@ interface Row {
 
 // Order = importance for the operator. We only show the user-facing ones.
 const ROWS: Row[] = [
-  { key: 'viber', label: 'Viber (Apifon)', hint: 'Αποστολή link σε πελάτες μέσω Viber' },
-  { key: 'email', label: 'Email (Resend)', hint: 'Αποστολή προσφορών/link μέσω email' },
+  { key: 'viber', label: 'Viber / SMS (Apifon)', hint: 'Αποστολή link σε πελάτες μέσω Viber/SMS' },
   { key: 'anthropic', label: 'AI βοηθός', hint: 'Σύνοψη πελάτη & /cmd εντολές' },
   { key: 'openai', label: 'Μεταγραφή κλήσεων', hint: 'Ηχογράφηση → κείμενο → brief' },
   { key: 'push', label: 'Ειδοποιήσεις', hint: 'Push στο κινητό σε απαντήσεις πελατών' },

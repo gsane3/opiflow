@@ -121,6 +121,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   // Bumped after the NBA card finishes a GET → the Attention card then re-reads
   // (so it sees the freshly-persisted next_actions row, never contradicting it).
   const [attnKey, setAttnKey] = useState(0);
+  const [delMsg, setDelMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -260,15 +261,23 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   // customer's history (FK set-null). After success, close and refresh the list.
   async function deleteFolder() {
     setBusy(true);
+    setDelMsg(null);
     try {
       const headers = await authHeaders();
       if (!headers) return;
       const res = await fetch(`/api/folders/${folderId}`, { method: 'DELETE', headers });
-      if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) {
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (j?.ok) {
         setSheet(null);
         onChanged?.();
         onClose();
+      } else if (j?.error === 'folder_has_payments') {
+        setDelMsg('Το έργο έχει δηλωμένες/επιβεβαιωμένες πληρωμές. Ακύρωσε πρώτα την πληρωμή για να το διαγράψεις.');
+      } else {
+        setDelMsg('Η διαγραφή απέτυχε. Δοκίμασε ξανά.');
       }
+    } catch {
+      setDelMsg('Η διαγραφή απέτυχε. Δοκίμασε ξανά.');
     } finally { setBusy(false); }
   }
 
@@ -346,7 +355,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
         </Sheet>
 
         {/* payment request sheet (deposit/balance + %-slider) */}
-        <Sheet open={sheet === 'payreq'} title="Αίτημα πληρωμής" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void submitPayReq()}><Icon name="euro" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button>}>
+        <Sheet open={sheet === 'payreq'} title="Αίτημα πληρωμής" onClose={() => setSheet(null)} footer={firstOffer ? <button className="opf-btn-primary opf-full opf-press" onClick={() => void submitPayReq()}><Icon name="euro" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button> : <button className="opf-btn-primary opf-full opf-press" onClick={() => { setODesc(''); setOAmount(''); setSheet('offer'); }}><Icon name="file" size={19} color="#fff" stroke={2.1} /><span>Δημιουργία προσφοράς</span></button>}>
           {firstOffer ? (
             <>
               <div className="opf-seg opf-seg-pad" style={{ marginBottom: 18 }}>
@@ -382,6 +391,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
         {/* delete project sheet */}
         <Sheet open={sheet === 'delete'} title="Διαγραφή έργου" onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void deleteFolder()} style={{ background: 'var(--danger)' }}><Icon name="trash" size={18} color="#fff" stroke={2.2} /><span>{busy ? 'Διαγραφή…' : 'Οριστική διαγραφή'}</span></button>}>
           <div className="opf-req-info"><Icon name="trash" size={22} color="var(--danger)" stroke={2} /><span>Το έργο θα διαγραφεί οριστικά. Ο σύνδεσμος του πελάτη παύει να ισχύει. Οι προσφορές, τα ραντεβού και τα μηνύματα παραμένουν στο ιστορικό του πελάτη. Η ενέργεια δεν αναιρείται.</span></div>
+          {delMsg && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)', fontSize: 13.5, fontWeight: 600, lineHeight: 1.5 }}>{delMsg}</div>}
         </Sheet>
       </div>
     </div>
