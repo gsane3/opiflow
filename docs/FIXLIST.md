@@ -23,7 +23,7 @@
 - [x] **A1 · #10** Ραντεβού: η επιβεβαίωση κρατάει πλέον (durable, χωρίς migration — seed από το μήνυμα αποδοχής). — PR #310
 - [x] **A2 · #11** Ο πελάτης βλέπει live τις απαντήσεις σου στο τσατ (GET /api/f/[token]/message + polling 12s). — PR #312
 - [x] **A3 · #12** «Νέο έργο»: διορθωμένο copy (web+native) — δεν υπόσχεται αυτόματο SMS· ο σύνδεσμος στέλνεται από το έργο. — PR #313
-- [ ] **A4 · #13/#14 · M** Owner ενέργειες (προσφορά/ραντεβού/edit) αποτυγχάνουν σιωπηλά · κενό προφίλ πελάτη χωρίς error/loading. *(ProjectProcess.tsx, CustomerProfile.tsx)*
+- [x] **A4 · #13/#14** Owner ενέργειες: error toast σε κάθε αποτυχία (ProjectProcess) + loading/error/not-found οθόνη στο προφίλ (CustomerProfile) — όχι πια σιωπηλές αποτυχίες / κενό «Πελάτης». — PR #314
 - [ ] **A5 · U9/#9/#8 · M** 👤 SMS δεν δουλεύουν → **ζωντανή δοκιμή Apifon** + recording webhook config (call briefs). *(owner creds + apifon-sms.ts + webhooks/voice)*
 - [ ] **A6 · #16 · S** «Καρφίτσωμα» πελάτη χαλάει στη σελιδοποίηση. *(customers/route.ts)*
 
