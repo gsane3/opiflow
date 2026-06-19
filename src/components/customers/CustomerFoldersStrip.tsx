@@ -139,7 +139,7 @@ export default function CustomerFoldersStrip({ customerId, onChanged, openCreate
           <div className="opf-card opf-proj-empty">
             <div className="opf-gate-step">
               <span className="opf-gate-num">1</span>
-              <div><b>Δημιούργησε έργο</b><span>Απαραίτητο πριν στείλεις προσφορά, ραντεβού ή μήνυμα. Δημιουργεί link που στέλνεται στον πελάτη.</span></div>
+              <div><b>Δημιούργησε έργο</b><span>Απαραίτητο πριν στείλεις προσφορά, ραντεβού ή μήνυμα. Κάθε έργο έχει μοναδικό σύνδεσμο που στέλνεις εσύ στον πελάτη.</span></div>
             </div>
             <button className="opf-btn-primary opf-full opf-press" onClick={() => { setTitle(''); setCreateErr(''); setCreating(true); }}><Icon name="folderPlus" size={19} color="#fff" stroke={2.1} /><span>Δημιουργία έργου</span></button>
           </div>
@@ -173,10 +173,10 @@ export default function CustomerFoldersStrip({ customerId, onChanged, openCreate
               {createErr && <p style={{ color: 'var(--danger)', fontSize: 13, marginBottom: 8 }}>{createErr}</p>}
               <label className="opf-field"><span className="opf-field-label">Τίτλος έργου</span><input className="opf-inp" value={title} maxLength={120} onChange={(e) => { setTitle(e.target.value); if (createErr) setCreateErr(''); }} placeholder="π.χ. Τοποθέτηση κλιματιστικού" autoFocus /></label>
               <div className="opf-tpl-chips">{['Τοποθέτηση A/C', 'Επισκευή', 'Συντήρηση', 'Νέα εγκατάσταση'].map((x) => <button key={x} className="opf-tpl-chip opf-press" onClick={() => setTitle(x)}>{x}</button>)}</div>
-              <div className="opf-link-note"><Icon name="link" size={16} color="var(--brand)" /> Δημιουργείται link που στέλνεται με SMS — ο πελάτης βλέπει εκεί προσφορές, ραντεβού και συνομιλία.</div>
+              <div className="opf-link-note"><Icon name="link" size={16} color="var(--brand)" /> Κάθε έργο έχει έναν μοναδικό σύνδεσμο για τον πελάτη. Θα τον στείλεις μέσα από το έργο — με προσφορά, ραντεβού, μήνυμα ή «Κοινοποίηση συνδέσμου».</div>
             </div>
             <div className="opf-sheet-foot">
-              <button className="opf-btn-primary opf-full opf-press" onClick={() => void createFolder()}><Icon name="folderPlus" size={19} color="#fff" stroke={2.1} /><span>{createBusy ? 'Δημιουργία…' : 'Δημιουργία & αποστολή link'}</span></button>
+              <button className="opf-btn-primary opf-full opf-press" onClick={() => void createFolder()}><Icon name="folderPlus" size={19} color="#fff" stroke={2.1} /><span>{createBusy ? 'Δημιουργία…' : 'Δημιουργία έργου'}</span></button>
             </div>
           </div>
         </div>
