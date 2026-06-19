@@ -213,40 +213,48 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(Math.max(isNaN(limitRaw) ? 50 : limitRaw, 1), 100);
     const offset = Math.max(isNaN(offsetRaw) ? 0 : offsetRaw, 0);
 
-    let query = supabase
-      .from('customers')
-      .select(CUSTOMER_COLUMNS)
-      .eq('business_id', businessId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
-
-    if (statusParam) {
-      query = query.eq('status', statusParam);
-    }
-
-    if (awaiting) {
-      query = query.is('name', null).eq('source', 'inbound_call');
-    }
-
     // Strip PostgREST .or()/LIKE metacharacters so a Greek term with a comma,
     // parens, % or * (e.g. an address, or "Παπαδόπουλος, Γιώργος") can't corrupt
     // the filter or inject extra .or conditions.
     const q = qParam?.trim().replace(/[%,()*\\]/g, '').trim();
-    if (q) {
-      query = query.or(
-        `name.ilike.%${q}%,company_name.ilike.%${q}%,phone.ilike.%${q}%,mobile_phone.ilike.%${q}%,email.ilike.%${q}%`
-      );
-    }
 
-    const { data, error } = await query;
+    // Pinned customers (F6) are ordered FIRST at the DB level so they stay at the
+    // top of the list ACROSS pagination. Previously the pin sort ran only on the
+    // already-fetched page, so a pinned customer whose created_at placed it beyond
+    // page 1 was never floated up (it wasn't even fetched) — that is #16. `pinned`
+    // is migration 044; on an older schema ordering by it errors, so we retry
+    // without it (pins simply don't float, same as pre-044 before).
+    const buildQuery = (withPinned: boolean) => {
+      let qb = supabase
+        .from('customers')
+        .select(CUSTOMER_COLUMNS)
+        .eq('business_id', businessId);
+      if (statusParam) qb = qb.eq('status', statusParam);
+      if (awaiting) qb = qb.is('name', null).eq('source', 'inbound_call');
+      if (q) {
+        qb = qb.or(
+          `name.ilike.%${q}%,company_name.ilike.%${q}%,phone.ilike.%${q}%,mobile_phone.ilike.%${q}%,email.ilike.%${q}%`
+        );
+      }
+      if (withPinned) qb = qb.order('pinned', { ascending: false, nullsFirst: false });
+      return qb.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    };
+
+    let { data, error } = await buildQuery(true);
+    if (error) {
+      // pre-044 schema (no `pinned` column to order by) → retry without it.
+      ({ data, error } = await buildQuery(false));
+    }
     if (error) {
       return NextResponse.json({ ok: false, error: 'customers_query_failed' }, { status: 500 });
     }
 
     const customers = ((data ?? []) as unknown[]).map((row) => dbToCustomer(asCustomerRow(row)));
 
-    // Mark + float pinned customers to the top (F6). Tolerant of pre-044: a
-    // missing `pinned` column just yields no pins and the original order.
+    // Mark the pin flag on the returned rows so the client can render the pin
+    // icon. Ordering is already done by the DB query above (pinned first), so we
+    // only set the flag here — no page-local re-sort. Tolerant of pre-044: a
+    // missing `pinned` column just yields no pins.
     try {
       const { data: pins, error: pinErr } = await supabase
         .from('customers')
@@ -255,11 +263,7 @@ export async function GET(request: NextRequest) {
         .eq('pinned', true);
       if (!pinErr && Array.isArray(pins)) {
         const pinnedIds = new Set((pins as Array<{ id: string }>).map((p) => p.id));
-        if (pinnedIds.size > 0) {
-          for (const c of customers) c.pinned = pinnedIds.has(c.id);
-          // Stable sort (V8): pinned first, original created_at order within groups.
-          customers.sort((a, b) => Number(b.pinned) - Number(a.pinned));
-        }
+        for (const c of customers) c.pinned = pinnedIds.has(c.id);
       }
     } catch {
       // pre-044 → leave as-is
