@@ -66,6 +66,32 @@ export default function SettingsScreen() {
   // ----- subscription (read-only view) + account deletion (store requirement) -----
   const [sub, setSub] = useState<{ plan_key: string; status: string; trial_ends_at: string | null } | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [deletingImported, setDeletingImported] = useState(false);
+
+  function confirmDeleteImported() {
+    Alert.alert(
+      'Διαγραφή εισαγόμενων επαφών',
+      'Θα διαγραφούν όλες οι επαφές που εισήχθησαν από το κινητό. Οι επαφές της εφαρμογής (κλήσεις, έργα, χειροκίνητες) δεν επηρεάζονται. Συνέχεια;',
+      [
+        { text: 'Άκυρο', style: 'cancel' },
+        {
+          text: 'Διαγραφή',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingImported(true);
+            try {
+              const r = await apiDelete<{ ok?: boolean; deleted?: number }>('/api/customers/imported');
+              Alert.alert('✓', `Διαγράφηκαν ${r?.deleted ?? 0} εισαγόμενες επαφές.`);
+            } catch {
+              Alert.alert('Σφάλμα', 'Η διαγραφή απέτυχε. Δοκίμασε ξανά.');
+            } finally {
+              setDeletingImported(false);
+            }
+          },
+        },
+      ],
+    );
+  }
   useEffect(() => {
     let on = true;
     apiGet<{ subscription?: { plan_key: string; status: string; trial_ends_at: string | null } | null }>('/api/businesses/me')
@@ -704,11 +730,26 @@ export default function SettingsScreen() {
             </View>
           </Section>
 
+          {/* Επαφές κινητού — εισαγωγή + καθαρισμός */}
+          <Section title="Επαφές">
+            <ThemedText type="small" themeColor="textSecondary">
+              Η εισαγωγή επαφών από το κινητό γίνεται από την καρτέλα «Πελάτες». Εδώ μπορείς να
+              διαγράψεις όλες τις εισαγόμενες επαφές — οι επαφές της εφαρμογής (κλήσεις, έργα,
+              χειροκίνητες) δεν επηρεάζονται.
+            </ThemedText>
+            <PrimaryButton
+              label="Διαγραφή εισαγόμενων επαφών"
+              tone="outline"
+              onPress={confirmDeleteImported}
+              busy={deletingImported}
+            />
+          </Section>
+
           {/* Δεδομένα / Ειδοποιήσεις hint */}
           <Section title="Δεδομένα & Ειδοποιήσεις">
             <ThemedText type="small" themeColor="textSecondary">
               Εξαγωγή πελατών (CSV), ομάδα και δοκιμή ειδοποιήσεων γίνονται από το web:
-              www.opiflow.ai → Ρυθμίσεις. (Η εισαγωγή επαφών γίνεται από την καρτέλα «Πελάτες».)
+              www.opiflow.ai → Ρυθμίσεις.
             </ThemedText>
           </Section>
 
