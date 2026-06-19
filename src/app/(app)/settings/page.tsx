@@ -78,6 +78,41 @@ const PLAN_NAMES: Record<string, string> = {
   team: 'Team',
 };
 
+// B4 — settings organised into logical categories (was a flat 10-item list).
+type SettingsGroup = 'Η επιχείρησή σου' | 'Επικοινωνία με πελάτες' | 'Εφαρμογή' | 'Λογαριασμός';
+const SETTINGS_GROUP_ORDER: SettingsGroup[] = ['Η επιχείρησή σου', 'Επικοινωνία με πελάτες', 'Εφαρμογή', 'Λογαριασμός'];
+
+interface SectionMeta { id: SettingsSection; label: string; subtitle: string; group: SettingsGroup; icon: React.ReactNode }
+
+const SECTION_ICON = (path: string) => (
+  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" d={path} />
+  </svg>
+);
+
+const SETTINGS_SECTIONS: SectionMeta[] = [
+  { id: 'business', label: 'Επιχείρηση', subtitle: 'Στοιχεία και προτιμήσεις επιχείρησης', group: 'Η επιχείρησή σου',
+    icon: SECTION_ICON('M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21') },
+  { id: 'bank', label: 'Τραπεζικά στοιχεία', subtitle: 'IBAN & δικαιούχος για καταθέσεις πελατών', group: 'Η επιχείρησή σου',
+    icon: SECTION_ICON('M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z') },
+  { id: 'catalog', label: 'Κατάλογος υπηρεσιών', subtitle: 'Υπηρεσίες & υλικά με τιμές για προσφορές', group: 'Η επιχείρησή σου',
+    icon: SECTION_ICON('M3.75 5.25h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5') },
+  { id: 'telephony', label: 'Τηλεφωνία', subtitle: 'Αριθμός, σύνδεση & ηχογράφηση κλήσεων', group: 'Επικοινωνία με πελάτες',
+    icon: SECTION_ICON('M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z') },
+  { id: 'snippets', label: 'Πρότυπα μηνυμάτων', subtitle: 'Έτοιμες απαντήσεις με ένα tap στη συνομιλία', group: 'Επικοινωνία με πελάτες',
+    icon: SECTION_ICON('M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z') },
+  { id: 'automations', label: 'Ωράριο & αυτοματισμοί', subtitle: 'Ωράριο, αυτόματη απάντηση, εβδομαδιαία σύνοψη', group: 'Επικοινωνία με πελάτες',
+    icon: SECTION_ICON('M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z') },
+  { id: 'notifications', label: 'Ειδοποιήσεις', subtitle: 'Push ειδοποιήσεις & δοκιμή', group: 'Επικοινωνία με πελάτες',
+    icon: SECTION_ICON('M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0') },
+  { id: 'appearance', label: 'Εμφάνιση', subtitle: 'Σκούρο θέμα', group: 'Εφαρμογή',
+    icon: SECTION_ICON('M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z') },
+  { id: 'data', label: 'Δεδομένα', subtitle: 'Εισαγωγή & εξαγωγή πελατών (CSV)', group: 'Εφαρμογή',
+    icon: SECTION_ICON('M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75') },
+  { id: 'account', label: 'Λογαριασμός', subtitle: 'Συνδρομή, ομάδα & διαγραφή λογαριασμού', group: 'Λογαριασμός',
+    icon: SECTION_ICON('M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z') },
+];
+
 function subStatusPill(status: string): { label: string; cls: string } {
   switch (status) {
     case 'pending_manual_review':
@@ -438,140 +473,36 @@ export default function SettingsPage() {
             <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Λογαριασμός</p>
             <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100">Ρυθμίσεις</h1>
           </div>
-          <div className="space-y-2">
-            {([
-              {
-                id: 'business' as SettingsSection,
-                label: 'Επιχείρηση',
-                subtitle: 'Στοιχεία και προτιμήσεις επιχείρησης',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'telephony' as SettingsSection,
-                label: 'Τηλεφωνία',
-                subtitle: 'Αριθμός, σύνδεση & ηχογράφηση κλήσεων',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'appearance' as SettingsSection,
-                label: 'Εμφάνιση',
-                subtitle: 'Σκούρο θέμα',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'catalog' as SettingsSection,
-                label: 'Κατάλογος υπηρεσιών',
-                subtitle: 'Υπηρεσίες & υλικά με τιμές για προσφορές',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 5.25h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5m-16.5 4.5h16.5" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'bank' as SettingsSection,
-                label: 'Τραπεζικά στοιχεία',
-                subtitle: 'IBAN & δικαιούχος για καταθέσεις πελατών',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0 0 12 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75Z" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'snippets' as SettingsSection,
-                label: 'Πρότυπα μηνυμάτων',
-                subtitle: 'Έτοιμες απαντήσεις με ένα tap στη συνομιλία',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 0 1 .865-.501 48.172 48.172 0 0 0 3.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'automations' as SettingsSection,
-                label: 'Ωράριο & αυτοματισμοί',
-                subtitle: 'Ωράριο, αυτόματη απάντηση, εβδομαδιαία σύνοψη',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'data' as SettingsSection,
-                label: 'Δεδομένα',
-                subtitle: 'Εισαγωγή & εξαγωγή πελατών (CSV)',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 6.375c0 2.278-3.694 4.125-8.25 4.125S3.75 8.653 3.75 6.375m16.5 0c0-2.278-3.694-4.125-8.25-4.125S3.75 4.097 3.75 6.375m16.5 0v11.25c0 2.278-3.694 4.125-8.25 4.125s-8.25-1.847-8.25-4.125V6.375m16.5 0v3.75m-16.5-3.75v3.75m16.5 0v3.75C20.25 16.153 16.556 18 12 18s-8.25-1.847-8.25-4.125v-3.75" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'account' as SettingsSection,
-                label: 'Λογαριασμός',
-                subtitle: 'Συνδρομή & διαγραφή λογαριασμού',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-              {
-                id: 'notifications' as SettingsSection,
-                label: 'Ειδοποιήσεις',
-                subtitle: 'Push ειδοποιήσεις & δοκιμή',
-                icon: (
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" strokeWidth={1.5} stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-                  </svg>
-                ),
-                bg: 'bg-indigo-50',
-              },
-            ] as Array<{ id: SettingsSection; label: string; subtitle: string; icon: React.ReactNode; bg: string; danger?: boolean }>).map(({ id, label, subtitle, icon, bg, danger }) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setActiveSection(id)}
-                className={`flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 transition active:bg-zinc-50 dark:bg-[#17232f] dark:active:bg-white/5 ${
-                  danger ? 'ring-red-100 hover:ring-red-200' : 'ring-zinc-200/60 hover:ring-indigo-200 dark:ring-white/10'
-                }`}
-              >
-                <div className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${bg}`}>
-                  {icon}
+          {SETTINGS_GROUP_ORDER.map((group) => {
+            const items = SETTINGS_SECTIONS.filter((s) => s.group === group);
+            if (items.length === 0) return null;
+            return (
+              <div key={group} className="mb-6">
+                <p className="mb-2 px-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">{group}</p>
+                <div className="space-y-2">
+                  {items.map(({ id, label, subtitle, icon }) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setActiveSection(id)}
+                      className="flex w-full items-center gap-4 rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 transition hover:ring-indigo-200 active:bg-zinc-50 dark:bg-[#17232f] dark:ring-white/10 dark:active:bg-white/5"
+                    >
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-indigo-50">
+                        {icon}
+                      </div>
+                      <div className="min-w-0 flex-1 text-left">
+                        <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{label}</p>
+                        <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
+                      </div>
+                      <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                      </svg>
+                    </button>
+                  ))}
                 </div>
-                <div className="min-w-0 flex-1 text-left">
-                  <p className={`text-sm font-semibold ${danger ? 'text-red-700' : 'text-zinc-900 dark:text-zinc-100'}`}>{label}</p>
-                  <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{subtitle}</p>
-                </div>
-                <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-500" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                </svg>
-              </button>
-            ))}
-          </div>
+              </div>
+            );
+          })}
 
           {/* Στατιστικά — opens the analytics page */}
           <div className="mt-6 border-t border-zinc-200/60 pt-6 dark:border-white/10">

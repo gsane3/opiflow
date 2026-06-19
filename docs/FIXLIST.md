@@ -31,7 +31,7 @@
 - [~] **B1 · U4** Αρχική NBA όπως στο τσατ — **DEFER (owner design + perf):** το CAM engine είναι per-folder/customer· business-wide aggregate = N+1 (~7 queries × κάθε folder) + side-effectful persist. Η αρχική ΕΧΕΙ ήδη «Τι πρέπει να γίνει τώρα» (HomeActionChips + NextActionsSection). Χρειάζεται απόφαση: single CAM card για τον top πελάτη ή λίστα; + read-only aggregate για perf.
 - [x] **B2 · U7** Επαφές **αλφαβητικά** (server `sort=name`, pins-first διατηρείται) + toggle «Αλφαβητικά Α–Ω». Το «Χωρίς στοιχεία» καλύπτεται ήδη από το filter «Αναμονή στοιχείων» (inbound χωρίς όνομα). — PR #317
 - [x] **B3 · U6** Επαφές κινητού vs app: toggle «Απόκρυψη επαφών κινητού» (web parity με native, `importedFromPhone`, εμφανίζεται μόνο όταν υπάρχουν). — PR #317
-- [ ] **B4 · U12 · L** 👤 Ρυθμίσεις σε κατηγορίες/υποκατηγορίες — **DEFER (μεγάλο redesign):** θέλει information-architecture απόφαση του owner (ποιες κατηγορίες/σειρά). *(settings shell)*
+- [x] **B4 · U12** Ρυθμίσεις σε **κατηγορίες**: «Η επιχείρησή σου» (Επιχείρηση/Τραπεζικά/Κατάλογος) · «Επικοινωνία με πελάτες» (Τηλεφωνία/Πρότυπα/Ωράριο/Ειδοποιήσεις) · «Εφαρμογή» (Εμφάνιση/Δεδομένα) · «Λογαριασμός» + «Επισκόπηση» (Στατιστικά). — PR #323
 - [ ] **B5 · U11 · L** 👤 Premium/branded οθόνη κλήσης — **DEFER (design + device):** native calls.tsx + web in-call· θέλει εικαστική κατεύθυνση + δοκιμή σε συσκευή.
 - [ ] **B6 · U3 · L** 👤 Συνέπεια spacing/παραθύρων — **DEFER (global design pass):** ο web `/customers` list είναι ακόμη Tailwind ενώ το προφίλ/έργο είναι opf-prototype· χρειάζεται ενιαία απόφαση migration.
 - [ ] **B7 · #4/U5 · L** 👤 Native εισερχόμενες κλήσεις — **DEFER (owner/device):** θέλει build + δοκιμή σε συσκευή + Twilio Android FCM push credential (O-item).
