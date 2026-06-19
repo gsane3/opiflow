@@ -52,7 +52,9 @@ app/owner:
 ; from-intertelecom — after the business endpoint is resolved, before Dial():
  exten => s,n,Answer()
  exten => s,n,Wait(0.4)
- exten => s,n,Playback(opiflow-call-recorded)   ; disclosure to the caller (customer)
+ ; ${OPIFLOW_DISCLOSURE} is set per-business by the generated [opiflow-inbound]
+ ; (the user's own-voice clip, or opiflow-call-recorded as the fallback). See §5.
+ exten => s,n,Playback(${OPIFLOW_DISCLOSURE})    ; disclosure to the caller (customer)
  ; ... existing Dial(...) to the app/owner stays unchanged ...
 ```
 
@@ -62,10 +64,11 @@ plays the announcement **to the answering party** (the customer) the moment they
 pick up, before the legs are bridged:
 ```asterisk
 ; before:  exten => _X.,n,Dial(SIP/intertelecom/${EXTEN},45,...)
-; after:   exten => _X.,n,Dial(SIP/intertelecom/${EXTEN},45,...A(opiflow-call-recorded))
+; after:   exten => _X.,n,Dial(SIP/intertelecom/${EXTEN},45,...A(${OPIFLOW_DISCLOSURE}))
 ```
-(If the `Dial` already has options, just append `A(opiflow-call-recorded)` to them —
-options are concatenated, e.g. `tA(opiflow-call-recorded)`.)
+(If the `Dial` already has options, just append `A(${OPIFLOW_DISCLOSURE})` to them —
+options are concatenated, e.g. `tA(${OPIFLOW_DISCLOSURE})`. `OPIFLOW_DISCLOSURE` is
+stamped on each business's pjsip endpoint by the generator — see §5.)
 
 > Use `Playback` (non-interruptible) for the inbound disclosure so it can't be
 > skipped. `A()` on outbound is inherently played in full before bridging.
@@ -84,10 +87,33 @@ cp /etc/asterisk/extensions.conf.<TIMESTAMP>.bak /etc/asterisk/extensions.conf
 asterisk -rx "dialplan reload"
 ```
 
+## 5. Per-business own-voice disclosure (automatic)
+
+Each user can record the disclosure in **their own voice** in the app (onboarding
+wizard → «Μήνυμα ηχογράφησης κλήσεων», or Ρυθμίσεις → Τηλεφωνία). It is saved to
+`businesses.recording_disclosure_audio` (migration **055**, a base64 data: URL).
+
+`scripts/provision-asterisk.py` (the cron-driven generator already running on the box)
+then, for each business that has a clip:
+- decodes + transcodes it with `ffmpeg` to `${OPIFLOW_SOUNDS_DIR}/opiflow-disclosure-<hex>.wav`
+  (8 kHz mono PCM; skipped when unchanged via a `.src.sha` sidecar), and
+- stamps `OPIFLOW_DISCLOSURE` = that file (else the global default) on **both** the
+  inbound exten (`[opiflow-inbound]`) and the business's pjsip endpoint (`set_var`).
+
+So the two dialplan lines above — `Playback(${OPIFLOW_DISCLOSURE})` (inbound) and
+`A(${OPIFLOW_DISCLOSURE})` (outbound) — play the correct clip in **both directions**
+with **zero per-business dialplan edits**.
+
+Requirements on the box: `ffmpeg` installed; `${OPIFLOW_SOUNDS_DIR}` (default
+`/var/lib/asterisk/sounds`) writable by the script; and the **global default clip from
+§1 must still exist** (`opiflow-call-recorded.wav`) — it is the fallback for any
+business that hasn't recorded one. Preview safely with `python3 scripts/provision-asterisk.py --dry-run`.
+
 ## Notes
-- Multi-tenant: the greeting is global (same file for all businesses) — no per-biz
-  config needed. It plays once per call leg.
+- Multi-tenant: the dialplan reads `${OPIFLOW_DISCLOSURE}`; the generator sets it
+  per-business (own-voice clip) with `opiflow-call-recorded` as the global fallback —
+  no per-business dialplan edits (see §5). It plays once per call leg.
 - It does not affect the existing recording/transcription pipeline, the missed-call
   funnel, or voicemail — it only adds a Playback/announcement before bridging.
-- If you later want a per-business greeting, gate the `Playback` on a channel
-  variable set during business-endpoint resolution.
+- Per-business own-voice greetings are implemented via the `${OPIFLOW_DISCLOSURE}`
+  channel variable (see §5) — already gated on the resolved business.

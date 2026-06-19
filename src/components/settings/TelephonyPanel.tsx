@@ -9,6 +9,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Spinner } from '@/components/ui/Spinner';
+import DisclosureRecorder from '@/components/onboarding/DisclosureRecorder';
 
 type Mode = 'native' | 'forward';
 type Presence = 'available' | 'busy' | 'away' | 'dnd' | 'offline';
@@ -40,6 +41,11 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
   const [recordCalls, setRecordCalls] = useState(true);
   const [micState, setMicState] = useState<'unknown' | 'checking' | 'granted' | 'denied' | 'unsupported'>('unknown');
   const [micError, setMicError] = useState<string | null>(null);
+  // Per-business call-recording disclosure clip, recorded in the user's own voice.
+  const [disclosureAudio, setDisclosureAudio] = useState('');
+  const [disclosureReady, setDisclosureReady] = useState(false);
+  const [disclosureSaving, setDisclosureSaving] = useState(false);
+  const [disclosureMsg, setDisclosureMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -134,6 +140,42 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
     try { localStorage.setItem('deskop_record_calls', next ? '1' : '0'); } catch { /* ignore */ }
   }
 
+  // Load the saved disclosure clip on mount.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const token = await getToken();
+      if (!token) { if (!cancelled) setDisclosureReady(true); return; }
+      try {
+        const res = await fetch('/api/businesses/me/disclosure-audio', { headers: { Authorization: `Bearer ${token}` } });
+        const j = await res.json().catch(() => ({}));
+        if (!cancelled && j?.ok && typeof j.audio === 'string') setDisclosureAudio(j.audio);
+      } catch { /* keep empty */ } finally { if (!cancelled) setDisclosureReady(true); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  async function saveDisclosure(dataUrl: string) {
+    const prev = disclosureAudio;
+    setDisclosureAudio(dataUrl);
+    setDisclosureSaving(true);
+    setDisclosureMsg(null);
+    try {
+      const token = await getToken();
+      if (!token) { setDisclosureMsg({ tone: 'err', text: 'Πρέπει να είσαι συνδεδεμένος.' }); setDisclosureAudio(prev); return; }
+      const res = await fetch('/api/businesses/me/disclosure-audio', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ audio: dataUrl || null }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok && j?.ok) setDisclosureMsg({ tone: 'ok', text: dataUrl ? 'Αποθηκεύτηκε.' : 'Αφαιρέθηκε.' });
+      else if (j?.error === 'migration_pending') { setDisclosureMsg({ tone: 'err', text: 'Δεν είναι ακόμα διαθέσιμο (εκκρεμεί ρύθμιση συστήματος).' }); setDisclosureAudio(prev); }
+      else { setDisclosureMsg({ tone: 'err', text: 'Η αποθήκευση απέτυχε.' }); setDisclosureAudio(prev); }
+    } catch { setDisclosureMsg({ tone: 'err', text: 'Η αποθήκευση απέτυχε.' }); setDisclosureAudio(prev); }
+    finally { setDisclosureSaving(false); }
+  }
+
   async function checkMic() {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== 'function') {
       setMicState('unsupported');
@@ -205,6 +247,22 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             >
               {micState === 'checking' ? 'Έλεγχος…' : 'Έλεγχος'}
             </Button>
+          )}
+        </div>
+
+        {/* Disclosure recording — the user's own-voice "η κλήση ηχογραφείται" message */}
+        <div className="mt-4 border-t border-zinc-100 dark:border-white/10 pt-4">
+          <p className="text-sm font-medium text-zinc-900 dark:text-zinc-100">Μήνυμα ηχογράφησης (η φωνή σου)</p>
+          <p className="mt-0.5 mb-3 text-xs text-zinc-500 dark:text-zinc-400">
+            Ακούγεται στον πελάτη πριν μιλήσετε, σε κάθε κλήση. Αν δεν ηχογραφήσεις, παίζει τυποποιημένο μήνυμα.
+          </p>
+          {disclosureReady ? (
+            <DisclosureRecorder value={disclosureAudio} onChange={saveDisclosure} saving={disclosureSaving} />
+          ) : (
+            <div className="flex items-center gap-2"><Spinner size="sm" className="text-indigo-500" /><span className="text-xs text-zinc-500 dark:text-zinc-400">Φόρτωση…</span></div>
+          )}
+          {disclosureMsg && (
+            <p className={`mt-2 text-xs ${disclosureMsg.tone === 'ok' ? 'text-emerald-600' : 'text-amber-600'}`}>{disclosureMsg.text}</p>
           )}
         </div>
       </div>

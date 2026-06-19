@@ -472,6 +472,16 @@ export default function SettingsScreen() {
                 void registerForIncoming();
               }}
             />
+            <View style={{ height: 12 }} />
+            <ThemedText type="smallBold">Μήνυμα ηχογράφησης κλήσεων</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Ακούγεται στον πελάτη πριν από κάθε κλήση. Ηχογράφησέ το με τη φωνή σου από τον υπολογιστή: opiflow.ai → Ρυθμίσεις → Τηλεφωνία.
+            </ThemedText>
+            <PrimaryButton
+              label="Άνοιγμα ρυθμίσεων στον browser"
+              tone="outline"
+              onPress={() => { void import('expo-web-browser').then((WB) => WB.openBrowserAsync('https://opiflow.ai/settings')); }}
+            />
           </Section>
 
           {/* Εμφάνιση */}

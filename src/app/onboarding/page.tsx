@@ -11,6 +11,7 @@ import BusinessProfileForm, {
 } from '@/components/onboarding/BusinessProfileForm';
 import LogoUpload from '@/components/onboarding/LogoUpload';
 import VatAndTermsForm from '@/components/onboarding/VatAndTermsForm';
+import DisclosureRecorder from '@/components/onboarding/DisclosureRecorder';
 
 interface FormData {
   businessType: BusinessType | null;
@@ -35,6 +36,9 @@ interface FormData {
   postalCode: string;
   region: string;
   website: string;
+  // Per-business call-recording disclosure clip (base64 data URL). Saved AFTER the
+  // business is created, via PUT /api/businesses/me/disclosure-audio.
+  disclosureAudioDataUrl: string;
 }
 
 const DEFAULT_OFFER_TERMS =
@@ -56,6 +60,10 @@ const STEPS = [
   {
     title: 'ΦΠΑ & Όροι προσφορών',
     subtitle: 'Προεπιλεγμένες ρυθμίσεις για νέες προσφορές.',
+  },
+  {
+    title: 'Μήνυμα ηχογράφησης κλήσεων',
+    subtitle: 'Προαιρετικό. Ηχογράφησέ το με τη φωνή σου — ακούγεται πριν από κάθε κλήση.',
   },
 ];
 
@@ -89,6 +97,7 @@ function buildInitialFormData(): FormData {
     postalCode:     '',
     region:         '',
     website:        '',
+    disclosureAudioDataUrl: '',
   };
 }
 
@@ -298,6 +307,17 @@ function OnboardingPageContent() {
       } catch {
         // localStorage write failure is non-fatal
       }
+      // Best-effort: persist the recorded call-recording disclosure now that the
+      // business exists (the wizard step records into state; the row is saved here).
+      if (formData.disclosureAudioDataUrl && accessToken) {
+        try {
+          await fetch('/api/businesses/me/disclosure-audio', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ audio: formData.disclosureAudioDataUrl }),
+          });
+        } catch { /* non-fatal — they can re-record in Ρυθμίσεις → Τηλεφωνία */ }
+      }
       try { localStorage.removeItem('deskop_onboarding_prefill'); } catch { /* non-fatal */ }
       router.push('/number');
       return;
@@ -413,6 +433,12 @@ function OnboardingPageContent() {
                 offerTerms={formData.offerTerms}
                 onChangeVat={(rate) => updateForm({ vatRate: rate })}
                 onChangeTerms={(terms) => updateForm({ offerTerms: terms })}
+              />
+            )}
+            {step === 4 && (
+              <DisclosureRecorder
+                value={formData.disclosureAudioDataUrl}
+                onChange={(dataUrl) => updateForm({ disclosureAudioDataUrl: dataUrl })}
               />
             )}
           </div>
