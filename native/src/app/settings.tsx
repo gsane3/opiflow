@@ -54,6 +54,15 @@ const SUB_STATUS: Record<string, string> = {
   past_due: 'Εκκρεμεί πληρωμή',
 };
 
+// Item 3 — clean drill-in (no big single scroll): tap a category → its settings.
+type SettingsGroupTitle = 'Η επιχείρησή σου' | 'Επικοινωνία με πελάτες' | 'Εφαρμογή' | 'Λογαριασμός';
+const SETTINGS_GROUPS: { id: SettingsGroupTitle; subtitle: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'Η επιχείρησή σου', subtitle: 'Επιχείρηση, τραπεζικά, κατάλογος', icon: 'business-outline' },
+  { id: 'Επικοινωνία με πελάτες', subtitle: 'Τηλεφωνία, πρότυπα, ωράριο', icon: 'chatbubbles-outline' },
+  { id: 'Εφαρμογή', subtitle: 'Εμφάνιση, δεδομένα & επαφές', icon: 'options-outline' },
+  { id: 'Λογαριασμός', subtitle: 'Συνδρομή & διαγραφή', icon: 'person-circle-outline' },
+];
+
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const email = session?.user?.email ?? '';
@@ -67,6 +76,8 @@ export default function SettingsScreen() {
   const [sub, setSub] = useState<{ plan_key: string; status: string; trial_ends_at: string | null } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deletingImported, setDeletingImported] = useState(false);
+  // Drill-in: which settings category is open (null = the category hub).
+  const [activeGroup, setActiveGroup] = useState<SettingsGroupTitle | null>(null);
 
   function confirmDeleteImported() {
     Alert.alert(
@@ -488,6 +499,33 @@ export default function SettingsScreen() {
             </View>
           </ThemedView>
 
+          {/* Drill-in: category hub (no active group) or a back row (inside a group). */}
+          {activeGroup === null ? (
+            <>
+              {SETTINGS_GROUPS.map((g) => (
+                <Pressable
+                  key={g.id}
+                  onPress={() => setActiveGroup(g.id)}
+                  style={({ pressed }) => [styles.groupCard, pressed && styles.pressed]}>
+                  <View style={styles.groupIcon}>
+                    <Ionicons name={g.icon} size={22} color={Brand.primary} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <ThemedText type="smallBold">{g.id}</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">{g.subtitle}</ThemedText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={c.textFaint} />
+                </Pressable>
+              ))}
+            </>
+          ) : (
+            <Pressable onPress={() => setActiveGroup(null)} hitSlop={8} style={styles.backRow}>
+              <Ionicons name="chevron-back" size={20} color={Brand.primary} />
+              <ThemedText type="smallBold" style={{ color: Brand.primary }}>Ρυθμίσεις</ThemedText>
+            </Pressable>
+          )}
+
+          {activeGroup === 'Η επιχείρησή σου' && (<>
           {/* ───── Η επιχείρησή σου ───── */}
           <GroupHeader title="Η επιχείρησή σου" />
 
@@ -597,6 +635,9 @@ export default function SettingsScreen() {
             </ThemedText>
           </Section>
 
+          </>)}
+
+          {activeGroup === 'Επικοινωνία με πελάτες' && (<>
           {/* ───── Επικοινωνία με πελάτες ───── */}
           <GroupHeader title="Επικοινωνία με πελάτες" />
 
@@ -714,6 +755,9 @@ export default function SettingsScreen() {
             <PrimaryButton label="Αποθήκευση" onPress={() => void saveAutomations()} busy={autoBusy} disabled={!autoLoaded} />
           </Section>
 
+          </>)}
+
+          {activeGroup === 'Εφαρμογή' && (<>
           {/* ───── Εφαρμογή ───── */}
           <GroupHeader title="Εφαρμογή" />
 
@@ -753,6 +797,9 @@ export default function SettingsScreen() {
             </ThemedText>
           </Section>
 
+          </>)}
+
+          {activeGroup === 'Λογαριασμός' && (<>
           {/* ───── Λογαριασμός ───── */}
           <GroupHeader title="Λογαριασμός" />
 
@@ -795,6 +842,7 @@ export default function SettingsScreen() {
               {deleting ? 'Διαγραφή…' : 'Διαγραφή λογαριασμού'}
             </ThemedText>
           </Pressable>
+          </>)}
         </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -831,6 +879,9 @@ const makeStyles = (c: ThemePalette) =>
     content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four, gap: Spacing.three },
     groupHeader: { marginTop: Spacing.two, marginBottom: -Spacing.one, marginLeft: Spacing.one, color: c.textFaint, fontWeight: '700', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
     card: { padding: Spacing.three, borderRadius: 16 },
+    groupCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: c.card, borderRadius: 16, padding: Spacing.three, marginTop: Spacing.two, borderWidth: 1, borderColor: c.border },
+    groupIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
+    backRow: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: Spacing.two, marginBottom: Spacing.one, alignSelf: 'flex-start' },
     profile: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
     avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
     avatarText: { color: Brand.primary, fontSize: 18, fontWeight: '700' },
