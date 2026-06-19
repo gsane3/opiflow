@@ -6,6 +6,8 @@ import { loadPublicOffer } from '@/lib/server/public-offer';
 import PublicOfferDoc from './PublicOfferDoc';
 
 export const runtime = 'nodejs';
+// Match the portal landing page: never serve a cached (stale) offer total/status.
+export const dynamic = 'force-dynamic';
 
 export default async function PublicOfferPage({
   params,
