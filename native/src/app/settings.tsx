@@ -18,6 +18,7 @@ import { useThemeMode } from '@/lib/theme-mode';
 import { formatDate, formatEuro } from '@/lib/format';
 import { getIncomingState } from '@/lib/twilio-state';
 import type { Business, CatalogItem } from '@/lib/types';
+import DisclosureRecorderModal from '@/components/disclosure-recorder-modal';
 
 const PHONE_LABEL: Record<string, string> = {
   idle: 'Μη συνδεδεμένο',
@@ -96,6 +97,7 @@ export default function SettingsScreen() {
   }, [doDeleteAccount]);
 
   const [phone, setPhone] = useState(getIncomingState());
+  const [discModal, setDiscModal] = useState(false);
   useEffect(() => {
     const t = setInterval(() => setPhone(getIncomingState()), 1500);
     return () => clearInterval(t);
@@ -475,12 +477,12 @@ export default function SettingsScreen() {
             <View style={{ height: 12 }} />
             <ThemedText type="smallBold">Μήνυμα ηχογράφησης κλήσεων</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">
-              Ακούγεται στον πελάτη πριν από κάθε κλήση. Ηχογράφησέ το με τη φωνή σου από τον υπολογιστή: opiflow.ai → Ρυθμίσεις → Τηλεφωνία.
+              Ηχογράφησέ το με τη φωνή σου — ακούγεται στον πελάτη πριν από κάθε κλήση.
             </ThemedText>
-            <PrimaryButton
-              label="Άνοιγμα ρυθμίσεων στον browser"
-              tone="outline"
-              onPress={() => { void import('expo-web-browser').then((WB) => WB.openBrowserAsync('https://opiflow.ai/settings')); }}
+            <PrimaryButton label="Ηχογράφηση τώρα" tone="outline" onPress={() => setDiscModal(true)} />
+            <DisclosureRecorderModal
+              visible={discModal}
+              onClose={(saved) => { setDiscModal(false); if (saved) Alert.alert('✓', 'Το μήνυμα ηχογράφησης αποθηκεύτηκε.'); }}
             />
           </Section>
 
