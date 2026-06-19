@@ -31,6 +31,11 @@ export default function DisclosureRecorderModal({
   const styles = makeStyles(c);
   const [saving, setSaving] = useState(false);
 
+  function close(saved: boolean) {
+    setSaving(false);
+    onClose(saved);
+  }
+
   async function onMessage(e: WebViewMessageEvent) {
     let msg: { type?: string; audio?: string } | null = null;
     try { msg = JSON.parse(e.nativeEvent.data); } catch { return; }
@@ -38,8 +43,7 @@ export default function DisclosureRecorderModal({
     setSaving(true);
     try {
       await apiPut('/api/businesses/me/disclosure-audio', { audio: msg.audio });
-      setSaving(false);
-      onClose(true);
+      close(true);
     } catch {
       setSaving(false);
       Alert.alert('Σφάλμα', 'Δεν αποθηκεύτηκε το μήνυμα. Δοκίμασε ξανά.');
@@ -47,10 +51,10 @@ export default function DisclosureRecorderModal({
   }
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={() => onClose(false)}>
+    <Modal visible={visible} animationType="slide" onRequestClose={() => close(false)}>
       <SafeAreaView edges={['top']} style={styles.fill}>
         <View style={styles.header}>
-          <Pressable onPress={() => onClose(false)} hitSlop={10} style={styles.close}>
+          <Pressable onPress={() => close(false)} hitSlop={10} style={styles.close}>
             <Ionicons name="close" size={26} color={Brand.primary} />
           </Pressable>
           <ThemedText type="smallBold" style={styles.title}>Μήνυμα ηχογράφησης</ThemedText>
@@ -65,7 +69,7 @@ export default function DisclosureRecorderModal({
           mediaPlaybackRequiresUserAction={false}
           mediaCapturePermissionGrantType="grant"
           onPermissionRequest={(event: { grant: (resources: string[]) => void; resources: string[] }) => { event.grant(event.resources); }}
-          originWhitelist={['https://*']}
+          originWhitelist={['https://opiflow.ai/*']}
           style={styles.fill}
         />
         {saving ? (
