@@ -5,7 +5,7 @@
 // (src/styles/opiflow-proto.css, `opf-` namespaced) and DOM/markup, wired to the
 // real, live folder APIs. Opens full-screen from the customer chat.
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import NextActionCard, { type NextActionType } from '@/components/customers/NextActionCard';
@@ -122,6 +122,18 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   // (so it sees the freshly-persisted next_actions row, never contradicting it).
   const [attnKey, setAttnKey] = useState(0);
   const [delMsg, setDelMsg] = useState<string | null>(null);
+  // A single, always-visible error toast for owner actions. Previously every
+  // action that failed (offer/appointment/message/payment/edit) did nothing —
+  // the sheet just stayed open with no feedback. `fail()` surfaces a reason and
+  // auto-clears so a failed send is never silent.
+  const [actionErr, setActionErr] = useState<string | null>(null);
+  const errTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const fail = useCallback((message: string) => {
+    setActionErr(message);
+    if (errTimer.current) clearTimeout(errTimer.current);
+    errTimer.current = setTimeout(() => setActionErr(null), 4500);
+  }, []);
+  useEffect(() => () => { if (errTimer.current) clearTimeout(errTimer.current); }, []);
 
   const load = useCallback(async () => {
     try {
@@ -181,67 +193,87 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
     setBusy(true);
     try {
       const headers = await authHeaders();
-      if (!headers) return;
+      if (!headers) { fail('Λήξη σύνδεσης. Συνδέσου ξανά.'); return; }
       const res = await fetch(`/api/folders/${folderId}`, { method: 'PATCH', headers, body: JSON.stringify(updates) });
       if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) await refresh();
-    } finally { setBusy(false); }
+      else fail('Η ενέργεια απέτυχε. Δοκίμασε ξανά.');
+    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { setBusy(false); }
   }
   // No step/stepper: the project is run «act freely» (parity with native). The
   // public portal does not render progress, and folder.step is no longer written.
   async function completeProject() { await patchFolder({ status: 'done' }); setSheet(null); }
 
+  // Returns true only on a confirmed `{ ok: true }`; swallows network/auth errors
+  // (returns false) so the caller can always surface a reason via fail().
   async function post(path: string, body: unknown): Promise<boolean> {
-    const headers = await authHeaders();
-    if (!headers) return false;
-    const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) });
-    return ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) === true;
+    try {
+      const headers = await authHeaders();
+      if (!headers) return false;
+      const res = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) });
+      return ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) === true;
+    } catch { return false; }
   }
   async function sendMessage() {
     const t = msg.trim(); if (!t) return;
     setBusy(true);
-    try { if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
+    try {
+      if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); await refresh(); }
+      else fail('Το μήνυμα δεν στάλθηκε. Δοκίμασε ξανά.');
+    } finally { setBusy(false); }
   }
   async function sendRequest() {
     setBusy(true);
     try {
       const path = reqPhotos ? 'upload-link' : 'intake-link';
       if (await post(`/api/customers/${customerId}/${path}`, { mode: 'send', workFolderId: folderId })) { setSheet(null); await refresh(); }
+      else fail('Το αίτημα δεν στάλθηκε. Δοκίμασε ξανά.');
     } finally { setBusy(false); }
   }
   async function submitOffer() {
     const desc = oDesc.trim(); const amount = Number(oAmount.replace(',', '.'));
-    if (!desc || !isFinite(amount) || amount < 0) return;
+    if (!desc || !isFinite(amount) || amount < 0) { fail('Συμπλήρωσε περιγραφή και έγκυρο ποσό.'); return; }
     setBusy(true);
-    try { if (await post('/api/offers', { customerId, workFolderId: folderId, items: [{ description: desc, quantity: 1, unitPrice: amount }] })) { setODesc(''); setOAmount(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
+    try {
+      if (await post('/api/offers', { customerId, workFolderId: folderId, items: [{ description: desc, quantity: 1, unitPrice: amount }] })) { setODesc(''); setOAmount(''); setSheet(null); await refresh(); }
+      else fail('Η προσφορά δεν στάλθηκε. Δοκίμασε ξανά.');
+    } finally { setBusy(false); }
   }
   async function submitAppt() {
-    const title = aTitle.trim(); if (!title) return;
+    const title = aTitle.trim(); if (!title) { fail('Συμπλήρωσε τίτλο ραντεβού.'); return; }
     setBusy(true);
-    try { if (await post('/api/tasks', { customerId, workFolderId: folderId, title, type: 'book_appointment', dueDate: aDate || new Date().toISOString().split('T')[0] })) { setATitle(''); setSheet(null); await refresh(); } } finally { setBusy(false); }
+    try {
+      if (await post('/api/tasks', { customerId, workFolderId: folderId, title, type: 'book_appointment', dueDate: aDate || new Date().toISOString().split('T')[0] })) { setATitle(''); setSheet(null); await refresh(); }
+      else fail('Το ραντεβού δεν στάλθηκε. Δοκίμασε ξανά.');
+    } finally { setBusy(false); }
   }
   async function submitPayReq() {
     if (!firstOffer) return;
     setBusy(true);
-    try { if (await post(`/api/folders/${folderId}/payment-request`, { kind: payKind, pct: payPct, offerId: firstOffer.id })) { setSheet(null); await refresh(); } } finally { setBusy(false); }
+    try {
+      if (await post(`/api/folders/${folderId}/payment-request`, { kind: payKind, pct: payPct, offerId: firstOffer.id })) { setSheet(null); await refresh(); }
+      else fail('Το αίτημα πληρωμής δεν στάλθηκε. Δοκίμασε ξανά.');
+    } finally { setBusy(false); }
   }
   async function confirmPayment(id: string, status: 'confirmed' | 'cancelled') {
     setBusy(true);
     try {
       const headers = await authHeaders();
-      if (!headers) return;
+      if (!headers) { fail('Λήξη σύνδεσης. Συνδέσου ξανά.'); return; }
       const res = await fetch(`/api/payments/${id}`, { method: 'PATCH', headers, body: JSON.stringify({ status }) });
       if ((await res.json().catch(() => ({})) as { ok?: boolean })?.ok) await refresh();
-    } finally { setBusy(false); }
+      else fail('Η ενέργεια πληρωμής απέτυχε. Δοκίμασε ξανά.');
+    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { setBusy(false); }
   }
   async function previewPortal() {
     setBusy(true);
     try {
       const headers = await authHeaders();
-      if (!headers) return;
+      if (!headers) { fail('Λήξη σύνδεσης. Συνδέσου ξανά.'); return; }
       const res = await fetch(`/api/folders/${folderId}/link`, { method: 'POST', headers, body: JSON.stringify({ mode: 'open' }) });
       const j = (await res.json().catch(() => ({}))) as { ok?: boolean; responseUrl?: string };
       if (j?.ok && j.responseUrl) window.open(j.responseUrl, '_blank');
-    } finally { setBusy(false); }
+      else fail('Δεν άνοιξε ο σύνδεσμος. Δοκίμασε ξανά.');
+    } catch { fail('Πρόβλημα σύνδεσης. Δοκίμασε ξανά.'); } finally { setBusy(false); }
   }
   // «Απόρριψη πελάτη» — polite decline to the customer's link + mark customer «Χαμένος».
   async function rejectCustomer() {
@@ -393,6 +425,14 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
           <div className="opf-req-info"><Icon name="trash" size={22} color="var(--danger)" stroke={2} /><span>Το έργο θα διαγραφεί οριστικά. Ο σύνδεσμος του πελάτη παύει να ισχύει. Οι προσφορές, τα ραντεβού και τα μηνύματα παραμένουν στο ιστορικό του πελάτη. Η ενέργεια δεν αναιρείται.</span></div>
           {delMsg && <div style={{ marginTop: 12, padding: 12, borderRadius: 12, background: 'color-mix(in srgb, var(--danger) 12%, transparent)', color: 'var(--danger)', fontSize: 13.5, fontWeight: 600, lineHeight: 1.5 }}>{delMsg}</div>}
         </Sheet>
+
+        {/* action error toast — top-anchored so it shows over any open sheet */}
+        {actionErr && (
+          <div role="alert" onClick={() => setActionErr(null)}
+            style={{ position: 'fixed', left: '50%', top: 'calc(env(safe-area-inset-top) + 64px)', transform: 'translateX(-50%)', zIndex: 1000, maxWidth: 'min(92vw, 420px)', background: 'var(--danger)', color: '#fff', padding: '11px 16px', borderRadius: 12, fontSize: 13.5, fontWeight: 600, lineHeight: 1.4, textAlign: 'center', boxShadow: '0 8px 24px rgba(0,0,0,0.18)', cursor: 'pointer' }}>
+            {actionErr}
+          </div>
+        )}
       </div>
     </div>
   );

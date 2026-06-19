@@ -7,7 +7,7 @@
 // Ιστορικό κλήσεων (tap a call → its brief) · internal note. Contact details are
 // edited via the pencil (CustomerEditSheet). Rendered inside the app shell.
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { buildMapsUrl } from '@/lib/maps';
@@ -51,6 +51,10 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const [calls, setCalls] = useState<TimelineItem[]>([]);
   const [expandedCall, setExpandedCall] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadErr, setLoadErr] = useState(false);
+  // True once the profile has loaded at least once — lets a failed background
+  // refresh keep the existing data instead of blanking to the error screen.
+  const loadedRef = useRef(false);
   const [createSignal, setCreateSignal] = useState(0);
   const [naKey, setNaKey] = useState(0);
   const [infoOpen, setInfoOpen] = useState(false);
@@ -61,21 +65,25 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const [intakeBusy, setIntakeBusy] = useState(false);
 
   const load = useCallback(async () => {
+    setLoadErr(false);
     try {
       const headers = await authHeaders();
-      if (!headers) { setLoading(false); return; }
+      if (!headers) { setLoadErr(true); setLoading(false); return; }
       const [cRes, tRes] = await Promise.all([
         fetch(`/api/customers/${customerId}`, { headers }),
         fetch(`/api/customers/${customerId}/timeline`, { headers }),
       ]);
       const c = (await cRes.json().catch(() => ({}))) as { ok?: boolean; customer?: CustomerFull };
-      if (c?.ok && c.customer) { setCust(c.customer); setNote(c.customer.notes ?? ''); }
+      if (cRes.ok && c?.ok && c.customer) { loadedRef.current = true; setCust(c.customer); setNote(c.customer.notes ?? ''); }
+      // Only flag an error when we have NOTHING to show — a failed background
+      // refresh must not blank an already-loaded profile.
+      else if (!loadedRef.current) setLoadErr(true);
       const t = (await tRes.json().catch(() => ({}))) as { ok?: boolean; items?: TimelineItem[]; timeline?: TimelineItem[] };
       const items = t.items ?? t.timeline ?? [];
       // Call history — newest first; tap a call to reveal its brief/content.
       setCalls(items.filter((i) => i.type === 'call').reverse());
       setNaKey((n) => n + 1); // re-evaluate the Next Best Action after a reload
-    } catch { /* non-fatal */ } finally { setLoading(false); }
+    } catch { if (!loadedRef.current) setLoadErr(true); } finally { setLoading(false); }
   }, [customerId]);
   useEffect(() => { void load(); }, [load]);
 
@@ -125,10 +133,36 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
     if (t === 'create_work_folder') setCreateSignal((n) => n + 1);
   }
 
-  const name = cust?.name ?? cust?.companyName ?? 'Πελάτης';
+  // No customer yet → show an explicit loading or error/not-found state instead
+  // of a blank «Πελάτης» hero (which read as a real, empty customer before).
+  if (!cust) {
+    return (
+      <div className="opf-stage" data-theme={theme} style={{ minHeight: '100%', background: 'var(--bg)' }}>
+        <div className="opf-topbar opf-prof-top">
+          <button className="opf-press opf-tb-back" onClick={() => router.push('/customers')} aria-label="Πίσω"><OpfIcon name="chevronL" size={24} color="var(--brand)" stroke={2.4} /></button>
+          <div style={{ flex: 1 }} />
+        </div>
+        <div style={{ padding: '48px 16px', textAlign: 'center' }}>
+          {loading ? (
+            <div className="opf-empty-card">Φόρτωση πελάτη…</div>
+          ) : (
+            <div className="opf-empty-card" style={{ display: 'flex', flexDirection: 'column', gap: 14, alignItems: 'center' }}>
+              <span>{loadErr ? 'Δεν φορτώθηκε ο πελάτης. Ίσως έληξε η σύνδεση ή ο πελάτης δεν υπάρχει.' : 'Ο πελάτης δεν βρέθηκε.'}</span>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <button className="opf-btn-primary opf-press" onClick={() => { setLoading(true); void load(); }} style={{ padding: '10px 18px', borderRadius: 12 }}>Δοκίμασε ξανά</button>
+                <button className="opf-press" onClick={() => router.push('/customers')} style={{ padding: '10px 18px', borderRadius: 12, fontWeight: 700, color: 'var(--muted)' }}>Πίσω</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const name = cust.name ?? cust.companyName ?? 'Πελάτης';
   const initial = name.trim()[0]?.toUpperCase() ?? '?';
-  const phone = cust?.mobilePhone || cust?.phone || cust?.landlinePhone || '';
-  const status = cust?.status ?? 'new';
+  const phone = cust.mobilePhone || cust.phone || cust.landlinePhone || '';
+  const status = cust.status ?? 'new';
 
   return (
     <div className="opf-stage" data-theme={theme} style={{ minHeight: '100%', background: 'var(--bg)' }}>
