@@ -27,6 +27,7 @@ interface CustomerDto {
   lastContactAt: string | null;
   createdAt: string;
   updatedAt: string;
+  importedFromPhone?: boolean | null;
 }
 
 const VALID_SOURCES: readonly CustomerSource[] = [
@@ -116,6 +117,14 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
+  // U7 — alphabetical (Α–Ω) vs the default recency order. Server-side so it is
+  // correct across pagination, not just within the loaded page.
+  const [sortByName, setSortByName] = useState(false);
+  // U6 — distinguish contacts imported from the phone address book from real
+  // app/CRM leads. Mirrors native: a toggle to hide them, shown only when some
+  // exist. Filtering is client-side over the loaded rows (parity with native).
+  const [hideImported, setHideImported] = useState(false);
+  const [importedIds, setImportedIds] = useState<Set<string>>(new Set());
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [canLoadMore, setCanLoadMore] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
@@ -148,6 +157,7 @@ export default function CustomersPage() {
 
     const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
     if (debouncedSearch) params.set('q', debouncedSearch);
+    if (sortByName) params.set('sort', 'name');
     if (quickFilter === 'awaiting') params.set('awaiting', '1');
     else if (quickFilter !== 'all') params.set('status', quickFilter);
 
@@ -159,7 +169,9 @@ export default function CustomersPage() {
       if (seq !== loadSeq.current) return; // a newer query already won
       if (json.ok && Array.isArray(json.customers)) {
         const mapped = json.customers.map(mapCustomer);
+        const pageImported = json.customers.filter((c) => c.importedFromPhone).map((c) => c.id);
         setCustomers((prev) => (append ? [...prev, ...mapped] : mapped));
+        setImportedIds((prev) => (append ? new Set([...prev, ...pageImported]) : new Set(pageImported)));
         setCanLoadMore(json.customers.length === PAGE_SIZE);
         setMessage(null);
       } else {
@@ -173,11 +185,15 @@ export default function CustomersPage() {
     } finally {
       if (seq === loadSeq.current) { setHydrated(true); setLoading(false); setLoadingMore(false); }
     }
-  }, [debouncedSearch, quickFilter]);
+  }, [debouncedSearch, quickFilter, sortByName]);
 
   useEffect(() => { void load(0, false); }, [load, refreshTick]);
 
   const hasFilter = debouncedSearch !== '' || quickFilter !== 'all';
+
+  // U6 — only offer the toggle when some phone-imported contacts are present.
+  const hasImported = customers.some((c) => importedIds.has(c.id));
+  const visibleCustomers = hideImported ? customers.filter((c) => !importedIds.has(c.id)) : customers;
 
   // The label of an active "advanced" filter (one not shown as a primary chip),
   // surfaced as a removable active chip so it stays visible.
@@ -354,24 +370,54 @@ export default function CustomersPage() {
           >
             Περισσότερα φίλτρα
           </button>
+
+          {/* U7 — alphabetical (Α–Ω) toggle. */}
+          <button
+            type="button"
+            onClick={() => setSortByName((v) => !v)}
+            aria-pressed={sortByName}
+            className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
+              sortByName
+                ? 'bg-indigo-600 text-white'
+                : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/10'
+            }`}
+          >
+            Αλφαβητικά Α–Ω
+          </button>
+
+          {/* U6 — hide phone-imported contacts (shown only when some exist). */}
+          {hasImported && (
+            <button
+              type="button"
+              onClick={() => setHideImported((v) => !v)}
+              aria-pressed={hideImported}
+              className={`min-h-[40px] rounded-full px-4 py-1.5 text-sm font-medium transition active:scale-[0.97] ${
+                hideImported
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-zinc-100 dark:bg-[#1e2b38] text-zinc-700 dark:text-zinc-200 hover:bg-zinc-200 dark:hover:bg-white/10'
+              }`}
+            >
+              Απόκρυψη επαφών κινητού
+            </button>
+          )}
         </div>
       </div>
 
       {/* Results summary line */}
-      {customers.length > 0 && (
+      {visibleCustomers.length > 0 && (
         <div className="flex items-center gap-2">
           <p className="text-sm text-zinc-500 dark:text-zinc-400">
             {hasFilter ? 'Αποτελέσματα αναζήτησης' : 'Όλοι οι πελάτες'}
           </p>
           <span className="rounded-full bg-zinc-100 dark:bg-[#1e2b38] px-2 py-0.5 text-xs font-semibold text-zinc-500 dark:text-zinc-400">
-            {customers.length}{canLoadMore ? '+' : ''}
+            {visibleCustomers.length}{canLoadMore ? '+' : ''}
           </span>
         </div>
       )}
 
       {/* Customer list */}
-      {customers.length === 0 ? (
-        hasFilter ? (
+      {visibleCustomers.length === 0 ? (
+        (hasFilter || (hideImported && customers.length > 0)) ? (
           <Card padding="none" className="motion-safe:animate-[fadeIn_0.18s]">
             <EmptyState
               icon={
@@ -387,6 +433,7 @@ export default function CustomersPage() {
                   onClick={() => {
                     setSearch('');
                     setQuickFilter('all');
+                    setHideImported(false);
                   }}
                 >
                   Καθαρισμός φίλτρων
@@ -415,7 +462,7 @@ export default function CustomersPage() {
       ) : (
         <>
           <ul className="grid grid-cols-1 gap-3 motion-safe:animate-[fadeIn_0.18s] md:grid-cols-2">
-            {customers.map((customer) => (
+            {visibleCustomers.map((customer) => (
               <li key={customer.id}>
                 <CustomerCard customer={customer} />
               </li>

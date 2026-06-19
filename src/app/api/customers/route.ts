@@ -205,6 +205,8 @@ export async function GET(request: NextRequest) {
     const awaiting = searchParams.get('awaiting') === '1';
     const limitRaw = parseInt(searchParams.get('limit') ?? '50', 10);
     const offsetRaw = parseInt(searchParams.get('offset') ?? '0', 10);
+    // sort=name → alphabetical (U7). Anything else keeps the default recency order.
+    const sortByName = searchParams.get('sort') === 'name';
 
     if (statusParam && !isValidEnum(statusParam, VALID_STATUSES)) {
       return NextResponse.json({ ok: false, error: 'invalid_status' }, { status: 400 });
@@ -237,7 +239,11 @@ export async function GET(request: NextRequest) {
         );
       }
       if (withPinned) qb = qb.order('pinned', { ascending: false, nullsFirst: false });
-      return qb.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+      // Pins stay first; within each group either alphabetical (sort=name) or recency.
+      qb = sortByName
+        ? qb.order('name', { ascending: true, nullsFirst: false })
+        : qb.order('created_at', { ascending: false });
+      return qb.range(offset, offset + limit - 1);
     };
 
     let { data, error } = await buildQuery(true);
