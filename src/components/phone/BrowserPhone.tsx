@@ -25,6 +25,8 @@ export interface CallEndedEvent {
 
 export interface BrowserPhoneProps {
   ready: boolean;
+  /** When true, registers the SIP line automatically once ready — no manual connect button. */
+  autoConnect?: boolean;
   wssUrl?: string;
   sipUsername?: string;
   sipPassword?: string;
@@ -36,8 +38,6 @@ export interface BrowserPhoneProps {
   pendingDialTarget?: string | null;
   /** Called after pendingDialTarget is consumed (dialed or rejected). Parent should set pendingDialTarget to null. */
   onDialConsumed?: () => void;
-  /** When true, hides the internal dial input and small Κλήση button. Use when an external numpad provides the dial trigger. All call handling and pendingDialTarget remain unchanged. */
-  externalDialer?: boolean;
   /** Opt-in: record the call (mixed local + remote audio) for a transcript brief. */
   recordingEnabled?: boolean;
   /** Fires once after a recorded call completes, with the audio blob. Best-effort. */
@@ -57,17 +57,6 @@ type PhoneState =
   | 'incoming_call'
   | 'calling'
   | 'in_call';
-
-const STATE_LABELS: Record<PhoneState, string> = {
-  not_configured: 'Μη ρυθμισμένο',
-  disconnected: 'Αποσυνδεδεμένο',
-  connecting: 'Σύνδεση...',
-  registered: 'Συνδεδεμένο',
-  registration_failed: 'Αποτυχία σύνδεσης',
-  incoming_call: 'Εισερχόμενη κλήση',
-  calling: 'Κλήση εξερχόμενη...',
-  in_call: 'Σε κλήση',
-};
 
 // JsSIP objects are typed loosely because the package types may not be
 // installed yet. Replace with proper imports once confirmed stable.
@@ -105,6 +94,7 @@ function getSessionPc(session: Loose): RTCPeerConnection | null {
 
 export default function BrowserPhone({
   ready,
+  autoConnect,
   wssUrl,
   sipUsername,
   sipPassword,
@@ -113,7 +103,6 @@ export default function BrowserPhone({
   onCallEnded,
   pendingDialTarget,
   onDialConsumed,
-  externalDialer,
   recordingEnabled,
   onCallRecorded,
 }: BrowserPhoneProps) {
@@ -527,6 +516,18 @@ export default function BrowserPhone({
     ua.start();
   }, [ready, wssUrl, sipUsername, sipPassword, sipRealm, transition, wireSession]);
 
+  // Auto-connect once the line is ready (no manual "Σύνδεση τηλεφώνου" button).
+  // Fires a single time per mount; a manual Αποσύνδεση will not silently reconnect,
+  // and a failed mic/registration leaves a visible retry affordance in the status bar.
+  const autoConnectedRef = useRef(false);
+  useEffect(() => {
+    if (!autoConnect || !ready) return;
+    if (autoConnectedRef.current) return;
+    if (phoneState !== 'disconnected') return;
+    autoConnectedRef.current = true;
+    void handleConnect();
+  }, [autoConnect, ready, phoneState, handleConnect]);
+
   // ---------------------------------------------------------------------------
   // Dial outbound number.
   // ---------------------------------------------------------------------------
@@ -567,10 +568,6 @@ export default function BrowserPhone({
     }
   }, [transition, wireSession]);
 
-  const handleDial = useCallback(() => {
-    dialRawNumber(outboundInput);
-  }, [outboundInput, dialRawNumber]);
-
   // Consume external pendingDialTarget. Dials immediately when registered;
   // otherwise shows a clear Greek status and calls onDialConsumed to clear the prop.
   useEffect(() => {
@@ -590,7 +587,7 @@ export default function BrowserPhone({
       return;
     }
     if (cur !== 'registered') {
-      setStatusMessage('Σύνδεσε πρώτα το τηλέφωνο.');
+      setStatusMessage('Το τηλέφωνο συνδέεται… δοκίμασε ξανά σε λίγο.');
       onDialConsumedRef.current?.();
       return;
     }
@@ -677,40 +674,10 @@ export default function BrowserPhone({
   // Render
   // ---------------------------------------------------------------------------
 
-  const stateLabel = STATE_LABELS[phoneState];
   // mm:ss for the in-call timer.
   const callTimer = `${Math.floor(callSeconds / 60)}:${String(callSeconds % 60).padStart(2, '0')}`;
   const callActive =
     phoneState === 'incoming_call' || phoneState === 'calling' || phoneState === 'in_call';
-
-  const badgeCls =
-    phoneState === 'registered'
-      ? 'bg-green-50 text-green-700 ring-green-200'
-      : phoneState === 'in_call' || phoneState === 'incoming_call'
-      ? 'bg-indigo-50 text-indigo-700 ring-indigo-200'
-      : phoneState === 'registration_failed'
-      ? 'bg-red-50 text-red-700 ring-red-200'
-      : phoneState === 'connecting' || phoneState === 'calling'
-      ? 'bg-amber-50 text-amber-700 ring-amber-200'
-      : 'bg-zinc-100 text-zinc-500 ring-zinc-200 dark:bg-[#1e2b38] dark:text-zinc-400 dark:ring-white/10';
-
-  const isActive =
-    phoneState === 'registered' ||
-    phoneState === 'in_call' ||
-    phoneState === 'incoming_call' ||
-    phoneState === 'calling';
-
-  const iconBg = isActive
-    ? 'bg-green-50'
-    : phoneState === 'registration_failed'
-    ? 'bg-red-50'
-    : 'bg-indigo-50';
-
-  const iconColor = isActive
-    ? 'text-green-500'
-    : phoneState === 'registration_failed'
-    ? 'text-red-400'
-    : 'text-indigo-500';
 
   return (
     <>
@@ -774,220 +741,74 @@ export default function BrowserPhone({
         </div>
       )}
 
-    <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
+    {/* Slim auto-connect status bar — no manual connect button; the line
+        registers itself on load (autoConnect). A retry shows only on a real
+        failure (mic denied / SIP registration failed). */}
+    <div className="flex items-center gap-3 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-3.5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
       {/* Remote audio stream. Hidden from view. */}
       <audio ref={audioRef} autoPlay playsInline className="hidden" />
 
-      <div className="flex items-start gap-3">
+      {/* Status dot */}
+      <span
+        className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+          phoneState === 'registered'
+            ? 'bg-green-500'
+            : phoneState === 'registration_failed'
+            ? 'bg-red-500'
+            : phoneState === 'connecting' || (phoneState === 'disconnected' && !statusMessage)
+            ? 'bg-amber-400 motion-safe:animate-pulse'
+            : 'bg-zinc-300 dark:bg-white/20'
+        }`}
+        aria-hidden="true"
+      />
 
-        {/* Status icon */}
-        <div
-          className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${iconBg}`}
-        >
-          <svg
-            className={`h-5 w-5 ${iconColor}`}
-            fill="none"
-            strokeWidth={1.5}
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      {/* Status text */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium text-zinc-700 dark:text-zinc-200">
+          {phoneState === 'registered'
+            ? 'Τηλέφωνο έτοιμο για κλήσεις'
+            : phoneState === 'connecting' || (phoneState === 'disconnected' && !statusMessage)
+            ? 'Σύνδεση τηλεφώνου…'
+            : phoneState === 'registration_failed'
+            ? 'Αποτυχία σύνδεσης'
+            : phoneState === 'not_configured'
+            ? 'Τηλέφωνο μη διαθέσιμο'
+            : phoneState === 'incoming_call' || phoneState === 'calling' || phoneState === 'in_call'
+            ? 'Κλήση σε εξέλιξη'
+            : 'Τηλέφωνο'}
+        </p>
+        {(statusMessage || phoneState === 'not_configured') && (
+          <p
+            className={`mt-0.5 truncate text-xs ${
+              statusMessage || phoneState === 'registration_failed'
+                ? 'text-red-500'
+                : 'text-zinc-400 dark:text-zinc-500'
+            }`}
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z"
-            />
-          </svg>
-        </div>
-
-        {/* Content column */}
-        <div className="min-w-0 flex-1">
-
-          {/* Header row: label + badge */}
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-              Τηλέφωνο μέσα στο app
-            </p>
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${badgeCls}`}
-            >
-              {stateLabel}
-            </span>
-          </div>
-
-          {/* not_configured */}
-          {phoneState === 'not_configured' && (
-            <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-              {disabledReason ?? 'Η σύνδεση τηλεφώνου δεν είναι διαθέσιμη ακόμα.'}
-            </p>
-          )}
-
-          {/* disconnected */}
-          {phoneState === 'disconnected' && (
-            <>
-              <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                Σύνδεσε το app για να λαμβάνεις και να κάνεις κλήσεις.
-              </p>
-              <button
-                type="button"
-                onClick={handleConnect}
-                className="mt-2 rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
-              >
-                Σύνδεση τηλεφώνου
-              </button>
-              {statusMessage && (
-                <p className="mt-1.5 text-xs text-red-500">{statusMessage}</p>
-              )}
-            </>
-          )}
-
-          {/* connecting */}
-          {phoneState === 'connecting' && (
-            <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-              Σύνδεση στο τηλεφωνικό σύστημα...
-            </p>
-          )}
-
-          {/* registered */}
-          {phoneState === 'registered' && (
-            <>
-              <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                Έτοιμο. Μπορείς να δεχτείς ή να κάνεις κλήση.
-              </p>
-
-              {/* Outbound dial row - hidden when an external dialer (inline numpad) is active */}
-              {!externalDialer && (
-              <div className="mt-2 flex items-center gap-1.5">
-                <input
-                  type="tel"
-                  value={outboundInput}
-                  onChange={(e) => {
-                    setOutboundInput(e.target.value);
-                    setStatusMessage(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && outboundInput.trim()) handleDial();
-                  }}
-                  placeholder="+30..."
-                  className="min-w-0 flex-1 rounded-full border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#0f1923] px-3 py-1.5 text-xs text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500 outline-none focus:border-indigo-300 focus:ring-1 focus:ring-indigo-200"
-                />
-                <button
-                  type="button"
-                  onClick={handleDial}
-                  disabled={!outboundInput.trim()}
-                  className="shrink-0 rounded-full bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  Κλήση
-                </button>
-              </div>
-              )}
-
-              {statusMessage && (
-                <p className="mt-1.5 text-xs text-red-500">{statusMessage}</p>
-              )}
-
-              <button
-                type="button"
-                onClick={stopUa}
-                className="mt-2 rounded-full border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
-              >
-                Αποσύνδεση
-              </button>
-            </>
-          )}
-
-          {/* registration_failed */}
-          {phoneState === 'registration_failed' && (
-            <>
-              <p className="mt-0.5 text-xs text-red-500">
-                {statusMessage ?? 'Αποτυχία σύνδεσης. Δοκίμασε ξανά.'}
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleConnect}
-                  className="rounded-full bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
-                >
-                  Δοκιμή ξανά
-                </button>
-                <button
-                  type="button"
-                  onClick={stopUa}
-                  className="rounded-full border border-zinc-200 dark:border-white/10 px-3 py-1.5 text-xs font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
-                >
-                  Αποσύνδεση
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* incoming_call */}
-          {phoneState === 'incoming_call' && (
-            <>
-              <p className="mt-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200">
-                {callerInfo ?? 'Εισερχόμενη κλήση'}
-              </p>
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleAnswer}
-                  className="rounded-full bg-green-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-green-700"
-                >
-                  Απάντηση
-                </button>
-                <button
-                  type="button"
-                  onClick={handleDecline}
-                  className="rounded-full bg-red-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-600"
-                >
-                  Απόρριψη
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* calling -- outbound ringing */}
-          {phoneState === 'calling' && (
-            <>
-              <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                Κλήση προς{' '}
-                <span className="font-medium text-zinc-700 dark:text-zinc-200">
-                  {callerInfo ?? outboundInput}
-                </span>
-              </p>
-              <button
-                type="button"
-                onClick={handleHangUp}
-                className="mt-2 rounded-full bg-red-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-600"
-              >
-                Ακύρωση κλήσης
-              </button>
-            </>
-          )}
-
-          {/* in_call */}
-          {phoneState === 'in_call' && (
-            <>
-              <p className="mt-0.5 text-xs font-medium text-zinc-700 dark:text-zinc-200">
-                {callerInfo ?? 'Κλήση σε εξέλιξη'}
-              </p>
-              {recordingEnabled && (
-                <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-red-600">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-red-500" />
-                  Ηχογράφηση — ενημέρωσε τον πελάτη
-                </p>
-              )}
-              <button
-                type="button"
-                onClick={handleHangUp}
-                className="mt-2 rounded-full bg-red-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-red-600"
-              >
-                Κλείσιμο κλήσης
-              </button>
-            </>
-          )}
-
-        </div>
+            {statusMessage ?? disabledReason ?? 'Η σύνδεση τηλεφώνου δεν είναι διαθέσιμη ακόμα.'}
+          </p>
+        )}
       </div>
+
+      {/* Right action: subtle disconnect when live, retry on failure */}
+      {phoneState === 'registered' ? (
+        <button
+          type="button"
+          onClick={stopUa}
+          className="shrink-0 rounded-full px-3 py-1.5 text-xs font-medium text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-white/5"
+        >
+          Αποσύνδεση
+        </button>
+      ) : phoneState === 'registration_failed' ||
+        (phoneState === 'disconnected' && !!statusMessage) ? (
+        <button
+          type="button"
+          onClick={handleConnect}
+          className="shrink-0 rounded-full bg-indigo-600 px-3.5 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700"
+        >
+          {phoneState === 'registration_failed' ? 'Δοκιμή ξανά' : 'Ενεργοποίηση'}
+        </button>
+      ) : null}
     </div>
     </>
   );

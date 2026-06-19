@@ -1117,6 +1117,12 @@ const DIAL_KEYS = [
   ['*', '0', '#'],
 ];
 
+// Letter subtitles under each digit (iPhone/native-dialer parity).
+const DIAL_KEY_SUBS: Record<string, string> = {
+  '2': 'ABC', '3': 'DEF', '4': 'GHI', '5': 'JKL',
+  '6': 'MNO', '7': 'PQRS', '8': 'TUV', '9': 'WXYZ', '0': '+',
+};
+
 function NumpadPanel({
   open,
   onClose,
@@ -1154,65 +1160,67 @@ function NumpadPanel({
 
   if (inline) {
     return (
-      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 pb-6 pt-5 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
-        <div className="mb-4">
-          <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">Πληκτρολόγιο</p>
-          <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-            Πληκτρολόγησε αριθμό και πάτησε Κλήση.
-          </p>
-        </div>
+      <div className="rounded-[28px] bg-white dark:bg-[#17232f] px-5 pb-7 pt-6 shadow-sm ring-1 ring-zinc-200/60 dark:ring-white/10">
         {/* Number display */}
-        <div className="mb-4 flex items-center gap-2 rounded-2xl bg-zinc-50 dark:bg-[#1e2b38] px-4 py-3 ring-1 ring-zinc-200 dark:ring-white/10">
-          <span className="min-h-[2rem] flex-1 text-center text-2xl font-light tracking-widest text-zinc-900 dark:text-zinc-100">
-            {dialNumber || (
-              <span className="text-base font-normal text-zinc-400 dark:text-zinc-500">Αριθμός</span>
-            )}
-          </span>
-          {dialNumber && (
-            <button
-              type="button"
-              onClick={backspace}
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-200 dark:hover:bg-white/5"
-              aria-label="Διαγραφή"
-            >
-              <svg className="h-4 w-4" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />
-              </svg>
-            </button>
+        <div className="mb-5 flex min-h-[3.25rem] items-center justify-center px-2">
+          {dialNumber ? (
+            <span className="truncate text-center text-[2rem] font-semibold leading-none tracking-[0.06em] text-zinc-900 dark:text-zinc-100">
+              {dialNumber}
+            </span>
+          ) : (
+            <span className="text-base font-medium text-zinc-400 dark:text-zinc-500">
+              Πληκτρολόγησε αριθμό
+            </span>
           )}
         </div>
-        {/* Key grid */}
-        <div className="mb-4 grid grid-cols-3 justify-items-center gap-3">
+
+        {/* Key grid — round keys with letter subtitles (native/iPhone parity) */}
+        <div className="mx-auto grid max-w-[264px] grid-cols-3 justify-items-center gap-x-6 gap-y-3.5">
           {DIAL_KEYS.flat().map((key) => (
             <button
               key={key}
               type="button"
               onClick={() => press(key)}
-              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 dark:bg-[#1e2b38] text-2xl font-medium text-zinc-800 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 motion-safe:active:scale-95 active:bg-zinc-200 dark:active:bg-white/5"
+              className="flex h-[66px] w-[66px] flex-col items-center justify-center rounded-full bg-zinc-50 dark:bg-[#1e2b38] ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 motion-safe:active:scale-95 active:bg-zinc-200 dark:active:bg-white/5"
             >
-              {key}
+              <span className="text-[28px] font-medium leading-none text-zinc-800 dark:text-zinc-100">{key}</span>
+              {DIAL_KEY_SUBS[key] && (
+                <span className="mt-1 text-[9px] font-semibold leading-none tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
+                  {DIAL_KEY_SUBS[key]}
+                </span>
+              )}
             </button>
           ))}
         </div>
-        {/* Actions */}
-        <div className="space-y-2">
+
+        {/* Action row: green call button (center) + backspace (right) */}
+        <div className="mx-auto mt-6 grid max-w-[264px] grid-cols-3 items-center justify-items-center">
+          <span aria-hidden className="h-[66px] w-[66px]" />
           <button
             type="button"
             onClick={handleDial}
             disabled={!dialNumber.trim()}
-            className="w-full rounded-[28px] bg-green-600 py-3.5 text-sm font-semibold text-white transition hover:bg-green-700 active:bg-green-800 disabled:cursor-not-allowed disabled:opacity-40"
+            aria-label="Κλήση"
+            className="flex h-[66px] w-[66px] items-center justify-center rounded-full bg-green-600 text-white shadow-lg shadow-green-600/30 transition hover:bg-green-700 active:bg-green-800 disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none motion-safe:active:scale-95"
           >
-            Κλήση
+            <svg className="h-7 w-7" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 0 0 2.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 0 1-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 0 0-1.091-.852H4.5A2.25 2.25 0 0 0 2.25 4.5v2.25Z" />
+            </svg>
           </button>
-          {dialNumber && (
-            <button
-              type="button"
-              onClick={() => setDialNumber('')}
-              className="w-full rounded-[28px] border border-zinc-200 dark:border-white/10 py-2.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
-            >
-              Καθαρισμός
-            </button>
-          )}
+          <div className="flex h-[66px] w-[66px] items-center justify-center">
+            {dialNumber && (
+              <button
+                type="button"
+                onClick={backspace}
+                aria-label="Διαγραφή"
+                className="flex h-12 w-12 items-center justify-center rounded-full text-zinc-400 dark:text-zinc-500 transition hover:bg-zinc-100 dark:hover:bg-white/5 active:bg-zinc-200 dark:active:bg-white/5"
+              >
+                <svg className="h-6 w-6" fill="none" strokeWidth={1.6} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9.75 14.25 12m0 0 2.25 2.25M14.25 12l2.25-2.25M14.25 12 12 14.25m-2.58 4.92-6.374-6.375a1.125 1.125 0 0 1 0-1.59L9.42 4.83c.21-.211.497-.33.795-.33H19.5a2.25 2.25 0 0 1 2.25 2.25v10.5a2.25 2.25 0 0 1-2.25 2.25h-9.284c-.298 0-.585-.119-.795-.33Z" />
+                </svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -1275,9 +1283,14 @@ function NumpadPanel({
               key={key}
               type="button"
               onClick={() => press(key)}
-              className="flex aspect-square w-full items-center justify-center rounded-full bg-zinc-50 dark:bg-[#1e2b38] text-2xl font-medium text-zinc-800 dark:text-zinc-200 ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 motion-safe:active:scale-95 active:bg-zinc-200 dark:active:bg-white/5"
+              className="flex aspect-square w-full flex-col items-center justify-center rounded-full bg-zinc-50 dark:bg-[#1e2b38] ring-1 ring-zinc-200 dark:ring-white/10 transition hover:bg-zinc-100 dark:hover:bg-white/5 motion-safe:active:scale-95 active:bg-zinc-200 dark:active:bg-white/5"
             >
-              {key}
+              <span className="text-2xl font-medium leading-none text-zinc-800 dark:text-zinc-100">{key}</span>
+              {DIAL_KEY_SUBS[key] && (
+                <span className="mt-0.5 text-[8px] font-semibold leading-none tracking-[0.18em] text-zinc-400 dark:text-zinc-500">
+                  {DIAL_KEY_SUBS[key]}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -1993,6 +2006,7 @@ export default function CallsPage() {
         ) : (
           <BrowserPhone
             ready={phoneToken.ready}
+            autoConnect
             wssUrl={phoneToken.wssUrl}
             sipUsername={phoneToken.sipUsername}
             sipPassword={phoneToken.sipPassword}
@@ -2003,7 +2017,6 @@ export default function CallsPage() {
             recordingEnabled={recordCalls}
             pendingDialTarget={pendingDialTarget}
             onDialConsumed={() => setPendingDialTarget(null)}
-            externalDialer
           />
         )}
       </div>
