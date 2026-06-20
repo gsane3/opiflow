@@ -69,7 +69,14 @@ export default function HomeScreen() {
   // «Το τηλέφωνο δεν χτυπάει» must be visible on the Home screen — not buried
   // in Ρυθμίσεις. Tapping the banner retries registration.
   const [phoneState, setPhoneState] = useState(getIncomingState().state);
-  useEffect(() => subscribeIncomingState(() => setPhoneState(getIncomingState().state)), []);
+  // pushConfigured=false → registered, but a closed app won't ring (no push
+  // credential for this platform — owner infra). Shown as an info banner.
+  const [pushConfigured, setPushConfigured] = useState<boolean | undefined>(getIncomingState().pushConfigured);
+  useEffect(() => subscribeIncomingState(() => {
+    const s = getIncomingState();
+    setPhoneState(s.state);
+    setPushConfigured(s.pushConfigured);
+  }), []);
   const reconnectPhone = useCallback(async () => {
     try {
       const { registerForIncoming } = await import('@/lib/twilio');
@@ -216,6 +223,15 @@ export default function HomeScreen() {
                 Το τηλέφωνο δεν είναι συνδεδεμένο — πάτα για επανασύνδεση
               </ThemedText>
             </Pressable>
+          ) : null}
+
+          {phoneState === 'registered' && pushConfigured === false ? (
+            <View style={styles.pushWarnBanner}>
+              <Ionicons name="information-circle" size={16} color="#9A6200" />
+              <ThemedText type="small" style={styles.pushWarnText}>
+                Οι κλήσεις δεν θα χτυπούν με κλειστή/κλειδωμένη εφαρμογή μέχρι να ρυθμιστεί το push (διαχειριστής).
+              </ThemedText>
+            </View>
           ) : null}
 
           {loading ? (
@@ -522,6 +538,18 @@ const makeStyles = (c: ThemePalette) =>
       marginBottom: Spacing.two,
     },
     phoneBannerText: { color: '#FFFFFF', fontWeight: '700', flex: 1 },
+
+    pushWarnBanner: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: Spacing.two,
+      backgroundColor: '#FBE9C7',
+      borderRadius: 12,
+      paddingHorizontal: Spacing.three,
+      paddingVertical: 10,
+      marginBottom: Spacing.two,
+    },
+    pushWarnText: { color: '#9A6200', fontWeight: '700', flex: 1 },
 
     pressed: { opacity: 0.7 },
   });

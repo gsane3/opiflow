@@ -14,7 +14,10 @@ import { appendCallBrief } from '@/lib/server/call-briefs';
 export const runtime = 'nodejs';
 
 const DIRECTIONS = ['inbound', 'outbound'] as const;
-const STATUSES = ['completed', 'failed'] as const;
+// 'missed' = an inbound call that rang the device but was never answered
+// (CallInvite cancelled / timed out). Logged client-side so it shows in
+// «Αναπάντητες», mirroring the PBX webhook's 'missed' rows.
+const STATUSES = ['completed', 'failed', 'missed'] as const;
 type Direction = (typeof DIRECTIONS)[number];
 type Status = (typeof STATUSES)[number];
 
@@ -31,7 +34,10 @@ function normalizePhone(raw: string | null): string | null {
   if (/^\+30\d{10}$/.test(s)) return s;
   if (/^30\d{10}$/.test(s)) return '+' + s;
   if (/^[26]\d{9}$/.test(s)) return '+30' + s;
-  return s;
+  // Only allow a plain phone shape through. Anything else (incl. PostgREST
+  // filter punctuation like ',' that the strip above misses) → null, so it
+  // never reaches the .or() customer-match filter below.
+  return /^\+?\d{6,15}$/.test(s) ? s : null;
 }
 
 export async function POST(request: NextRequest) {
@@ -109,7 +115,9 @@ export async function POST(request: NextRequest) {
   }
 
   const basicSummary =
-    status === 'completed'
+    status === 'missed'
+      ? 'Αναπάντητη κλήση'
+      : status === 'completed'
       ? direction === 'inbound'
         ? 'Εισερχόμενη κλήση'
         : 'Εξερχόμενη κλήση'
@@ -118,24 +126,27 @@ export async function POST(request: NextRequest) {
       : 'Αποτυχημένη εξερχόμενη κλήση';
 
   // Metadata-only AI brief (review-first; mirrors the PBX path). Non-fatal:
-  // a missing key or model error just yields the basic summary.
+  // a missing key or model error just yields the basic summary. A missed call
+  // never connected, so there's nothing to brief — skip it.
   let brief: string | null = null;
-  try {
-    brief = await generateCallBrief({
-      callerNumber: phone,
-      direction,
-      dialStatus: status === 'completed' ? 'ANSWERED' : 'FAILED',
-      uniqueId: null,
-      recordingExists: false,
-      recordingSizeBytes: null,
-      recordingFallbackApplied: null,
-      customerCreated: false,
-      customerMatched,
-      intakeUrlCreated: false,
-      viberSendStatus: null,
-    });
-  } catch {
-    // non-fatal
+  if (status !== 'missed') {
+    try {
+      brief = await generateCallBrief({
+        callerNumber: phone,
+        direction,
+        dialStatus: status === 'completed' ? 'ANSWERED' : 'FAILED',
+        uniqueId: null,
+        recordingExists: false,
+        recordingSizeBytes: null,
+        recordingFallbackApplied: null,
+        customerCreated: false,
+        customerMatched,
+        intakeUrlCreated: false,
+        viberSendStatus: null,
+      });
+    } catch {
+      // non-fatal
+    }
   }
 
   const summary = brief ? `${brief}\n\n---\n${basicSummary}` : basicSummary;

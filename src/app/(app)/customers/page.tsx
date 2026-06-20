@@ -6,7 +6,6 @@ import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import { Button, Card, EmptyState, BottomSheet, SheetRow } from '@/components/ui';
 import { Skeleton } from '@/components/ui/Skeleton';
 import type { Customer, CustomerStatus, CustomerSource } from '@/lib/types';
-import CustomerCard from '@/components/customers/CustomerCard';
 
 // API response type
 interface CustomerDto {
@@ -108,6 +107,34 @@ const ADVANCED_FILTERS: { value: QuickFilter; label: string }[] = [
 
 const PAGE_SIZE = 100;
 
+// iOS-Contacts grouping: first letter of the display name (Greek + Latin),
+// accents stripped (Ά→Α). Digits/symbols/blank → '#'.
+function sectionLetter(name: string): string {
+  const ch = (name ?? '').trim().charAt(0).toUpperCase();
+  if (!ch) return '#';
+  if (/[A-ZΑ-Ω]/.test(ch)) return ch;
+  const norm = ch.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (/[A-ZΑ-Ω]/.test(norm)) return norm;
+  return '#';
+}
+
+interface ContactSection { title: string; items: Customer[] }
+
+function groupSections(list: Customer[]): ContactSection[] {
+  const map = new Map<string, Customer[]>();
+  for (const cu of list) {
+    const key = sectionLetter(cu.name || cu.companyName || cu.mobilePhone || cu.phone || '');
+    const arr = map.get(key);
+    if (arr) arr.push(cu); else map.set(key, [cu]);
+  }
+  const order = (a: string, b: string) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b, 'el'));
+  return Array.from(map.keys()).sort(order).map((title) => ({
+    title,
+    items: map.get(title)!.slice().sort((x, y) =>
+      (x.name || x.companyName || '').localeCompare(y.name || y.companyName || '', 'el')),
+  }));
+}
+
 type PageMessage = 'no_session' | 'fetch_error' | null;
 
 export default function CustomersPage() {
@@ -119,9 +146,9 @@ export default function CustomersPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [quickFilter, setQuickFilter] = useState<QuickFilter>('all');
-  // U7 — alphabetical (Α–Ω) is now the DEFAULT (owner request); toggle to recency.
-  // Server-side so it is correct across pagination, not just within the loaded page.
-  const [sortByName, setSortByName] = useState(true);
+  // iOS-Contacts style: the list is ALWAYS alphabetical, grouped into A–Z
+  // sections client-side. Server sort=name keeps pagination order consistent.
+  const sortByName = true;
   // U6 — phone-imported contacts are HIDDEN BY DEFAULT (owner request: show app
   // contacts only). A toggle reveals them; shown only when some exist. Filtering
   // is client-side over the loaded rows (parity with native).
@@ -196,6 +223,8 @@ export default function CustomersPage() {
   // U6 — only offer the toggle when some phone-imported contacts are present.
   const hasImported = customers.some((c) => importedIds.has(c.id));
   const visibleCustomers = hideImported ? customers.filter((c) => !importedIds.has(c.id)) : customers;
+  // A–Z sections (iOS Contacts). Grouped client-side over the loaded rows.
+  const sections = groupSections(visibleCustomers);
 
   // Selected-row tick for the «Ταξινόμηση & φίλτρα» sheet.
   const checkIcon = (
@@ -285,13 +314,9 @@ export default function CustomersPage() {
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-medium text-zinc-400 dark:text-zinc-500">Πελάτες</p>
-          <h1 className="mt-0.5 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
-            Ποιος χρειάζεται προσοχή;
+          <h1 className="text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            Επαφές
           </h1>
-          <p className="mt-0.5 text-sm text-zinc-500 dark:text-zinc-400">
-            Πελάτες και αιτήματα σε ένα απλό σημείο.
-          </p>
         </div>
         <div className="mt-1 flex items-center gap-2">
           <Link
@@ -382,7 +407,7 @@ export default function CustomersPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M6 12h12m-9 5.25h6" />
             </svg>
             Ταξινόμηση & φίλτρα
-            {(sortByName || hideImported) && <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-600" />}
+            {hideImported && <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-indigo-600" />}
           </button>
         </div>
       </div>
@@ -445,13 +470,69 @@ export default function CustomersPage() {
         )
       ) : (
         <>
-          <ul className="grid grid-cols-1 gap-3 motion-safe:animate-[fadeIn_0.18s] md:grid-cols-2">
-            {visibleCustomers.map((customer) => (
-              <li key={customer.id}>
-                <CustomerCard customer={customer} />
-              </li>
-            ))}
-          </ul>
+          {/* iOS-Contacts list: sticky A–Z section headers + right-edge index. */}
+          <div className="relative motion-safe:animate-[fadeIn_0.18s]">
+            <div className="overflow-hidden rounded-[28px] bg-white shadow-sm ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10">
+              {sections.map((section) => (
+                <div key={section.title}>
+                  <div
+                    id={`sec-${section.title}`}
+                    className="sticky top-0 z-10 scroll-mt-2 bg-zinc-100/95 px-4 py-1 text-xs font-bold uppercase tracking-wide text-zinc-500 backdrop-blur dark:bg-[#101a24]/95 dark:text-zinc-400"
+                  >
+                    {section.title}
+                  </div>
+                  <ul>
+                    {section.items.map((customer) => {
+                      const phone = customer.mobilePhone || customer.landlinePhone || customer.phone || '';
+                      const secondary = customer.name
+                        ? [customer.companyName, phone].filter(Boolean).join(' · ') || '—'
+                        : 'Αναμονή στοιχείων';
+                      return (
+                        <li key={customer.id}>
+                          <Link
+                            href={`/customers/${customer.id}`}
+                            className="flex items-center gap-3 border-b border-zinc-100 py-2.5 pl-4 pr-7 transition hover:bg-zinc-50 dark:border-white/5 dark:hover:bg-white/5"
+                          >
+                            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
+                              {(customer.name || customer.companyName || 'Π').trim().charAt(0).toUpperCase()}
+                            </span>
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                                {customer.name || customer.companyName || phone || 'Πελάτης'}
+                              </span>
+                              <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{secondary}</span>
+                            </span>
+                            {customer.needsIntake && <span className="h-2 w-2 shrink-0 rounded-full bg-amber-500" title="Λείπουν στοιχεία" />}
+                            <svg className="h-4 w-4 shrink-0 text-zinc-300 dark:text-zinc-600" fill="none" strokeWidth={2} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                              <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                            </svg>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+
+            {/* A–Z index scrubber — anchored to the card's right edge (absolute,
+                inside the relative wrapper) so it tracks the centred card on desktop. */}
+            {sections.length > 1 && (
+              <div className="absolute right-0 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center">
+                {sections.map((s) => (
+                  <button
+                    key={s.title}
+                    type="button"
+                    onClick={() => document.getElementById(`sec-${s.title}`)?.scrollIntoView({ block: 'start' })}
+                    className="px-1 text-[10px] font-bold leading-[1.15] text-indigo-600 transition hover:text-indigo-800 dark:text-indigo-400"
+                    aria-label={`Μετάβαση στο ${s.title}`}
+                  >
+                    {s.title}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           {canLoadMore && (
             <div className="flex justify-center pt-1">
               <Button
@@ -473,20 +554,6 @@ export default function CustomersPage() {
         onClose={() => setMoreFiltersOpen(false)}
         title="Ταξινόμηση & φίλτρα"
       >
-        <p className="px-1 pb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Ταξινόμηση</p>
-        <div className="space-y-1">
-          <SheetRow
-            label="Πιο πρόσφατοι πρώτα"
-            trailing={!sortByName ? checkIcon : undefined}
-            onClick={() => { setSortByName(false); setMoreFiltersOpen(false); }}
-          />
-          <SheetRow
-            label="Αλφαβητικά (Α–Ω)"
-            trailing={sortByName ? checkIcon : undefined}
-            onClick={() => { setSortByName(true); setMoreFiltersOpen(false); }}
-          />
-        </div>
-
         {hasImported && (
           <>
             <p className="mt-4 px-1 pb-1 text-xs font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500">Προβολή</p>

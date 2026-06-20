@@ -110,10 +110,13 @@ function Gate() {
 
     void doRegister();
 
-    // Re-register when the app returns to the foreground after a failed
-    // registration (cold launch offline, token hiccup) — the phone must ring.
+    // Re-register whenever the app returns to the foreground and the device is
+    // not currently registered (error, idle, or a dropped binding) — the phone
+    // must ring. Idempotent on the Twilio side; a no-op when already registered.
     const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && getIncomingState().state === 'error') {
+      if (state !== 'active') return;
+      const s = getIncomingState().state;
+      if (s !== 'registered' && s !== 'registering') {
         void doRegister();
       }
     });

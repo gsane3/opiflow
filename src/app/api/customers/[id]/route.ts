@@ -361,3 +361,41 @@ export async function PATCH(
     return NextResponse.json({ ok: false, error: 'customer_update_failed' }, { status: 500 });
   }
 }
+
+// ---------------------------------------------------------------------------
+// DELETE /api/customers/[id] — permanently delete ONE contact.
+// ---------------------------------------------------------------------------
+// Works for ANY contact (phone-imported "apple" OR app/CRM), unlike the
+// imported-only bulk endpoint. Business-scoped. Child rows are handled by the
+// schema's FKs (work_folders.customer_id ON DELETE CASCADE; offers/tasks/
+// communications/payments customer_id ON DELETE SET NULL; intake/upload tokens
+// CASCADE), so a single delete never FK-errors.
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const auth = await authenticateBusinessRequest(request);
+  if ('error' in auth) return auth.error;
+  const { supabase, businessId } = auth.ctx;
+
+  try {
+    const { id } = await params;
+
+    const { data, error } = await supabase
+      .from('customers')
+      .delete()
+      .eq('id', id)
+      .eq('business_id', businessId)
+      .select('id');
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: 'customer_delete_failed' }, { status: 500 });
+    }
+    if (!Array.isArray(data) || data.length === 0) {
+      return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
+    }
+    return NextResponse.json({ ok: true, deleted: data.length });
+  } catch {
+    return NextResponse.json({ ok: false, error: 'customer_delete_failed' }, { status: 500 });
+  }
+}
