@@ -126,6 +126,7 @@ export interface Business {
   preferred_contact_method?: string | null;
   business_phone_number?: string | null;
   // Structured identity/branding (web parity) — render on the public portal + offer PDF.
+  logo_url?: string | null;
   legal_name?: string | null;
   trade_name?: string | null;
   owner_first_name?: string | null;

@@ -42,7 +42,7 @@ const PAY_PCTS = [10, 20, 30, 50, 70, 100];
 
 interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
 interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
-interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string; readAt?: string | null }
+interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string; readAt?: string | null; pending?: boolean }
 interface DetailReq { id: string; status: string; createdAt: string }
 interface FolderPayment { id: string; kind: string; pct: number | null; amount: number; status: string; createdAt: string }
 interface FolderDetail {
@@ -94,6 +94,9 @@ export default function ProjectProcessScreen() {
 
   const [sheet, setSheet] = useState<SheetName>(null);
   const [msg, setMsg] = useState('');
+  // Optimistic outbound messages (WhatsApp/Viber-style) — shown instantly so a
+  // slow backend never reads as "stuck"; cleared on refresh.
+  const [pendingMsgs, setPendingMsgs] = useState<DetailMsg[]>([]);
   const [oRows, setORows] = useState<OfferRow[]>([{ desc: '', qty: '1', price: '' }]);
   const [oVat, setOVat] = useState('24');
   const [oNotes, setONotes] = useState('');
@@ -176,6 +179,7 @@ export default function ProjectProcessScreen() {
     const s = detail.sections;
     const items: Item[] = [
       ...s.messages.items.filter((m) => m.channel !== 'call' && (m.summary ?? '').trim()).map((m): Item => ({ kind: 'msg', ts: T(m.createdAt), data: m })),
+      ...pendingMsgs.map((m): Item => ({ kind: 'msg', ts: T(m.createdAt), data: m })),
       ...s.offers.items.map((o): Item => ({ kind: 'offer', ts: T(o.createdAt), data: o })),
       ...s.appointments.items.map((a): Item => ({ kind: 'appt', ts: T(a.dueDate), data: a })),
       ...payments.map((p): Item => ({ kind: 'payment', ts: T(p.createdAt), data: p })),
@@ -183,7 +187,7 @@ export default function ProjectProcessScreen() {
       ...s.intake.items.map((i): Item => ({ kind: 'req', ts: T(i.createdAt), data: i, photos: false })),
     ];
     return items.sort((a, b) => a.ts - b.ts);
-  }, [detail, payments]);
+  }, [detail, payments, pendingMsgs]);
 
   // ── actions ──
   async function patchFolder(updates: Record<string, unknown>) {
@@ -207,7 +211,11 @@ export default function ProjectProcessScreen() {
   async function sendMessage() {
     const t = msg.trim(); if (!t) return;
     if (!beginBusy()) return;
-    try { if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); void hapticSuccess(); await refresh(); } } finally { endBusy(); }
+    const pid = `pending-${Date.now()}`;
+    setPendingMsgs((p) => [...p, { id: pid, summary: t, direction: 'outbound', channel: 'viber', createdAt: new Date().toISOString(), pending: true }]);
+    setMsg(''); setSheet(null);
+    try { if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { void hapticSuccess(); await refresh(); } }
+    finally { setPendingMsgs((p) => p.filter((m) => m.id !== pid)); endBusy(); }
   }
   async function sendPhotosRequest() {
     if (!beginBusy()) return;
@@ -515,8 +523,8 @@ function TimelineRow({
         <View style={[styles.bubble, tech ? styles.bubbleTech : styles.bubbleCust]}>
           <ThemedText type="small" style={tech ? styles.bubbleTextTech : styles.ink}>{(m.summary ?? '').trim()}</ThemedText>
           <ThemedText style={[styles.bubbleWhen, tech ? styles.bubbleWhenTech : undefined]}>
-            {formatRelativeWhen(m.createdAt)}
-            {tech ? (m.readAt ? ` ✓✓ Διαβάστηκε ${formatRelativeWhen(m.readAt)}` : ' ✓') : ''}
+            {m.pending ? 'Αποστολή… 🕓' : formatRelativeWhen(m.createdAt)}
+            {tech && !m.pending ? (m.readAt ? ` ✓✓ Διαβάστηκε ${formatRelativeWhen(m.readAt)}` : ' ✓') : ''}
           </ThemedText>
         </View>
       </View>
