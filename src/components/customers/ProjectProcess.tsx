@@ -62,7 +62,7 @@ interface DetailReq { id: string; status: string; createdAt: string }
 interface FolderPayment { id: string; kind: string; pct: number | null; amount: number; status: string; createdAt: string }
 interface FolderDetail {
   folder: { id: string; title: string; status: string; step: number; notes: string | null };
-  customer: { id: string; name: string | null } | null;
+  customer: { id: string; name: string | null; hasDetails?: boolean } | null;
   sections: {
     offers: { items: DetailOffer[] };
     appointments: { items: DetailAppt[] };
@@ -198,6 +198,9 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
 
   const offers = detail?.sections.offers.items ?? [];
   const firstOffer = offers[0];
+  // #5: customers who already have their details get «Επικαιροποίηση» instead of «Ζήτα».
+  const hasDetails = detail?.customer?.hasDetails ?? false;
+  const detailsLabel = hasDetails ? 'Επικαιροποίηση στοιχείων' : 'Αίτημα στοιχείων';
 
   const timeline = useMemo<Item[]>(() => {
     if (!detail) return [];
@@ -381,7 +384,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
         {/* dock */}
         <div className="opf-pj-dock">
           <div className="opf-pj-quick">
-            <button className="opf-pq opf-press" onClick={() => { setReqPhotos(false); setSheet('req'); }}><Icon name="clipboard" size={19} color="var(--brand)" stroke={2} /><span>Στοιχεία</span></button>
+            <button className="opf-pq opf-press" onClick={() => { setReqPhotos(false); setSheet('req'); }}><Icon name="clipboard" size={19} color="var(--brand)" stroke={2} /><span>{hasDetails ? 'Επικαιροποίηση' : 'Στοιχεία'}</span></button>
             <button className="opf-pq opf-press" onClick={() => { setReqPhotos(true); setSheet('req'); }}><Icon name="image" size={19} color="var(--brand)" stroke={2} /><span>Φωτό</span></button>
             <button className="opf-pq opf-press" onClick={() => { setATitle(f?.title ?? ''); setADate(''); setSheet('appt'); }}><Icon name="calendar" size={19} color="var(--brand)" stroke={2} /><span>Ραντεβού</span></button>
             <button className="opf-pq opf-press" onClick={() => { resetOffer(); setSheet('offer'); }}><Icon name="file" size={19} color="var(--brand)" stroke={2} /><span>Προσφορά</span></button>
@@ -429,8 +432,8 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
         </Sheet>
 
         {/* request sheet */}
-        <Sheet open={sheet === 'req'} title={reqPhotos ? 'Αίτημα φωτογραφιών' : 'Αίτημα στοιχείων'} onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void sendRequest()}><Icon name="link" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button>}>
-          <div className="opf-req-info"><Icon name={reqPhotos ? 'image' : 'clipboard'} size={22} color="var(--brand)" stroke={2} /><span>{reqPhotos ? 'Ο πελάτης θα ανεβάσει φωτογραφίες μέσα από το link του έργου.' : 'Ο πελάτης θα συμπληρώσει τα στοιχεία του (διεύθυνση, ΑΦΜ κ.λπ.) μέσα από το link.'}</span></div>
+        <Sheet open={sheet === 'req'} title={reqPhotos ? 'Αίτημα φωτογραφιών' : detailsLabel} onClose={() => setSheet(null)} footer={<button className="opf-btn-primary opf-full opf-press" onClick={() => void sendRequest()}><Icon name="link" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button>}>
+          <div className="opf-req-info"><Icon name={reqPhotos ? 'image' : 'clipboard'} size={22} color="var(--brand)" stroke={2} /><span>{reqPhotos ? 'Ο πελάτης θα ανεβάσει φωτογραφίες μέσα από το link του έργου.' : hasDetails ? 'Ο πελάτης θα επικαιροποιήσει τα στοιχεία του (διεύθυνση, ΑΦΜ κ.λπ.) μέσα από το link.' : 'Ο πελάτης θα συμπληρώσει τα στοιχεία του (διεύθυνση, ΑΦΜ κ.λπ.) μέσα από το link.'}</span></div>
         </Sheet>
 
         {/* payment request sheet (deposit/balance + %-slider) */}

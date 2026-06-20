@@ -79,7 +79,7 @@ export async function GET(
     const [custRes, offersRes, apptRes, msgRes, photoRes, intakeRes] = await Promise.all([
       supabase
         .from('customers')
-        .select('id, name, company_name, crm_number, phone, mobile_phone, email')
+        .select('id, name, company_name, crm_number, phone, mobile_phone, email, address, vat_number, intake_status')
         .eq('id', folderRow.customer_id)
         .eq('business_id', businessId)
         .maybeSingle(),
@@ -130,14 +130,22 @@ export async function GET(
     };
 
     const cust = custRes.data as
-      | { id: string; name: string | null; company_name: string | null; crm_number: string | null; phone: string | null; mobile_phone: string | null; email: string | null }
+      | { id: string; name: string | null; company_name: string | null; crm_number: string | null; phone: string | null; mobile_phone: string | null; email: string | null; address: string | null; vat_number: string | null; intake_status: string | null }
       | null;
+    // #5: does the customer already have their details? Drives «Ζήτα στοιχεία» vs
+    // «Επικαιροποίηση στοιχείων». True if they submitted intake, or already have a
+    // real name plus an address/email/ΑΦΜ on file.
+    const hasDetails = !!cust && (
+      cust.intake_status === 'submitted' ||
+      (!!cust.name?.trim() && (!!cust.address?.trim() || !!cust.email?.trim() || !!cust.vat_number?.trim()))
+    );
     const customer = cust
       ? {
           id: cust.id,
           name: cust.name ?? cust.company_name ?? cust.crm_number ?? null,
           phone: cust.phone ?? cust.mobile_phone ?? null,
           email: cust.email,
+          hasDetails,
         }
       : null;
 
