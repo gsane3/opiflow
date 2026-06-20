@@ -17,13 +17,16 @@ const MAX_SECONDS = 20;
 
 function pickAudioMimeType(): string {
   if (typeof MediaRecorder === 'undefined') return '';
-  for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']) {
+  // Prefer mp4/AAC FIRST: a clip recorded on iOS (Safari/WKWebView) must be mp4 —
+  // webm cannot be recorded OR played back on iOS (the «δεν ακούγεται τίποτα»
+  // bug). Chrome/Firefox don't support mp4 here and fall through to webm/ogg.
+  for (const t of ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/aac', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']) {
     try { if (MediaRecorder.isTypeSupported(t)) return t; } catch { /* keep probing */ }
   }
   return '';
 }
 
-type MicState = 'idle' | 'recording' | 'denied' | 'unsupported';
+type MicState = 'idle' | 'recording' | 'denied' | 'unsupported' | 'noaudio';
 
 export default function DisclosureRecorder({
   value,
@@ -65,19 +68,27 @@ export default function DisclosureRecorder({
       chunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const type = recorder.mimeType || mimeType || 'audio/webm';
+        // Use the recorder's actual mime; default to mp4 (iOS-playable), never webm.
+        const type = recorder.mimeType || mimeType || 'audio/mp4';
         const blob = chunksRef.current.length ? new Blob(chunksRef.current, { type }) : null;
         cleanup();
-        setMic('idle');
         setSeconds(0);
-        if (!blob) return;
+        if (!blob || blob.size === 0) {
+          // Capture failed silently (e.g. codec/permission hiccup) — tell the user
+          // instead of pretending it worked.
+          setMic('noaudio');
+          return;
+        }
+        setMic('idle');
         const reader = new FileReader();
         reader.onload = () => { if (typeof reader.result === 'string') onChange(reader.result); };
         reader.readAsDataURL(blob);
       };
       streamRef.current = stream;
       recorderRef.current = recorder;
-      recorder.start();
+      // timeslice so ondataavailable fires during recording (more robust than
+      // waiting for stop, esp. on Safari/iOS where a stop-only flush can be empty).
+      recorder.start(1000);
       setMic('recording');
       setSeconds(0);
       tickRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
@@ -145,6 +156,9 @@ export default function DisclosureRecorder({
 
       {mic === 'denied' && (
         <p className="text-xs text-amber-600">Δεν δόθηκε άδεια μικροφώνου. Ενεργοποίησέ την από τον browser και δοκίμασε ξανά.</p>
+      )}
+      {mic === 'noaudio' && (
+        <p className="text-xs text-amber-600">Δεν καταγράφηκε ήχος. Έλεγξε την άδεια μικροφώνου και δοκίμασε ξανά.</p>
       )}
       {mic === 'unsupported' && (
         <p className="text-xs text-amber-600">Ο browser δεν υποστηρίζει ηχογράφηση εδώ. Δοκίμασε από υπολογιστή (Chrome/Safari).</p>
