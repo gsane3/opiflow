@@ -209,7 +209,10 @@ export async function GET(request: NextRequest) {
           .select('id, customer_id, channel, direction, status, summary, created_at')
           .eq('business_id', businessId)
           .eq('direction', 'inbound')
-          .in('channel', ['call', 'sms', 'viber', 'email'])
+          // Calls are intentionally EXCLUDED from notifications (owner request):
+          // only real customer interactions (messages/SMS) belong here. Missed/
+          // inbound calls live in the Calls «Πρόσφατες» list (red «αναπάντητη»).
+          .in('channel', ['sms', 'viber', 'email'])
           .gte('created_at', recentSince)
           .order('created_at', { ascending: false })
           .limit(30),
