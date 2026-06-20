@@ -94,6 +94,26 @@ function Gate() {
 
   const retrySetup = useCallback(() => setRecheck((n) => n + 1), []);
 
+  // CRITICAL for killed-app incoming calls (iOS PushKit): set up the VoIP push
+  // registry as early as possible AND independently of login. The Twilio SDK
+  // creates its PKPushRegistry only on this JS call (not in native init), so when
+  // iOS relaunches a killed app for a VoIP push the lock-screen CallKit ring only
+  // appears once this has run. Gating it behind auth made it run too late → the
+  // call surfaced as a stale "ringing" on open instead of ringing while closed.
+  // Token binding (registerForIncoming) still happens after login, below.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { initPushRegistry } = await import('@/lib/twilio');
+        if (!cancelled) await initPushRegistry();
+      } catch {
+        // non-fatal: registerForIncoming also calls initPushRegistry after login
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;

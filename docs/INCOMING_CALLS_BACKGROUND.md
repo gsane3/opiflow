@@ -1,39 +1,44 @@
 # Εισερχόμενες κλήσεις με κλειστή/κλειδωμένη εφαρμογή (VoIP push)
 
-Στόχος: το app να **χτυπάει** όταν είναι κλειστό ή κλειδωμένο, χωρίς να «τρέχει μόνιμα στο background». Αυτό ΔΕΝ γίνεται κρατώντας το app ζωντανό — γίνεται με **VoIP push** (PushKit στο iOS, FCM data push στο Android) που ξυπνάει το app τη στιγμή της κλήσης. Το Twilio Voice SDK + CallKit (iOS) / ConnectionService (Android) δείχνουν την οθόνη κλήσης ακόμη κι αν το app είναι σκοτωμένο.
+Στόχος: το app να **χτυπάει** όταν είναι κλειστό ή κλειδωμένο, χωρίς να «τρέχει μόνιμα στο background». Αυτό γίνεται με **VoIP push** (PushKit στο iOS, FCM data push στο Android) που ξυπνάει το app τη στιγμή της κλήσης. Το Twilio Voice SDK + CallKit (iOS) / ConnectionService (Android) δείχνουν την οθόνη κλήσης ακόμη κι αν το app είναι σκοτωμένο.
 
-## Τι φταίει αν δεν χτυπάει κλειστό (η συνηθισμένη αιτία)
+## Κατάσταση credentials (ΟΚ)
 
-Το access token που παίρνει η συσκευή πρέπει να κουβαλάει ένα **Push Credential** για τη συγκεκριμένη πλατφόρμα. Αν λείπει, η συσκευή «γράφεται» κανονικά αλλά το Twilio **δεν στέλνει push** όταν έρχεται κλήση → κλειστό app = δεν χτυπάει (ό,τι κι αν κάνει ο κώδικας).
+- **Android FCM credential** (`TWILIO_PUSH_CREDENTIAL_SID_ANDROID`): ρυθμισμένο (s27).
+- **iOS APNs VoIP credential** (`TWILIO_PUSH_CREDENTIAL_SID_IOS`): **ρυθμισμένο** στο Vercel (Production+Preview, από 10 Ιουν — επιβεβαιωμένο από τον owner s31). Το `/api/phone/twilio-token` το επιστρέφει ως `pushConfigured:true` για iOS.
 
-- **Android FCM credential:** ρυθμισμένο (s27, `TWILIO_PUSH_CREDENTIAL_SID_ANDROID`).
-- **iOS APNs VoIP credential:** **πρέπει να ρυθμιστεί** → `TWILIO_PUSH_CREDENTIAL_SID_IOS`. Μέχρι τότε, σε iPhone οι κλήσεις ΔΕΝ χτυπούν με κλειστό app.
+Άρα το credential **δεν** είναι η αιτία.
 
-Η εφαρμογή πλέον το **δείχνει**: μετά τη σύνδεση, αν λείπει το push credential, εμφανίζεται κίτρινη ειδοποίηση στην Αρχική («Οι κλήσεις δεν θα χτυπούν με κλειστή εφαρμογή…»). Το `/api/phone/twilio-token` επιστρέφει `pushConfigured: true|false` (μόνο boolean — ποτέ το SID).
+## Η πραγματική αιτία στον κώδικα (διορθώθηκε s31)
 
-## Owner steps για iOS (μία φορά)
+Το `@twilio/voice-react-native-sdk` **δημιουργεί το `PKPushRegistry` ΜΟΝΟ όταν το JS καλέσει `initializePushRegistry()`** — δεν στήνεται στο native `init()` του module (επιβεβαιωμένο από τον πηγαίο κώδικα του SDK, `ios/TwilioVoiceReactNative.m`). Στον δικό μας κώδικα η κλήση ήταν **πίσω από το login** (μέσα στο `registerForIncoming`, μετά από auth + dynamic import) → έτρεχε πολύ **αργά**.
 
-1. **Apple Developer → Certificates, Identifiers & Profiles → Keys → +**
-   - Δημιούργησε ένα **APNs key** (`.p8`) με ενεργό το **Apple Push Notifications service (VoIP)** (ή χρησιμοποίησε APNs Auth Key). Σημείωσε Key ID + Team ID + κατέβασε το `.p8`.
-2. **Twilio Console → Voice → Push Credentials → Create new Credential → Apple Push Notification service (VoIP)**
-   - Ανέβασε το `.p8`, βάλε **Production** (το app έχει `aps-environment: production`), Key ID, Team ID, Bundle ID `ai.opiflow.app`.
-   - Κράτα το **Credential SID** (`CRxxxx…`).
-3. **Vercel (project `sane127/opiflow`) → Settings → Environment Variables**
-   - Πρόσθεσε `TWILIO_PUSH_CREDENTIAL_SID_IOS = CRxxxx…` → **Redeploy**.
-4. **Στη συσκευή:** άνοιξε το app μία φορά (logged in) ώστε να ξανα-γραφτεί με το νέο credential. Η κίτρινη ειδοποίηση πρέπει να φύγει.
+Αποτέλεσμα σε **σκοτωμένο** app: το iOS ξυπνάει το app για το VoIP push, αλλά το registry δεν είναι έτοιμο εγκαίρως → το push «κρατιέται» και η κλήση εμφανίζεται ως **ξεπερασμένο «χτυπάει»** μόνο όταν ανοίξεις χειροκίνητα το app (ακριβώς το σύμπτωμα που περιγράφηκε).
 
-## Πώς το επαληθεύεις
+**Fix (s31):** το `initPushRegistry()` καλείται πλέον **πολύ νωρίς στο launch και ΑΝΕΞΑΡΤΗΤΑ από το login** (`native/src/app/_layout.tsx`), ώστε το PushKit registry + CallKit να είναι έτοιμα όταν το iOS ξυπνά το σκοτωμένο app. Το token binding (`registerForIncoming`) συνεχίζει μετά το login. Χρειάζεται **νέο build** (≥ iOS build 26) + δοκιμή σε συσκευή.
 
-1. iPhone με νέο build (TestFlight), logged in, **κλείδωσε/σκότωσε** το app.
+## Πώς το επαληθεύεις (νέο build)
+
+1. Εγκατέστησε το **νέο** TestFlight build, **κάνε login μία φορά** (για να γραφτεί το token), μετά **κλείδωσε/σκότωσε** το app.
 2. Κάλεσε το DID της επιχείρησης από άλλο τηλέφωνο.
-3. Πρέπει να χτυπήσει η οθόνη κλήσης (CallKit) με Απάντηση/Απόρριψη.
-4. Αναπάντητη → εμφανίζεται στις **Αναπάντητες** (πλέον καταγράφεται και client-side).
+3. Πρέπει να χτυπήσει η οθόνη CallKit (Απάντηση/Απόρριψη) στο lock screen.
+4. Αναπάντητη → εμφανίζεται στις **Αναπάντητες** (καταγράφεται και client-side, s31).
 
-## Τι διορθώθηκε στον κώδικα (αυτό το PR)
+## Αν ΣΥΝΕΧΙΖΕΙ να μην χτυπάει κλειστό μετά το νέο build
 
-- **Αναπάντητες καταγράφονται:** όταν μια εισερχόμενη ακυρώνεται/λήγει, ο client κάνει log `status:'missed'` (`/api/calls/log` δέχεται πλέον `missed`). Πριν, χανόταν τελείως.
-- **Stale «ringing» όταν ανοίγεις το app:** μια ξεπερασμένη πρόσκληση (το push ήρθε ενώ ήμασταν σκοτωμένοι) **αυτο-κλείνει** μετά το παράθυρο κλήσης (35s) και καταγράφεται ως αναπάντητη· αν πατήσεις «Απάντηση» σε νεκρή πρόσκληση, καθαρίζει + καταγράφεται αναπάντητη αντί να «κολλάει».
-- **Re-register σε κάθε foreground** όταν η συσκευή δεν είναι «registered» (όχι μόνο μετά από error) ώστε να μένει δεκτική σε κλήσεις.
-- **Διάγνωση push:** η Αρχική προειδοποιεί όταν λείπει το push credential.
+Έλεγξε με τη σειρά (owner/Twilio-side):
 
-> Όλη η υποδομή (UIBackgroundModes voip+audio, aps-environment, η VoiceGrant με pushCredentialSid, το inbound TwiML `<Dial><Client>`) υπάρχει ήδη. Μένει **μόνο** το βήμα 1–4 παραπάνω για iOS.
+1. **Twilio Push Credential environment.** Στο Twilio Console → Voice → Push Credentials, το APNs (VoIP) credential πρέπει να είναι **Production** (το app έχει `aps-environment: production`· το TestFlight χρησιμοποιεί production APNs). Αν είναι σημειωμένο ως **Sandbox**, το push απορρίπτεται σιωπηλά.
+2. **Bundle ID** του credential = `ai.opiflow.app`.
+3. **Twilio region.** Όλα (SIP Domain, push credential) πρέπει να είναι **us1** — το token route κάνει pin `region us1` (twr). Αν το push credential είναι σε άλλο region, το registration δεν ταιριάζει.
+4. **Expo SDK 54 compat.** Το SDK (`2.0.0-preview.2`) δηλώνει επίσημα δοκιμασμένο με Expo 52· εμείς είμαστε σε 54. Αν μετά τα 1–3 πάλι δεν δουλεύει, η εφεδρική λύση είναι config plugin που στήνει το PushKit στο native `AppDelegate.didFinishLaunching` (πριν φορτώσει το JS) — δες το SDK doc «applications-own-pushkit-handler».
+
+## Τι διορθώθηκε στον κώδικα (s31)
+
+- **Early PushKit init** (το παραπάνω) — η βασική διόρθωση για ring-when-killed.
+- **Αναπάντητες καταγράφονται** client-side (`/api/calls/log` δέχεται `status:'missed'`).
+- **Stale «ringing»** auto-κλείνει μετά 35s + log missed· «Απάντηση» σε νεκρή πρόσκληση καθαρίζει αντί να κολλάει· idempotent accept/reject (double-tap safe).
+- **Re-register σε κάθε foreground** όταν δεν είναι registered.
+- **Διάγνωση push:** το token route επιστρέφει `pushConfigured`· η Αρχική προειδοποιεί όταν λείπει (δεν θα εμφανίζεται πια αφού το iOS credential είναι σετ).
+
+> Η υπόλοιπη υποδομή (UIBackgroundModes voip+audio, aps-environment, VoiceGrant pushCredentialSid+incomingAllow, inbound TwiML `<Dial><Client>`) υπάρχει ήδη.
