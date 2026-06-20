@@ -17,7 +17,10 @@ export interface ActiveCall {
 
 export type IncomingState = 'idle' | 'registering' | 'registered' | 'error';
 
-let incomingState: { state: IncomingState; detail?: string } = { state: 'idle' };
+// `pushConfigured`: did the last token carry a Push Credential for THIS platform?
+// When false, the device registers but a killed/backgrounded app will NOT ring
+// (Twilio fires no VoIP/FCM push). Surfaced as a warning in Home/Settings.
+let incomingState: { state: IncomingState; detail?: string; pushConfigured?: boolean } = { state: 'idle' };
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -26,7 +29,7 @@ export function getIncomingState() {
   return incomingState;
 }
 
-export function setIncomingState(next: { state: IncomingState; detail?: string }) {
+export function setIncomingState(next: { state: IncomingState; detail?: string; pushConfigured?: boolean }) {
   incomingState = next;
   for (const fn of listeners) {
     try {

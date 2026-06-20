@@ -111,8 +111,19 @@ export async function GET(request: NextRequest) {
       })
     );
 
+    // `pushConfigured` (boolean only — never the SID) lets the app tell the
+    // owner whether incoming calls can ring when the app is killed. Without a
+    // push credential for this platform, the device registers but Twilio fires
+    // NO VoIP/FCM push, so a closed app never rings. Surfaced in Ρυθμίσεις.
     return NextResponse.json(
-      { ok: true, ready: true, token: token.toJwt(), identity, ttl: TOKEN_TTL_SECONDS },
+      {
+        ok: true,
+        ready: true,
+        token: token.toJwt(),
+        identity,
+        ttl: TOKEN_TTL_SECONDS,
+        pushConfigured: Boolean(pushCredentialSid),
+      },
       { headers: NO_STORE }
     );
   } catch {

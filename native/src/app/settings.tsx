@@ -91,8 +91,39 @@ export default function SettingsScreen() {
           onPress: async () => {
             setDeletingImported(true);
             try {
-              const r = await apiDelete<{ ok?: boolean; deleted?: number }>('/api/customers/imported');
-              Alert.alert('✓', `Διαγράφηκαν ${r?.deleted ?? 0} εισαγόμενες επαφές.`);
+              const r = await apiDelete<{ ok?: boolean; deleted?: number; columnMissing?: boolean }>('/api/customers/imported');
+              if (r?.columnMissing) {
+                Alert.alert('Καμία εισαγόμενη επαφή', 'Δεν εντοπίστηκαν επαφές σημειωμένες ως «από κινητό». Για να σβήσεις τα πάντα, χρησιμοποίησε «Διαγραφή ΟΛΩΝ των επαφών».');
+              } else {
+                Alert.alert('✓', `Διαγράφηκαν ${r?.deleted ?? 0} εισαγόμενες επαφές.`);
+              }
+            } catch {
+              Alert.alert('Σφάλμα', 'Η διαγραφή απέτυχε. Δοκίμασε ξανά.');
+            } finally {
+              setDeletingImported(false);
+            }
+          },
+        },
+      ],
+    );
+  }
+
+  // «Διαγραφή ΟΛΩΝ των επαφών» — deletes every contact for the business. Works
+  // regardless of the imported flag (no migration dependency). Two-step confirm.
+  function confirmDeleteAll() {
+    Alert.alert(
+      'Διαγραφή ΟΛΩΝ των επαφών',
+      'Θα διαγραφούν ΟΛΕΣ οι επαφές σου (εισαγόμενες και μη). Έργα/προσφορές/ραντεβού αποσυνδέονται από τον πελάτη. Η ενέργεια ΔΕΝ αναιρείται. Σίγουρα;',
+      [
+        { text: 'Άκυρο', style: 'cancel' },
+        {
+          text: 'Διαγραφή όλων',
+          style: 'destructive',
+          onPress: async () => {
+            setDeletingImported(true);
+            try {
+              const r = await apiDelete<{ ok?: boolean; deleted?: number }>('/api/customers/imported?scope=all');
+              Alert.alert('✓', `Διαγράφηκαν ${r?.deleted ?? 0} επαφές.`);
             } catch {
               Alert.alert('Σφάλμα', 'Η διαγραφή απέτυχε. Δοκίμασε ξανά.');
             } finally {
@@ -785,6 +816,12 @@ export default function SettingsScreen() {
               label="Διαγραφή εισαγόμενων επαφών"
               tone="outline"
               onPress={confirmDeleteImported}
+              busy={deletingImported}
+            />
+            <PrimaryButton
+              label="Διαγραφή ΟΛΩΝ των επαφών"
+              tone="danger"
+              onPress={confirmDeleteAll}
               busy={deletingImported}
             />
           </Section>

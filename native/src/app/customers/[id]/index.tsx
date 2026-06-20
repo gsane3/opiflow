@@ -30,7 +30,7 @@ import { WorkFoldersSection } from '@/components/work-folders-section';
 import NextActionCard, { type NextActionType } from '@/components/next-action-card';
 import { Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatDate, formatEuro, formatWhen } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import type { Customer, GalleryFile, LinkDraft, Offer, Task, TimelineItem, UploadSession } from '@/lib/types';
@@ -347,6 +347,31 @@ export default function CustomerProfileScreen() {
     }
   }
 
+  // «Διαγραφή επαφής» — permanently delete this contact (any contact, imported
+  // or not). DB cascades/nulls child rows. Returns to the list on success.
+  function deleteContact() {
+    Alert.alert(
+      'Διαγραφή επαφής',
+      `Οριστική διαγραφή «${customer?.name?.trim() || 'αυτής της επαφής'}»; Η ενέργεια δεν αναιρείται.`,
+      [
+        { text: 'Ακύρωση', style: 'cancel' },
+        {
+          text: 'Διαγραφή',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const r = await apiDelete<{ ok?: boolean }>(`/api/customers/${customerId}`);
+              if (r?.ok) router.back();
+              else Alert.alert('Σφάλμα', 'Δεν διαγράφηκε η επαφή.');
+            } catch {
+              Alert.alert('Σφάλμα', 'Δεν διαγράφηκε η επαφή.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
   function rejectCustomer() {
     if (customer?.status === 'lost') return;
     // Cancel first + clearly worded so a tired tap can't fire the
@@ -646,10 +671,16 @@ export default function CustomerProfileScreen() {
               onPress={rejectCustomer}
               disabled={customer.status === 'lost'}
               style={({ pressed }) => [styles.dangerRow, pressed && styles.pressed]}>
-              <Ionicons name="trash" size={20} color="#D14343" />
+              <Ionicons name="close-circle" size={20} color="#D14343" />
               <ThemedText type="smallBold" style={styles.dangerText}>
                 {customer.status === 'lost' ? 'Πελάτης χαμένος' : 'Απόρριψη πελάτη'}
               </ThemedText>
+            </Pressable>
+            <Pressable
+              onPress={deleteContact}
+              style={({ pressed }) => [styles.dangerRow, pressed && styles.pressed]}>
+              <Ionicons name="trash" size={20} color="#D14343" />
+              <ThemedText type="smallBold" style={styles.dangerText}>Διαγραφή επαφής</ThemedText>
             </Pressable>
           </GroupCard>
         </ScrollView>

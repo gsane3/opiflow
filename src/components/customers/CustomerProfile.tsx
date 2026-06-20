@@ -127,6 +127,20 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
     } catch { window.alert('Σφάλμα σύνδεσης.'); }
   }
 
+  // «Διαγραφή επαφής» — permanently delete this contact (any contact, imported
+  // or not). Child rows cascade/null at the DB level. Returns to the list.
+  async function deleteContact() {
+    const label = cust?.name?.trim() || 'αυτή την επαφή';
+    if (!window.confirm(`Οριστική διαγραφή «${label}»; Η ενέργεια δεν αναιρείται.`)) return;
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch(`/api/customers/${customerId}`, { method: 'DELETE', headers });
+      if (res.ok) router.push('/customers');
+      else window.alert('Δεν ήταν δυνατή η διαγραφή.');
+    } catch { window.alert('Σφάλμα σύνδεσης.'); }
+  }
+
   // «Εκτέλεση» on the customer-scope card. The ranker only emits create_work_folder
   // here (no folder yet) → open the existing «Νέο έργο» sheet. Never auto-sends.
   function onNextAction(t: NextActionType) {
@@ -265,6 +279,15 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
             <OpfIcon name="x" size={17} color="var(--danger)" stroke={2.4} /> Απόρριψη πελάτη
           </button>
         )}
+
+        {/* Permanent delete — removes the contact entirely (works for any contact). */}
+        <button
+          className="opf-press"
+          onClick={() => void deleteContact()}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 4, padding: '12px', borderRadius: 14, background: 'transparent', color: 'var(--danger)', fontWeight: 700, fontSize: 14 }}
+        >
+          <OpfIcon name="trash" size={17} color="var(--danger)" stroke={2.4} /> Διαγραφή επαφής
+        </button>
       </div>
 
       {/* Edit-details popup — opened by the pencil; re-loads the profile on save. */}

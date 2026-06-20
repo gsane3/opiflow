@@ -105,10 +105,11 @@ const cls = {
 
 export default function ImportExportPanel() {
   const fileRef = useRef<HTMLInputElement>(null);
-  const [busy, setBusy] = useState<null | 'export' | 'import' | 'delete-imported'>(null);
+  const [busy, setBusy] = useState<null | 'export' | 'import' | 'delete-imported' | 'delete-all'>(null);
   const [message, setMessage] = useState<{ tone: 'ok' | 'err' | 'info'; text: string } | null>(null);
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [confirmDeleteImported, setConfirmDeleteImported] = useState(false);
+  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
 
   async function handleDeleteImported() {
     setMessage(null);
@@ -120,8 +121,10 @@ export default function ImportExportPanel() {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` },
       });
-      const json = await res.json().catch(() => ({})) as { ok?: boolean; deleted?: number };
-      if (json.ok) {
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; deleted?: number; columnMissing?: boolean };
+      if (json.ok && json.columnMissing) {
+        setMessage({ tone: 'info', text: 'Δεν εντοπίστηκαν επαφές σημειωμένες ως «από κινητό». Για να σβήσεις τα πάντα, χρησιμοποίησε «Διαγραφή όλων των επαφών».' });
+      } else if (json.ok) {
         setMessage({ tone: 'ok', text: `Διαγράφηκαν ${json.deleted ?? 0} εισαγόμενες επαφές.` });
       } else {
         setMessage({ tone: 'err', text: 'Η διαγραφή απέτυχε. Δοκίμασε ξανά.' });
@@ -131,6 +134,32 @@ export default function ImportExportPanel() {
     } finally {
       setBusy(null);
       setConfirmDeleteImported(false);
+    }
+  }
+
+  // «Διαγραφή όλων των επαφών» — every contact (imported + app/CRM). Works
+  // regardless of the imported flag (no migration dependency).
+  async function handleDeleteAll() {
+    setMessage(null);
+    setBusy('delete-all');
+    try {
+      const token = await getToken();
+      if (!token) { setMessage({ tone: 'err', text: 'Πρέπει να είσαι συνδεδεμένος.' }); return; }
+      const res = await fetch('/api/customers/imported?scope=all', {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; deleted?: number };
+      if (json.ok) {
+        setMessage({ tone: 'ok', text: `Διαγράφηκαν ${json.deleted ?? 0} επαφές.` });
+      } else {
+        setMessage({ tone: 'err', text: 'Η διαγραφή απέτυχε. Δοκίμασε ξανά.' });
+      }
+    } catch {
+      setMessage({ tone: 'err', text: 'Η διαγραφή απέτυχε. Δοκίμασε ξανά.' });
+    } finally {
+      setBusy(null);
+      setConfirmDeleteAll(false);
     }
   }
 
@@ -380,6 +409,41 @@ export default function ImportExportPanel() {
               <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
             </svg>
             Διαγραφή εισαγόμενων επαφών
+          </button>
+        )}
+
+        {/* Delete ALL contacts (imported + app/CRM) — no migration dependency. */}
+        <p className="mt-4 text-xs text-zinc-500 dark:text-zinc-400">
+          Ή διέγραψε <strong>όλες</strong> τις επαφές (εισαγόμενες και μη). Έργα/προσφορές/ραντεβού
+          αποσυνδέονται από τον πελάτη. Η ενέργεια δεν αναιρείται.
+        </p>
+        {confirmDeleteAll ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleDeleteAll}
+              disabled={busy !== null}
+              className="inline-flex items-center justify-center rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-700 disabled:opacity-50"
+            >
+              {busy === 'delete-all' ? 'Διαγραφή…' : 'Ναι, διαγραφή ΟΛΩΝ'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDeleteAll(false)}
+              disabled={busy !== null}
+              className="inline-flex items-center justify-center rounded-xl border border-zinc-200 dark:border-white/10 px-4 py-2 text-sm font-medium text-zinc-600 dark:text-zinc-300 transition hover:bg-zinc-50 dark:hover:bg-white/5"
+            >
+              Άκυρο
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setConfirmDeleteAll(true)}
+            disabled={busy !== null}
+            className="mt-2 inline-flex items-center gap-2 rounded-xl border border-red-300 dark:border-red-500/40 px-4 py-2 text-sm font-semibold text-red-700 dark:text-red-300 transition hover:bg-red-50 dark:hover:bg-red-500/10 disabled:opacity-50"
+          >
+            Διαγραφή όλων των επαφών
           </button>
         )}
       </div>

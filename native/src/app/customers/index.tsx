@@ -8,10 +8,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
-  Linking,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   TextInput,
   View,
@@ -43,6 +42,21 @@ const STATUS_DOT: Record<string, string> = {
   lost: '#9AA4B2',
 };
 
+// iOS-Contacts grouping: first letter of the display name (Greek + Latin),
+// accents stripped (Ά→Α). Digits/symbols/blank → '#'.
+function sectionLetter(name: string): string {
+  const ch = (name ?? '').trim().charAt(0).toUpperCase();
+  if (!ch) return '#';
+  if (/[A-ZΑ-Ω]/.test(ch)) return ch;
+  const norm = ch.normalize('NFD').replace(/[̀-ͯ]/g, '');
+  if (/[A-ZΑ-Ω]/.test(norm)) return norm;
+  return '#';
+}
+
+function displayName(c: Customer): string {
+  return c.name || c.companyName || c.mobilePhone || c.phone || '';
+}
+
 export default function CustomersListScreen() {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -56,9 +70,8 @@ export default function CustomersListScreen() {
   // #9 — phone-imported contacts are HIDDEN BY DEFAULT (owner request: app
   // contacts only); a toggle reveals them.
   const [hideImported, setHideImported] = useState(true);
-  // U7 parity — alphabetical is the DEFAULT (owner request). Ref so `load`
-  // (dep-free) reads the current value without re-creating the callback.
-  const [sortByName, setSortByName] = useState(true);
+  // iOS-Contacts style: ALWAYS alphabetical (sectioned A–Z). Ref so `load`
+  // (dep-free) reads it without re-creating the callback.
   const sortByNameRef = useRef(true);
   const [addOpen, setAddOpen] = useState(false);
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -107,14 +120,6 @@ export default function CustomersListScreen() {
     setStatus(st);
     setLoading(true);
     void load(q, st);
-  }
-
-  function onToggleSort() {
-    const next = !sortByNameRef.current;
-    sortByNameRef.current = next;
-    setSortByName(next);
-    setLoading(true);
-    void load(q, status);
   }
 
   const [importing, setImporting] = useState(false);
@@ -184,12 +189,37 @@ export default function CustomersListScreen() {
   );
   const hasImported = useMemo(() => items.some((i) => i.importedFromPhone), [items]);
 
+  // Group into A–Z sections (iOS Contacts). '#' (digits/symbols) sorts last.
+  const sections = useMemo(() => {
+    const map = new Map<string, Customer[]>();
+    for (const it of visibleItems) {
+      const key = sectionLetter(displayName(it));
+      const arr = map.get(key);
+      if (arr) arr.push(it); else map.set(key, [it]);
+    }
+    const order = (a: string, b: string) => (a === '#' ? 1 : b === '#' ? -1 : a.localeCompare(b, 'el'));
+    return Array.from(map.keys()).sort(order).map((title) => ({
+      title,
+      data: map.get(title)!.slice().sort((x, y) => displayName(x).localeCompare(displayName(y), 'el')),
+    }));
+  }, [visibleItems]);
+
+  const sectionListRef = useRef<SectionList<Customer>>(null);
+  const indexLetters = useMemo(() => sections.map((s) => s.title), [sections]);
+  const scrollToSection = useCallback((title: string) => {
+    const idx = sections.findIndex((s) => s.title === title);
+    if (idx < 0) return;
+    try {
+      sectionListRef.current?.scrollToLocation({ sectionIndex: idx, itemIndex: 0, viewOffset: 0, animated: false });
+    } catch { /* scrollToLocation can throw before layout — safe to ignore */ }
+  }, [sections]);
+
   return (
     <ThemedView style={styles.container}>
       <SafeAreaView style={styles.safe} edges={['top']}>
         <View style={styles.titleRow}>
           <ThemedText type="subtitle" style={styles.title}>
-            Πελάτες
+            Επαφές
           </ThemedText>
           <View style={styles.titleActions}>
             <Pressable
@@ -244,12 +274,9 @@ export default function CustomersListScreen() {
           ))}
         </View>
 
-        {/* Sort (U7 parity) + hide phone-imported (#9, only when relevant). */}
+        {/* Hide phone-imported (#9, only when relevant). The list is always
+            sorted alphabetically into A–Z sections (iOS Contacts style). */}
         <View style={styles.toolbar}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Ταξινόμηση" onPress={onToggleSort} style={styles.sortToggle} hitSlop={6}>
-            <Ionicons name="swap-vertical" size={16} color={Brand.primary} />
-            <ThemedText type="small">{sortByName ? 'Αλφαβητικά' : 'Πρόσφατοι'}</ThemedText>
-          </Pressable>
           {hasImported ? (
             <Pressable
               accessibilityRole="switch"
@@ -294,78 +321,74 @@ export default function CustomersListScreen() {
             </ThemedText>
           </View>
         ) : (
-          <FlatList
-            data={visibleItems}
-            keyExtractor={(c) => c.id}
-            contentContainerStyle={styles.list}
-            keyboardShouldPersistTaps="handled"
-            refreshControl={
-              <RefreshControl
-                refreshing={refreshing}
-                onRefresh={() => {
-                  setRefreshing(true);
-                  void load(q, status);
-                }}
-                tintColor={Brand.primary}
-              />
-            }
-            ItemSeparatorComponent={() => <View style={styles.sep} />}
-            renderItem={({ item }) => {
-              const phone = item.mobilePhone || item.landlinePhone || item.phone || '';
-              const dot = item.status ? STATUS_DOT[item.status] : undefined;
-              return (
-                <Pressable
-                  onPress={() => router.push({ pathname: '/customers/[id]', params: { id: item.id } })}
-                  style={({ pressed }) => [styles.rowOuter, pressed && styles.rowPressed]}>
-                  <View style={styles.row}>
-                    <LinearGradient colors={[...BrandGradient]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatar}>
-                      <ThemedText style={styles.avatarText}>
-                        {(item.name ?? 'Π').trim().slice(0, 1).toUpperCase()}
-                      </ThemedText>
-                      {dot ? <View style={[styles.statusDot, { backgroundColor: dot }]} /> : null}
-                    </LinearGradient>
-                    <View style={styles.rowText}>
-                      <ThemedText type="smallBold">{item.name || phone || 'Πελάτης'}</ThemedText>
-                      <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
-                        {item.name
-                          ? [item.companyName, phone].filter(Boolean).join(' · ') || '—'
-                          : 'Αναμονή στοιχείων'}
-                      </ThemedText>
-                      {item.needsIntake ? (
-                        <View style={styles.needsChip}>
-                          <ThemedText style={styles.needsChipText}>Λείπουν στοιχεία</ThemedText>
-                        </View>
-                      ) : null}
+          <View style={styles.listWrap}>
+            <SectionList
+              ref={sectionListRef}
+              sections={sections}
+              keyExtractor={(c) => c.id}
+              contentContainerStyle={styles.list}
+              keyboardShouldPersistTaps="handled"
+              stickySectionHeadersEnabled
+              showsVerticalScrollIndicator={false}
+              onScrollToIndexFailed={() => { /* far section before layout — ignored */ }}
+              refreshControl={
+                <RefreshControl
+                  refreshing={refreshing}
+                  onRefresh={() => {
+                    setRefreshing(true);
+                    void load(q, status);
+                  }}
+                  tintColor={Brand.primary}
+                />
+              }
+              renderSectionHeader={({ section }) => (
+                <View style={styles.sectionHeader}>
+                  <ThemedText style={styles.sectionHeaderText}>{section.title}</ThemedText>
+                </View>
+              )}
+              ItemSeparatorComponent={() => <View style={styles.sep} />}
+              renderItem={({ item }) => {
+                const phone = item.mobilePhone || item.landlinePhone || item.phone || '';
+                const dot = item.status ? STATUS_DOT[item.status] : undefined;
+                return (
+                  <Pressable
+                    onPress={() => router.push({ pathname: '/customers/[id]', params: { id: item.id } })}
+                    style={({ pressed }) => [styles.rowOuter, pressed && styles.rowPressed]}>
+                    <View style={styles.row}>
+                      <LinearGradient colors={[...BrandGradient]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.avatar}>
+                        <ThemedText style={styles.avatarText}>
+                          {(displayName(item) || 'Π').trim().slice(0, 1).toUpperCase()}
+                        </ThemedText>
+                        {dot ? <View style={[styles.statusDot, { backgroundColor: dot }]} /> : null}
+                      </LinearGradient>
+                      <View style={styles.rowText}>
+                        <ThemedText type="smallBold" numberOfLines={1}>{item.name || phone || 'Πελάτης'}</ThemedText>
+                        <ThemedText type="small" themeColor="textSecondary" numberOfLines={1}>
+                          {item.name
+                            ? [item.companyName, phone].filter(Boolean).join(' · ') || '—'
+                            : 'Αναμονή στοιχείων'}
+                        </ThemedText>
+                      </View>
+                      {item.needsIntake ? <View style={styles.needsDot} /> : null}
+                      {item.pinned ? <Ionicons name="bookmark" size={15} color={Brand.primary} /> : null}
+                      <Ionicons name="chevron-forward" size={18} color={c.textFaint} />
                     </View>
-                    {item.address ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Πλοήγηση"
-                        onPress={() =>
-                          void Linking.openURL(
-                            `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.address ?? '')}`,
-                          )
-                        }
-                        hitSlop={8}
-                        style={({ pressed }) => [styles.mapsBtn, pressed && styles.rowPressed]}>
-                        <Ionicons name="navigate" size={16} color={Brand.primary} />
-                      </Pressable>
-                    ) : null}
-                    {item.pinned ? <Ionicons name="bookmark" size={15} color={Brand.primary} /> : null}
-                    <Ionicons name="chevron-forward" size={18} color={c.textFaint} />
-                  </View>
-                  {item.nextBestAction ? (
-                    <View style={styles.nextAction}>
-                      <Ionicons name="sparkles" size={13} color={Brand.primary} />
-                      <ThemedText type="small" numberOfLines={2} style={styles.nextActionText}>
-                        {item.nextBestAction}
-                      </ThemedText>
-                    </View>
-                  ) : null}
-                </Pressable>
-              );
-            }}
-          />
+                  </Pressable>
+                );
+              }}
+            />
+
+            {/* A–Z index scrubber (iOS Contacts). Jumps to the tapped letter. */}
+            {indexLetters.length > 1 ? (
+              <View style={styles.indexBar} pointerEvents="box-none">
+                {indexLetters.map((l) => (
+                  <Pressable key={l} hitSlop={4} onPress={() => scrollToSection(l)} style={styles.indexLetterBtn}>
+                    <ThemedText style={styles.indexLetter}>{l}</ThemedText>
+                  </Pressable>
+                ))}
+              </View>
+            ) : null}
+          </View>
         )}
       </SafeAreaView>
 
@@ -488,8 +511,23 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   sortToggle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.three, paddingHorizontal: Spacing.four },
   centerText: { textAlign: 'center' },
-  list: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four },
+  listWrap: { flex: 1 },
+  list: { paddingLeft: Spacing.four, paddingRight: Spacing.four + 14, paddingBottom: BottomTabInset + Spacing.four },
   sep: { height: 1, backgroundColor: c.border, marginLeft: 52 },
+  sectionHeader: { backgroundColor: c.background, paddingVertical: 4, paddingLeft: 52 },
+  sectionHeaderText: { fontSize: 13, fontWeight: '800', color: c.textSecondary },
+  needsDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#E0A106' },
+  indexBar: {
+    position: 'absolute',
+    right: 2,
+    top: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: Spacing.two,
+  },
+  indexLetterBtn: { paddingVertical: 0.5, paddingHorizontal: 4 },
+  indexLetter: { fontSize: 11, fontWeight: '700', color: Brand.primary, lineHeight: 14 },
   rowOuter: { paddingVertical: Spacing.three },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
   rowPressed: { opacity: 0.6 },
