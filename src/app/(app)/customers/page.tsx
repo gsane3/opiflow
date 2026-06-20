@@ -491,7 +491,7 @@ export default function CustomersPage() {
                         <li key={customer.id}>
                           <Link
                             href={`/customers/${customer.id}`}
-                            className="flex items-center gap-3 border-b border-zinc-100 px-4 py-2.5 transition hover:bg-zinc-50 dark:border-white/5 dark:hover:bg-white/5"
+                            className="flex items-center gap-3 border-b border-zinc-100 py-2.5 pl-4 pr-7 transition hover:bg-zinc-50 dark:border-white/5 dark:hover:bg-white/5"
                           >
                             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-bold text-indigo-700 dark:bg-indigo-500/20 dark:text-indigo-300">
                               {(customer.name || customer.companyName || 'Π').trim().charAt(0).toUpperCase()}
@@ -515,9 +515,10 @@ export default function CustomersPage() {
               ))}
             </div>
 
-            {/* A–Z index scrubber */}
+            {/* A–Z index scrubber — anchored to the card's right edge (absolute,
+                inside the relative wrapper) so it tracks the centred card on desktop. */}
             {sections.length > 1 && (
-              <div className="fixed right-0.5 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center">
+              <div className="absolute right-0 top-1/2 z-20 flex -translate-y-1/2 flex-col items-center">
                 {sections.map((s) => (
                   <button
                     key={s.title}

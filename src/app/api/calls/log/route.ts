@@ -34,7 +34,10 @@ function normalizePhone(raw: string | null): string | null {
   if (/^\+30\d{10}$/.test(s)) return s;
   if (/^30\d{10}$/.test(s)) return '+' + s;
   if (/^[26]\d{9}$/.test(s)) return '+30' + s;
-  return s;
+  // Only allow a plain phone shape through. Anything else (incl. PostgREST
+  // filter punctuation like ',' that the strip above misses) → null, so it
+  // never reaches the .or() customer-match filter below.
+  return /^\+?\d{6,15}$/.test(s) ? s : null;
 }
 
 export async function POST(request: NextRequest) {

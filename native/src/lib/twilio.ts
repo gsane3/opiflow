@@ -143,14 +143,16 @@ function logMissedInbound(from: string | null) {
 // the modal flips to its in-call view, and log the result to the CRM. If accept
 // fails (a stale/expired invite — e.g. the app was reopened long after the push)
 // we log it as missed and clear the dead ring modal.
-async function acceptInvite(invite: CallInvite, from: string | null) {
+async function acceptInvite(invite: CallInvite, from: string | null, clearIfCurrent: () => void) {
   let call: Call;
   try {
     call = await invite.accept();
   } catch (e) {
     console.log('[twilio] accept invite failed (stale?)', e);
     logMissedInbound(from);
-    setIncomingCall(null);
+    // Identity-checked: only clear if THIS dead invite is still the one showing,
+    // so a newer invite that arrived during the accept() round-trip survives.
+    clearIfCurrent();
     return;
   }
 
@@ -197,12 +199,14 @@ function wireIncomingListeners() {
 
       // Identity-checked clear: only dismiss the modal if THIS invite is still
       // the one showing (a newer invite must not be wiped by an old timer).
+      // `if (settled) return` makes accept/reject/disconnect idempotent so a
+      // rapid double-tap can't accept/reject twice (duplicate logs/sessions).
       const session = {
         phase: 'ringing' as const,
         from,
-        accept: () => { settle(); void acceptInvite(invite, from); },
-        reject: () => { settle(); try { void invite.reject(); } catch { /* ignore */ } finally { clearIfCurrent(); } },
-        disconnect: () => { settle(); try { void invite.reject(); } catch { /* ignore */ } finally { clearIfCurrent(); } },
+        accept: () => { if (settled) return; settle(); void acceptInvite(invite, from, clearIfCurrent); },
+        reject: () => { if (settled) return; settle(); try { void invite.reject(); } catch { /* ignore */ } finally { clearIfCurrent(); } },
+        disconnect: () => { if (settled) return; settle(); try { void invite.reject(); } catch { /* ignore */ } finally { clearIfCurrent(); } },
         mute: () => { /* not muteable while ringing */ },
       };
       const clearIfCurrent = () => { if (getIncomingCall() === session) setIncomingCall(null); };
