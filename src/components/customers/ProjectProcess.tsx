@@ -99,6 +99,11 @@ const T = (s: string | null | undefined) => (s ? new Date(s).getTime() || 0 : 0)
 
 type SheetName = 'msg' | 'appt' | 'offer' | 'req' | 'payreq' | 'menu' | 'reject' | 'delete' | null;
 
+// Offer composer (parity with native): multiple line items + a VAT rate.
+interface OfferRow { desc: string; qty: string; price: string }
+const VAT_RATES = ['0', '6', '13', '17', '24'] as const;
+const parseNum = (s: string) => Number((s ?? '').replace(',', '.'));
+
 export default function ProjectProcess({ folderId, customerId, onClose, onChanged }: { folderId: string; customerId: string; onClose: () => void; onChanged?: () => void }) {
   const router = useRouter();
   const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
@@ -118,8 +123,12 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   const [sheet, setSheet] = useState<SheetName>(null);
   const [reqPhotos, setReqPhotos] = useState(false);
   const [msg, setMsg] = useState('');
-  const [oDesc, setODesc] = useState('');
-  const [oAmount, setOAmount] = useState('');
+  const [oRows, setORows] = useState<OfferRow[]>([{ desc: '', qty: '1', price: '' }]);
+  const [oVat, setOVat] = useState('24');
+  const [oNotes, setONotes] = useState('');
+  const resetOffer = () => { setORows([{ desc: '', qty: '1', price: '' }]); setOVat('24'); setONotes(''); };
+  const offerNet = oRows.reduce((sum, r) => { const q = parseNum(r.qty); return sum + (q > 0 ? q : 1) * (parseNum(r.price) || 0); }, 0);
+  const offerGross = offerNet * (1 + (Number(oVat) || 0) / 100);
   const [aTitle, setATitle] = useState('');
   const [aDate, setADate] = useState('');
   const [payKind, setPayKind] = useState<'deposit' | 'balance'>('deposit');
@@ -178,7 +187,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       case 'share_folder_link': void previewPortal(); break;
       case 'request_photos': setReqPhotos(true); setSheet('req'); break;
       case 'request_customer_details': setReqPhotos(false); setSheet('req'); break;
-      case 'create_offer': setODesc(''); setOAmount(''); setSheet('offer'); break;
+      case 'create_offer': resetOffer(); setSheet('offer'); break;
       case 'schedule_appointment': setATitle(f?.title ?? ''); setADate(''); setSheet('appt'); break;
       case 'send_follow_up':
       case 'reply_to_customer': setSheet('msg'); break;
@@ -246,11 +255,16 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
     } finally { endBusy(); }
   }
   async function submitOffer() {
-    const desc = oDesc.trim(); const amount = Number(oAmount.replace(',', '.'));
-    if (!desc || !isFinite(amount) || amount < 0) { fail('Συμπλήρωσε περιγραφή και έγκυρο ποσό.'); return; }
+    const items = oRows
+      .map((r, i) => {
+        const q = parseNum(r.qty);
+        return { description: r.desc.trim(), quantity: q > 0 ? q : 1, unitPrice: parseNum(r.price) || 0, sortOrder: i };
+      })
+      .filter((it) => it.description && it.unitPrice >= 0);
+    if (items.length === 0) { fail('Συμπλήρωσε τουλάχιστον μία γραμμή (περιγραφή + τιμή).'); return; }
     if (!beginBusy()) return;
     try {
-      if (await post('/api/offers', { customerId, workFolderId: folderId, items: [{ description: desc, quantity: 1, unitPrice: amount }] })) { setODesc(''); setOAmount(''); setSheet(null); await refresh(); }
+      if (await post('/api/offers', { customerId, workFolderId: folderId, status: 'ready_to_send', vatRate: Number(oVat) || 0, notes: oNotes.trim() || null, items })) { resetOffer(); setSheet(null); await refresh(); }
       else fail('Η προσφορά δεν στάλθηκε. Δοκίμασε ξανά.');
     } finally { endBusy(); }
   }
@@ -370,7 +384,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
             <button className="opf-pq opf-press" onClick={() => { setReqPhotos(false); setSheet('req'); }}><Icon name="clipboard" size={19} color="var(--brand)" stroke={2} /><span>Στοιχεία</span></button>
             <button className="opf-pq opf-press" onClick={() => { setReqPhotos(true); setSheet('req'); }}><Icon name="image" size={19} color="var(--brand)" stroke={2} /><span>Φωτό</span></button>
             <button className="opf-pq opf-press" onClick={() => { setATitle(f?.title ?? ''); setADate(''); setSheet('appt'); }}><Icon name="calendar" size={19} color="var(--brand)" stroke={2} /><span>Ραντεβού</span></button>
-            <button className="opf-pq opf-press" onClick={() => { setODesc(''); setOAmount(''); setSheet('offer'); }}><Icon name="file" size={19} color="var(--brand)" stroke={2} /><span>Προσφορά</span></button>
+            <button className="opf-pq opf-press" onClick={() => { resetOffer(); setSheet('offer'); }}><Icon name="file" size={19} color="var(--brand)" stroke={2} /><span>Προσφορά</span></button>
           </div>
           <div className="opf-pj-composer">
             <button className="opf-pj-ai opf-press" onClick={() => setSheet('msg')} aria-label="ai"><Icon name="sparkles" size={18} color="#fff" stroke={2} /></button>
@@ -391,9 +405,27 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
         </Sheet>
 
         {/* offer sheet */}
-        <Sheet open={sheet === 'offer'} title="Αποστολή προσφοράς" onClose={() => setSheet(null)} footer={<div style={{ width: '100%' }}><div className="opf-offer-total">Ποσό: <b>{eur(Number(oAmount.replace(',', '.')) || 0)}</b></div><button className="opf-btn-primary opf-full opf-press" onClick={() => void submitOffer()}><Icon name="file" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή στο link'}</span></button></div>}>
-          <label className="opf-field"><span className="opf-field-label">Περιγραφή</span><input className="opf-inp" value={oDesc} onChange={(e) => setODesc(e.target.value)} placeholder="π.χ. Τοποθέτηση κλιματιστικού" /></label>
-          <label className="opf-field"><span className="opf-field-label">Ποσό (€)</span><input className="opf-inp" inputMode="decimal" value={oAmount} onChange={(e) => setOAmount(e.target.value)} placeholder="0" /></label>
+        <Sheet open={sheet === 'offer'} title="Αποστολή προσφοράς" onClose={() => setSheet(null)} footer={<div style={{ width: '100%' }}><div className="opf-offer-total">Καθαρή αξία <b>{eur(offerNet)}</b> · Σύνολο (ΦΠΑ {oVat}%) <b>{eur(offerGross)}</b></div><button className="opf-btn-primary opf-full opf-press" onClick={() => void submitOffer()}><Icon name="file" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή στο link'}</span></button></div>}>
+          {oRows.map((r, i) => (
+            <div key={i} style={{ marginBottom: 10, paddingBottom: 10, borderBottom: i < oRows.length - 1 ? '1px solid var(--line, #eee)' : 'none' }}>
+              <label className="opf-field"><span className="opf-field-label">Περιγραφή{oRows.length > 1 ? ` #${i + 1}` : ''}</span><input className="opf-inp" value={r.desc} onChange={(e) => setORows((rs) => rs.map((x, j) => (j === i ? { ...x, desc: e.target.value } : x)))} placeholder="π.χ. Τοποθέτηση κλιματιστικού" /></label>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                <label className="opf-field" style={{ width: 92 }}><span className="opf-field-label">Ποσότητα</span><input className="opf-inp" inputMode="decimal" value={r.qty} onChange={(e) => setORows((rs) => rs.map((x, j) => (j === i ? { ...x, qty: e.target.value } : x)))} placeholder="1" /></label>
+                <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Τιμή (€)</span><input className="opf-inp" inputMode="decimal" value={r.price} onChange={(e) => setORows((rs) => rs.map((x, j) => (j === i ? { ...x, price: e.target.value } : x)))} placeholder="0" /></label>
+                {oRows.length > 1 ? (
+                  <button type="button" className="opf-press" aria-label="Διαγραφή γραμμής" onClick={() => setORows((rs) => rs.filter((_, j) => j !== i))} style={{ marginBottom: 14, color: 'var(--muted)', fontSize: 18, fontWeight: 700, padding: '0 6px', lineHeight: 1 }}>✕</button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+          <button type="button" className="opf-press" onClick={() => setORows((rs) => [...rs, { desc: '', qty: '1', price: '' }])} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--brand)', fontWeight: 700, fontSize: 14, marginBottom: 14, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}><span style={{ fontSize: 19, lineHeight: 1 }}>+</span>Προσθήκη γραμμής</button>
+          <label className="opf-field"><span className="opf-field-label">Σημειώσεις (προαιρετικό)</span><textarea className="opf-ta" rows={2} value={oNotes} onChange={(e) => setONotes(e.target.value)} /></label>
+          <div className="opf-field-label" style={{ marginBottom: 6 }}>ΦΠΑ</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {VAT_RATES.map((v) => (
+              <button type="button" key={v} className="opf-press" onClick={() => setOVat(v)} style={{ padding: '8px 14px', borderRadius: 999, border: '1px solid var(--line, #ddd)', fontWeight: 700, fontSize: 13, cursor: 'pointer', background: oVat === v ? 'var(--brand)' : 'transparent', color: oVat === v ? '#fff' : 'var(--muted)' }}>{v}%</button>
+            ))}
+          </div>
         </Sheet>
 
         {/* request sheet */}
@@ -402,7 +434,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
         </Sheet>
 
         {/* payment request sheet (deposit/balance + %-slider) */}
-        <Sheet open={sheet === 'payreq'} title="Αίτημα πληρωμής" onClose={() => setSheet(null)} footer={firstOffer ? <button className="opf-btn-primary opf-full opf-press" onClick={() => void submitPayReq()}><Icon name="euro" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button> : <button className="opf-btn-primary opf-full opf-press" onClick={() => { setODesc(''); setOAmount(''); setSheet('offer'); }}><Icon name="file" size={19} color="#fff" stroke={2.1} /><span>Δημιουργία προσφοράς</span></button>}>
+        <Sheet open={sheet === 'payreq'} title="Αίτημα πληρωμής" onClose={() => setSheet(null)} footer={firstOffer ? <button className="opf-btn-primary opf-full opf-press" onClick={() => void submitPayReq()}><Icon name="euro" size={19} color="#fff" stroke={2.1} /><span>{busy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}</span></button> : <button className="opf-btn-primary opf-full opf-press" onClick={() => { resetOffer(); setSheet('offer'); }}><Icon name="file" size={19} color="#fff" stroke={2.1} /><span>Δημιουργία προσφοράς</span></button>}>
           {firstOffer ? (
             <>
               <div className="opf-seg opf-seg-pad" style={{ marginBottom: 18 }}>

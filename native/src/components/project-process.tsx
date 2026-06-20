@@ -422,7 +422,7 @@ export default function ProjectProcessScreen() {
         <View style={styles.pctRow}>
           {VAT_RATES.map((v) => (
             <Pressable key={v} onPress={() => setOVat(v)} style={[styles.pctChip, oVat === v && styles.pctChipOn]}>
-              <ThemedText type="small" style={oVat === v ? styles.segTextOn : styles.segText}>{v}%</ThemedText>
+              <ThemedText type="small" style={oVat === v ? styles.pctTextOn : styles.segText}>{v}%</ThemedText>
             </Pressable>
           ))}
         </View>
@@ -710,7 +710,9 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   pctChip: { paddingHorizontal: 14, paddingVertical: 9, borderRadius: 999, backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
   pctChipOn: { backgroundColor: Brand.primary, borderColor: 'transparent' },
   pctText: { color: c.text, fontWeight: '700' },
-  pctTextOn: { color: '#fff' },
+  // White text on the brand-filled selected VAT chip (the chip used segTextOn —
+  // brand-coloured — which was invisible on the brand background; that was the bug).
+  pctTextOn: { color: '#fff', fontWeight: '700' },
   amountBox: { backgroundColor: Brand.primarySoft, borderRadius: 16, padding: 16, marginBottom: 16, alignItems: 'center', gap: 3 },
   amountBig: { fontSize: 28, fontWeight: '800', color: Brand.primary, letterSpacing: -0.6 },
 
