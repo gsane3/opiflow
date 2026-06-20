@@ -468,9 +468,14 @@ export async function POST(request: NextRequest) {
       // Real recording -> AI brief + PBX metadata footer.
       communicationSummary = `${aiBrief}\n\n---\nPBX metadata:\n${summaryParts}`;
     } else {
-      // No AI brief (no recording). Use a clear non-AI label instead of an AI
-      // guess. Distinguish "not answered" from "answered but not recorded".
-      const label = notAnswered ? 'Αναπάντητη κλήση' : 'Κλήση χωρίς ηχογράφηση';
+      // No AI brief yet — use a plain, factual label (never a guess about what
+      // was said). A recorded call shows "processing" until the transcript brief
+      // overwrites this summary; an unanswered call shows "Αναπάντητη κλήση".
+      const label = notAnswered
+        ? 'Αναπάντητη κλήση'
+        : recordingExists
+        ? 'Κλήση — γίνεται επεξεργασία της ηχογράφησης…'
+        : 'Κλήση χωρίς ηχογράφηση';
       communicationSummary = `${label}\n\n---\nPBX metadata:\n${summaryParts}`;
     }
 
