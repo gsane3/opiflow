@@ -245,9 +245,10 @@ function fmtEur(n: number): string {
 
 const CMD_EXAMPLES = [
   'Ποια ραντεβού έχω σήμερα;',
-  'Δημιούργησε task να καλέσω τον Δημητρίου αύριο',
+  'Ξεκίνα έργο για τον Παπαδόπουλο, ανακαίνιση κουζίνας',
   'Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10',
-  'Ετοίμασε προσφορά για τον Αλεξάνδρου, υλικά 3500 ευρώ, εργατικά 500',
+  'Στείλε προσφορά στον Αλεξάνδρου, υλικά 3500 ευρώ, εργατικά 500',
+  'Δημιούργησε task να καλέσω τον Δημητρίου αύριο',
   'Ακύρωσε το ραντεβού με τον Καραγιάννη αύριο',
 ];
 
@@ -338,6 +339,16 @@ export default function CmdPage() {
   const [isSavingOffer, setIsSavingOffer] = useState(false);
   const [offerSaveError, setOfferSaveError] = useState<string | null>(null);
   const [offerSaveWarning, setOfferSaveWarning] = useState<string | null>(null);
+
+  // create_project + the «πώς να ονομάσω το έργο;» popup for appointments/offers.
+  const [isSavingProject, setIsSavingProject] = useState(false);
+  const [projectSaveError, setProjectSaveError] = useState<string | null>(null);
+  const [createdProjectCustomerId, setCreatedProjectCustomerId] = useState<string | null>(null);
+  const [projectTitleInput, setProjectTitleInput] = useState('');
+  // When set, the project-name popup is open for an appointment/offer that is
+  // ready to be filed into a (to-be-named) project. null = popup closed.
+  const [projectModalKind, setProjectModalKind] = useState<'appointment' | 'offer' | null>(null);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -604,7 +615,7 @@ export default function CmdPage() {
 
       let localMatchedCustomer: Customer | null = null;
       let localCustomerResolved = false;
-      if (r.intent === 'create_task' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'cancel_appointment') {
+      if (r.intent === 'create_task' || r.intent === 'create_project' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'cancel_appointment') {
         const hasName = !!r.params.customerName?.trim();
         const candidates = findCustomerCandidates(r.params.customerName, customers);
         if (!hasName) {
@@ -703,7 +714,11 @@ export default function CmdPage() {
     }
   }
 
-  async function handleSaveAppointment() {
+  // When workFolderId is set, the appointment is filed into that project and the
+  // customer is auto-notified with the portal link (the existing project flow) —
+  // i.e. the appointment is actually "booked" with the customer. Without it, the
+  // appointment stays internal (no customer notification).
+  async function handleSaveAppointment(workFolderId?: string) {
     if (!result) return;
     if (customerCandidates.length > 1 && !customerMatchResolved) return;
     const defaultTitle = matchedCustomer
@@ -716,7 +731,7 @@ export default function CmdPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setAppointmentSaveError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
-        return;
+        return false;
       }
       const res = await fetch('/api/tasks', {
         method: 'POST',
@@ -733,6 +748,7 @@ export default function CmdPage() {
           dueDate: result.params.dueDate || todayStr(),
           dueTime: result.params.dueTime || null,
           note: result.params.note || null,
+          ...(workFolderId ? { workFolderId } : {}),
         }),
       });
       const json = await res.json() as { ok?: boolean; task?: BackendTaskDto; error?: string };
@@ -740,20 +756,27 @@ export default function CmdPage() {
         setBackendTasks((prev) => [...prev, mapBackendTask(json.task!)]);
         setAppointmentSaveError(null);
         setSavedResult(true);
-      } else {
-        setAppointmentSaveError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+        return true;
       }
+      setAppointmentSaveError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+      return false;
     } catch {
       setAppointmentSaveError('Δεν αποθηκεύτηκε το ραντεβού. Δοκίμασε ξανά.');
+      return false;
     } finally {
       setIsSavingAppointment(false);
     }
   }
 
-  async function handleSaveOffer() {
-    if (!result || !offerPreviewData || offerPreviewData.validItems.length === 0) return;
-    if (customerCandidates.length > 1 && !customerMatchResolved) return;
+  // With workFolderId: the offer is filed into that project as `ready_to_send`,
+  // which (via the offers API) notifies the customer with the portal link — the
+  // actual "send". Without it: a `draft` is created plus a «review & send»
+  // follow-up task (the original draft-only behaviour, kept for the no-project path).
+  async function handleSaveOffer(workFolderId?: string) {
+    if (!result || !offerPreviewData || offerPreviewData.validItems.length === 0) return false;
+    if (customerCandidates.length > 1 && !customerMatchResolved) return false;
     const { validItems, vatRate } = offerPreviewData;
+    const intoProject = !!workFolderId;
     setIsSavingOffer(true);
     setOfferSaveError(null);
     setOfferSaveWarning(null);
@@ -762,7 +785,7 @@ export default function CmdPage() {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         setOfferSaveError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
-        return;
+        return false;
       }
       const headers = {
         'Content-Type': 'application/json',
@@ -774,54 +797,168 @@ export default function CmdPage() {
         headers,
         body: JSON.stringify({
           customerId: matchedCustomer?.id ?? null,
-          status: 'draft',
+          status: intoProject ? 'ready_to_send' : 'draft',
           items: validItems.map(({ description, quantity, unitPrice }) => ({ description, quantity, unitPrice })),
           vatRate,
           notes: result.params.offerNotes || null,
           terms: result.params.offerTerms || businessProfile?.defaultOfferTerms || null,
           acceptanceText: businessProfile?.defaultAcceptanceText ?? 'Αποδέχομαι τους παραπάνω όρους.',
           createdFromAi: true,
+          ...(workFolderId ? { workFolderId } : {}),
         }),
       });
       const offerJson = await offerRes.json() as { ok?: boolean; offer?: BackendOfferDto; error?: string };
       if (!offerRes.ok || !offerJson.ok || !offerJson.offer) {
         setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
-        return;
+        return false;
       }
       const createdOffer = offerJson.offer;
       setBackendOffers((prev) => [...prev, mapBackendOffer(createdOffer)]);
-      // Create follow-up task (non-fatal if it fails)
-      try {
-        const taskRes = await fetch('/api/tasks', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({
-            customerId: matchedCustomer?.id ?? null,
-            offerId: createdOffer.id,
-            title: 'Έλεγχος και αποστολή προσφοράς',
-            type: 'send_offer',
-            status: 'open',
-            priority: 'normal',
-            dueDate: todayStr(),
-            dueTime: null,
-            note: 'Δημιουργήθηκε από AI εντολή. Έλεγξε την προσφορά πριν τη στείλεις.',
-          }),
-        });
-        const taskJson = await taskRes.json() as { ok?: boolean; task?: BackendTaskDto; error?: string };
-        if (taskRes.ok && taskJson.ok && taskJson.task) {
-          setBackendTasks((prev) => [...prev, mapBackendTask(taskJson.task!)]);
-          setOfferSaveWarning(null);
-        } else {
+      // No-project path: add a «review & send» follow-up task (non-fatal).
+      // Project path: the offer was already sent into the project, so no task.
+      if (!intoProject) {
+        try {
+          const taskRes = await fetch('/api/tasks', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({
+              customerId: matchedCustomer?.id ?? null,
+              offerId: createdOffer.id,
+              title: 'Έλεγχος και αποστολή προσφοράς',
+              type: 'send_offer',
+              status: 'open',
+              priority: 'normal',
+              dueDate: todayStr(),
+              dueTime: null,
+              note: 'Δημιουργήθηκε από AI εντολή. Έλεγξε την προσφορά πριν τη στείλεις.',
+            }),
+          });
+          const taskJson = await taskRes.json() as { ok?: boolean; task?: BackendTaskDto; error?: string };
+          if (taskRes.ok && taskJson.ok && taskJson.task) {
+            setBackendTasks((prev) => [...prev, mapBackendTask(taskJson.task!)]);
+            setOfferSaveWarning(null);
+          } else {
+            setOfferSaveWarning('Η προσφορά δημιουργήθηκε, αλλά δεν δημιουργήθηκε task follow-up.');
+          }
+        } catch {
           setOfferSaveWarning('Η προσφορά δημιουργήθηκε, αλλά δεν δημιουργήθηκε task follow-up.');
         }
-      } catch {
-        setOfferSaveWarning('Η προσφορά δημιουργήθηκε, αλλά δεν δημιουργήθηκε task follow-up.');
       }
       setSavedResult(true);
+      return true;
     } catch {
       setOfferSaveError('Δεν αποθηκεύτηκε η προσφορά. Δοκίμασε ξανά.');
+      return false;
     } finally {
       setIsSavingOffer(false);
+    }
+  }
+
+  // A sensible default name for the «πώς να ονομάσω το έργο;» popup.
+  function suggestProjectTitle(): string {
+    const fromAi = result?.params.projectTitle?.trim();
+    if (fromAi) return fromAi;
+    const fromTitle = result?.params.title?.trim();
+    if (fromTitle) return fromTitle;
+    return matchedCustomer ? `Έργο — ${matchedCustomer.name}` : 'Νέο έργο';
+  }
+
+  // POST a work folder under the matched customer; returns its id or null.
+  async function createFolderForCustomer(customerId: string, title: string): Promise<string | null> {
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return null;
+      const res = await fetch(`/api/customers/${customerId}/folders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ title: title.trim() || 'Νέο έργο' }),
+      });
+      const json = await res.json() as { ok?: boolean; folder?: { id: string }; error?: string };
+      if (res.ok && json.ok && json.folder?.id) return json.folder.id;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  // create_project: open a new Έργο for the matched customer.
+  async function handleSaveProject() {
+    if (!result || !matchedCustomer) return;
+    if (customerCandidates.length > 1 && !customerMatchResolved) return;
+    setIsSavingProject(true);
+    setProjectSaveError(null);
+    const folderId = await createFolderForCustomer(matchedCustomer.id, projectTitleInput || suggestProjectTitle());
+    setIsSavingProject(false);
+    if (folderId) {
+      setCreatedProjectCustomerId(matchedCustomer.id);
+      setSavedResult(true);
+    } else {
+      setProjectSaveError('Δεν δημιουργήθηκε το έργο. Δοκίμασε ξανά.');
+    }
+  }
+
+  // Open the project-name popup for an appointment/offer (only when a customer is
+  // matched — a project needs a customer). Prefills the AI-suggested name.
+  function openProjectModal(kind: 'appointment' | 'offer') {
+    setProjectSaveError(null);
+    setProjectTitleInput(suggestProjectTitle());
+    setProjectModalKind(kind);
+  }
+
+  // Popup confirm: create the named project, then file the appointment/offer into
+  // it (which notifies the customer = the actual book/send).
+  async function confirmProjectModal() {
+    if (!result || !matchedCustomer || !projectModalKind) return;
+    const kind = projectModalKind;
+    setIsSavingProject(true);
+    setProjectSaveError(null);
+    const folderId = await createFolderForCustomer(matchedCustomer.id, projectTitleInput || suggestProjectTitle());
+    if (!folderId) {
+      setIsSavingProject(false);
+      setProjectSaveError('Δεν δημιουργήθηκε το έργο. Δοκίμασε ξανά.');
+      return;
+    }
+    const ok = kind === 'appointment'
+      ? await handleSaveAppointment(folderId)
+      : await handleSaveOffer(folderId);
+    setIsSavingProject(false);
+    if (ok) {
+      setCreatedProjectCustomerId(matchedCustomer.id);
+      setProjectModalKind(null);
+    } else {
+      setProjectSaveError('Το έργο δημιουργήθηκε, αλλά η ενέργεια απέτυχε. Δες την καρτέλα του πελάτη.');
+    }
+  }
+
+  // Create a brand-new customer from the spoken name when none matched, so the
+  // assistant can still start a project / file the action.
+  async function handleCreateCustomer() {
+    const name = result?.params.customerName?.trim();
+    if (!name) return;
+    setIsCreatingCustomer(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setIsCreatingCustomer(false); return; }
+      const res = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ name }),
+      });
+      const json = await res.json() as { ok?: boolean; customer?: BackendCustomerDto; error?: string };
+      if (res.ok && json.ok && json.customer) {
+        const mapped = mapBackendCustomer(json.customer);
+        setBackendCustomers((prev) => [...prev, mapped]);
+        setMatchedCustomer(mapped);
+        setNoCustomerMatch(false);
+        setCustomerCandidates([]);
+        setCustomerMatchResolved(true);
+      }
+    } catch {
+      /* non-fatal — the no-match UI stays visible */
+    } finally {
+      setIsCreatingCustomer(false);
     }
   }
 
@@ -918,6 +1055,12 @@ export default function CmdPage() {
     setIsSavingOffer(false);
     setOfferSaveError(null);
     setOfferSaveWarning(null);
+    setIsSavingProject(false);
+    setProjectSaveError(null);
+    setCreatedProjectCustomerId(null);
+    setProjectTitleInput('');
+    setProjectModalKind(null);
+    setIsCreatingCustomer(false);
   }
 
   if (!hydrated) {
@@ -1153,6 +1296,84 @@ export default function CmdPage() {
             </div>
           )}
 
+          {/* create_project */}
+          {result.intent === 'create_project' && !savedResult && (
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4 dark:bg-[#17232f] dark:ring-white/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                Νέο έργο (προεπισκόπηση)
+              </p>
+              {matchedCustomer && (
+                <div className="flex items-center gap-2">
+                  <p className="text-sm text-zinc-700 dark:text-zinc-200"><span className="font-medium">Πελάτης:</span> {matchedCustomer.name}</p>
+                  {customerCandidates.length > 1 && customerMatchResolved && (
+                    <button type="button" onClick={() => setCustomerMatchResolved(false)} className="text-xs text-indigo-600 hover:text-indigo-700 transition">Αλλαγή</button>
+                  )}
+                </div>
+              )}
+              {customerCandidates.length > 1 && !customerMatchResolved && (
+                <CustomerCandidatePicker
+                  candidates={customerCandidates}
+                  selectedId={matchedCustomer?.id}
+                  onSelect={(c) => { setMatchedCustomer(c); setCustomerMatchResolved(true); }}
+                  onContinueWithout={() => { setMatchedCustomer(null); setCustomerMatchResolved(true); }}
+                />
+              )}
+              {!matchedCustomer && customerCandidates.length === 0 && (
+                <div className="space-y-2 rounded-xl bg-amber-50 px-3 py-2.5 ring-1 ring-amber-200">
+                  <p className="text-xs text-amber-700">
+                    {result.params.customerName
+                      ? `Δεν βρέθηκε πελάτης «${result.params.customerName}». Το έργο χρειάζεται πελάτη.`
+                      : 'Πες σε ποιον πελάτη ανήκει το έργο (π.χ. «ξεκίνα έργο για τον Νίκο, ανακαίνιση»).'}
+                  </p>
+                  {result.params.customerName && (
+                    <button
+                      type="button"
+                      onClick={() => { void handleCreateCustomer(); }}
+                      disabled={isCreatingCustomer}
+                      className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {isCreatingCustomer ? 'Δημιουργία...' : `Δημιουργία πελάτη «${result.params.customerName}»`}
+                    </button>
+                  )}
+                </div>
+              )}
+              {matchedCustomer && (
+                <label className="block space-y-1">
+                  <span className="text-xs font-medium text-zinc-600 dark:text-zinc-300">Όνομα έργου</span>
+                  <input
+                    type="text"
+                    value={projectTitleInput || suggestProjectTitle()}
+                    onChange={(e) => setProjectTitleInput(e.target.value)}
+                    placeholder="Π.χ. Ανακαίνιση κουζίνας"
+                    className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-100"
+                  />
+                </label>
+              )}
+              {projectSaveError && <p className="text-xs text-red-600">{projectSaveError}</p>}
+              {matchedCustomer && (
+                <button
+                  type="button"
+                  onClick={() => { void handleSaveProject(); }}
+                  disabled={isSavingProject || (customerCandidates.length > 1 && !customerMatchResolved)}
+                  className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {isSavingProject ? 'Δημιουργία...' : 'Δημιουργία έργου'}
+                </button>
+              )}
+            </div>
+          )}
+
+          {result.intent === 'create_project' && savedResult && (
+            <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1">
+              <p className="text-sm font-medium text-green-700">Το έργο δημιουργήθηκε.</p>
+              {createdProjectCustomerId && (
+                <button type="button" onClick={() => window.location.assign(`/customers/${createdProjectCustomerId}`)} className="inline-block text-left text-xs text-indigo-600 hover:text-indigo-700">
+                  Άνοιξε την καρτέλα του πελάτη →
+                </button>
+              )}
+            </div>
+          )}
+
           {/* create_appointment */}
           {result.intent === 'create_appointment' && !savedResult && (
             <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4 dark:bg-[#17232f] dark:ring-white/10">
@@ -1200,36 +1421,66 @@ export default function CmdPage() {
                   <p><span className="font-medium">Σημείωση:</span> {result.params.note}</p>
                 )}
               </div>
-              <div className="rounded-xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
-                <p className="text-xs text-amber-700">
-                  Το ραντεβού αποθηκεύεται μόνο στο εσωτερικό CRM. Δεν γίνεται αποστολή σε εξωτερικό calendar.
-                </p>
-              </div>
+              {noCustomerMatch && !matchedCustomer && result.params.customerName && (
+                <button
+                  type="button"
+                  onClick={() => { void handleCreateCustomer(); }}
+                  disabled={isCreatingCustomer}
+                  className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 dark:bg-[#1e2b38] dark:text-zinc-200"
+                >
+                  {isCreatingCustomer ? 'Δημιουργία...' : `Δημιουργία πελάτη «${result.params.customerName}»`}
+                </button>
+              )}
               {customerCandidates.length > 1 && !customerMatchResolved && (
                 <p className="text-xs text-zinc-400 dark:text-zinc-500">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
               )}
               {appointmentSaveError && (
                 <p className="text-xs text-red-600">{appointmentSaveError}</p>
               )}
-              <button
-                type="button"
-                onClick={() => { void handleSaveAppointment(); }}
-                disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingAppointment}
-                className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {isSavingAppointment ? 'Αποθήκευση...' : 'Δημιουργία ραντεβού'}
-              </button>
+              {matchedCustomer ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => openProjectModal('appointment')}
+                    disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingAppointment}
+                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    Δημιουργία ραντεβού
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { void handleSaveAppointment(); }}
+                    disabled={isSavingAppointment}
+                    className="w-full text-center text-xs text-zinc-400 hover:text-zinc-600 transition dark:text-zinc-500 dark:hover:text-zinc-300"
+                  >
+                    {isSavingAppointment ? 'Αποθήκευση...' : 'Ραντεβού χωρίς έργο (εσωτερικό, χωρίς ειδοποίηση πελάτη)'}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => { void handleSaveAppointment(); }}
+                  disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingAppointment}
+                  className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {isSavingAppointment ? 'Αποθήκευση...' : 'Δημιουργία ραντεβού'}
+                </button>
+              )}
             </div>
           )}
 
           {result.intent === 'create_appointment' && savedResult && (
             <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-2">
-              <p className="text-sm font-medium text-green-700">Το ραντεβού δημιουργήθηκε στο CRM.</p>
-              <div className="rounded-lg bg-amber-50 px-3 py-1.5 ring-1 ring-amber-200">
-                <p className="text-xs text-amber-700">
-                  Το ραντεβού αποθηκεύεται μόνο στο εσωτερικό CRM. Δεν γίνεται αποστολή σε εξωτερικό calendar.
-                </p>
-              </div>
+              <p className="text-sm font-medium text-green-700">
+                {createdProjectCustomerId ? 'Το ραντεβού μπήκε στο έργο και ειδοποιήθηκε ο πελάτης.' : 'Το ραντεβού δημιουργήθηκε στο CRM.'}
+              </p>
+              {!createdProjectCustomerId && (
+                <div className="rounded-lg bg-amber-50 px-3 py-1.5 ring-1 ring-amber-200">
+                  <p className="text-xs text-amber-700">
+                    Εσωτερικό ραντεβού. Δεν στάλθηκε ειδοποίηση στον πελάτη.
+                  </p>
+                </div>
+              )}
               <button type="button" onClick={() => window.location.assign('/appointments')} className="inline-block text-left text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τα ραντεβού →
               </button>
@@ -1313,25 +1564,51 @@ export default function CmdPage() {
                   {result.params.offerTerms && (
                     <p className="text-sm text-zinc-600 dark:text-zinc-300"><span className="font-medium">Όροι:</span> {result.params.offerTerms}</p>
                   )}
-                  <div className="rounded-xl bg-amber-50 px-3 py-2 ring-1 ring-amber-200">
-                    <p className="text-xs text-amber-700">
-                      Θα δημιουργηθεί draft προσφοράς στο CRM. Δεν γίνεται αποστολή στον πελάτη.
-                    </p>
-                  </div>
+                  {noCustomerMatch && !matchedCustomer && result.params.customerName && (
+                    <button
+                      type="button"
+                      onClick={() => { void handleCreateCustomer(); }}
+                      disabled={isCreatingCustomer}
+                      className="rounded-lg bg-zinc-100 px-3 py-1.5 text-xs font-semibold text-zinc-700 transition hover:bg-zinc-200 disabled:opacity-50 dark:bg-[#1e2b38] dark:text-zinc-200"
+                    >
+                      {isCreatingCustomer ? 'Δημιουργία...' : `Δημιουργία πελάτη «${result.params.customerName}»`}
+                    </button>
+                  )}
                   {customerCandidates.length > 1 && !customerMatchResolved && (
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
                   )}
                   {offerSaveError && (
                     <p className="text-xs text-red-600">{offerSaveError}</p>
                   )}
-                  <button
-                    type="button"
-                    onClick={() => { void handleSaveOffer(); }}
-                    disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer}
-                    className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {isSavingOffer ? 'Αποθήκευση...' : 'Δημιουργία draft προσφοράς'}
-                  </button>
+                  {matchedCustomer ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => openProjectModal('offer')}
+                        disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer}
+                        className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                      >
+                        Στείλε προσφορά
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { void handleSaveOffer(); }}
+                        disabled={isSavingOffer}
+                        className="w-full text-center text-xs text-zinc-400 hover:text-zinc-600 transition dark:text-zinc-500 dark:hover:text-zinc-300"
+                      >
+                        {isSavingOffer ? 'Αποθήκευση...' : 'Μόνο πρόχειρη προσφορά (χωρίς αποστολή)'}
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => { void handleSaveOffer(); }}
+                      disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer}
+                      className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {isSavingOffer ? 'Αποθήκευση...' : 'Δημιουργία πρόχειρης προσφοράς'}
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -1339,8 +1616,12 @@ export default function CmdPage() {
 
           {result.intent === 'create_offer' && savedResult && (
             <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1.5">
-              <p className="text-sm font-medium text-green-700">Η draft προσφορά δημιουργήθηκε.</p>
-              <p className="text-xs text-zinc-600 dark:text-zinc-300">Δημιουργήθηκε και task για έλεγχο και αποστολή.</p>
+              <p className="text-sm font-medium text-green-700">
+                {createdProjectCustomerId ? 'Η προσφορά μπήκε στο έργο και στάλθηκε στον πελάτη.' : 'Η πρόχειρη προσφορά δημιουργήθηκε.'}
+              </p>
+              {!createdProjectCustomerId && (
+                <p className="text-xs text-zinc-600 dark:text-zinc-300">Δημιουργήθηκε και task για έλεγχο και αποστολή.</p>
+              )}
               {offerSaveWarning && (
                 <p className="text-xs text-amber-600">{offerSaveWarning}</p>
               )}
@@ -1463,6 +1744,49 @@ export default function CmdPage() {
           >
             Νέα εντολή
           </button>
+        </div>
+      )}
+
+      {/* «Πώς να ονομάσω το έργο;» — the project-name popup for appointments/offers. */}
+      {projectModalKind && matchedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6 pt-20 sm:items-center">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl ring-1 ring-zinc-200 dark:bg-[#17232f] dark:ring-white/10">
+            <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">Πώς να ονομάσω το έργο;</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              {projectModalKind === 'offer'
+                ? `Θα δημιουργηθεί το έργο για τον/την ${matchedCustomer.name} και θα σταλεί η προσφορά με τον σύνδεσμο.`
+                : `Θα δημιουργηθεί το έργο για τον/την ${matchedCustomer.name} και θα κλειστεί το ραντεβού. Ο πελάτης θα ειδοποιηθεί με τον σύνδεσμο.`}
+            </p>
+            <input
+              type="text"
+              autoFocus
+              value={projectTitleInput}
+              onChange={(e) => setProjectTitleInput(e.target.value)}
+              placeholder="Π.χ. Ανακαίνιση κουζίνας"
+              className="mt-3 w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-sm text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-100"
+            />
+            {projectSaveError && <p className="mt-2 text-xs text-red-600">{projectSaveError}</p>}
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setProjectModalKind(null); setProjectSaveError(null); }}
+                disabled={isSavingProject || isSavingAppointment || isSavingOffer}
+                className="flex-1 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-50 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+              >
+                Πίσω
+              </button>
+              <button
+                type="button"
+                onClick={() => { void confirmProjectModal(); }}
+                disabled={isSavingProject || isSavingAppointment || isSavingOffer || !projectTitleInput.trim()}
+                className="flex-1 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {(isSavingProject || isSavingAppointment || isSavingOffer)
+                  ? 'Δημιουργία...'
+                  : projectModalKind === 'offer' ? 'Δημιουργία & αποστολή' : 'Δημιουργία & κλείσιμο'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

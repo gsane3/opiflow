@@ -8,7 +8,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -23,6 +23,7 @@ import type { Business, Customer, Task } from '@/lib/types';
 type CmdIntent =
   | 'query_appointments'
   | 'create_task'
+  | 'create_project'
   | 'create_appointment'
   | 'create_offer'
   | 'cancel_appointment'
@@ -34,6 +35,7 @@ interface CmdResult {
   params: {
     customerName?: string;
     title?: string;
+    projectTitle?: string;
     dueDate?: string;
     dueTime?: string;
     note?: string;
@@ -48,9 +50,10 @@ interface CmdResult {
 
 const EXAMPLES = [
   'Ποια ραντεβού έχω σήμερα;',
-  'Φτιάξε task να καλέσω τον Δημητρίου αύριο',
+  'Ξεκίνα έργο για τον Παπαδόπουλο, ανακαίνιση κουζίνας',
   'Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10',
-  'Προσφορά για τον Αλεξάνδρου: υλικά 3500, εργατικά 500',
+  'Στείλε προσφορά στον Αλεξάνδρου: υλικά 3500, εργατικά 500',
+  'Φτιάξε task να καλέσω τον Δημητρίου αύριο',
   'Ακύρωσε το ραντεβού με τον Καραγιάννη αύριο',
 ];
 
@@ -87,6 +90,12 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   const [resolved, setResolved] = useState(false);
   // Result-specific data
   const [appts, setAppts] = useState<(Task & { customerName?: string })[]>([]);
+  // create_project + the «πώς να ονομάσω το έργο;» popup for appointments/offers.
+  const [projectModalKind, setProjectModalKind] = useState<'appointment' | 'offer' | null>(null);
+  const [projectTitleInput, setProjectTitleInput] = useState('');
+  const [projectError, setProjectError] = useState('');
+  const [intoProject, setIntoProject] = useState(false); // success was filed into a project (customer notified)
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
 
   useEffect(() => {
     apiGet<{ business?: Business }>('/api/businesses/me')
@@ -104,6 +113,11 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     setCandidates([]);
     setResolved(false);
     setAppts([]);
+    setProjectModalKind(null);
+    setProjectTitleInput('');
+    setProjectError('');
+    setIntoProject(false);
+    setCreatingCustomer(false);
   }, []);
 
   async function resolveCustomer(name: string | undefined): Promise<{ matched: Customer | null; candidates: Customer[] }> {
@@ -172,7 +186,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
         setResolved(true);
         return;
       }
-      if (r.intent === 'create_task' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'cancel_appointment') {
+      if (r.intent === 'create_task' || r.intent === 'create_project' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'cancel_appointment') {
         const cust = await resolveCustomer(r.params.customerName);
         setMatched(cust.matched);
         setCandidates(cust.candidates);
@@ -197,8 +211,11 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     }
   }
 
-  async function saveTaskOrAppt() {
-    if (!result) return;
+  // With workFolderId: the appointment is filed into that project and the customer
+  // is auto-notified with the portal link (the project flow = actually "booked").
+  // Without it: internal-only, no customer notification.
+  async function saveTaskOrAppt(workFolderId?: string): Promise<boolean> {
+    if (!result) return false;
     setBusy(true);
     try {
       const isAppt = result.intent === 'create_appointment';
@@ -211,53 +228,142 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
         dueDate: result.params.dueDate || todayYMD(),
         dueTime: result.params.dueTime || null,
         note: result.params.note || null,
+        ...(workFolderId ? { workFolderId } : {}),
       });
-      if (r?.ok) setSaved(true);
-      else Alert.alert('Σφάλμα', 'Δεν αποθηκεύτηκε.');
+      if (r?.ok) { setSaved(true); return true; }
+      Alert.alert('Σφάλμα', 'Δεν αποθηκεύτηκε.');
+      return false;
     } catch {
       Alert.alert('Σφάλμα', 'Δεν αποθηκεύτηκε.');
+      return false;
     } finally {
       setBusy(false);
     }
   }
 
-  async function saveOffer() {
-    if (!result) return;
+  // With workFolderId: the offer is filed into that project as `ready_to_send`,
+  // which notifies the customer with the portal link (the actual "send"). Without
+  // it: a `draft` + a «review & send» follow-up task (the no-project path).
+  async function saveOffer(workFolderId?: string): Promise<boolean> {
+    if (!result) return false;
     const items = (result.params.offerItems ?? []).filter((i) => i.description.trim() && i.quantity > 0);
     if (items.length === 0) {
       Alert.alert('Προσφορά', 'Δεν βρέθηκαν γραμμές. Γράψε περιγραφές και ποσά.');
-      return;
+      return false;
     }
+    const filed = !!workFolderId;
     setBusy(true);
     try {
       const r = await apiPost<{ ok?: boolean; offer?: { id: string } }>('/api/offers', {
         customerId: matched?.id ?? null,
-        status: 'draft',
+        status: filed ? 'ready_to_send' : 'draft',
         items: items.map(({ description, quantity, unitPrice }) => ({ description, quantity, unitPrice })),
         vatRate,
         notes: result.params.offerNotes || null,
         terms: result.params.offerTerms || business?.default_offer_terms || null,
         createdFromAi: true,
+        ...(workFolderId ? { workFolderId } : {}),
       });
       if (!r?.ok || !r.offer?.id) {
         Alert.alert('Σφάλμα', 'Δεν αποθηκεύτηκε η προσφορά.');
-        return;
+        return false;
       }
-      // Follow-up task (non-fatal).
-      await apiPost('/api/tasks', {
-        customerId: matched?.id ?? null,
-        offerId: r.offer.id,
-        title: 'Έλεγχος και αποστολή προσφοράς',
-        type: 'send_offer',
-        status: 'open',
-        dueDate: todayYMD(),
-        note: 'Δημιουργήθηκε από AI εντολή. Έλεγξε την προσφορά πριν τη στείλεις.',
-      }).catch(() => {});
+      // No-project path only: «review & send» follow-up task (non-fatal).
+      if (!filed) {
+        await apiPost('/api/tasks', {
+          customerId: matched?.id ?? null,
+          offerId: r.offer.id,
+          title: 'Έλεγχος και αποστολή προσφοράς',
+          type: 'send_offer',
+          status: 'open',
+          dueDate: todayYMD(),
+          note: 'Δημιουργήθηκε από AI εντολή. Έλεγξε την προσφορά πριν τη στείλεις.',
+        }).catch(() => {});
+      }
       setSaved(true);
+      return true;
     } catch {
       Alert.alert('Σφάλμα', 'Δεν αποθηκεύτηκε η προσφορά.');
+      return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  // ---- Έργο (work folder) helpers + the «πώς να ονομάσω το έργο;» popup ----
+
+  function suggestProjectTitle(): string {
+    const fromAi = result?.params.projectTitle?.trim();
+    if (fromAi) return fromAi;
+    const fromTitle = result?.params.title?.trim();
+    if (fromTitle) return fromTitle;
+    return matched ? `Έργο — ${matched.name}` : 'Νέο έργο';
+  }
+
+  async function createFolder(customerId: string, title: string): Promise<string | null> {
+    try {
+      const r = await apiPost<{ ok?: boolean; folder?: { id: string } }>(`/api/customers/${customerId}/folders`, {
+        title: title.trim() || 'Νέο έργο',
+      });
+      return r?.ok && r.folder?.id ? r.folder.id : null;
+    } catch {
+      return null;
+    }
+  }
+
+  async function saveProject() {
+    if (!result || !matched) return;
+    setBusy(true);
+    setProjectError('');
+    const folderId = await createFolder(matched.id, projectTitleInput || suggestProjectTitle());
+    setBusy(false);
+    if (folderId) setSaved(true);
+    else Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε το έργο.');
+  }
+
+  function openProjectModal(kind: 'appointment' | 'offer') {
+    setProjectError('');
+    setProjectTitleInput(suggestProjectTitle());
+    setProjectModalKind(kind);
+  }
+
+  async function confirmProjectModal() {
+    if (!result || !matched || !projectModalKind) return;
+    const kind = projectModalKind;
+    setBusy(true);
+    setProjectError('');
+    const folderId = await createFolder(matched.id, projectTitleInput || suggestProjectTitle());
+    if (!folderId) {
+      setBusy(false);
+      setProjectError('Δεν δημιουργήθηκε το έργο. Δοκίμασε ξανά.');
+      return;
+    }
+    const ok = kind === 'appointment' ? await saveTaskOrAppt(folderId) : await saveOffer(folderId);
+    if (ok) {
+      setIntoProject(true);
+      setProjectModalKind(null);
+    } else {
+      setProjectError('Το έργο δημιουργήθηκε, αλλά η ενέργεια απέτυχε.');
+    }
+  }
+
+  async function createCustomer() {
+    const name = result?.params.customerName?.trim();
+    if (!name) return;
+    setCreatingCustomer(true);
+    try {
+      const r = await apiPost<{ ok?: boolean; customer?: Customer }>('/api/customers', { name });
+      if (r?.ok && r.customer) {
+        setMatched(r.customer);
+        setCandidates([]);
+        setResolved(true);
+      } else {
+        Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο πελάτης.');
+      }
+    } catch {
+      Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο πελάτης.');
+    } finally {
+      setCreatingCustomer(false);
     }
   }
 
@@ -375,7 +481,9 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
             {resolved && saved ? (
               <View style={styles.okBox}>
                 <Ionicons name="checkmark-circle" size={20} color="#1B8A4C" />
-                <ThemedText type="smallBold" style={styles.okText}>Έγινε.</ThemedText>
+                <ThemedText type="smallBold" style={styles.okText}>
+                  {intoProject ? 'Έγινε — μπήκε στο έργο και ειδοποιήθηκε ο πελάτης.' : 'Έγινε.'}
+                </ThemedText>
               </View>
             ) : null}
 
@@ -405,6 +513,38 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
               </View>
             ) : null}
 
+            {/* create_project */}
+            {result.intent === 'create_project' && resolved && !saved ? (
+              <View style={styles.card}>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Νέο έργο (προεπισκόπηση)</ThemedText>
+                {matched ? (
+                  <>
+                    <Row k="Πελάτης" v={matched.name ?? ''} />
+                    <ThemedText type="small" themeColor="textSecondary">Όνομα έργου</ThemedText>
+                    <TextInput
+                      value={projectTitleInput || suggestProjectTitle()}
+                      onChangeText={setProjectTitleInput}
+                      placeholder="Π.χ. Ανακαίνιση κουζίνας"
+                      placeholderTextColor={c.textFaint}
+                      style={styles.projectInput}
+                    />
+                    <PrimaryButton label="Δημιουργία έργου" busy={busy} onPress={() => void saveProject()} />
+                  </>
+                ) : (
+                  <>
+                    <ThemedText type="small" style={styles.warnText}>
+                      {result.params.customerName
+                        ? `Δεν βρέθηκε πελάτης «${result.params.customerName}». Το έργο χρειάζεται πελάτη.`
+                        : 'Πες σε ποιον πελάτη ανήκει το έργο (π.χ. «ξεκίνα έργο για τον Νίκο»).'}
+                    </ThemedText>
+                    {result.params.customerName ? (
+                      <PrimaryButton label={`Δημιουργία πελάτη «${result.params.customerName}»`} tone="outline" busy={creatingCustomer} onPress={() => void createCustomer()} />
+                    ) : null}
+                  </>
+                )}
+              </View>
+            ) : null}
+
             {/* create_task / create_appointment */}
             {(result.intent === 'create_task' || result.intent === 'create_appointment') && resolved && !saved ? (
               <View style={styles.card}>
@@ -415,7 +555,19 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                 {matched ? <Row k="Πελάτης" v={matched.name ?? ''} /> : <Row k="Πελάτης" v="— (χωρίς σύνδεση)" />}
                 <Row k="Ημερομηνία" v={result.params.dueDate ? `${result.params.dueDate}${result.params.dueTime ? ` ${result.params.dueTime}` : ''}` : 'Σήμερα'} />
                 {result.params.note ? <Row k="Σημείωση" v={result.params.note} /> : null}
-                <PrimaryButton label="Αποθήκευση" busy={busy} onPress={() => void saveTaskOrAppt()} />
+                {!matched && result.params.customerName ? (
+                  <PrimaryButton label={`Δημιουργία πελάτη «${result.params.customerName}»`} tone="outline" busy={creatingCustomer} onPress={() => void createCustomer()} />
+                ) : null}
+                {result.intent === 'create_appointment' && matched ? (
+                  <>
+                    <PrimaryButton label="Δημιουργία ραντεβού" busy={busy} onPress={() => openProjectModal('appointment')} />
+                    <Pressable disabled={busy} onPress={() => void saveTaskOrAppt()} style={({ pressed }) => [pressed && styles.pressed]}>
+                      <ThemedText type="small" themeColor="textSecondary" style={styles.secondaryLink}>Ραντεβού χωρίς έργο (εσωτερικό)</ThemedText>
+                    </Pressable>
+                  </>
+                ) : (
+                  <PrimaryButton label="Αποθήκευση" busy={busy} onPress={() => void saveTaskOrAppt()} />
+                )}
               </View>
             ) : null}
 
@@ -439,8 +591,22 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                       <Row k={`ΦΠΑ ${vatRate}%`} v={formatEuro(offerTotals.vat)} />
                       <Row k="Σύνολο" v={formatEuro(offerTotals.total)} bold />
                     </View>
-                    <ThemedText type="small" themeColor="textSecondary">Θα δημιουργηθεί draft. Δεν στέλνεται στον πελάτη.</ThemedText>
-                    <PrimaryButton label="Δημιουργία draft προσφοράς" busy={busy} onPress={() => void saveOffer()} />
+                    {!matched && result.params.customerName ? (
+                      <PrimaryButton label={`Δημιουργία πελάτη «${result.params.customerName}»`} tone="outline" busy={creatingCustomer} onPress={() => void createCustomer()} />
+                    ) : null}
+                    {matched ? (
+                      <>
+                        <PrimaryButton label="Στείλε προσφορά" busy={busy} onPress={() => openProjectModal('offer')} />
+                        <Pressable disabled={busy} onPress={() => void saveOffer()} style={({ pressed }) => [pressed && styles.pressed]}>
+                          <ThemedText type="small" themeColor="textSecondary" style={styles.secondaryLink}>Μόνο πρόχειρο (χωρίς αποστολή)</ThemedText>
+                        </Pressable>
+                      </>
+                    ) : (
+                      <>
+                        <ThemedText type="small" themeColor="textSecondary">Θα δημιουργηθεί πρόχειρο. Δεν στέλνεται στον πελάτη.</ThemedText>
+                        <PrimaryButton label="Δημιουργία πρόχειρης προσφοράς" busy={busy} onPress={() => void saveOffer()} />
+                      </>
+                    )}
                   </>
                 )}
               </View>
@@ -475,6 +641,43 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
 
         {analyzing ? <ActivityIndicator color={Brand.primary} style={{ marginTop: Spacing.four }} /> : null}
       </ScrollView>
+
+      {/* «Πώς να ονομάσω το έργο;» — project-name popup for appointments/offers. */}
+      <Modal visible={!!projectModalKind && !!matched} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setProjectModalKind(null)}>
+        <View style={styles.modalRoot}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setProjectModalKind(null)} />
+          <View style={[styles.modalCard, { backgroundColor: c.card }]}>
+            <ThemedText type="subtitle" style={styles.dark}>Πώς να ονομάσω το έργο;</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              {projectModalKind === 'offer'
+                ? `Θα δημιουργηθεί το έργο για ${matched?.name ?? 'τον πελάτη'} και θα σταλεί η προσφορά με τον σύνδεσμο.`
+                : `Θα δημιουργηθεί το έργο για ${matched?.name ?? 'τον πελάτη'} και θα κλειστεί το ραντεβού. Ο πελάτης θα ειδοποιηθεί.`}
+            </ThemedText>
+            <TextInput
+              autoFocus
+              value={projectTitleInput}
+              onChangeText={setProjectTitleInput}
+              placeholder="Π.χ. Ανακαίνιση κουζίνας"
+              placeholderTextColor={c.textFaint}
+              style={styles.projectInput}
+            />
+            {projectError ? <ThemedText type="small" style={styles.err}>{projectError}</ThemedText> : null}
+            <View style={styles.modalBtns}>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton label="Πίσω" tone="outline" onPress={() => { setProjectModalKind(null); setProjectError(''); }} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <PrimaryButton
+                  label={projectModalKind === 'offer' ? 'Δημιουργία & αποστολή' : 'Δημιουργία & κλείσιμο'}
+                  busy={busy}
+                  disabled={!projectTitleInput.trim()}
+                  onPress={() => void confirmProjectModal()}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ThemedView>
   );
 }
@@ -540,5 +743,19 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   offerLine: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two },
   totalsBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 4 },
   cancelLink: { color: '#D14343', fontWeight: '700', paddingTop: 4 },
+  secondaryLink: { textAlign: 'center', paddingTop: Spacing.two, textDecorationLine: 'underline' },
+  projectInput: {
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: 12,
+    paddingHorizontal: Spacing.three,
+    paddingVertical: 10,
+    fontSize: 16,
+    color: c.text,
+    marginTop: Spacing.one,
+  },
+  modalRoot: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(10,17,32,0.45)', padding: Spacing.four },
+  modalCard: { width: '100%', maxWidth: 380, borderRadius: 24, padding: Spacing.four, gap: Spacing.two },
+  modalBtns: { flexDirection: 'row', gap: Spacing.two, marginTop: Spacing.two },
   pressed: { opacity: 0.6 },
 });
