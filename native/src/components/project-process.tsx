@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as WebBrowser from 'expo-web-browser';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { OfferPreviewSheet } from '@/components/offer-preview-sheet';
@@ -22,7 +22,6 @@ import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { dmyToYmd, formatDate, formatEuro, formatRelativeWhen, todayYMD } from '@/lib/format';
 import { hapticSuccess } from '@/lib/haptics';
 import NextActionCard, { type NextActionType } from '@/components/next-action-card';
-import AttentionCard from '@/components/attention-card';
 
 const STATUS_LABELS: Record<string, string> = { open: 'Νέο', in_progress: 'Σε εξέλιξη', done: 'Κερδισμένο', archived: 'Αρχειοθετήθηκε' };
 const OFFER_STATUS_GR: Record<string, string> = {
@@ -104,7 +103,6 @@ export default function ProjectProcessScreen() {
   const [payPct, setPayPct] = useState(30);
   const [previewOfferId, setPreviewOfferId] = useState<string | null>(null);
   const [naKey, setNaKey] = useState(0);
-  const [attnKey, setAttnKey] = useState(0); // bumped after NBA loads → attention re-reads (no contradiction)
 
   const load = useCallback(async () => {
     try {
@@ -120,6 +118,17 @@ export default function ProjectProcessScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const refresh = useCallback(async () => { await load(); setNaKey((n) => n + 1); }, [load]);
+
+  // Live updates without a manual refresh: re-fetch the project every 12s while
+  // the app is active, so a customer's reply, an accepted offer, and read
+  // receipts surface on their own. (The component unmounts when the project
+  // closes, clearing the interval.)
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (AppState.currentState === 'active') void refresh();
+    }, 12000);
+    return () => clearInterval(id);
+  }, [refresh]);
 
   const offers = detail?.sections.offers.items ?? [];
   const firstOffer = offers[0];
@@ -330,8 +339,7 @@ export default function ProjectProcessScreen() {
             </View>
           ) : (
             <ScrollView style={styles.fill} contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-              <AttentionCard endpoint={`/api/folders/${folderId}/attention`} refreshKey={attnKey} onExecute={(t) => onNextAction(t as NextActionType)} />
-              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} onLoaded={() => setAttnKey((n) => n + 1)} />
+              <NextActionCard endpoint={`/api/folders/${folderId}/next-action`} refreshKey={naKey} onExecute={onNextAction} />
               {timeline.length === 0 ? (
                 <ThemedText type="small" themeColor="textSecondary" style={styles.endHint}>
                   Ξεκίνα: στείλε προσφορά, ραντεβού ή μήνυμα. Ό,τι στέλνεις εδώ το βλέπει ο πελάτης στο link του.
