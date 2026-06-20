@@ -47,7 +47,7 @@ interface DetailReq { id: string; status: string; createdAt: string }
 interface FolderPayment { id: string; kind: string; pct: number | null; amount: number; status: string; createdAt: string }
 interface FolderDetail {
   folder: { id: string; title: string; status: string; step?: number; notes?: string | null };
-  customer: { id: string; name: string | null } | null;
+  customer: { id: string; name: string | null; hasDetails?: boolean } | null;
   sections: {
     offers: { items: DetailOffer[] };
     appointments: { items: DetailAppt[] };
@@ -153,10 +153,18 @@ export default function ProjectProcessScreen() {
     }
   }
   function confirmSendDetails() {
-    Alert.alert('Αίτημα στοιχείων', 'Να σταλεί σύνδεσμος στον πελάτη για να συμπληρώσει τα στοιχεία του;', [
-      { text: 'Άκυρο', style: 'cancel' },
-      { text: 'Αποστολή', onPress: () => void sendDetailsRequest() },
-    ]);
+    // #5: «Επικαιροποίηση» when the customer already has details on file.
+    const has = detail?.customer?.hasDetails ?? false;
+    Alert.alert(
+      has ? 'Επικαιροποίηση στοιχείων' : 'Αίτημα στοιχείων',
+      has
+        ? 'Να σταλεί σύνδεσμος στον πελάτη για να επικαιροποιήσει τα στοιχεία του;'
+        : 'Να σταλεί σύνδεσμος στον πελάτη για να συμπληρώσει τα στοιχεία του;',
+      [
+        { text: 'Άκυρο', style: 'cancel' },
+        { text: 'Αποστολή', onPress: () => void sendDetailsRequest() },
+      ],
+    );
   }
   async function sendDetailsRequest() {
     if (!beginBusy()) return;
