@@ -1,6 +1,7 @@
 export type CmdIntent =
   | 'query_appointments'
   | 'create_task'
+  | 'create_project'
   | 'create_appointment'
   | 'create_offer'
   | 'cancel_appointment'
@@ -12,6 +13,8 @@ export interface CmdReviewResult {
   params: {
     customerName?: string;
     title?: string;
+    /** Suggested name for the Έργο (work folder) the action is filed into. */
+    projectTitle?: string;
     dueDate?: string;
     dueTime?: string;
     note?: string;
@@ -27,6 +30,7 @@ export interface CmdReviewResult {
 const SUPPORTED_INTENTS: CmdIntent[] = [
   'query_appointments',
   'create_task',
+  'create_project',
   'create_appointment',
   'create_offer',
   'cancel_appointment',
@@ -100,6 +104,13 @@ export function parseCmdResponse(raw: string): CmdReviewResult {
 
   const title = safeStr(rawParams.title, 200);
   if (title) params.title = title;
+
+  // projectTitle — the suggested Έργο (work folder) name. Relevant when the
+  // action is filed into a project (start project / appointment / offer).
+  if (intent === 'create_project' || intent === 'create_appointment' || intent === 'create_offer') {
+    const projectTitle = safeStr(rawParams.projectTitle, 120);
+    if (projectTitle) params.projectTitle = projectTitle;
+  }
 
   const note = safeStr(rawParams.note, 500);
   if (note) params.note = note;
