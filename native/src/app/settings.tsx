@@ -3,8 +3,9 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
+import * as ImagePicker from 'expo-image-picker';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Linking, Platform, Pressable, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -176,6 +177,10 @@ export default function SettingsScreen() {
   const [biz, setBiz] = useState<Business | null>(null);
   const [bizForm, setBizForm] = useState<Record<string, string>>({});
   const [bizBusy, setBizBusy] = useState(false);
+  // Logo: preview (data URL or stored logo_url) + the picked value to PATCH.
+  // logoPicked === undefined → unchanged (leave the server logo untouched).
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [logoPicked, setLogoPicked] = useState<string | null | undefined>(undefined);
 
   // ----- bank accounts (multiple, α; primary = first, mirrored to businesses.bank_*) -----
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
@@ -235,6 +240,8 @@ export default function SettingsScreen() {
       }
       if (b?.business) {
         setBiz(b.business);
+        setLogoPreview(b.business.logo_url ?? null);
+        setLogoPicked(undefined);
         setBizForm({
           name: b.business.name ?? '',
           legal_name: b.business.legal_name ?? '',
@@ -274,6 +281,35 @@ export default function SettingsScreen() {
   const setBa = (k: 'beneficiary' | 'bank' | 'iban') => (v: string) =>
     setBaForm((f) => ({ ...f, [k]: k === 'iban' ? v.toUpperCase() : v }));
 
+  // Logo από το κινητό (#8): pick a square image, keep it small (the PATCH caps
+  // the data URL at ~300 KB), preview it, and stage it for the next save.
+  async function pickLogo() {
+    const p = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!p.granted) { Alert.alert('Λογότυπο', 'Δεν δόθηκε άδεια στη συλλογή.'); return; }
+    const r = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.4,
+      base64: true,
+    });
+    if (r.canceled || !r.assets[0]?.base64) return;
+    const a = r.assets[0];
+    const mime = a.mimeType && /image\/(png|jpe?g|webp)/.test(a.mimeType) ? a.mimeType : 'image/jpeg';
+    const dataUrl = `data:${mime};base64,${a.base64}`;
+    if (dataUrl.length > 300_000) {
+      Alert.alert('Λογότυπο', 'Η εικόνα είναι πολύ μεγάλη. Διάλεξε μικρότερη ή πιο απλή.');
+      return;
+    }
+    setLogoPreview(dataUrl);
+    setLogoPicked(dataUrl);
+  }
+
+  function removeLogo() {
+    setLogoPreview(null);
+    setLogoPicked(null);
+  }
+
   async function saveBusiness() {
     // GUARD: if the initial load failed, the form is empty — saving it would
     // null out the real business profile on the server.
@@ -293,6 +329,8 @@ export default function SettingsScreen() {
       const postalCode = /^\d{5}$/.test(pcRaw) ? pcRaw : null;
       const res = await apiPatch<{ ok?: boolean }>('/api/businesses/me', {
         name: bizForm.name || null,
+        // Logo: only send when the user picked/cleared one (undefined = untouched).
+        ...(logoPicked !== undefined ? { logoDataUrl: logoPicked } : {}),
         // The PATCH route requires type + preferred_contact_method; preserve the
         // loaded values (this form doesn't edit them) so the save isn't rejected.
         type: biz.type || 'other',
@@ -318,7 +356,7 @@ export default function SettingsScreen() {
         default_offer_terms: bizForm.default_offer_terms || null,
         default_acceptance_text: bizForm.default_acceptance_text || null,
       });
-      if (res?.ok) Alert.alert('✓', 'Αποθηκεύτηκε.');
+      if (res?.ok) { setLogoPicked(undefined); Alert.alert('✓', 'Αποθηκεύτηκε.'); }
       else Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
     } catch {
       Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
@@ -562,6 +600,22 @@ export default function SettingsScreen() {
 
           {/* Επιχείρηση */}
           <Section title="Επιχείρηση">
+            {/* Logo από το κινητό (#8) — εμφανίζεται σε προσφορές/portal. */}
+            <View style={styles.logoRow}>
+              {logoPreview ? (
+                <Image source={{ uri: logoPreview }} style={styles.logoImg} resizeMode="contain" />
+              ) : (
+                <View style={[styles.logoImg, styles.logoEmpty]}>
+                  <Ionicons name="image-outline" size={26} color={c.textFaint} />
+                </View>
+              )}
+              <View style={{ flex: 1, gap: Spacing.two }}>
+                <PrimaryButton label={logoPreview ? 'Άλλαξε λογότυπο' : 'Προσθήκη λογότυπου'} tone="outline" onPress={() => void pickLogo()} />
+                {logoPreview ? (
+                  <Pressable onPress={removeLogo} hitSlop={8}><ThemedText type="small" style={{ color: '#D14343', textAlign: 'center' }}>Αφαίρεση</ThemedText></Pressable>
+                ) : null}
+              </View>
+            </View>
             <Input label="Όνομα επιχείρησης" value={bizForm.name ?? ''} onChangeText={setB('name')} />
             <Input label="Επωνυμία (νομική)" value={bizForm.legal_name ?? ''} onChangeText={setB('legal_name')} />
             <Input label="Διακριτικός τίτλος" value={bizForm.trade_name ?? ''} onChangeText={setB('trade_name')} />
@@ -928,6 +982,9 @@ const makeStyles = (c: ThemePalette) =>
     catRow: { flexDirection: 'row', gap: Spacing.two },
     catCol: { flex: 1 },
     bankEditRow: { flexDirection: 'row', gap: Spacing.two },
+    logoRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three },
+    logoImg: { width: 72, height: 72, borderRadius: 14, backgroundColor: c.surface },
+    logoEmpty: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: c.border },
     bankEditCol: { flex: 1 },
     inlineBtns: { flexDirection: 'row', gap: Spacing.two },
     toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: 6 },

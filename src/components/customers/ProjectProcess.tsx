@@ -57,7 +57,7 @@ const REJECT_MESSAGE = 'Καλησπέρα σας. Ευχαριστούμε πο
 
 interface DetailOffer { id: string; offerNumber: string | null; status: string; total: number | null; createdAt: string }
 interface DetailAppt { id: string; title: string; type: string; status: string; dueDate: string | null; dueTime: string | null }
-interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string; readAt?: string | null }
+interface DetailMsg { id: string; summary: string | null; direction: string; channel: string; createdAt: string; readAt?: string | null; pending?: boolean }
 interface DetailReq { id: string; status: string; createdAt: string }
 interface FolderPayment { id: string; kind: string; pct: number | null; amount: number; status: string; createdAt: string }
 interface FolderDetail {
@@ -123,6 +123,9 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   const [sheet, setSheet] = useState<SheetName>(null);
   const [reqPhotos, setReqPhotos] = useState(false);
   const [msg, setMsg] = useState('');
+  // Optimistic outbound messages — rendered instantly so the chat feels like
+  // WhatsApp/Viber even if the backend send is slow; cleared on refresh.
+  const [pendingMsgs, setPendingMsgs] = useState<DetailMsg[]>([]);
   const [oRows, setORows] = useState<OfferRow[]>([{ desc: '', qty: '1', price: '' }]);
   const [oVat, setOVat] = useState('24');
   const [oNotes, setONotes] = useState('');
@@ -207,6 +210,9 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
     const s = detail.sections;
     const items: Item[] = [
       ...s.messages.items.filter((m) => m.channel !== 'call' && (m.summary ?? '').trim()).map((m): Item => ({ kind: 'msg', ts: T(m.createdAt), data: m })),
+      // Optimistic «sending…» bubbles (WhatsApp-style): shown instantly, replaced
+      // by the real message on the next refresh.
+      ...pendingMsgs.map((m): Item => ({ kind: 'msg', ts: T(m.createdAt), data: m })),
       ...s.offers.items.map((o): Item => ({ kind: 'offer', ts: T(o.createdAt), data: o })),
       ...s.appointments.items.map((a): Item => ({ kind: 'appt', ts: T(a.dueDate), data: a })),
       ...payments.map((p): Item => ({ kind: 'payment', ts: T(p.createdAt), data: p })),
@@ -214,7 +220,7 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
       ...s.intake.items.map((i): Item => ({ kind: 'req', ts: T(i.createdAt), data: i, photos: false })),
     ];
     return items.sort((a, b) => a.ts - b.ts);
-  }, [detail, payments]);
+  }, [detail, payments, pendingMsgs]);
 
   // ── actions ──────────────────────────────────────────────────────────────
   async function patchFolder(updates: Record<string, unknown>) {
@@ -244,10 +250,18 @@ export default function ProjectProcess({ folderId, customerId, onClose, onChange
   async function sendMessage() {
     const t = msg.trim(); if (!t) return;
     if (!beginBusy()) return;
+    // Optimistic bubble: show the message instantly + clear the input, so a slow
+    // backend never reads as "stuck" (no repeat taps). Replaced/cleared on refresh.
+    const pid = `pending-${Date.now()}`;
+    setPendingMsgs((p) => [...p, { id: pid, summary: t, direction: 'outbound', channel: 'viber', createdAt: new Date().toISOString(), pending: true }]);
+    setMsg(''); setSheet(null);
     try {
-      if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { setMsg(''); setSheet(null); await refresh(); }
+      if (await post(`/api/customers/${customerId}/message`, { text: t, workFolderId: folderId })) { await refresh(); }
       else fail('Το μήνυμα δεν στάλθηκε. Δοκίμασε ξανά.');
-    } finally { endBusy(); }
+    } finally {
+      setPendingMsgs((p) => p.filter((m) => m.id !== pid));
+      endBusy();
+    }
   }
   async function sendRequest() {
     if (!beginBusy()) return;
@@ -497,9 +511,14 @@ function Row({ it, busy, onConfirm, onPayReq, onOpenOffer }: { it: Item; busy: b
         <div className={'opf-bubble ' + (tech ? 'opf-role-tech' : 'opf-role-cust')}>
           <div className="opf-bubble-text">{(m.summary ?? '').trim()}</div>
           <div className="opf-bubble-when">
-            {formatRelativeDateTimeGr(m.createdAt)}
-            {tech && m.readAt && <span style={{ marginLeft: 6 }}>· Διαβάστηκε {formatRelativeDateTimeGr(m.readAt)}</span>}
-            {tech && (
+            {m.pending ? 'Αποστολή…' : formatRelativeDateTimeGr(m.createdAt)}
+            {tech && !m.pending && m.readAt && <span style={{ marginLeft: 6 }}>· Διαβάστηκε {formatRelativeDateTimeGr(m.readAt)}</span>}
+            {tech && m.pending && (
+              <span style={{ display: 'inline-flex', marginLeft: 4, verticalAlign: 'middle' }}>
+                <Icon name="clock" size={12} color="rgba(255,255,255,0.7)" stroke={2.2} />
+              </span>
+            )}
+            {tech && !m.pending && (
               <span style={{ display: 'inline-flex', marginLeft: 4, verticalAlign: 'middle' }}>
                 <Icon name="check" size={12} color={m.readAt ? '#7CF0C4' : 'rgba(255,255,255,0.85)'} stroke={2.6} />
                 {m.readAt && <span style={{ marginLeft: -7, display: 'inline-flex' }}><Icon name="check" size={12} color="#7CF0C4" stroke={2.6} /></span>}
