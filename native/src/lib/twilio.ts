@@ -244,6 +244,31 @@ function wireIncomingListeners() {
 
 const REGISTER_RETRY_DELAYS_MS = [0, 2_000, 6_000];
 
+// CRITICAL for KILLED-APP incoming calls (iOS PushKit). The Twilio SDK creates
+// its PKPushRegistry ONLY when JS calls initializePushRegistry() — it is NOT set
+// up in the native module's init(). So when iOS relaunches a killed app for a
+// VoIP push, the registry (and thus the lock-screen CallKit ring) only appears
+// once this has run. It MUST therefore run as early as possible at launch and
+// INDEPENDENTLY of login — otherwise the push is delivered late and the call
+// only surfaces as a stale "ringing" when the user opens the app. Instantiating
+// the module here also runs its init() (CallKit + notification observers).
+// Idempotent: only the first call creates the registry.
+let pushRegistryInited = false;
+export async function initPushRegistry(onLog?: (s: string) => void): Promise<void> {
+  if (pushRegistryInited) return;
+  pushRegistryInited = true;
+  try {
+    const voice = getVoice();
+    wireIncomingListeners();
+    const v = voice as unknown as { initializePushRegistry?: () => Promise<void> };
+    if (typeof v.initializePushRegistry === 'function') await v.initializePushRegistry();
+    onLog?.('push registry initialized');
+  } catch (e) {
+    pushRegistryInited = false; // allow a retry on the next launch/foreground
+    console.log('[twilio] initPushRegistry err', e);
+  }
+}
+
 /**
  * Register this device to RECEIVE incoming calls (binds the VoIP push token).
  * Retries with backoff (cold launches often race the network coming up); never
@@ -253,12 +278,8 @@ export async function registerForIncoming(onLog?: (s: string) => void): Promise<
   setIncomingState({ state: 'registering' });
   const voice = getVoice();
   wireIncomingListeners();
-  try {
-    const v = voice as unknown as { initializePushRegistry?: () => Promise<void> };
-    if (typeof v.initializePushRegistry === 'function') await v.initializePushRegistry();
-  } catch (e) {
-    console.log('[twilio] initializePushRegistry err', e);
-  }
+  // Ensure the PushKit registry exists before binding the token (idempotent).
+  await initPushRegistry(onLog);
 
   let lastDetail = '';
   for (const delay of REGISTER_RETRY_DELAYS_MS) {
