@@ -104,12 +104,27 @@ function mapCustomer(d: Record<string, unknown>): Customer {
   };
 }
 
+// Plain factual call labels (a status, NOT an AI brief). Never shown as a brief.
+const CALL_LABELS = [
+  'Αναπάντητη κλήση',
+  'Εισερχόμενη κλήση',
+  'Εξερχόμενη κλήση',
+  'Αποτυχημένη',
+  'Κλήση χωρίς ηχογράφηση',
+  'Κλήση — γίνεται επεξεργασία',
+];
+
+// The real AI brief text, or null when the summary is just a status label or
+// metadata. Drops the metadata footer + any legacy «AI brief …:» prefix.
 function extractAiBrief(summary: string | null): string | null {
   if (!summary) return null;
-  if (!summary.startsWith('AI brief')) return null;
-  const withoutMeta = summary.split('\n\n---')[0];
-  const text = withoutMeta.replace(/^AI brief [^:\n]+:\s*/, '').trim();
-  return text.length > 0 ? text : null;
+  const text = summary
+    .split('\n\n---')[0]
+    .replace(/^AI brief[^:\n]*:\s*/i, '')
+    .trim();
+  if (!text) return null;
+  if (CALL_LABELS.some((l) => text.startsWith(l))) return null;
+  return text;
 }
 
 // A customer counts as "named/saved" only when it has a real name or company

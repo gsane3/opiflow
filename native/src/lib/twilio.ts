@@ -139,23 +139,11 @@ function logMissedInbound(from: string | null) {
     .catch((e) => console.log('[twilio] missed call log failed', e));
 }
 
-// Answer a ringing invite → wire the live Call into the incoming-call state so
-// the modal flips to its in-call view, and log the result to the CRM. If accept
-// fails (a stale/expired invite — e.g. the app was reopened long after the push)
-// we log it as missed and clear the dead ring modal.
-async function acceptInvite(invite: CallInvite, from: string | null, clearIfCurrent: () => void) {
-  let call: Call;
-  try {
-    call = await invite.accept();
-  } catch (e) {
-    console.log('[twilio] accept invite failed (stale?)', e);
-    logMissedInbound(from);
-    // Identity-checked: only clear if THIS dead invite is still the one showing,
-    // so a newer invite that arrived during the accept() round-trip survives.
-    clearIfCurrent();
-    return;
-  }
-
+// Wire a LIVE accepted Call into the incoming-call state so the in-app modal
+// flips to its connected view (mute / hangup) and the result is logged once.
+// Called from BOTH paths: our JS «Απάντηση» button AND a native CallKit /
+// notification answer (the SDK emits CallInvite.Event.Accepted either way).
+function wireConnectedCall(call: Call, from: string | null) {
   let logged = false;
   const doLog = (status: 'completed' | 'failed') => {
     if (logged) return;
@@ -204,7 +192,9 @@ function wireIncomingListeners() {
       const session = {
         phase: 'ringing' as const,
         from,
-        accept: () => { if (settled) return; settle(); void acceptInvite(invite, from, clearIfCurrent); },
+        // Just trigger accept; the connected UI is wired by the Accepted event
+        // below (which ALSO fires for a native CallKit answer).
+        accept: () => { if (settled) return; settle(); try { void invite.accept(); } catch { logMissedInbound(from); clearIfCurrent(); } },
         reject: () => { if (settled) return; settle(); try { void invite.reject(); } catch { /* ignore */ } finally { clearIfCurrent(); } },
         disconnect: () => { if (settled) return; settle(); try { void invite.reject(); } catch { /* ignore */ } finally { clearIfCurrent(); } },
         mute: () => { /* not muteable while ringing */ },
@@ -212,6 +202,15 @@ function wireIncomingListeners() {
       const clearIfCurrent = () => { if (getIncomingCall() === session) setIncomingCall(null); };
 
       setIncomingCall(session);
+
+      // Answered — by our «Απάντηση» button OR the native iOS CallKit banner /
+      // Android notification (the SDK emits this with the live Call either way).
+      // This is what gives the in-app mute/hangup controls when the user taps the
+      // native call banner (previously they were dumped into the app with none).
+      invite.on(CallInvite.Event.Accepted, (call: Call) => {
+        settle();
+        wireConnectedCall(call, from);
+      });
 
       // Caller hung up / server cancelled before we answered → log missed + clear.
       invite.on(CallInvite.Event.Cancelled, () => {

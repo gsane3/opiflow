@@ -8,8 +8,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
-import { generateCallBrief } from '@/lib/server/call-brief';
-import { appendCallBrief } from '@/lib/server/call-briefs';
 
 export const runtime = 'nodejs';
 
@@ -80,7 +78,6 @@ export async function POST(request: NextRequest) {
   // Validate the (optional) customer belongs to this business; drop it otherwise
   // so a call can never be attributed across tenants.
   let customerId = str(raw.customerId);
-  let customerMatched = false;
   if (customerId) {
     const { data } = await supabase
       .from('customers')
@@ -88,11 +85,7 @@ export async function POST(request: NextRequest) {
       .eq('id', customerId)
       .eq('business_id', businessId)
       .maybeSingle();
-    if (data) {
-      customerMatched = true;
-    } else {
-      customerId = null;
-    }
+    if (!data) customerId = null;
   }
 
   // No explicit customer (e.g. the native dialer) → match by phone, the same
@@ -110,7 +103,6 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
     if (data) {
       customerId = (data as { id: string }).id;
-      customerMatched = true;
     }
   }
 
@@ -125,31 +117,11 @@ export async function POST(request: NextRequest) {
       ? 'Αποτυχημένη εισερχόμενη κλήση'
       : 'Αποτυχημένη εξερχόμενη κλήση';
 
-  // Metadata-only AI brief (review-first; mirrors the PBX path). Non-fatal:
-  // a missing key or model error just yields the basic summary. A missed call
-  // never connected, so there's nothing to brief — skip it.
-  let brief: string | null = null;
-  if (status !== 'missed') {
-    try {
-      brief = await generateCallBrief({
-        callerNumber: phone,
-        direction,
-        dialStatus: status === 'completed' ? 'ANSWERED' : 'FAILED',
-        uniqueId: null,
-        recordingExists: false,
-        recordingSizeBytes: null,
-        recordingFallbackApplied: null,
-        customerCreated: false,
-        customerMatched,
-        intakeUrlCreated: false,
-        viberSendStatus: null,
-      });
-    } catch {
-      // non-fatal
-    }
-  }
-
-  const summary = brief ? `${brief}\n\n---\n${basicSummary}` : basicSummary;
+  // NO speculative AI brief at log time. The only AI brief shown is the REAL
+  // transcript brief, attached later by the recording webhook (it overwrites
+  // `summary`). Until then the row carries a plain factual label — never a guess
+  // about what was said (owner requirement: write strictly only what was said).
+  const summary = basicSummary;
 
   // Native calls are already logged SERVER-SIDE at dial time by the outbound
   // TwiML webhook (status 'started', provider_call_id = CallSid). When that row
@@ -177,14 +149,7 @@ export async function POST(request: NextRequest) {
         })
         .eq('id', row.id)
         .eq('business_id', businessId);
-      await appendCallBrief(supabase, {
-        businessId,
-        customerId: customerId ?? row.customer_id,
-        communicationId: row.id,
-        briefKind: 'metadata',
-        briefText: summary,
-      });
-      return NextResponse.json({ ok: true, communicationId: row.id, brief: brief ?? null });
+      return NextResponse.json({ ok: true, communicationId: row.id, brief: null });
     }
   }
 
@@ -211,18 +176,9 @@ export async function POST(request: NextRequest) {
 
   const communicationId = (commRow as { id: string }).id;
 
-  // Append the metadata brief to the per-call brief timeline (non-fatal).
-  await appendCallBrief(supabase, {
-    businessId,
-    customerId,
-    communicationId,
-    briefKind: 'metadata',
-    briefText: summary,
-  });
-
   return NextResponse.json({
     ok: true,
     communicationId,
-    brief: brief ?? null,
+    brief: null,
   });
 }

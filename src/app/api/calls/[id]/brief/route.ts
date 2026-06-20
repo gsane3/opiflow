@@ -89,9 +89,11 @@ export async function GET(
       .eq('communication_id', comm.id)
       .order('created_at', { ascending: true });
 
+    // Only a TRANSCRIPT brief (real conversation) counts as an AI brief. Older
+    // speculative 'metadata' briefs are ignored so they can never resurface.
     if (!briefsRes.error && Array.isArray(briefsRes.data)) {
       for (const b of briefsRes.data as unknown as BriefRow[]) {
-        if (!briefText || b.brief_kind === 'transcript') {
+        if (b.brief_kind === 'transcript') {
           briefKind = b.brief_kind;
           briefText = b.brief_text;
         }

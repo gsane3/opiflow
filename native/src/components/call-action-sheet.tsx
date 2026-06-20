@@ -39,14 +39,34 @@ interface BriefStatus {
   suggestedActions?: Array<{ actionType: string; label: string }>;
 }
 
-/** Strip log markers, keep the human/AI text of the summary. */
+// Plain factual call labels (NOT an AI brief) — shown only as a status line,
+// never under the «Περίληψη κλήσης» header.
+const CALL_LABELS = [
+  'Αναπάντητη κλήση',
+  'Εισερχόμενη κλήση',
+  'Εξερχόμενη κλήση',
+  'Αποτυχημένη',
+  'Κλήση χωρίς ηχογράφηση',
+  'Κλήση — γίνεται επεξεργασία',
+];
+
+function isLabelOnly(head: string): boolean {
+  return CALL_LABELS.some((l) => head.startsWith(l));
+}
+
+/** The real AI brief text, or '' if the summary is just a status label /
+ *  metadata. Drops the metadata footer + any legacy «AI brief …:» prefix. */
 function fullBrief(summary?: string | null): string {
   if (!summary) return '';
-  return summary
+  const head = summary
+    .split('\n\n---')[0]
+    .replace(/^AI brief[^:\n]*:\s*/i, '')
     .split('\n')
     .filter((l) => !/^(uniqueid=|twilio_sid=)/.test(l.trim()))
     .join('\n')
     .trim();
+  if (!head || isLabelOnly(head)) return '';
+  return head;
 }
 
 function normalize(p?: string | null): string {
@@ -175,6 +195,10 @@ export function CallActionSheet({
   if (!call) return null;
 
   const brief = fullBrief(liveSummary ?? call.summary);
+  // Show a "processing" state (not a placeholder/guess) while a recording is
+  // still being transcribed; the real brief replaces it when ready.
+  const rawSummary = (liveSummary ?? call.summary) ?? '';
+  const processing = !brief && (/γίνεται επεξεργασία/.test(rawSummary) || loadingBrief || (polling && !briefReady));
   const name = call.customer?.name ?? null;
 
   // One-tap: turn an AI-suggested action into a task for this call's customer.
@@ -280,6 +304,32 @@ export function CallActionSheet({
     }
   }
 
+  // Απόρριψη πελάτη (#7) — mark the linked/matched customer as «Χαμένος» from the
+  // recent-call sheet. Requires a customer (linked or matched by number).
+  function rejectCustomer() {
+    const cid = call?.customerId ?? match?.id ?? null;
+    if (!cid) return;
+    Alert.alert('Απόρριψη πελάτη', 'Ο πελάτης θα σημανθεί ως «Χαμένος». Συνέχεια;', [
+      { text: 'Ακύρωση', style: 'cancel' },
+      {
+        text: 'Απόρριψη',
+        style: 'destructive',
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const r = await apiPatch<{ ok?: boolean }>(`/api/customers/${cid}`, { status: 'lost' });
+            if (r?.ok) { hapticSuccess(); onChanged(); onClose(); }
+            else Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.');
+          } catch {
+            Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.');
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  }
+
   function confirmDelete() {
     Alert.alert('Διαγραφή κλήσης', 'Σίγουρα;', [
       { text: 'Ακύρωση', style: 'cancel' },
@@ -314,11 +364,11 @@ export function CallActionSheet({
             {call.phone && name ? ` · ${call.phone}` : ''}
           </ThemedText>
 
-          {loadingBrief && !brief ? (
+          {processing ? (
             <View style={styles.briefLoading}>
               <ActivityIndicator color={Brand.primary} />
               <ThemedText type="small" themeColor="textSecondary">
-                Ετοιμάζεται η περίληψη…
+                Γίνεται επεξεργασία της κλήσης…
               </ThemedText>
             </View>
           ) : brief ? (
@@ -387,6 +437,9 @@ export function CallActionSheet({
           ) : null}
 
           <PrimaryButton label="Δημιουργία εργασίας" tone="outline" onPress={() => setView('create_task')} />
+          {call.customerId || match ? (
+            <PrimaryButton label="Απόρριψη πελάτη" tone="danger" busy={busy} onPress={rejectCustomer} />
+          ) : null}
           <PrimaryButton label="Διαγραφή κλήσης" tone="danger" onPress={confirmDelete} />
         </>
       ) : view === 'add_contact' ? (
