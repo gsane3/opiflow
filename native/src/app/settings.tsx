@@ -13,7 +13,7 @@ import { ThemedView } from '@/components/themed-view';
 import { Input, ListRow, PrimaryButton, Section } from '@/components/ui';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
+import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useThemeMode } from '@/lib/theme-mode';
 import { formatDate, formatEuro } from '@/lib/format';
@@ -172,6 +172,40 @@ export default function SettingsScreen() {
     return () => clearInterval(t);
   }, []);
   const phoneValue = phone.state === 'error' ? `Σφάλμα: ${phone.detail ?? ''}` : PHONE_LABEL[phone.state];
+
+  // ----- record-calls preference (per-business; the outbound webhook reads it) -----
+  const [recordCalls, setRecordCalls] = useState(true);
+  const [recordBusy, setRecordBusy] = useState(false);
+  useEffect(() => {
+    let active = true;
+    apiGet<{ ok?: boolean; recordCalls?: boolean }>('/api/phone/recording')
+      .then((r) => { if (active && typeof r?.recordCalls === 'boolean') setRecordCalls(r.recordCalls); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, []);
+
+  async function toggleRecording(next: boolean) {
+    const prev = recordCalls;
+    setRecordCalls(next);
+    setRecordBusy(true);
+    try {
+      const r = await apiPut<{ ok?: boolean; error?: string }>('/api/phone/recording', { recordCalls: next });
+      if (!r?.ok) {
+        setRecordCalls(prev);
+        Alert.alert(
+          'Δεν αποθηκεύτηκε',
+          r?.error === 'migration_pending'
+            ? 'Αυτή η ρύθμιση δεν είναι ακόμα διαθέσιμη. Δοκίμασε ξανά σύντομα.'
+            : 'Η αποθήκευση απέτυχε. Δοκίμασε ξανά.',
+        );
+      }
+    } catch {
+      setRecordCalls(prev);
+      Alert.alert('Σφάλμα', 'Η αποθήκευση απέτυχε.');
+    } finally {
+      setRecordBusy(false);
+    }
+  }
 
   // ----- business profile -----
   const [biz, setBiz] = useState<Business | null>(null);
@@ -738,6 +772,20 @@ export default function SettingsScreen() {
                 void registerForIncoming();
               }}
             />
+            <View style={styles.toggleRow}>
+              <View style={{ flex: 1 }}>
+                <ThemedText type="smallBold">Ηχογράφηση κλήσεων</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Αυτόματη μεταγραφή & AI σύνοψη. Όταν είναι κλειστή, οι κλήσεις δεν ηχογραφούνται ούτε μεταγράφονται.
+                </ThemedText>
+              </View>
+              <Switch
+                value={recordCalls}
+                onValueChange={(v) => void toggleRecording(v)}
+                disabled={recordBusy}
+                trackColor={{ true: Brand.primary }}
+              />
+            </View>
             <View style={{ height: 12 }} />
             <ThemedText type="smallBold">Μήνυμα ηχογράφησης κλήσεων</ThemedText>
             <ThemedText type="small" themeColor="textSecondary">

@@ -38,7 +38,12 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
   const [savingMode, setSavingMode] = useState(false);
   const [modeMsg, setModeMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   // Call recording (auto-on) + mic permission — moved here from the Κλήσεις screen.
+  // The preference is now persisted per-business via /api/phone/recording (the
+  // outbound TwiML webhook reads it); localStorage is kept as a client-side mirror
+  // so the browser calling screen's recording gate stays in sync on this device.
   const [recordCalls, setRecordCalls] = useState(true);
+  const [recordSaving, setRecordSaving] = useState(false);
+  const [recordMsg, setRecordMsg] = useState<{ tone: 'ok' | 'err'; text: string } | null>(null);
   const [micState, setMicState] = useState<'unknown' | 'checking' | 'granted' | 'denied' | 'unsupported'>('unknown');
   const [micError, setMicError] = useState<string | null>(null);
   // Per-business call-recording disclosure clip, recorded in the user's own voice.
@@ -128,16 +133,72 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
     }
   }, []);
 
+  // Load the record-calls preference from the server (the source of truth the
+  // outbound webhook reads), mirroring it into localStorage for the browser
+  // calling screen. Falls back to the localStorage mirror when offline / signed out.
   useEffect(() => {
-    let on = true;
-    try { on = localStorage.getItem('deskop_record_calls') !== '0'; } catch { /* ignore */ }
-    const id = window.setTimeout(() => setRecordCalls(on), 0);
-    return () => window.clearTimeout(id);
+    let cancelled = false;
+    (async () => {
+      let on = true;
+      try { on = localStorage.getItem('deskop_record_calls') !== '0'; } catch { /* ignore */ }
+      try {
+        const token = await getToken();
+        if (token) {
+          const res = await fetch('/api/phone/recording', { headers: { Authorization: `Bearer ${token}` } });
+          const j = await res.json().catch(() => ({}));
+          if (j?.ok && typeof j.recordCalls === 'boolean') {
+            on = j.recordCalls;
+            try { localStorage.setItem('deskop_record_calls', on ? '1' : '0'); } catch { /* ignore */ }
+          }
+        }
+      } catch { /* keep the localStorage fallback */ }
+      if (!cancelled) setRecordCalls(on);
+    })();
+    return () => { cancelled = true; };
   }, []);
 
-  function setRecording(next: boolean) {
+  // Persist the preference server-side (PUT) instead of localStorage-only. Optimistic;
+  // mirrors the choice into localStorage so the browser calling screen reflects it
+  // immediately, and reverts the toggle if the save genuinely fails.
+  async function setRecording(next: boolean) {
+    const prev = recordCalls;
     setRecordCalls(next);
-    try { localStorage.setItem('deskop_record_calls', next ? '1' : '0'); } catch { /* ignore */ }
+    setRecordMsg(null);
+    setRecordSaving(true);
+    const mirror = (v: boolean) => { try { localStorage.setItem('deskop_record_calls', v ? '1' : '0'); } catch { /* ignore */ } };
+    mirror(next);
+    try {
+      const token = await getToken();
+      if (!token) {
+        setRecordMsg({ tone: 'err', text: 'Πρέπει να είσαι συνδεδεμένος.' });
+        setRecordCalls(prev);
+        mirror(prev);
+        return;
+      }
+      const res = await fetch('/api/phone/recording', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recordCalls: next }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (j?.ok) {
+        setRecordMsg({ tone: 'ok', text: 'Αποθηκεύτηκε.' });
+      } else if (j?.error === 'migration_pending' || j?.degraded) {
+        // DB column not there yet — the choice is honoured by the browser gate
+        // (localStorage) but won't reach server-side recording until 059 lands.
+        setRecordMsg({ tone: 'err', text: 'Δεν είναι ακόμα διαθέσιμο (εκκρεμεί ρύθμιση συστήματος).' });
+      } else {
+        setRecordMsg({ tone: 'err', text: 'Η αποθήκευση απέτυχε.' });
+        setRecordCalls(prev);
+        mirror(prev);
+      }
+    } catch {
+      setRecordMsg({ tone: 'err', text: 'Η αποθήκευση απέτυχε.' });
+      setRecordCalls(prev);
+      mirror(prev);
+    } finally {
+      setRecordSaving(false);
+    }
   }
 
   // Load the saved disclosure clip on mount.
@@ -211,12 +272,16 @@ export default function TelephonyPanel({ businessPhoneNumber }: { businessPhoneN
             role="switch"
             aria-checked={recordCalls}
             aria-label="Ηχογράφηση κλήσεων"
+            disabled={recordSaving}
             onClick={() => setRecording(!recordCalls)}
-            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200 dark:bg-white/10'}`}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${recordCalls ? 'bg-indigo-600' : 'bg-zinc-200 dark:bg-white/10'}`}
           >
             <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${recordCalls ? 'translate-x-[20px]' : 'translate-x-0'}`} />
           </button>
         </div>
+        {recordMsg && (
+          <p className={`mt-2 text-xs ${recordMsg.tone === 'ok' ? 'text-emerald-600' : 'text-amber-600'}`}>{recordMsg.text}</p>
+        )}
 
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="min-w-0">

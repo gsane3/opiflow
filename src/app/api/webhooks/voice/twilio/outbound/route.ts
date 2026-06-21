@@ -6,7 +6,9 @@
 // caller identity as `From = client:biz_<hex>`. We look up that business's Greek
 // DID and return TwiML that Dials the number out via a <Sip> leg to our Asterisk
 // (caller-ID = the DID), where `from-twilio` hands off to InterTelecom. Recording
-// is enabled so the RecordingStatusCallback → AI-brief pipeline runs.
+// (and the RecordingStatusCallback → AI-brief pipeline) is attached only when the
+// resolved business has businesses.record_calls enabled — a user who turns
+// recording OFF is not recorded, transcribed or billed.
 //
 // Abuse hardening (signup is open, the trunk bills the owner):
 //   - Signature validation FAILS CLOSED in production, including when
@@ -166,19 +168,38 @@ export async function POST(request: NextRequest) {
     return xml(tw.toString());
   }
 
-  // Resolve the business's Greek DID (caller-ID) + enforce the daily cap, and
-  // insert the dial-time communications row the recording webhook will match.
+  // Resolve the business's Greek DID (caller-ID) + the record-calls preference,
+  // enforce the daily cap, and insert the dial-time communications row the
+  // recording webhook will match.
   let callerId: string | undefined;
+  // Default ON (matches the businesses.record_calls default and today's behaviour);
+  // flipped off only when the business has explicitly opted out.
+  let recordCalls = true;
   const callSid = (params.CallSid || '').trim();
   try {
     const supabase = createServiceSupabaseClient();
 
-    const { data } = await supabase
+    // Try to read record_calls alongside the DID. If the column is missing
+    // (migration 059 not applied yet) the select errors — retry WITHOUT it so DID
+    // resolution and the call itself never break, leaving recording at the default.
+    let did: string | undefined;
+    const { data, error: bizError } = await supabase
       .from('businesses')
-      .select('business_phone_number')
+      .select('business_phone_number, record_calls')
       .eq('id', businessId)
       .maybeSingle();
-    const did = (data as { business_phone_number?: string | null } | null)?.business_phone_number?.trim();
+    if (bizError) {
+      const { data: legacy } = await supabase
+        .from('businesses')
+        .select('business_phone_number')
+        .eq('id', businessId)
+        .maybeSingle();
+      did = (legacy as { business_phone_number?: string | null } | null)?.business_phone_number?.trim();
+    } else {
+      const row = data as { business_phone_number?: string | null; record_calls?: boolean | null } | null;
+      did = row?.business_phone_number?.trim();
+      if (row?.record_calls === false) recordCalls = false;
+    }
     if (!did) {
       // No DID = not an activated line; refuse rather than dialing anonymously.
       tw.say({ language: 'el-GR' }, 'Η γραμμή δεν είναι ενεργοποιημένη.');
@@ -246,15 +267,23 @@ export async function POST(request: NextRequest) {
   }
 
   const timeLimit = Number(process.env.TWILIO_DIAL_TIME_LIMIT_SECONDS?.trim() || DIAL_TIME_LIMIT_DEFAULT);
-  const dial = tw.dial({
+  // Only attach recording (and thus trigger the RecordingStatusCallback → AI-brief
+  // pipeline) when the business has recording enabled. When OFF, the call is dialed
+  // with no `record`/`recordingStatusCallback`, so nothing is captured, transcribed
+  // or billed — honouring the user's choice (COGS + consent/GDPR).
+  type DialAttrs = NonNullable<Parameters<InstanceType<typeof VoiceResponse>['dial']>[0]>;
+  const dialAttrs: DialAttrs = {
     answerOnBridge: true,
     callerId,
     timeLimit,
     action: `${baseUrl}?leg=complete`,
-    record: 'record-from-answer-dual',
-    recordingStatusCallback: process.env.TWILIO_RECORDING_WEBHOOK_URL?.trim() || undefined,
-    recordingStatusCallbackEvent: ['completed'],
-  });
+  };
+  if (recordCalls) {
+    dialAttrs.record = 'record-from-answer-dual';
+    dialAttrs.recordingStatusCallback = process.env.TWILIO_RECORDING_WEBHOOK_URL?.trim() || undefined;
+    dialAttrs.recordingStatusCallbackEvent = ['completed'];
+  }
+  const dial = tw.dial(dialAttrs);
   dial.sip(`sip:${encodeURIComponent(digits)}@${sipDomain};transport=udp`);
 
   return xml(tw.toString());
