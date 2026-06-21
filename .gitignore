@@ -37,3 +37,15 @@ twilio_2FA_recovery_code.txt
 # iOS VoIP push cert material (Apple VoIP Services cert + private key + CSR)
 ios-voip-cert/
 .env.twilio.local
+
+# Local assets / scratch — kept on disk, never committed (were bloating the diff).
+# Brand/design archives, exported folders, loose binaries.
+*.zip
+*.pdf
+/app.json
+/espeak-ng
+/claude design/
+/customer-page/
+/opiflow logos/
+/Opiflow project feature/
+native/next-env.d.ts
