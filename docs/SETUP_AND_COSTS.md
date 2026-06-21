@@ -1,109 +1,179 @@
-# What to set up & pay to run deskop.ai for 10–20 people
+# Opiflow — Setup, accounts & running costs (production)
 
-This is a practical checklist of the accounts and services the product depends on, what each one is for, and a realistic monthly cost for a 10–20 user pilot in Greece. Prices are approximate (2026) and pay‑as‑you‑go unless noted.
+How to take Opiflow **live and rock-solid** ("σφαίρα"): which accounts to open, which plan
+to pick, in what order, and what it costs. Prices are 2026, USD→EUR ≈ 0.92.
+
+> Unit economics (cost **per customer/month**, pricing, margins, 2-year planning inputs)
+> live in **[`../OPIFLOW_BUSINESS_BRIEF.md`](../OPIFLOW_BUSINESS_BRIEF.md)**. This file is
+> the operational "how to switch it on" checklist.
 
 ---
 
-## 1. Core platform (always needed)
+## 0. Architecture in one paragraph (what actually costs money)
 
-| Service | What it does here | Plan for 10–20 users | Cost |
-|---|---|---|---|
-| **Supabase** | Database, Auth (email + Google/Apple), file storage (customer photos) | Pro (Free works to start, Pro for backups + no pausing) | **$25/mo** (Free $0 to start) |
-| **Vercel** (or any Node host) | Hosts the Next.js app + API routes + the marketing site | Pro (commercial use) | **$20/mo** (Hobby $0 for testing) |
-| **Domain** | e.g. `deskop.ai` + `app.deskop.ai` | — | **~€12/yr** |
+A customer (tenant) = one Greek service business with **1 dedicated Greek number**.
+Inbound: PSTN caller → **InterTelecom** DID → **Asterisk PBX** (one shared Hetzner VPS) →
+**Twilio** SIP Domain → `Dial Client` rings the **app** (Twilio Voice SDK), waking a killed
+app via VoIP push. Outbound is the mirror. Recording: **inbound on Asterisk** (free of Twilio
+cost), **outbound on Twilio** (deleted after use). The WAV is transcribed by **Deepgram**
+(primary) or **OpenAI** (fallback), then an **OpenAI gpt-4o** brief is written. The text AI
+assistant (`/cmd`, reply-drafts) is **Anthropic Claude Haiku**. Customer messages go through
+**Apifon** (Viber + SMS); offer emails through **Resend**. Data/auth/storage = **Supabase**;
+hosting = **Vercel**; the app's own subscription billing = **Stripe**.
 
-> You can self‑host instead of Vercel (a $5–20/mo VPS + Docker) to cut cost, at the price of more ops work.
+---
 
-## 2. AI (per‑call brief + assistant)
+## 1. Production activation checklist (do in this order)
 
-| Service | What it does | Env var | Cost for this volume |
-|---|---|---|---|
-| **Anthropic (Claude)** | Per‑call AI brief, AI assistant (`/cmd`), customer‑memory suggestions. Uses cheap Haiku model. | `ANTHROPIC_API_KEY` | **~$5–30/mo** |
-| **OpenAI** | Call‑recording transcription + richer brief (only if you record calls) | `OPENAI_API_KEY` | **~$0.006/min** → ~$20–80/mo depending on call minutes |
+### Step 1 — Core platform (mandatory, premium)
+1. **Supabase → upgrade to Pro ($25/mo).** 🔴 Free tier *pauses* the project after ~1 week
+   idle (kills the inbound-call webhook) and has **no backups** — unacceptable for a CRM.
+   Pro = no-pause + daily backups (7-day PITR). Apply all `supabase/migrations/*.sql`
+   **manually in the SQL editor** on the live project `oluhmztfimmgmbxoioea` (not `db push`).
+   Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`.
+2. **Vercel → Pro ($20/mo).** 🔴 Hobby is **non-commercial** (ToS) + tighter limits. Connect
+   `sane127/opiflow`, set every env var below, set `NEXT_PUBLIC_APP_URL` to the live domain.
+3. **Domain** (`.gr` ~€12/yr recommended; `.ai` got expensive). Point `app.` at Vercel.
 
-Both are optional/independent: with no key the app still works (you fill briefs manually). Start with Anthropic only; add OpenAI when you wire call recording.
+### Step 2 — Telephony (mandatory, mixed)
+4. **InterTelecom**: buy 1 geographic DID per customer (**€15/yr each**, manual — email IT to
+   place it on trunk `IT658318`). Confirm the **per-minute outbound rate** + that **inbound is
+   free** (see brief — this is the #1 cost unknown).
+5. **Hetzner VPS** for Asterisk (already provisioned, `root@46.224.138.115`, ~€4.5/mo). Add
+   €1/mo snapshots. Set `PBX_WEBHOOK_SECRET` (required) + `PBX_BUSINESS_ID`; point the dialplan
+   at `/api/webhooks/voice/pbx`, `/pbx-recording`, `/pbx-voicemail`.
+6. **Twilio**: **upgrade out of trial** (load credit — no monthly fee). Create an API Key,
+   a TwiML App, a SIP Domain, and **two Push Credentials** (APNs VoIP `.p8` for iOS, FCM for
+   Android). Set `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_API_KEY`,
+   `TWILIO_API_SECRET`, `TWILIO_TWIML_APP_SID`, `TWILIO_OUTBOUND_SIP_DOMAIN`,
+   `TWILIO_PUSH_CREDENTIAL_SID_IOS`, `TWILIO_PUSH_CREDENTIAL_SID_ANDROID`, `TWILIO_REGION=us1`,
+   and the `TWILIO_*_WEBHOOK_URL` trio. (Production not Sandbox APNs; all in region us1.)
 
-## 3. Telephony — the make/receive‑calls layer (the big decision)
+### Step 3 — AI pipeline (pay-as-you-go, no subscription — just fund the accounts)
+7. **Deepgram** API key (`DEEPGRAM_API_KEY`) — primary transcription ($200 free credit).
+8. **OpenAI** API key (`OPENAI_API_KEY`) — fallback STT + the gpt-4o brief
+   (`OPENAI_BRIEF_MODEL` optional, default `gpt-4o`; `OPENAI_TRANSCRIPTION_MODEL` optional).
+9. **Anthropic** API key (`ANTHROPIC_API_KEY`) — the `/cmd` assistant + reply-drafts.
+   > Each is optional & independent: with no key that feature degrades gracefully (manual brief).
 
-The app uses a **browser SIP phone (jsSIP)** + **PBX webhooks**. You need a SIP backend and Greek phone numbers (DID). Two routes:
+### Step 4 — Messaging & email
+10. **Apifon** 🔴 — register a **Viber sender ID** + sign the plan (**likely ~€150/mo minimum**,
+    confirm!). Set `APIFON_CLIENT_ID`, `APIFON_API_KEY`, `APIFON_SENDER_ID`
+    (or `APIFON_VIBER_SENDER_ID`/`APIFON_SMS_SENDER`), `APIFON_WEBHOOK_SECRET` (required).
+    Without it the app falls back to "copy & send manually".
+11. **Resend** — verify your domain, set `RESEND_API_KEY`, `EMAIL_FROM`. Free ≤3,000/mo.
 
-**A. SIP trunk + your own Asterisk/FreePBX** (cheapest at scale, more setup)
-- A small VPS for Asterisk: **$10–40/mo**
-- Greek DID numbers from a SIP provider (e.g. Modulus, Voipfone, didww): **~€1–3 per number/mo**. For 10–20 pro numbers ≈ **€20–60/mo**
-- Per‑minute: **~€0.005–0.02/min**
-- Set: `PHONE_SIP_WSS_URL`, `PHONE_SIP_USERNAME`, `PHONE_SIP_PASSWORD`, `PHONE_SIP_REALM`, `PBX_BUSINESS_ID`, and **`PBX_WEBHOOK_SECRET`** (required in production), point the Asterisk dialplan at `/api/webhooks/voice/pbx` and `/api/webhooks/voice/pbx-recording`.
+### Step 5 — Apps & push
+12. **Apple Developer Program ($99/yr)** — iOS build + APNs. **Google Play ($25 one-time)** —
+    Android. Set `APPLE_APP_ID`, `ANDROID_PACKAGE_NAME`, `ANDROID_SHA256_CERT_FINGERPRINTS`
+    (deep links). **FCM** for Android push: `FCM_SERVICE_ACCOUNT_JSON` (or the 3 split vars).
 
-**B. CPaaS (Telnyx / Twilio)** (faster to launch, higher per‑minute)
-- Numbers ~$1/number/mo, minutes ~$0.01/min, programmable SIP/WebRTC. There's already a Telnyx webhook stub to build on.
+### Step 6 — Billing, ops & hardening
+13. **Stripe** (your subscription revenue): `STRIPE_SECRET_KEY`, `STRIPE_PRICE_ID`,
+    `STRIPE_WEBHOOK_SECRET`.
+14. **Crons**: `CRON_SECRET` (scheduled messages, weekly summary, recordings-reconcile).
+15. **Admin**: `ADMIN_USER_ID` (number-assignment console).
+16. **Recommended for "σφαίρα":** **Sentry** (`SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN`) for
+    error monitoring; **Upstash Redis** (`UPSTASH_REDIS_REST_URL` + `_TOKEN`) for shared
+    rate-limiting. Both have free tiers — fine to start, upgrade at scale.
+17. **NEVER set `ALLOW_INSECURE_WEBHOOKS=1` in production** — the voice/Apifon webhooks
+    fail-closed without their secret on purpose.
 
-**Rough telephony total for a pilot: €50–150/mo** depending on call volume and route.
+---
 
-> ⚠️ Security: set `PBX_WEBHOOK_SECRET` / `APIFON_WEBHOOK_SECRET` in production. The webhooks now **fail closed** in production if the secret is unset (override only with `ALLOW_INSECURE_WEBHOOKS=1`).
+## 2. Premium vs pay-as-you-go vs free
 
-## 4. Viber link delivery (Apifon)
-
-| Service | What it does | Env vars | Cost |
-|---|---|---|---|
-| **Apifon** (Greek) | Sends the Viber message with the link (intake / offer / appointment / photos) | `APIFON_CLIENT_ID`, `APIFON_API_KEY`, sender id, `APIFON_WEBHOOK_SECRET` | **per message ~€0.02–0.05** + Viber **sender registration** (one‑time, sometimes a setup/monthly fee). Budget **€20–60/mo** for pilot volume. |
-
-If Apifon isn't configured, the app falls back gracefully to "copy the message and send manually."
-
-## 5. Email (offers by email)
-
-| Service | What it does | Env vars | Cost |
-|---|---|---|---|
-| **Resend** | Sends offer emails from your verified domain | `RESEND_API_KEY`, `EMAIL_FROM`, optional `EMAIL_REPLY_TO` | **Free** up to 3,000/mo, then **$20/mo** |
-
-## 6. Login providers & app stores
-
-| Service | What it does | Cost |
+| Tier | Services | Why |
 |---|---|---|
-| **Google Cloud OAuth** | "Continue with Google" | **Free** |
-| **Apple Developer Program** | "Continue with Apple" **and** required for any iOS app | **$99/yr** |
-| **Google Play Console** | Publish the Android app | **$25 one‑time** |
-
-OAuth setup: create the providers in Supabase → Authentication → Providers (Google, Apple), and add `https://<your-domain>/auth/callback` to the allowed Redirect URLs. The login/register buttons are already wired.
+| **Must be premium** | Supabase Pro · Vercel Pro · Apple Developer · Hetzner VPS · Apifon plan | Free tier breaks production (pausing, no-backup, non-commercial, no Viber sender) |
+| **Pay-as-you-go** (fund, no monthly fee) | Twilio · InterTelecom (€15/yr/number) · OpenAI · Deepgram · Anthropic · Stripe (% of revenue) | Scale with usage; already inside the per-customer numbers |
+| **Free to start** | Resend (≤3k/mo) · Sentry (≤5k err) · Upstash (≤10k/day) · FCM/APNs | Upgrade only when you outgrow them |
 
 ---
 
-## Bottom line for a 10–20 user pilot
+## 3. Fixed monthly platform cost ≈ **€55/mo** (before Apifon)
 
-**One‑time:** Google Play $25 + Apple $99/yr + domain ~€12/yr + Viber sender registration (varies).
+Supabase Pro €23 + Vercel Pro €18.4 + Hetzner €4.5 + Apple €7.6/mo + domain €1 + Resend €0.
+**+ Apifon** (the big swing — if it has a ~€150/mo minimum it becomes the largest fixed line).
+Google Play is a one-time $25. Everything else scales with usage — see the brief.
 
-**Monthly (typical):**
-- Fixed platform: Supabase $25 + Vercel $20 ≈ **$45**
-- AI: **$10–80** (depends on call/recording volume)
-- Telephony (numbers + minutes + PBX host): **€50–150**
-- Viber: **€20–60**
-- Email: **$0–20**
+---
 
-➡️ **Realistic range: ~€150–350 / month** for the whole pilot, dominated by telephony + Viber usage. You can start much lower (Supabase Free + Vercel Hobby + Anthropic only + manual Viber fallback) to validate before turning on paid telephony.
-
-## Env var checklist (set in Vercel / your host)
+## 4. Full env-var checklist (set in Vercel)
 
 ```
-# Supabase
+# ── Core ──
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
-# AI
-ANTHROPIC_API_KEY=
-OPENAI_API_KEY=                 # optional (call recording)
-# Telephony (SIP browser phone + PBX webhooks)
+NEXT_PUBLIC_APP_URL=
+
+# ── AI: transcription + call brief ──
+DEEPGRAM_API_KEY=               # primary STT
+OPENAI_API_KEY=                 # fallback STT + gpt-4o brief
+OPENAI_BRIEF_MODEL=             # optional (default gpt-4o)
+OPENAI_TRANSCRIPTION_MODEL=     # optional
+# ── AI: text assistant ──
+ANTHROPIC_API_KEY=              # /cmd, reply-drafts (Claude Haiku)
+
+# ── Twilio Voice (in-app calling) ──
+TWILIO_ACCOUNT_SID=
+TWILIO_AUTH_TOKEN=
+TWILIO_API_KEY=
+TWILIO_API_SECRET=
+TWILIO_TWIML_APP_SID=
+TWILIO_OUTBOUND_SIP_DOMAIN=
+TWILIO_PUSH_CREDENTIAL_SID_IOS=
+TWILIO_PUSH_CREDENTIAL_SID_ANDROID=
+TWILIO_REGION=us1
+TWILIO_INBOUND_WEBHOOK_URL=
+TWILIO_OUTBOUND_WEBHOOK_URL=
+TWILIO_RECORDING_WEBHOOK_URL=
+TWILIO_DIAL_TIME_LIMIT_SECONDS=   # optional
+OUTBOUND_ALLOWED_DEST_REGEX=      # optional (outbound allowlist)
+OUTBOUND_DAILY_CALL_CAP=          # optional (abuse cap)
+
+# ── Asterisk PBX webhooks (REQUIRED in prod) ──
+PBX_WEBHOOK_SECRET=
+PBX_BUSINESS_ID=
+
+# ── Optional: legacy browser SIP phone ──
 PHONE_SIP_WSS_URL=
+PHONE_SIP_REALM=
 PHONE_SIP_USERNAME=
 PHONE_SIP_PASSWORD=
-PHONE_SIP_REALM=
-PBX_BUSINESS_ID=
-PBX_WEBHOOK_SECRET=            # REQUIRED in production
-# Viber (Apifon)
+SIP_CRED_ENC_KEY=
+
+# ── Messaging (Apifon) ──
 APIFON_CLIENT_ID=
 APIFON_API_KEY=
-APIFON_WEBHOOK_SECRET=        # REQUIRED in production
-# Email (Resend)
+APIFON_SENDER_ID=               # or APIFON_VIBER_SENDER_ID / APIFON_SMS_SENDER
+APIFON_BASE_URL=                # optional
+APIFON_WEBHOOK_SECRET=          # REQUIRED in prod
+
+# ── Email (Resend) ──
 RESEND_API_KEY=
 EMAIL_FROM=
-EMAIL_REPLY_TO=               # optional
-# Admin (number assignment console)
+EMAIL_REPLY_TO=                 # optional
+
+# ── Android push (FCM) ──
+FCM_SERVICE_ACCOUNT_JSON=       # or FCM_PROJECT_ID + FCM_CLIENT_EMAIL + FCM_PRIVATE_KEY
+
+# ── Billing (Stripe) ──
+STRIPE_SECRET_KEY=
+STRIPE_PRICE_ID=
+STRIPE_WEBHOOK_SECRET=
+
+# ── Ops ──
+CRON_SECRET=
 ADMIN_USER_ID=
+SENTRY_DSN=                     # recommended
+NEXT_PUBLIC_SENTRY_DSN=         # recommended
+UPSTASH_REDIS_REST_URL=         # recommended at scale
+UPSTASH_REDIS_REST_TOKEN=
+# Deep links
+APPLE_APP_ID=
+ANDROID_PACKAGE_NAME=
+ANDROID_SHA256_CERT_FINGERPRINTS=
+# NEVER set ALLOW_INSECURE_WEBHOOKS in production
 ```
