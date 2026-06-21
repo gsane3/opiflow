@@ -80,6 +80,20 @@ export default function PublicOfferDoc({ token, view }: { token: string; view: P
           </div>
         </div>
 
+        {/* recipient (ΠΡΟΣ) */}
+        {view.customer && (
+          <div className="rounded-xl bg-zinc-50 px-4 py-3 ring-1 ring-zinc-100 print:bg-transparent print:ring-0 print:px-0">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Προς</p>
+            {view.customer.name && <p className="mt-0.5 text-sm font-semibold text-zinc-900">{view.customer.name}</p>}
+            {view.customer.companyName && <p className="text-sm text-zinc-600">{view.customer.companyName}</p>}
+            {view.customer.phone && <p className="text-sm text-zinc-500">{view.customer.phone}</p>}
+            {view.customer.email && <p className="text-sm text-zinc-500">{view.customer.email}</p>}
+            {view.customer.addressLines.map((l, i) => (
+              <p key={i} className="text-sm text-zinc-500">{l}</p>
+            ))}
+          </div>
+        )}
+
         {/* line items */}
         {view.items.length > 0 && (
           <div className="overflow-x-auto">

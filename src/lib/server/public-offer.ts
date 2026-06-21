@@ -41,6 +41,13 @@ export interface PublicOfferBusiness {
   bankName: string | null;
   bankIban: string | null;
 }
+export interface PublicOfferCustomer {
+  name: string | null;
+  companyName: string | null;
+  phone: string | null;
+  email: string | null;
+  addressLines: string[];
+}
 export interface PublicOfferView {
   offerNumber: string;
   statusLabel: string;
@@ -55,6 +62,7 @@ export interface PublicOfferView {
   terms: string | null;
   acceptanceText: string | null;
   business: PublicOfferBusiness | null;
+  customer: PublicOfferCustomer | null;
 }
 
 interface OfferRow {
@@ -69,6 +77,15 @@ interface OfferRow {
   notes: string | null;
   terms: string | null;
   acceptance_text: string | null;
+  customer_id: string | null;
+}
+interface CustomerRow {
+  name: string | null;
+  company_name: string | null;
+  phone: string | null;
+  mobile_phone: string | null;
+  email: string | null;
+  address: string | null;
 }
 interface ItemRow {
   description: string | null;
@@ -138,7 +155,7 @@ export async function loadPublicOffer(rawToken: string, offerId: string): Promis
     // Offer — triple-scoped: must belong to THIS business AND THIS folder.
     const offerRes = await supabase
       .from('offers')
-      .select('offer_number, status, offer_date, valid_until, subtotal, vat_rate, vat_amount, total, notes, terms, acceptance_text')
+      .select('offer_number, status, offer_date, valid_until, subtotal, vat_rate, vat_amount, total, notes, terms, acceptance_text, customer_id')
       .eq('id', offerId)
       .eq('business_id', token.business_id)
       .eq('work_folder_id', token.work_folder_id)
@@ -146,7 +163,7 @@ export async function loadPublicOffer(rawToken: string, offerId: string): Promis
     if (offerRes.error || !offerRes.data) return null;
     const o = offerRes.data as unknown as OfferRow;
 
-    const [itemsRes, bizRes] = await Promise.all([
+    const [itemsRes, bizRes, custRes] = await Promise.all([
       supabase
         .from('offer_items')
         .select('description, quantity, unit_price, line_total, sort_order')
@@ -158,6 +175,15 @@ export async function loadPublicOffer(rawToken: string, offerId: string): Promis
         .select('name, legal_name, trade_name, logo_url, phone, email, website, vat_number, tax_office, address, address_line1, address_line2, postal_code, city, region, bank_beneficiary, bank_name, bank_iban')
         .eq('id', token.business_id)
         .maybeSingle(),
+      // Recipient (customer) — scoped to THIS business; safe contact fields only.
+      o.customer_id
+        ? supabase
+            .from('customers')
+            .select('name, company_name, phone, mobile_phone, email, address')
+            .eq('id', o.customer_id)
+            .eq('business_id', token.business_id)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
 
     const itemRows = ((itemsRes.data ?? []) as unknown[]) as ItemRow[];
@@ -182,8 +208,21 @@ export async function loadPublicOffer(rawToken: string, offerId: string): Promis
       terms: o.terms?.trim() || null,
       acceptanceText: o.acceptance_text?.trim() || null,
       business: mapBusiness((bizRes.data as unknown as BizRow | null) ?? null),
+      customer: mapCustomer((custRes.data as unknown as CustomerRow | null) ?? null),
     };
   } catch {
     return null;
   }
+}
+
+function mapCustomer(c: CustomerRow | null): PublicOfferCustomer | null {
+  if (!c) return null;
+  const name = c.name?.trim() || null;
+  const companyName = c.company_name?.trim() || null;
+  const phone = c.phone?.trim() || c.mobile_phone?.trim() || null;
+  const email = c.email?.trim() || null;
+  const addressLines = [c.address].map((s) => (s ? String(s).trim() : '')).filter((s) => s.length > 0);
+  // Render only when there is at least one populated field.
+  if (!name && !companyName && !phone && !email && addressLines.length === 0) return null;
+  return { name, companyName, phone, email, addressLines };
 }
