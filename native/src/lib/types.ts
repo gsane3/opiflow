@@ -28,6 +28,8 @@ export interface Customer {
   importedFromPhone?: boolean;
   /** A call happened and the intake request is still unfilled → floats to the top. */
   needsIntake?: boolean;
+  /** Blocked contact — inbound calls are rejected (migration 058). */
+  blocked?: boolean;
 }
 
 export interface Task {

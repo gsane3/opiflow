@@ -330,6 +330,31 @@ export function CallActionSheet({
     ]);
   }
 
+  // Αποκλεισμός κλήσεων (μ.058) — block the linked/matched contact's calls.
+  function blockContact() {
+    const cid = call?.customerId ?? match?.id ?? null;
+    if (!cid) return;
+    Alert.alert('Αποκλεισμός κλήσεων', 'Οι κλήσεις από αυτή την επαφή θα απορρίπτονται (δεν θα χτυπάει). Συνέχεια;', [
+      { text: 'Ακύρωση', style: 'cancel' },
+      {
+        text: 'Αποκλεισμός',
+        style: 'destructive',
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const r = await apiPatch<{ ok?: boolean }>(`/api/customers/${cid}`, { blocked: true });
+            if (r?.ok) { hapticSuccess(); onChanged(); onClose(); }
+            else Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.');
+          } catch {
+            Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.');
+          } finally {
+            setBusy(false);
+          }
+        },
+      },
+    ]);
+  }
+
   function confirmDelete() {
     Alert.alert('Διαγραφή κλήσης', 'Σίγουρα;', [
       { text: 'Ακύρωση', style: 'cancel' },
@@ -438,7 +463,10 @@ export function CallActionSheet({
 
           <PrimaryButton label="Δημιουργία εργασίας" tone="outline" onPress={() => setView('create_task')} />
           {call.customerId || match ? (
-            <PrimaryButton label="Απόρριψη πελάτη" tone="danger" busy={busy} onPress={rejectCustomer} />
+            <>
+              <PrimaryButton label="Αποκλεισμός κλήσεων" tone="outline" busy={busy} onPress={blockContact} />
+              <PrimaryButton label="Απόρριψη πελάτη" tone="danger" busy={busy} onPress={rejectCustomer} />
+            </>
           ) : null}
           <PrimaryButton label="Διαγραφή κλήσης" tone="danger" onPress={confirmDelete} />
         </>

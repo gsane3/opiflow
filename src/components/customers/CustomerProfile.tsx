@@ -20,6 +20,7 @@ interface CustomerFull {
   id: string; name: string | null; companyName: string | null;
   phone: string | null; mobilePhone: string | null; landlinePhone: string | null;
   email: string | null; address: string | null; notes: string | null; status: string | null;
+  blocked?: boolean;
 }
 interface TimelineItem { id: string; type: string; title: string; body: string | null; occurredAt: string; side: 'us' | 'customer' }
 
@@ -138,6 +139,24 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
       const res = await fetch(`/api/customers/${customerId}`, { method: 'DELETE', headers });
       if (res.ok) router.push('/customers');
       else window.alert('Δεν ήταν δυνατή η διαγραφή.');
+    } catch { window.alert('Σφάλμα σύνδεσης.'); }
+  }
+
+  // «Αποκλεισμός» — block/unblock the contact's inbound calls (migration 058).
+  async function toggleBlocked() {
+    const next = !cust?.blocked;
+    const ok = window.confirm(
+      next
+        ? 'Αποκλεισμός κλήσεων από αυτή την επαφή; Οι κλήσεις της θα απορρίπτονται.'
+        : 'Άρση αποκλεισμού; Οι κλήσεις θα ξαναχτυπούν κανονικά.'
+    );
+    if (!ok) return;
+    try {
+      const headers = await authHeaders();
+      if (!headers) return;
+      const res = await fetch(`/api/customers/${customerId}`, { method: 'PATCH', headers, body: JSON.stringify({ blocked: next }) });
+      if (res.ok) void load();
+      else window.alert('Δεν ήταν δυνατή η ενημέρωση.');
     } catch { window.alert('Σφάλμα σύνδεσης.'); }
   }
 
@@ -268,6 +287,15 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
           <textarea className="opf-ta" placeholder="Σημείωση ορατή μόνο σε εσένα…" rows={3} value={note} onChange={(e) => setNote(e.target.value)} />
           <button className="opf-btn-primary opf-full opf-press" onClick={() => void saveNote()}>{noteSaving ? 'Αποθήκευση…' : noteSaved ? 'Αποθηκεύτηκε ✓' : 'Αποθήκευση σημείωσης'}</button>
         </div>
+
+        {/* Block / unblock inbound calls */}
+        <button
+          className="opf-press"
+          onClick={() => void toggleBlocked()}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 14, padding: '12px', borderRadius: 14, background: 'transparent', color: 'var(--danger)', fontWeight: 700, fontSize: 14 }}
+        >
+          <OpfIcon name="x" size={17} color="var(--danger)" stroke={2.4} /> {cust?.blocked ? 'Άρση αποκλεισμού' : 'Αποκλεισμός κλήσεων'}
+        </button>
 
         {/* Reject / mark-lost (web parity with native) */}
         {status !== 'lost' && (
