@@ -348,6 +348,10 @@ export default function CmdPage() {
   // When set, the project-name popup is open for an appointment/offer that is
   // ready to be filed into a (to-be-named) project. null = popup closed.
   const [projectModalKind, setProjectModalKind] = useState<'appointment' | 'offer' | null>(null);
+  // (#5) When the matched customer already has open projects, offer to file into
+  // one instead of always creating a new project.
+  const [folderPicker, setFolderPicker] = useState<{ kind: 'appointment' | 'offer'; folders: Array<{ id: string; title: string; status: string }> } | null>(null);
+  const [loadingFolders, setLoadingFolders] = useState(false);
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
   const [speechSupported, setSpeechSupported] = useState(false);
@@ -924,6 +928,47 @@ export default function CmdPage() {
     setProjectModalKind(kind);
   }
 
+  // (#5) Before creating a NEW project, check if the customer already has open
+  // ones — if so let the user pick (file into it) or create new. No open folders
+  // → straight to the new-project popup (unchanged behaviour).
+  async function startFiling(kind: 'appointment' | 'offer') {
+    if (!matchedCustomer) return;
+    if (customerCandidates.length > 1 && !customerMatchResolved) return;
+    if (kind === 'offer' && offerNeedsPrice) return;
+    setLoadingFolders(true);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const res = await fetch(`/api/customers/${matchedCustomer.id}/folders`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const json = await res.json() as { ok?: boolean; folders?: Array<{ id: string; title: string; status: string }> };
+        const open = (json.folders ?? []).filter((f) => f.status !== 'completed' && f.status !== 'cancelled' && f.status !== 'lost');
+        if (open.length > 0) {
+          setFolderPicker({ kind, folders: open });
+          setLoadingFolders(false);
+          return;
+        }
+      }
+    } catch {
+      // fall through to new-project popup
+    }
+    setLoadingFolders(false);
+    openProjectModal(kind);
+  }
+
+  // (#5) File the action into an EXISTING project the user picked.
+  async function fileIntoExistingFolder(folderId: string) {
+    if (!folderPicker) return;
+    const kind = folderPicker.kind;
+    setFolderPicker(null);
+    setIsSavingProject(true);
+    const ok = kind === 'appointment' ? await handleSaveAppointment(folderId) : await handleSaveOffer(folderId);
+    setIsSavingProject(false);
+    if (ok && matchedCustomer) setCreatedProjectCustomerId(matchedCustomer.id);
+  }
+
   // Popup confirm: create the named project, then file the appointment/offer into
   // it (which notifies the customer = the actual book/send).
   async function confirmProjectModal() {
@@ -1462,8 +1507,8 @@ export default function CmdPage() {
                 <>
                   <button
                     type="button"
-                    onClick={() => openProjectModal('appointment')}
-                    disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingAppointment}
+                    onClick={() => { void startFiling('appointment'); }}
+                    disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingAppointment || loadingFolders}
                     className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                   >
                     Δημιουργία ραντεβού
@@ -1622,8 +1667,8 @@ export default function CmdPage() {
                     <>
                       <button
                         type="button"
-                        onClick={() => openProjectModal('offer')}
-                        disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer || offerNeedsPrice}
+                        onClick={() => { void startFiling('offer'); }}
+                        disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer || offerNeedsPrice || loadingFolders}
                         className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                       >
                         Στείλε προσφορά
@@ -1786,6 +1831,48 @@ export default function CmdPage() {
       )}
 
       {/* «Πώς να ονομάσω το έργο;» — the project-name popup for appointments/offers. */}
+      {/* (#5) Pick an existing open project, or create a new one. */}
+      {folderPicker && matchedCustomer && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6 pt-20 sm:items-center">
+          <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl ring-1 ring-zinc-200 dark:bg-[#17232f] dark:ring-white/10">
+            <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">Σε ποιο έργο;</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Ο/Η {matchedCustomer.name} έχει ανοιχτά έργα. Διάλεξε ένα ή δημιούργησε νέο.
+            </p>
+            <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">
+              {folderPicker.folders.map((f) => (
+                <button
+                  key={f.id}
+                  type="button"
+                  onClick={() => { void fileIntoExistingFolder(f.id); }}
+                  disabled={isSavingProject || isSavingOffer || isSavingAppointment}
+                  className="block w-full rounded-xl border border-zinc-200 px-3 py-2.5 text-left transition hover:border-indigo-300 hover:bg-indigo-50 disabled:opacity-50 dark:border-white/10 dark:bg-[#0f1923] dark:hover:bg-white/5"
+                >
+                  <p className="text-sm font-semibold text-zinc-800 dark:text-zinc-200">{f.title}</p>
+                  <p className="text-xs text-zinc-400 dark:text-zinc-500">{f.status}</p>
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 space-y-2">
+              <button
+                type="button"
+                onClick={() => { const k = folderPicker.kind; setFolderPicker(null); openProjectModal(k); }}
+                className="w-full rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 dark:border-white/10 dark:text-zinc-300 dark:hover:bg-white/5"
+              >
+                + Δημιουργία νέου έργου
+              </button>
+              <button
+                type="button"
+                onClick={() => setFolderPicker(null)}
+                className="w-full text-center text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-500"
+              >
+                Άκυρο
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {projectModalKind && matchedCustomer && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 px-4 pb-6 pt-20 sm:items-center">
           <div className="w-full max-w-sm rounded-3xl bg-white p-5 shadow-xl ring-1 ring-zinc-200 dark:bg-[#17232f] dark:ring-white/10">

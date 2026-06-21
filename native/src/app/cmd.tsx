@@ -99,6 +99,9 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   // (#6) Prices the user fills in for offer lines that came back with no price
   // (unitPrice 0, no catalog match). Keyed by index in the filtered item list.
   const [priceEdits, setPriceEdits] = useState<Record<number, number>>({});
+  // (#5) Pick an existing open project instead of always creating a new one.
+  const [folderPicker, setFolderPicker] = useState<{ kind: 'appointment' | 'offer'; folders: Array<{ id: string; title: string; status: string }> } | null>(null);
+  const [loadingFolders, setLoadingFolders] = useState(false);
 
   useEffect(() => {
     apiGet<{ business?: Business }>('/api/businesses/me')
@@ -119,6 +122,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     setProjectModalKind(null);
     setProjectTitleInput('');
     setPriceEdits({});
+    setFolderPicker(null);
     setProjectError('');
     setIntoProject(false);
     setCreatingCustomer(false);
@@ -337,6 +341,32 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     setProjectError('');
     setProjectTitleInput(suggestProjectTitle());
     setProjectModalKind(kind);
+  }
+
+  // (#5) If the customer already has open projects, let the user pick one (file
+  // into it) or create a new one. No open folders → straight to the new-project popup.
+  async function startFiling(kind: 'appointment' | 'offer') {
+    if (!matched) return;
+    setLoadingFolders(true);
+    try {
+      const r = await apiGet<{ ok?: boolean; folders?: Array<{ id: string; title: string; status: string }> }>(`/api/customers/${matched.id}/folders`);
+      const open = (r?.folders ?? []).filter((f) => f.status !== 'completed' && f.status !== 'cancelled' && f.status !== 'lost');
+      if (open.length > 0) { setFolderPicker({ kind, folders: open }); setLoadingFolders(false); return; }
+    } catch {
+      // fall through to new-project popup
+    }
+    setLoadingFolders(false);
+    openProjectModal(kind);
+  }
+
+  async function fileIntoExistingFolder(folderId: string) {
+    if (!folderPicker) return;
+    const kind = folderPicker.kind;
+    setFolderPicker(null);
+    setBusy(true);
+    const ok = kind === 'appointment' ? await saveTaskOrAppt(folderId) : await saveOffer(folderId);
+    setBusy(false);
+    if (ok) setIntoProject(true);
   }
 
   async function confirmProjectModal() {
@@ -575,7 +605,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                 ) : null}
                 {result.intent === 'create_appointment' && matched ? (
                   <>
-                    <PrimaryButton label="Δημιουργία ραντεβού" busy={busy} onPress={() => openProjectModal('appointment')} />
+                    <PrimaryButton label="Δημιουργία ραντεβού" busy={busy || loadingFolders} onPress={() => void startFiling('appointment')} />
                     <Pressable disabled={busy} onPress={() => void saveTaskOrAppt()} style={({ pressed }) => [pressed && styles.pressed]}>
                       <ThemedText type="small" themeColor="textSecondary" style={styles.secondaryLink}>Ραντεβού χωρίς έργο (εσωτερικό)</ThemedText>
                     </Pressable>
@@ -627,7 +657,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                     ) : null}
                     {matched ? (
                       <>
-                        <PrimaryButton label="Στείλε προσφορά" busy={busy} disabled={offerTotals.needsPrice} onPress={() => openProjectModal('offer')} />
+                        <PrimaryButton label="Στείλε προσφορά" busy={busy || loadingFolders} disabled={offerTotals.needsPrice} onPress={() => void startFiling('offer')} />
                         <Pressable disabled={busy || offerTotals.needsPrice} onPress={() => void saveOffer()} style={({ pressed }) => [pressed && styles.pressed]}>
                           <ThemedText type="small" themeColor="textSecondary" style={[styles.secondaryLink, offerTotals.needsPrice && styles.disabledLink]}>Μόνο πρόχειρο (χωρίς αποστολή)</ThemedText>
                         </Pressable>
@@ -674,6 +704,38 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
       </ScrollView>
 
       {/* «Πώς να ονομάσω το έργο;» — project-name popup for appointments/offers. */}
+      {/* (#5) Existing-project picker */}
+      <Modal visible={!!folderPicker && !!matched} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setFolderPicker(null)}>
+        <View style={styles.modalRoot}>
+          <Pressable style={StyleSheet.absoluteFill} onPress={() => setFolderPicker(null)} />
+          <View style={[styles.modalCard, { backgroundColor: c.card }]}>
+            <ThemedText type="subtitle" style={styles.dark}>Σε ποιο έργο;</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Ο/Η {matched?.name ?? 'πελάτης'} έχει ανοιχτά έργα. Διάλεξε ένα ή δημιούργησε νέο.
+            </ThemedText>
+            <ScrollView style={{ maxHeight: 240, marginTop: Spacing.two }}>
+              {(folderPicker?.folders ?? []).map((f) => (
+                <Pressable
+                  key={f.id}
+                  disabled={busy}
+                  onPress={() => void fileIntoExistingFolder(f.id)}
+                  style={({ pressed }) => [styles.folderRow, pressed && styles.pressed]}
+                >
+                  <ThemedText type="smallBold" style={styles.dark} numberOfLines={1}>{f.title}</ThemedText>
+                  <ThemedText type="small" themeColor="textSecondary">{f.status}</ThemedText>
+                </Pressable>
+              ))}
+            </ScrollView>
+            <View style={{ gap: Spacing.two, marginTop: Spacing.two }}>
+              <PrimaryButton label="+ Νέο έργο" tone="outline" onPress={() => { const k = folderPicker?.kind ?? 'offer'; setFolderPicker(null); openProjectModal(k); }} />
+              <Pressable onPress={() => setFolderPicker(null)}>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.secondaryLink}>Άκυρο</ThemedText>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={!!projectModalKind && !!matched} transparent animationType="fade" statusBarTranslucent onRequestClose={() => setProjectModalKind(null)}>
         <View style={styles.modalRoot}>
           <Pressable style={StyleSheet.absoluteFill} onPress={() => setProjectModalKind(null)} />
@@ -774,6 +836,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   offerLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.two },
   priceInput: { minWidth: 90, borderWidth: 1, borderColor: '#FFD699', backgroundColor: '#FFF7E6', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, fontSize: 14, color: '#7A5200', textAlign: 'right' },
   disabledLink: { opacity: 0.4 },
+  folderRow: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, marginBottom: Spacing.two, gap: 2 },
   totalsBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 4 },
   cancelLink: { color: '#D14343', fontWeight: '700', paddingTop: 4 },
   secondaryLink: { textAlign: 'center', paddingTop: Spacing.two, textDecorationLine: 'underline' },
