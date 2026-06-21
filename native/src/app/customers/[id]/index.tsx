@@ -372,6 +372,33 @@ export default function CustomerProfileScreen() {
     );
   }
 
+  // Αποκλεισμός/άρση — a blocked contact's inbound calls are rejected (μ.058).
+  function toggleBlocked() {
+    const next = !customer?.blocked;
+    Alert.alert(
+      next ? 'Αποκλεισμός κλήσεων' : 'Άρση αποκλεισμού',
+      next
+        ? 'Οι κλήσεις από αυτή την επαφή θα απορρίπτονται (δεν θα χτυπάει το τηλέφωνο).'
+        : 'Οι κλήσεις από αυτή την επαφή θα ξαναχτυπούν κανονικά.',
+      [
+        { text: 'Ακύρωση', style: 'cancel' },
+        {
+          text: next ? 'Αποκλεισμός' : 'Άρση',
+          style: next ? 'destructive' : 'default',
+          onPress: async () => {
+            try {
+              const r = await apiPatch<{ ok?: boolean }>(`/api/customers/${customerId}`, { blocked: next });
+              if (r?.ok) void load();
+              else Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.');
+            } catch {
+              Alert.alert('Σφάλμα', 'Δεν ολοκληρώθηκε.');
+            }
+          },
+        },
+      ],
+    );
+  }
+
   function rejectCustomer() {
     if (customer?.status === 'lost') return;
     // Cancel first + clearly worded so a tired tap can't fire the
@@ -667,6 +694,14 @@ export default function CustomerProfileScreen() {
 
           {/* Destructive */}
           <GroupCard>
+            <Pressable
+              onPress={toggleBlocked}
+              style={({ pressed }) => [styles.dangerRow, pressed && styles.pressed]}>
+              <Ionicons name={customer.blocked ? 'lock-open' : 'ban'} size={20} color="#D14343" />
+              <ThemedText type="smallBold" style={styles.dangerText}>
+                {customer.blocked ? 'Άρση αποκλεισμού' : 'Αποκλεισμός κλήσεων'}
+              </ThemedText>
+            </Pressable>
             <Pressable
               onPress={rejectCustomer}
               disabled={customer.status === 'lost'}

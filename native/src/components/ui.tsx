@@ -165,11 +165,13 @@ export function ChipSelect({
 }
 
 /** Collapsible section card (info panel / settings). */
+// Non-collapsible titled card. (Owner request #5: NO breakdown/accordion menus —
+// the content is always shown; settings are edited/toggled inline.) `initiallyOpen`
+// is accepted for caller compatibility but ignored.
 export function Section({
   title,
   count,
   children,
-  initiallyOpen = false,
   right,
 }: {
   title: string;
@@ -180,20 +182,16 @@ export function Section({
 }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
-  const [open, setOpen] = useState(initiallyOpen);
   return (
     <View style={styles.section}>
-      <Pressable onPress={() => setOpen((v) => !v)} style={styles.sectionHead}>
+      <View style={styles.sectionHead}>
         <ThemedText type="smallBold" style={styles.sectionTitle}>
           {title}
           {typeof count === 'number' ? ` (${count})` : ''}
         </ThemedText>
-        <View style={styles.sectionRight}>
-          {right}
-          <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={c.textFaint} />
-        </View>
-      </Pressable>
-      {open ? <View style={styles.sectionBody}>{children}</View> : null}
+        {right ? <View style={styles.sectionRight}>{right}</View> : null}
+      </View>
+      <View style={styles.sectionBody}>{children}</View>
     </View>
   );
 }

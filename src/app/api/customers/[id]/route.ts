@@ -98,6 +98,8 @@ interface CustomerRow {
   postal_code?: string | null;
   region?: string | null;
   imported_from_phone?: boolean | null;
+  // migration 058 — read tolerantly, may be absent pre-058
+  blocked?: boolean | null;
 }
 
 function dbToCustomer(row: CustomerRow) {
@@ -114,6 +116,7 @@ function dbToCustomer(row: CustomerRow) {
     postalCode: row.postal_code ?? null,
     region: row.region ?? null,
     importedFromPhone: row.imported_from_phone ?? false,
+    blocked: row.blocked ?? false,
     source: row.source,
     status: row.status,
     opportunityValue: row.opportunity_value,
@@ -201,6 +204,20 @@ export async function GET(
       }
     } catch {
       // pre-053 → fields stay null/false
+    }
+
+    // blocked (migration 058) — SEPARATE tolerant read so a pre-058 schema can't
+    // break the 053 read above.
+    try {
+      const { data: b, error: bErr } = await supabase
+        .from('customers')
+        .select('blocked')
+        .eq('id', id)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      if (!bErr && b) customer.blocked = (b as { blocked: boolean | null }).blocked ?? false;
+    } catch {
+      // pre-058 → blocked stays false
     }
 
     return NextResponse.json({ ok: true, customer });
@@ -295,6 +312,10 @@ export async function PATCH(
     const wantsExtras = extraPostal !== undefined || extraRegion !== undefined;
     if (wantsExtras) hasUpdate = true;
 
+    // blocked (migration 058) — also written in its own isolated update.
+    const extraBlocked = 'blocked' in raw ? raw.blocked === true : undefined;
+    if (extraBlocked !== undefined) hasUpdate = true;
+
     let hasMemoryFieldUpdate = false;
     if ('statusSummary' in raw) { updateFields.status_summary = str(raw.statusSummary); hasUpdate = true; hasMemoryFieldUpdate = true; }
     if ('businessNotes' in raw) { updateFields.business_notes = str(raw.businessNotes); hasUpdate = true; hasMemoryFieldUpdate = true; }
@@ -340,20 +361,32 @@ export async function PATCH(
     const patched = dbToCustomer(asCustomerRow(data));
 
     if (wantsExtras) {
-      try {
-        const extraUpdate: Record<string, unknown> = {};
-        if (extraPostal !== undefined) extraUpdate.postal_code = extraPostal;
-        if (extraRegion !== undefined) extraUpdate.region = extraRegion;
-        await supabase
-          .from('customers')
-          .update(extraUpdate)
-          .eq('id', id)
-          .eq('business_id', businessId);
+      // supabase-js does NOT throw on SQL errors — inspect the returned error and
+      // only reflect the value in the response when the write actually succeeded
+      // (pre-053 missing column → error 42703 → leave patched as-is, no false success).
+      const extraUpdate: Record<string, unknown> = {};
+      if (extraPostal !== undefined) extraUpdate.postal_code = extraPostal;
+      if (extraRegion !== undefined) extraUpdate.region = extraRegion;
+      const { error: extraErr } = await supabase
+        .from('customers')
+        .update(extraUpdate)
+        .eq('id', id)
+        .eq('business_id', businessId);
+      if (!extraErr) {
         if (extraPostal !== undefined) patched.postalCode = extraPostal;
         if (extraRegion !== undefined) patched.region = extraRegion;
-      } catch {
-        // pre-053 → swallowed; the core PATCH already succeeded.
       }
+    }
+
+    if (extraBlocked !== undefined) {
+      // Same tolerant-but-honest pattern: only set patched.blocked if the DB write
+      // succeeded (pre-058 missing column → error, the core PATCH already saved).
+      const { error: blockErr } = await supabase
+        .from('customers')
+        .update({ blocked: extraBlocked })
+        .eq('id', id)
+        .eq('business_id', businessId);
+      if (!blockErr) patched.blocked = extraBlocked;
     }
 
     return NextResponse.json({ ok: true, customer: patched });

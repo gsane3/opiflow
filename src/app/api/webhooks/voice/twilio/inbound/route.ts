@@ -125,6 +125,34 @@ export async function POST(request: NextRequest) {
     // fail-open — ring the device
   }
 
+  // Block list (migration 058): if the caller is a BLOCKED contact, reject the
+  // call so the app never rings. Match by last-10-digits to be format-tolerant.
+  // Fail-open on any DB hiccup / pre-058 schema (the line ringing matters more).
+  try {
+    const caller = extractCaller(params.From || params.Caller || '');
+    const last10 = (caller ?? '').replace(/\D/g, '').slice(-10);
+    if (last10.length === 10) {
+      const hex = identity.slice(4);
+      const businessId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+      const supabase = createServiceSupabaseClient();
+      const { data: blockedRows } = await supabase
+        .from('customers')
+        .select('phone, mobile_phone, landline_phone')
+        .eq('business_id', businessId)
+        .eq('blocked', true);
+      const rows = (blockedRows as Array<{ phone: string | null; mobile_phone: string | null; landline_phone: string | null }> | null) ?? [];
+      const isBlocked = rows.some((r) =>
+        [r.phone, r.mobile_phone, r.landline_phone].some((p) => (p ?? '').replace(/\D/g, '').slice(-10) === last10),
+      );
+      if (isBlocked) {
+        tw.reject({ reason: 'rejected' });
+        return xml(tw.toString());
+      }
+    }
+  } catch {
+    // pre-058 or DB hiccup → fail-open, ring the device
+  }
+
   // Show the real caller's number in-app (and let the CRM match it).
   const callerId = extractCaller(params.From || params.Caller || '');
 
