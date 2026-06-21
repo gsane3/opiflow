@@ -96,6 +96,9 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   const [projectError, setProjectError] = useState('');
   const [intoProject, setIntoProject] = useState(false); // success was filed into a project (customer notified)
   const [creatingCustomer, setCreatingCustomer] = useState(false);
+  // (#6) Prices the user fills in for offer lines that came back with no price
+  // (unitPrice 0, no catalog match). Keyed by index in the filtered item list.
+  const [priceEdits, setPriceEdits] = useState<Record<number, number>>({});
 
   useEffect(() => {
     apiGet<{ business?: Business }>('/api/businesses/me')
@@ -115,6 +118,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     setAppts([]);
     setProjectModalKind(null);
     setProjectTitleInput('');
+    setPriceEdits({});
     setProjectError('');
     setIntoProject(false);
     setCreatingCustomer(false);
@@ -246,9 +250,17 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   // it: a `draft` + a «review & send» follow-up task (the no-project path).
   async function saveOffer(workFolderId?: string): Promise<boolean> {
     if (!result) return false;
-    const items = (result.params.offerItems ?? []).filter((i) => i.description.trim() && i.quantity > 0);
+    const base = (result.params.offerItems ?? []).filter((i) => i.description.trim() && i.quantity > 0);
+    // Apply the user-entered prices (#6) for lines with no catalog/spoken price.
+    const items = base.map((it, idx) => ({ ...it, unitPrice: priceEdits[idx] ?? it.unitPrice }));
     if (items.length === 0) {
       Alert.alert('Προσφορά', 'Δεν βρέθηκαν γραμμές. Γράψε περιγραφές και ποσά.');
+      return false;
+    }
+    // (#6) Every line must have a price before the offer can be saved/sent.
+    const missing = items.filter((i) => !(i.unitPrice > 0));
+    if (missing.length > 0) {
+      Alert.alert('Προσφορά', `Βάλε τιμή σε όλα τα είδη: ${missing.map((i) => i.description).join(', ')}`);
       return false;
     }
     const filed = !!workFolderId;
@@ -393,10 +405,13 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
 
   const offerTotals = (() => {
     if (result?.intent !== 'create_offer') return null;
-    const items = (result.params.offerItems ?? []).filter((i) => i.description.trim() && i.quantity > 0);
+    const base = (result.params.offerItems ?? []).filter((i) => i.description.trim() && i.quantity > 0);
+    // Apply any user-entered prices for lines that came back with no price (#6).
+    const items = base.map((it, idx) => ({ ...it, unitPrice: priceEdits[idx] ?? it.unitPrice }));
     const sub = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
     const vat = Number(((sub * vatRate) / 100).toFixed(2));
-    return { items, sub, vat, total: Number((sub + vat).toFixed(2)) };
+    const needsPrice = items.some((i) => !(i.unitPrice > 0));
+    return { items, sub, vat, total: Number((sub + vat).toFixed(2)), needsPrice };
   })();
 
   return (
@@ -583,7 +598,20 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                     {offerTotals.items.map((it, i) => (
                       <View key={i} style={styles.offerLine}>
                         <ThemedText type="small" style={[styles.dark, { flex: 1 }]} numberOfLines={1}>{it.description}</ThemedText>
-                        <ThemedText type="small" themeColor="textSecondary">{it.quantity}× {formatEuro(it.unitPrice)}</ThemedText>
+                        {it.unitPrice > 0 ? (
+                          <ThemedText type="small" themeColor="textSecondary">{it.quantity}× {formatEuro(it.unitPrice)}</ThemedText>
+                        ) : (
+                          <TextInput
+                            keyboardType="decimal-pad"
+                            placeholder="Τιμή €"
+                            placeholderTextColor={c.textFaint}
+                            onChangeText={(t) => {
+                              const n = parseFloat(t.replace(',', '.'));
+                              setPriceEdits((p) => ({ ...p, [i]: isFinite(n) && n > 0 ? n : 0 }));
+                            }}
+                            style={styles.priceInput}
+                          />
+                        )}
                       </View>
                     ))}
                     <View style={styles.totalsBox}>
@@ -591,20 +619,23 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                       <Row k={`ΦΠΑ ${vatRate}%`} v={formatEuro(offerTotals.vat)} />
                       <Row k="Σύνολο" v={formatEuro(offerTotals.total)} bold />
                     </View>
+                    {offerTotals.needsPrice ? (
+                      <ThemedText type="small" style={styles.warnText}>Βάλε τιμή σε όλα τα είδη για να σταλεί η προσφορά.</ThemedText>
+                    ) : null}
                     {!matched && result.params.customerName ? (
                       <PrimaryButton label={`Δημιουργία πελάτη «${result.params.customerName}»`} tone="outline" busy={creatingCustomer} onPress={() => void createCustomer()} />
                     ) : null}
                     {matched ? (
                       <>
-                        <PrimaryButton label="Στείλε προσφορά" busy={busy} onPress={() => openProjectModal('offer')} />
-                        <Pressable disabled={busy} onPress={() => void saveOffer()} style={({ pressed }) => [pressed && styles.pressed]}>
-                          <ThemedText type="small" themeColor="textSecondary" style={styles.secondaryLink}>Μόνο πρόχειρο (χωρίς αποστολή)</ThemedText>
+                        <PrimaryButton label="Στείλε προσφορά" busy={busy} disabled={offerTotals.needsPrice} onPress={() => openProjectModal('offer')} />
+                        <Pressable disabled={busy || offerTotals.needsPrice} onPress={() => void saveOffer()} style={({ pressed }) => [pressed && styles.pressed]}>
+                          <ThemedText type="small" themeColor="textSecondary" style={[styles.secondaryLink, offerTotals.needsPrice && styles.disabledLink]}>Μόνο πρόχειρο (χωρίς αποστολή)</ThemedText>
                         </Pressable>
                       </>
                     ) : (
                       <>
                         <ThemedText type="small" themeColor="textSecondary">Θα δημιουργηθεί πρόχειρο. Δεν στέλνεται στον πελάτη.</ThemedText>
-                        <PrimaryButton label="Δημιουργία πρόχειρης προσφοράς" busy={busy} onPress={() => void saveOffer()} />
+                        <PrimaryButton label="Δημιουργία πρόχειρης προσφοράς" busy={busy} disabled={offerTotals.needsPrice} onPress={() => void saveOffer()} />
                       </>
                     )}
                   </>
@@ -740,7 +771,9 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   warnText: { color: '#9A6B00' },
   apptRow: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 2 },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.three },
-  offerLine: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.two },
+  offerLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: Spacing.two },
+  priceInput: { minWidth: 90, borderWidth: 1, borderColor: '#FFD699', backgroundColor: '#FFF7E6', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4, fontSize: 14, color: '#7A5200', textAlign: 'right' },
+  disabledLink: { opacity: 0.4 },
   totalsBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 4 },
   cancelLink: { color: '#D14343', fontWeight: '700', paddingTop: 4 },
   secondaryLink: { textAlign: 'center', paddingTop: Spacing.two, textDecorationLine: 'underline' },

@@ -772,9 +772,27 @@ export default function CmdPage() {
   // which (via the offers API) notifies the customer with the portal link — the
   // actual "send". Without it: a `draft` is created plus a «review & send»
   // follow-up task (the original draft-only behaviour, kept for the no-project path).
+  // (#6) Fill in a missing price (unitPrice 0) and recompute the totals live.
+  function updateOfferItemPrice(idx: number, price: number) {
+    setOfferPreviewData((prev) => {
+      if (!prev) return prev;
+      const items = prev.validItems.map((it, i) => (i === idx ? { ...it, unitPrice: price } : it));
+      const subtotal = items.reduce((s, i) => s + i.quantity * i.unitPrice, 0);
+      const vatAmount = Number((subtotal * prev.vatRate / 100).toFixed(2));
+      return { ...prev, validItems: items, subtotal, vatAmount, total: Number((subtotal + vatAmount).toFixed(2)) };
+    });
+    setOfferSaveError(null);
+  }
+
   async function handleSaveOffer(workFolderId?: string) {
     if (!result || !offerPreviewData || offerPreviewData.validItems.length === 0) return false;
     if (customerCandidates.length > 1 && !customerMatchResolved) return false;
+    // (#6) Every line must have a price before the offer can be saved/sent.
+    const missing = offerPreviewData.validItems.filter((i) => !(i.unitPrice > 0));
+    if (missing.length > 0) {
+      setOfferSaveError(`Βάλε τιμή σε όλα τα είδη: ${missing.map((i) => i.description).join(', ')}`);
+      return false;
+    }
     const { validItems, vatRate } = offerPreviewData;
     const intoProject = !!workFolderId;
     setIsSavingOffer(true);
@@ -1072,6 +1090,9 @@ export default function CmdPage() {
       </div>
     );
   }
+
+  // (#6) An offer cannot be saved/sent while any line is missing a price.
+  const offerNeedsPrice = !!offerPreviewData && offerPreviewData.validItems.some((i) => !(i.unitPrice > 0));
 
   return (
     <div className="mx-auto w-full max-w-md space-y-5 px-5 pt-6 pb-28 md:max-w-2xl md:px-8">
@@ -1537,8 +1558,22 @@ export default function CmdPage() {
                           <tr key={idx}>
                             <td className="py-1.5 text-zinc-800 dark:text-zinc-200">{item.description}</td>
                             <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{item.quantity}</td>
-                            <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">{fmtEur(item.unitPrice)}</td>
-                            <td className="py-1.5 text-right text-zinc-800 dark:text-zinc-200">{fmtEur(item.quantity * item.unitPrice)}</td>
+                            <td className="py-1.5 text-right text-zinc-600 dark:text-zinc-300">
+                              {item.unitPrice > 0 ? (
+                                fmtEur(item.unitPrice)
+                              ) : (
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  inputMode="decimal"
+                                  placeholder="Τιμή €"
+                                  onChange={(e) => updateOfferItemPrice(idx, parseFloat(e.target.value) || 0)}
+                                  className="w-20 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-right text-amber-900 outline-none focus:ring-2 focus:ring-amber-200"
+                                />
+                              )}
+                            </td>
+                            <td className="py-1.5 text-right text-zinc-800 dark:text-zinc-200">{item.unitPrice > 0 ? fmtEur(item.quantity * item.unitPrice) : '—'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1577,6 +1612,9 @@ export default function CmdPage() {
                   {customerCandidates.length > 1 && !customerMatchResolved && (
                     <p className="text-xs text-zinc-400 dark:text-zinc-500">Διάλεξε πελάτη ή συνέχισε χωρίς σύνδεση πελάτη.</p>
                   )}
+                  {offerNeedsPrice && (
+                    <p className="text-xs text-amber-600">Βάλε τιμή σε όλα τα είδη για να σταλεί η προσφορά.</p>
+                  )}
                   {offerSaveError && (
                     <p className="text-xs text-red-600">{offerSaveError}</p>
                   )}
@@ -1585,7 +1623,7 @@ export default function CmdPage() {
                       <button
                         type="button"
                         onClick={() => openProjectModal('offer')}
-                        disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer}
+                        disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer || offerNeedsPrice}
                         className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                       >
                         Στείλε προσφορά
@@ -1593,8 +1631,8 @@ export default function CmdPage() {
                       <button
                         type="button"
                         onClick={() => { void handleSaveOffer(); }}
-                        disabled={isSavingOffer}
-                        className="w-full text-center text-xs text-zinc-400 hover:text-zinc-600 transition dark:text-zinc-500 dark:hover:text-zinc-300"
+                        disabled={isSavingOffer || offerNeedsPrice}
+                        className="w-full text-center text-xs text-zinc-400 hover:text-zinc-600 transition dark:text-zinc-500 dark:hover:text-zinc-300 disabled:opacity-50"
                       >
                         {isSavingOffer ? 'Αποθήκευση...' : 'Μόνο πρόχειρη προσφορά (χωρίς αποστολή)'}
                       </button>
@@ -1603,7 +1641,7 @@ export default function CmdPage() {
                     <button
                       type="button"
                       onClick={() => { void handleSaveOffer(); }}
-                      disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer}
+                      disabled={(customerCandidates.length > 1 && !customerMatchResolved) || isSavingOffer || offerNeedsPrice}
                       className="w-full rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
                     >
                       {isSavingOffer ? 'Αποθήκευση...' : 'Δημιουργία πρόχειρης προσφοράς'}
