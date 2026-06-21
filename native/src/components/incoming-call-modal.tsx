@@ -12,10 +12,11 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import React, { useEffect, useState, useSyncExternalStore } from 'react';
+import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Modal, Pressable, Text, View } from 'react-native';
 
 import { Brand, BrandGradient } from '@/constants/theme';
+import { maybePromptIntakeFor } from '@/lib/intake-prompt';
 import { getIncomingCall, subscribeIncomingCall } from '@/lib/twilio-state';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
@@ -53,6 +54,24 @@ export function IncomingCallModal() {
     const id = setInterval(() => setSeconds((s) => s + 1), 1000);
     return () => clearInterval(id);
   }, [connected]);
+
+  // End-of-call intake popup for inbound: when an ANSWERED inbound call to a NEW
+  // (unknown) number ends, auto-ask whether to send the details request — parity
+  // with the outbound dialer. Tracked across the call's lifetime via a ref so we
+  // fire once, right after the modal closes.
+  const sessRef = useRef<{ from: string | null; connected: boolean }>({ from: null, connected: false });
+  useEffect(() => {
+    if (call) {
+      if (call.from) sessRef.current.from = call.from;
+      if (call.phase === 'connected') sessRef.current.connected = true;
+    } else if (sessRef.current.connected && sessRef.current.from) {
+      const from = sessRef.current.from;
+      sessRef.current = { from: null, connected: false };
+      void maybePromptIntakeFor(from);
+    } else {
+      sessRef.current = { from: null, connected: false };
+    }
+  }, [call]);
 
   if (!call) return null;
 
