@@ -14,6 +14,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { PrimaryButton } from '@/components/ui';
+import VoiceCommandRecorder from '@/components/voice-command-recorder';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
@@ -102,6 +103,8 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   // (#5) Pick an existing open project instead of always creating a new one.
   const [folderPicker, setFolderPicker] = useState<{ kind: 'appointment' | 'offer'; folders: Array<{ id: string; title: string; status: string }> } | null>(null);
   const [loadingFolders, setLoadingFolders] = useState(false);
+  // (#2) Voice dictation recorder modal.
+  const [voiceOpen, setVoiceOpen] = useState(false);
 
   useEffect(() => {
     apiGet<{ business?: Business }>('/api/businesses/me')
@@ -472,10 +475,10 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
               multiline
               style={[styles.input, styles.inputFlex]}
             />
-            {/* Dictation: focus the field so the keyboard mic appears. */}
+            {/* Voice dictation: record → transcribe (OpenAI) → fill the command. */}
             <Pressable
-              accessibilityLabel="Υπαγόρευση"
-              onPress={() => inputRef.current?.focus()}
+              accessibilityLabel="Φωνητική εντολή"
+              onPress={() => setVoiceOpen(true)}
               style={({ pressed }) => [styles.micBtn, pressed && { opacity: 0.85 }]}
             >
               <Ionicons name="mic" size={22} color="#FFFFFF" />
@@ -771,6 +774,17 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
           </View>
         </View>
       </Modal>
+
+      {/* (#2) Voice dictation: record → transcribe → fill the command box. */}
+      <VoiceCommandRecorder
+        visible={voiceOpen}
+        onClose={() => setVoiceOpen(false)}
+        onTranscribed={(t) => {
+          setInput(t);
+          setVoiceOpen(false);
+          if (t.trim().length > 3) void analyze(t);
+        }}
+      />
     </ThemedView>
   );
 }

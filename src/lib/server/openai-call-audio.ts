@@ -175,8 +175,9 @@ async function transcribeWithDeepgram(audioFile: File): Promise<string | null> {
 // POST the audio to OpenAI's transcription endpoint (Greek). Returns the flat
 // transcript text or null on any failure — a clean signal for the caller. Used
 // both as the default path (no Deepgram key) and as a rescue when Deepgram
-// returns an implausibly thin transcript.
-async function transcribeWithOpenAI(
+// returns an implausibly thin transcript. Exported for the /api/ai/transcribe
+// voice-dictation endpoint (the AI assistant mic).
+export async function transcribeWithOpenAI(
   audioFile: File,
   model: string,
   apiKey: string
