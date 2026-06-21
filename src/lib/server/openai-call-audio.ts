@@ -11,6 +11,12 @@ const DEEPGRAM_LISTEN_URL =
 const DEEPGRAM_MODEL_LABEL = 'deepgram-nova-2';
 const TRANSCRIPTION_TIMEOUT_MS = 60_000;
 const BRIEF_TIMEOUT_MS = 30_000;
+// Deepgram sometimes returns a thin/partial transcript for Greek phone audio with
+// cross-talk or ringback (observed: ~90 chars for a 43s answered call), which then
+// makes the brief read «Χωρίς συνομιλία.». When a Deepgram result looks implausibly
+// short we ALSO run the OpenAI transcriber and keep whichever transcript is fuller.
+const SHORT_TRANSCRIPT_CHARS = 120;
+const MIN_CHARS_PER_SECOND = 3;
 
 export interface TranscribeAndBriefInput {
   audioFile: File;
@@ -166,6 +172,70 @@ async function transcribeWithDeepgram(audioFile: File): Promise<string | null> {
   }
 }
 
+// POST the audio to OpenAI's transcription endpoint (Greek). Returns the flat
+// transcript text or null on any failure — a clean signal for the caller. Used
+// both as the default path (no Deepgram key) and as a rescue when Deepgram
+// returns an implausibly thin transcript.
+async function transcribeWithOpenAI(
+  audioFile: File,
+  model: string,
+  apiKey: string
+): Promise<string | null> {
+  const form = new FormData();
+  form.append('file', audioFile);
+  form.append('model', model);
+  form.append('language', 'el');
+  form.append('response_format', 'json');
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TRANSCRIPTION_TIMEOUT_MS);
+  try {
+    const res = await fetch(OPENAI_TRANSCRIPTION_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+    if (!res.ok) {
+      console.error('openai-call-audio: transcription returned', res.status);
+      return null;
+    }
+    let data: unknown;
+    try {
+      data = await res.json();
+    } catch {
+      console.error('openai-call-audio: failed to parse transcription response');
+      return null;
+    }
+    if (!isRecord(data) || typeof data['text'] !== 'string' || !data['text'].trim()) {
+      console.error('openai-call-audio: transcription response missing text field');
+      return null;
+    }
+    return data['text'].trim();
+  } catch (err) {
+    if (err instanceof Error && err.name === 'AbortError') {
+      console.error('openai-call-audio: transcription timed out');
+    } else {
+      console.error('openai-call-audio: transcription fetch error');
+    }
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// Rough audio length, used only to judge whether a transcript is implausibly
+// short. Asterisk records PCM s16 mono 8 kHz (byteRate 16000). Only estimated for
+// WAV by name/type; returns 0 for compressed uploads so the duration heuristic is
+// simply skipped (the absolute-length floor still applies).
+function estimateWavSeconds(file: File): number {
+  const name = (file.name || '').toLowerCase();
+  const type = (file.type || '').toLowerCase();
+  const isWav = name.endsWith('.wav') || type.includes('wav');
+  if (!isWav || file.size <= 44) return 0;
+  return (file.size - 44) / 16000;
+}
+
 // Safely extract text from the OpenAI Responses API response shape.
 // Prefers the top-level output_text convenience field if present.
 // Falls back to traversing output[].content[].text.
@@ -317,60 +387,28 @@ export async function transcribeAndBriefCallAudio(
     hasSpeakerLabels = true;
   }
 
-  // Fallback: OpenAI transcription (also the default when DEEPGRAM_API_KEY is
-  // unset). Unchanged behavior from before.
-  if (transcript === null) {
-    const transcriptionForm = new FormData();
-    transcriptionForm.append('file', input.audioFile);
-    transcriptionForm.append('model', openaiTranscriptionModel);
-    transcriptionForm.append('language', 'el');
-    transcriptionForm.append('response_format', 'json');
+  // Run OpenAI transcription when Deepgram is unset/failed (transcript === null)
+  // OR returned an implausibly short result for the audio length (the «Χωρίς
+  // συνομιλία.» bug — e.g. 90 chars for a 43s answered call). Keep whichever
+  // transcript is fuller; OpenAI output is flat (no speaker labels).
+  const estSeconds = estimateWavSeconds(input.audioFile);
+  const deepgramSuspicious =
+    diarized !== null &&
+    (diarized.length < SHORT_TRANSCRIPT_CHARS ||
+      (estSeconds >= 20 && diarized.length < estSeconds * MIN_CHARS_PER_SECOND));
 
-    const transcriptionController = new AbortController();
-    const transcriptionTimer = setTimeout(
-      () => transcriptionController.abort(),
-      TRANSCRIPTION_TIMEOUT_MS
-    );
-
-    try {
-      const res = await fetch(OPENAI_TRANSCRIPTION_URL, {
-        method: 'POST',
-        signal: transcriptionController.signal,
-        headers: { Authorization: `Bearer ${apiKey}` },
-        body: transcriptionForm,
-      });
-
-      if (!res.ok) {
-        console.error('openai-call-audio: transcription returned', res.status);
-        return null;
-      }
-
-      let data: unknown;
-      try {
-        data = await res.json();
-      } catch {
-        console.error('openai-call-audio: failed to parse transcription response');
-        return null;
-      }
-
-      if (!isRecord(data) || typeof data['text'] !== 'string' || !data['text'].trim()) {
-        console.error('openai-call-audio: transcription response missing text field');
-        return null;
-      }
-
-      transcript = data['text'].trim();
+  if (transcript === null || deepgramSuspicious) {
+    const openaiText = await transcribeWithOpenAI(input.audioFile, openaiTranscriptionModel, apiKey);
+    if (openaiText && (transcript === null || openaiText.length > transcript.length)) {
+      transcript = openaiText;
       transcriptionModel = openaiTranscriptionModel;
       hasSpeakerLabels = false;
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        console.error('openai-call-audio: transcription timed out');
-      } else {
-        console.error('openai-call-audio: transcription fetch error');
-      }
-      return null;
-    } finally {
-      clearTimeout(transcriptionTimer);
     }
+  }
+
+  // Both transcription paths failed → nothing to brief.
+  if (transcript === null) {
+    return null;
   }
 
   // ---------------------------------------------------------------------------
