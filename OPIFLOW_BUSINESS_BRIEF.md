@@ -66,8 +66,7 @@ Per-unit (EUR), derived from the 2026 vendor audit:
 | Driver | Unit | Cost |
 |---|---|---|
 | Twilio voice (SDK+SIP legs) | per in-app call minute | 0.0074 |
-| InterTelecom carrier | inbound min | **0** (confirmed free) |
-| InterTelecom carrier | outbound min | **~0.010 `[VALIDATE]`** (band 0.005–0.020) |
+| InterTelecom carrier (KNOWN) | monthly talk bundle, per number | **€5 / 500 min** or **€13 / 1500 min** (to all, 30 days) |
 | Twilio recording (outbound only, dual) | per recorded min | 0.0046 |
 | Transcription (Deepgram nova-2 + diarization) | per recorded min | 0.0058 |
 | AI call brief (OpenAI gpt-4o) | per recorded call | ~0.006 |
@@ -75,15 +74,18 @@ Per-unit (EUR), derived from the 2026 vendor audit:
 | Messaging (Apifon, blended Viber+SMS) | per message | ~0.020 |
 | Dedicated number (DID) | per month | 1.25 (€15/yr) |
 
-### 3c. Per-tenant all-in COGS (steady state, N=20, InterTelecom @ €0.010/min outbound)
+### 3c. Per-tenant all-in COGS (steady state, N=20, carrier bundle €5/€13 + Stripe 3%)
 | Profile | Usage | €/mo |
 |---|---|---|
-| **Light** | ~40 calls, no recording, ~30 msgs | **~6** |
-| **Typical** (median solo is light→typical) | ~120 calls, 60% recorded, ~70 msgs | **~12** |
-| **Heavy** (really a 2–3 person crew) | ~300 calls, 90% recorded, ~150 msgs | **~28–32** |
+| **Light** | ~40 calls, no recording, ~30 msgs (carrier €5) | **~9–10** |
+| **Typical** (median solo is light→typical) | ~120 calls, 60% recorded, ~70 msgs (carrier €5) | **~14–15** |
+| **Heavy** (really a 2–3 person crew) | ~300 calls, 90% recorded, ~150 msgs (carrier €13) | **~36–37** |
 
-> Early-stage reality: at **N=5** add ~€8/tenant (fixed amortization), so Typical ≈ €20. If the
-> Apifon €150 minimum is real, add the 3b-Apifon column on top until volume absorbs it.
+> The known €5 carrier bundle is a per-number **floor** every tenant pays, so it raises light/typical
+> COGS vs the old per-minute guess but makes telephony predictable. Gross margin at €39 stays
+> ~61–67%. Early-stage: at **N=5** add ~€8/tenant fixed amortization. If the Apifon €150 minimum
+> is mandatory (likely), add the 3b-Apifon column until volume absorbs it (cuts N=20 margin to ~42%).
+> Full corrected economics + valuation: see `OPIFLOW_FEATURES_AND_VALUATION.md`.
 
 ## 4. Pricing & margin (current hypothesis — `[DECIDE]`)
 
@@ -118,7 +120,7 @@ net_new_customers        = gross_adds − churned    (churned = start_customers 
 | Monthly churn | `[VALIDATE]` (SMB SaaS often 3–6%/mo) | lifetime + LTV |
 | CAC & channel | `[DECIDE]` (referrals, FB/IG, trade groups, direct) | payback, burn |
 | Trial→paid conversion | `[VALIDATE]` | funnel efficiency |
-| Carrier per-minute (InterTelecom) | `[VALIDATE]` | COGS at scale |
+| Carrier (InterTelecom) | **KNOWN: €5/500min or €13/1500min per 30 days, to all** | COGS floor per number |
 | Apifon monthly minimum | `[VALIDATE]` | early fixed cost |
 | Customer ramp (adds/quarter) | `[DECIDE]` | the whole forecast |
 | Team/founder costs, your salary | `[DECIDE]` | true P&L / burn |
