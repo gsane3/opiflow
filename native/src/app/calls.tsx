@@ -22,7 +22,8 @@ import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { apiGet, apiPost } from '@/lib/api';
+import { apiGet } from '@/lib/api';
+import { maybePromptIntakeFor } from '@/lib/intake-prompt';
 import { hapticTap } from '@/lib/haptics';
 import { briefExcerpt, formatWhen } from '@/lib/format';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
@@ -110,63 +111,8 @@ export default function CallsScreen() {
   const press = (k: string) => setNum((n) => (n + k).slice(0, 24));
   const back = () => setNum((n) => n.slice(0, -1));
 
-  // Finds an existing customer for this number (by last-10-digit match) or creates
-  // one, then sends the intake-link (Viber → SMS). Used by the end-of-call prompt.
-  const sendIntakeForNumber = useCallback(async (number: string) => {
-    const last10 = (s?: string | null) => (s ? s.replace(/\D/g, '').slice(-10) : '');
-    const digits = last10(number);
-    try {
-      let id: string | null = null;
-      try {
-        const found = await apiGet<{ customers?: Array<{ id: string; phone?: string | null; mobilePhone?: string | null }> }>(
-          `/api/customers?q=${encodeURIComponent(number)}&limit=5`,
-        );
-        id = (found?.customers ?? []).find(
-          (cu) => last10(cu.phone) === digits || last10(cu.mobilePhone) === digits,
-        )?.id ?? null;
-      } catch {
-        // ignore — fall through to create
-      }
-      if (!id) {
-        const created = await apiPost<{ customer?: { id: string } }>('/api/customers', { phone: number, source: 'manual_entry' });
-        id = created?.customer?.id ?? null;
-      }
-      if (!id) { Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε επαφή.'); return; }
-      const r = await apiPost<{ sent?: boolean }>(`/api/customers/${id}/intake-link`, { mode: 'send' });
-      Alert.alert(r?.sent ? '✓' : 'Αποστολή', r?.sent ? 'Στάλθηκε αίτημα στοιχείων.' : 'Δεν στάλθηκε (λείπει κινητό; βάλε στοιχεία χειροκίνητα).');
-      void loadRecent();
-    } catch {
-      Alert.alert('Σφάλμα', 'Η αποστολή απέτυχε.');
-    }
-  }, [loadRecent]);
-
-  // End-of-call popup (parity with web): on a completed call to a number that is
-  // NOT yet a named customer, ask whether to send the details request. «Όχι» does
-  // nothing — the call stays a plain entry in «Πρόσφατες».
-  const maybePromptIntake = useCallback(async (number: string) => {
-    const last10 = (s?: string | null) => (s ? s.replace(/\D/g, '').slice(-10) : '');
-    const digits = last10(number);
-    if (!digits) return;
-    try {
-      const found = await apiGet<{ customers?: Array<{ id: string; name?: string | null; phone?: string | null; mobilePhone?: string | null }> }>(
-        `/api/customers?q=${encodeURIComponent(number)}&limit=5`,
-      );
-      const known = (found?.customers ?? []).find(
-        (cu) => (last10(cu.phone) === digits || last10(cu.mobilePhone) === digits) && !!cu.name?.trim(),
-      );
-      if (known) return; // already a named customer → no nag
-    } catch {
-      // ignore — still offer
-    }
-    Alert.alert(
-      'Να σταλεί αίτημα αποστολής στοιχείων;',
-      'Αν η επαφή δεν έχει Viber, θα σταλεί αυτόματα SMS. Αν είναι σταθερό, θα πρέπει να βάλεις τα στοιχεία χειροκίνητα.',
-      [
-        { text: 'Όχι', style: 'cancel' },
-        { text: 'Ναι', onPress: () => void sendIntakeForNumber(number) },
-      ],
-    );
-  }, [sendIntakeForNumber]);
+  // End-of-call intake prompt lives in the shared helper (also used by the
+  // inbound incoming-call modal) so the behaviour is identical everywhere.
 
   const dial = useCallback(
     async (target?: string) => {
@@ -218,7 +164,7 @@ export default function CallsScreen() {
             });
             // End-of-call popup: ask to send the details request (only for
             // completed calls to a not-yet-named number).
-            if (r.status === 'completed') void maybePromptIntake(number);
+            if (r.status === 'completed') void maybePromptIntakeFor(number, loadRecent);
           },
         );
         setCall(handle);
@@ -229,7 +175,7 @@ export default function CallsScreen() {
         Alert.alert('Αποτυχία κλήσης', msg);
       }
     },
-    [num, loadRecent, maybePromptIntake],
+    [num, loadRecent],
   );
 
   function hangup() {
