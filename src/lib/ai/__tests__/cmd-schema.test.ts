@@ -24,6 +24,39 @@ describe('parseCmdResponse — create_project', () => {
   });
 });
 
+describe('parseCmdResponse — create_offer multi-line (#6)', () => {
+  it('keeps EACH item as a separate line', () => {
+    const r = parseCmdResponse(
+      JSON.stringify({
+        intent: 'create_offer',
+        summary: 'Προσφορά με 3 είδη.',
+        params: {
+          customerName: 'Χ',
+          offerItems: [
+            { description: 'Baron 120x60', quantity: 1, unitPrice: 150 },
+            { description: 'Baron 150x80', quantity: 1, unitPrice: 0 },
+            { description: 'Baron 300x60', quantity: 2, unitPrice: 0 },
+          ],
+        },
+      })
+    );
+    expect(r.intent).toBe('create_offer');
+    expect(r.params.offerItems).toHaveLength(3);
+    expect(r.params.offerItems?.[0]).toEqual({ description: 'Baron 120x60', quantity: 1, unitPrice: 150 });
+  });
+
+  it('preserves unitPrice 0 for a line with no price (the app then requires one)', () => {
+    const r = parseCmdResponse(
+      JSON.stringify({
+        intent: 'create_offer',
+        summary: 'Προσφορά.',
+        params: { customerName: 'Χ', offerItems: [{ description: 'Baron 150x80', quantity: 1, unitPrice: 0 }] },
+      })
+    );
+    expect(r.params.offerItems?.[0].unitPrice).toBe(0);
+  });
+});
+
 describe('parseCmdResponse — projectTitle scoping', () => {
   it('keeps projectTitle for create_appointment', () => {
     const r = parseCmdResponse(

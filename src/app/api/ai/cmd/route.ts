@@ -1,9 +1,47 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import { authenticateBusinessRequest } from '@/lib/api/auth';
 import { buildCmdPrompt } from '@/lib/ai/cmd-prompt';
-import { parseCmdResponse } from '@/lib/ai/cmd-schema';
+import { parseCmdResponse, type CmdReviewResult } from '@/lib/ai/cmd-schema';
 
 export const runtime = 'nodejs';
+
+// For a create_offer with line items that have NO price (unitPrice 0), best-effort
+// fill the price from the service catalog by matching the description against the
+// catalog item name (normalised: lowercase, no spaces/dashes, Greek × → x). Never
+// fabricates a price — items with no catalog match stay at 0 (the UI then requires
+// the user to enter a price before sending). Fully graceful: any failure → unchanged.
+async function enrichOfferPricesFromCatalog(result: CmdReviewResult, req: NextRequest): Promise<CmdReviewResult> {
+  if (result.intent !== 'create_offer') return result;
+  const items = result.params.offerItems;
+  if (!items || !items.some((i) => i.unitPrice === 0)) return result;
+  try {
+    const auth = await authenticateBusinessRequest(req);
+    if ('error' in auth) return result;
+    const { supabase, businessId } = auth.ctx;
+    const { data } = await supabase
+      .from('service_catalog_items')
+      .select('name, unit_price')
+      .eq('business_id', businessId)
+      .eq('active', true)
+      .limit(500);
+    const rows = (data ?? []) as Array<{ name: string | null; unit_price: number | null }>;
+    if (rows.length === 0) return result;
+    const norm = (s: string) => s.toLowerCase().replace(/×/g, 'x').replace(/[\s\-_.]/g, '');
+    const byName = new Map<string, number>();
+    for (const r of rows) {
+      if (r.name && typeof r.unit_price === 'number' && r.unit_price > 0) byName.set(norm(r.name), r.unit_price);
+    }
+    const enriched = items.map((it) => {
+      if (it.unitPrice > 0) return it;
+      const price = byName.get(norm(it.description));
+      return typeof price === 'number' && price > 0 ? { ...it, unitPrice: price } : it;
+    });
+    return { ...result, params: { ...result.params, offerItems: enriched } };
+  } catch {
+    return result;
+  }
+}
 
 const CMD_MAX_BODY_BYTES = 16_000;
 const CMD_MAX_INPUT_CHARS = 500;
@@ -146,6 +184,6 @@ export async function POST(req: NextRequest) {
     clearTimeout(timeoutId);
   }
 
-  const result = parseCmdResponse(rawText);
+  const result = await enrichOfferPricesFromCatalog(parseCmdResponse(rawText), req);
   return NextResponse.json({ ok: true, result });
 }
