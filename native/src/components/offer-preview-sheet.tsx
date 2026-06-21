@@ -10,7 +10,7 @@ import { Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatDate, formatEuro } from '@/lib/format';
-import type { LinkDraft, Offer } from '@/lib/types';
+import type { Customer, LinkDraft, Offer } from '@/lib/types';
 
 const STATUS_GR: Record<string, string> = {
   draft: 'Πρόχειρη',
@@ -41,17 +41,27 @@ export function OfferPreviewSheet({
   const [retryKey, setRetryKey] = useState(0);
   // Bank details for the payment block (migration 048; null/empty → hidden).
   const [bank, setBank] = useState<{ beneficiary: string | null; bank: string | null; iban: string | null } | null>(null);
+  // Recipient (customer) for the «Προς» block on the offer document (#7).
+  const [recipient, setRecipient] = useState<Customer | null>(null);
 
   useEffect(() => {
     setOffer(null);
     setDraft(null);
     setLoadError(false);
     setBank(null);
+    setRecipient(null);
     if (!offerId) return;
     apiGet<{ ok?: boolean; offer?: Offer }>(`/api/offers/${offerId}`)
       .then((res) => {
-        if (res?.offer) setOffer(res.offer);
-        else setLoadError(true);
+        if (res?.offer) {
+          setOffer(res.offer);
+          // Load the recipient so the offer shows «Προς» details (non-fatal).
+          if (res.offer.customerId) {
+            apiGet<{ customer?: Customer }>(`/api/customers/${res.offer.customerId}`)
+              .then((cr) => setRecipient(cr?.customer ?? null))
+              .catch(() => {});
+          }
+        } else setLoadError(true);
       })
       .catch(() => setLoadError(true));
     // Business bank details (separate endpoint; non-fatal, hides if absent).
@@ -137,6 +147,18 @@ export function OfferPreviewSheet({
             {formatDate(offer.createdAt)} · {STATUS_GR[offer.status] ?? offer.status}
           </ThemedText>
 
+          {recipient && (recipient.name || recipient.companyName || recipient.phone || recipient.mobilePhone || recipient.address) ? (
+            <View style={styles.recipientBox}>
+              <ThemedText type="small" themeColor="textSecondary">Προς</ThemedText>
+              {recipient.name ? <ThemedText type="smallBold" style={styles.dark}>{recipient.name}</ThemedText> : null}
+              {recipient.companyName ? <ThemedText type="small" style={styles.dark}>{recipient.companyName}</ThemedText> : null}
+              {recipient.phone || recipient.mobilePhone ? (
+                <ThemedText type="small" themeColor="textSecondary">{recipient.phone || recipient.mobilePhone}</ThemedText>
+              ) : null}
+              {recipient.address ? <ThemedText type="small" themeColor="textSecondary">{recipient.address}</ThemedText> : null}
+            </View>
+          ) : null}
+
           <View style={styles.items}>
             {offer.items.map((it, i) => (
               <View key={i} style={styles.itemRow}>
@@ -206,5 +228,6 @@ const makeStyles = (c: ThemePalette) =>
     total: { fontSize: 17, color: c.text },
     msgBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three },
     bankBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 2 },
+    recipientBox: { backgroundColor: c.surface, borderRadius: 12, padding: Spacing.three, gap: 2 },
     dark: { color: c.text },
   });
