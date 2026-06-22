@@ -17,6 +17,25 @@ const BRIEF_TIMEOUT_MS = 30_000;
 // short we ALSO run the OpenAI transcriber and keep whichever transcript is fuller.
 const SHORT_TRANSCRIPT_CHARS = 120;
 const MIN_CHARS_PER_SECOND = 3;
+// A transcript with fewer real letters than this carries no usable speech (pure
+// silence, ringback, hold music, a single beep). Below it we set the brief to
+// «Χωρίς συνομιλία.» deterministically in code. ABOVE it we ALWAYS ask the model
+// for a real brief — even if only one side was captured or diarization collapsed
+// every word onto one speaker. This is the fix for substantial transcripts
+// (observed: 1016 chars of a real 88s call) wrongly getting «Χωρίς συνομιλία.»
+// because the model judged them "not a two-way conversation".
+const MIN_SPEECH_LETTERS = 16;
+const NO_CONVERSATION_BRIEF = 'Χωρίς συνομιλία.';
+
+// Count Greek/Latin letters in the transcript, ignoring "Ομιλητής N:" speaker
+// labels and all punctuation/whitespace — a robust "is there real speech here?"
+// signal that does not depend on the model's judgment about turn-taking.
+// Exported for unit testing.
+export function countSpeechLetters(transcript: string): number {
+  const withoutLabels = transcript.replace(/Ομιλητής\s*\d+\s*:/g, ' ');
+  const letters = withoutLabels.match(/\p{L}/gu);
+  return letters ? letters.length : 0;
+}
 
 export interface TranscribeAndBriefInput {
   audioFile: File;
@@ -287,13 +306,15 @@ function buildBriefPrompt(
         'Η μεταγραφή έχει ετικέτες ομιλητών (π.χ. "Ομιλητής 1", "Ομιλητής 2").',
         'Χρησιμοποίησέ τες για να καταλάβεις ποιος είπε τι (πελάτης vs τεχνικός/επαγγελματίας) και απόδωσε σωστά αιτήματα και συμφωνίες στον σωστό ομιλητή.',
         'Μην αναφέρεις τις ετικέτες "Ομιλητής X" αυτούσιες στο brief· απλώς απόδωσε σωστά ποιος ζητά τι.',
+        'ΠΡΟΣΟΧΗ: ο αυτόματος διαχωρισμός ομιλητών σε τηλεφωνική ηχογράφηση συχνά αποτυγχάνει. Αν όλη η μεταγραφή φαίνεται από έναν ομιλητή ή τα λόγια μπερδεύονται, ΜΗΝ το θεωρήσεις «χωρίς συνομιλία» — σύνοψέ το κανονικά με βάση το περιεχόμενο.',
       ]
     : [];
 
   return [
     'Είσαι βοηθός CRM για Έλληνα επαγγελματία (π.χ. τεχνικό, υδραυλικό, συνεργείο).',
     'Βασίσου ΑΠΟΚΛΕΙΣΤΙΚΑ στη μεταγραφή κλήσης παρακάτω. Μην επινοείς ΤΙΠΟΤΑ που δεν λέγεται ρητά — ούτε αιτήματα, ούτε ραντεβού, ούτε ακυρώσεις, ούτε προθέσεις. Αν δεν ειπώθηκε, ΔΕΝ το γράφεις.',
-    'ΑΝ η μεταγραφή είναι κενή, ασαφής, μόνο ήχοι/σιωπή, τηλεφωνητής, ή δεν περιέχει πραγματική αμφίδρομη συνομιλία, γράψε ΜΟΝΟ την ακριβή φράση: «Χωρίς συνομιλία.» και ΤΙΠΟΤΑ άλλο (καμία σύνοψη, καμία ενότητα).',
+    'Η μεταγραφή παρακάτω περιέχει πραγματικό λόγο από κλήση. Φτίαξε ΠΑΝΤΑ brief με βάση όσα ειπώθηκαν — ΑΚΟΜΗ κι αν μιλάει κυρίως ο ένας, αν δεν διακρίνονται οι ομιλητές, ή αν φαίνεται ότι καταγράφηκε κυρίως η μία πλευρά (σε αυτή την περίπτωση σύνοψέ ό,τι ακούστηκε και, αν χρειάζεται, σημείωσε σύντομα ότι η μία πλευρά ίσως δεν καταγράφηκε καθαρά).',
+    'ΜΟΝΟ αν η μεταγραφή δεν περιέχει ΚΑΝΕΝΑ ουσιαστικό λόγο (π.χ. αποκλειστικά σιωπή, θόρυβος, μουσική αναμονής, ή ένα μεμονωμένο "εμπρός;" χωρίς συνέχεια), γράψε ΜΟΝΟ την ακριβή φράση: «Χωρίς συνομιλία.» και ΤΙΠΟΤΑ άλλο.',
     ...speakerGuidance,
     'Διαφορετικά, γράψε ΑΝΑΛΥΤΙΚΟ αλλά καθαρό CRM brief στα ελληνικά, με ΑΚΡΙΒΩΣ την παρακάτω δομή και τίτλους ενοτήτων:',
     '',
@@ -410,6 +431,26 @@ export async function transcribeAndBriefCallAudio(
   // Both transcription paths failed → nothing to brief.
   if (transcript === null) {
     return null;
+  }
+
+  // No real speech in the transcript (pure silence / ringback / hold music /
+  // a stray beep) → set the brief to «Χωρίς συνομιλία.» deterministically and
+  // skip the model call entirely. We decide this in CODE from the letter count,
+  // NOT by asking the model to judge "is this a two-way conversation" — that
+  // judgment wrongly rejected substantial one-sided / single-speaker transcripts
+  // (observed: a real 1016-char call briefed as «Χωρίς συνομιλία.»). An empty
+  // taskTitle tells the webhook to skip creating a follow-up task.
+  if (countSpeechLetters(transcript) < MIN_SPEECH_LETTERS) {
+    return {
+      transcript,
+      brief: NO_CONVERSATION_BRIEF,
+      transcriptionModel,
+      briefModel,
+      taskTitle: '',
+      taskNote: '',
+      taskType: 'call_back',
+      taskDueDate: getTomorrow(),
+    };
   }
 
   // ---------------------------------------------------------------------------
