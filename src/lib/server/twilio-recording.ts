@@ -63,8 +63,19 @@ export async function downloadRecordingWav(
   authToken: string
 ): Promise<{ file: File } | { error: 'download_failed' | 'size_invalid' }> {
   try {
+    // SSRF defense-in-depth: the Twilio Basic-auth credentials must NEVER be sent
+    // to a non-Twilio host, even if webhook signature validation were bypassed.
+    let url: URL;
+    try {
+      url = new URL(`${recordingUrl}.wav`);
+    } catch {
+      return { error: 'download_failed' };
+    }
+    if (url.protocol !== 'https:' || !/(^|\.)twilio\.com$/.test(url.hostname)) {
+      return { error: 'download_failed' };
+    }
     const basic = Buffer.from(`${accountSid}:${authToken}`).toString('base64');
-    const res = await fetch(`${recordingUrl}.wav`, { headers: { Authorization: `Basic ${basic}` } });
+    const res = await fetch(url, { headers: { Authorization: `Basic ${basic}` } });
     if (!res.ok) return { error: 'download_failed' };
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length === 0 || buf.length > MAX_AUDIO_BYTES) return { error: 'size_invalid' };
