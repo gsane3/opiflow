@@ -15,26 +15,25 @@ export const DISCLOSURE_SCRIPT =
 
 const MAX_SECONDS = 20;
 
+// Apple (iOS/iPadOS Safari + WKWebView, and Safari/macOS): can RECORD webm/opus on
+// recent versions but CANNOT PLAY it (the «Error» preview), and canPlayType is
+// unreliable here — so detect Apple deterministically and prefer mp4/aac (which Apple
+// records AND plays). Everyone else prefers webm/opus (Chrome/Firefox/Brave record AND
+// play it; their mp4 isTypeSupported is a trap — no audio muxer → empty clip).
+function isAppleBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  const isSafari = /Safari/.test(ua) && !/Chrome|Chromium|Android|Edg|OPR/.test(ua);
+  const isIpadOS = navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1;
+  return isSafari || isIpadOS;
+}
+
 function pickAudioMimeType(): string {
   if (typeof MediaRecorder === 'undefined') return '';
-  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac'];
-  let probe: HTMLAudioElement | null = null;
-  try { if (typeof document !== 'undefined') probe = document.createElement('audio'); } catch { /* no probe */ }
-  const canPlay = (t: string): boolean => {
-    if (!probe) return true; // can't probe → don't block selection
-    try { return probe.canPlayType(t.split(';')[0].trim()) !== ''; } catch { return true; }
-  };
-  // Pick a type the browser can BOTH record (isTypeSupported) AND play (canPlayType),
-  // so the preview actually plays. CRITICAL: iOS WKWebView/Safari can RECORD webm/opus
-  // but CANNOT play it back (the «Error» preview); requiring canPlayType makes iOS skip
-  // webm and choose mp4/aac, while Chrome/Firefox/Brave keep webm/opus. (Plain mp4-first
-  // is wrong too: desktop Chrome reports mp4 supported but has no audio muxer → empty.)
-  for (const t of candidates) {
-    try { if (MediaRecorder.isTypeSupported(t) && canPlay(t)) return t; } catch { /* keep probing */ }
-  }
-  // Fallback: any recordable type (preview may not play, but it still saves and the
-  // PBX transcodes it via ffmpeg regardless of container).
-  for (const t of candidates) {
+  const apple = ['audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+  const other = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac'];
+  for (const t of (isAppleBrowser() ? apple : other)) {
     try { if (MediaRecorder.isTypeSupported(t)) return t; } catch { /* keep probing */ }
   }
   return '';
