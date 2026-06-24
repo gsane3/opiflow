@@ -27,10 +27,13 @@ export function OfferPreviewSheet({
   offerId,
   onClose,
   onChanged,
+  onOpenPdf,
 }: {
   offerId: string | null;
   onClose: () => void;
   onChanged?: () => void;
+  /** Open the real PDF document (public offer page with download) in the browser. */
+  onOpenPdf?: (offerId: string) => void;
 }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
@@ -201,6 +204,10 @@ export function OfferPreviewSheet({
               {bank.bank ? <ThemedText type="small" style={styles.dark}>Τράπεζα: {bank.bank}</ThemedText> : null}
               <ThemedText type="small" style={styles.dark}>IBAN: {bank.iban}</ThemedText>
             </View>
+          ) : null}
+
+          {onOpenPdf ? (
+            <PrimaryButton label="Άνοιγμα ως PDF (λήψη)" tone="outline" onPress={() => onOpenPdf(offer.id)} />
           ) : null}
 
           <PrimaryButton label="Αποστολή / επαναποστολή μηνύματος" onPress={() => void buildDraft()} busy={busy} />

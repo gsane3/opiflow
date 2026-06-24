@@ -273,6 +273,16 @@ export default function ProjectProcessScreen() {
       else Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.');
     } catch { Alert.alert('Σφάλμα', 'Δεν δημιουργήθηκε ο σύνδεσμος.'); } finally { endBusy(); }
   }
+  // #5: open the real offer PDF document (the public /f/<token>/offer/<id> page,
+  // which has a working «Αποθήκευση ως PDF» / download) in the system browser.
+  async function openOfferPdf(offerId: string) {
+    if (!beginBusy()) return;
+    try {
+      const r = await apiPost<{ ok?: boolean; responseUrl?: string }>(`/api/folders/${folderId}/link`, { mode: 'open' });
+      if (r?.ok && r.responseUrl) await WebBrowser.openBrowserAsync(`${r.responseUrl}/offer/${offerId}`);
+      else Alert.alert('Σφάλμα', 'Δεν άνοιξε το PDF.');
+    } catch { Alert.alert('Σφάλμα', 'Δεν άνοιξε το PDF.'); } finally { endBusy(); }
+  }
   function rejectCustomer() {
     if (!beginBusy()) return;
     void (async () => {
@@ -504,7 +514,7 @@ export default function ProjectProcessScreen() {
       </SheetModal>
 
       {/* offer preview (opened from the timeline «Άνοιγμα PDF» link) */}
-      <OfferPreviewSheet offerId={previewOfferId} onClose={() => setPreviewOfferId(null)} onChanged={() => void refresh()} />
+      <OfferPreviewSheet offerId={previewOfferId} onClose={() => setPreviewOfferId(null)} onChanged={() => void refresh()} onOpenPdf={openOfferPdf} />
     </ThemedView>
   );
 }
