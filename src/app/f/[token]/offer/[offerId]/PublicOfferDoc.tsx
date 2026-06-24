@@ -49,7 +49,7 @@ export default function PublicOfferDoc({ token, view }: { token: string; view: P
         </button>
       </div>
 
-      <div className="space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 print:rounded-none print:p-0 print:shadow-none print:ring-0">
+      <div className="offer-print-document space-y-5 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-zinc-100 print:rounded-none print:p-0 print:shadow-none print:ring-0">
         {/* header: business branding + offer meta */}
         <div className="flex flex-col gap-4 sm:flex-row sm:justify-between">
           <div>

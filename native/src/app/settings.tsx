@@ -278,7 +278,10 @@ export default function SettingsScreen() {
         setLogoPicked(undefined);
         setBizForm({
           name: b.business.name ?? '',
-          legal_name: b.business.legal_name ?? '',
+          // #6: when the legal_name column is empty (e.g. businesses created before
+          // onboarding defaulted it), pre-fill with the business name — same fallback
+          // as the web settings form, so the field never renders blank.
+          legal_name: b.business.legal_name ?? b.business.name ?? '',
           trade_name: b.business.trade_name ?? '',
           owner_first_name: b.business.owner_first_name ?? '',
           owner_last_name: b.business.owner_last_name ?? '',

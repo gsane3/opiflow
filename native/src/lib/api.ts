@@ -40,9 +40,14 @@ async function authHeaders(): Promise<Record<string, string>> {
   return headers;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export interface RequestOpts {
+  /** Override the default 12s timeout for this one call (e.g. large audio uploads). */
+  timeoutMs?: number;
+}
+
+async function request<T>(path: string, init?: RequestInit, opts?: RequestOpts): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), opts?.timeoutMs ?? TIMEOUT_MS);
 
   let res: Response;
   try {
@@ -77,16 +82,16 @@ export function apiGet<T = unknown>(path: string): Promise<T> {
   return request<T>(path);
 }
 
-export function apiPost<T = unknown>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'POST', body: JSON.stringify(body) });
+export function apiPost<T = unknown>(path: string, body: unknown, opts?: RequestOpts): Promise<T> {
+  return request<T>(path, { method: 'POST', body: JSON.stringify(body) }, opts);
 }
 
 export function apiPatch<T = unknown>(path: string, body: unknown): Promise<T> {
   return request<T>(path, { method: 'PATCH', body: JSON.stringify(body) });
 }
 
-export function apiPut<T = unknown>(path: string, body: unknown): Promise<T> {
-  return request<T>(path, { method: 'PUT', body: JSON.stringify(body) });
+export function apiPut<T = unknown>(path: string, body: unknown, opts?: RequestOpts): Promise<T> {
+  return request<T>(path, { method: 'PUT', body: JSON.stringify(body) }, opts);
 }
 
 export function apiDelete<T = unknown>(path: string): Promise<T> {

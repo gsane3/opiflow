@@ -1,7 +1,11 @@
+import 'react-native-gesture-handler';
+
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AiSheetProvider } from '@/components/ai-sheet';
 import AppTabs from '@/components/app-tabs';
@@ -16,12 +20,23 @@ import { ThemeModeProvider } from '@/lib/theme-mode';
 import { getIncomingState } from '@/lib/twilio-state';
 
 export default function RootLayout() {
+  // SafeAreaProvider + GestureHandlerRootView MUST be mounted at the true app
+  // root. Without them, React Native <Modal>s (the voice/disclosure recorders,
+  // the incoming-call overlay) render in a detached window where safe-area insets
+  // resolve to 0 — which jammed the close «X» under the status bar and made
+  // full-screen recorder modals un-closable. Mounting the provider here makes
+  // useSafeAreaInsets() return real insets everywhere, including inside modals,
+  // and enables gesture-handler-backed swipe-back app-wide.
   return (
-    <ThemeModeProvider>
-      <AuthProvider>
-        <ThemedNavigation />
-      </AuthProvider>
-    </ThemeModeProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <ThemeModeProvider>
+          <AuthProvider>
+            <ThemedNavigation />
+          </AuthProvider>
+        </ThemeModeProvider>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 
