@@ -484,14 +484,14 @@ export default function CustomerProfileScreen() {
           </Pressable>
           <View style={{ flex: 1 }} />
           {customer ? (
-            <>
-              <Pressable onPress={() => void togglePin()} hitSlop={10} style={styles.topBtn} accessibilityLabel="Καρφίτσωμα">
-                <Ionicons name={pinned ? 'bookmark' : 'bookmark-outline'} size={22} color={Brand.primary} />
+            <View style={styles.topActions}>
+              <Pressable onPress={() => void togglePin()} hitSlop={12} style={styles.topBtn} accessibilityLabel="Καρφίτσωμα">
+                <Ionicons name={pinned ? 'bookmark' : 'bookmark-outline'} size={26} color={Brand.primary} />
               </Pressable>
-              <Pressable onPress={() => setEditOpen(true)} hitSlop={10} style={styles.topBtn} accessibilityLabel="Επεξεργασία">
-                <Ionicons name="create-outline" size={22} color={Brand.primary} />
+              <Pressable onPress={() => setEditOpen(true)} hitSlop={12} style={styles.topBtn} accessibilityLabel="Επεξεργασία">
+                <Ionicons name="create-outline" size={26} color={Brand.primary} />
               </Pressable>
-            </>
+            </View>
           ) : null}
         </View>
       </SafeAreaView>
@@ -948,8 +948,10 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.two, padding: Spacing.four },
   ink: { color: c.text },
   headerSafe: { backgroundColor: c.background },
-  topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.two, paddingVertical: 4 },
-  topBtn: { padding: 4 },
+  topbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.two, paddingVertical: 2 },
+  // 44x44 = iOS/Android minimum touch target so the back/pin/edit buttons are easy to hit.
+  topBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  topActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.one },
   content: { paddingHorizontal: Spacing.four, paddingBottom: Spacing.six, gap: Spacing.three },
 
   hero: { alignItems: 'center', gap: 6, paddingTop: Spacing.two },
