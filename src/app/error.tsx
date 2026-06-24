@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
+import * as Sentry from '@sentry/nextjs';
 
 export default function AppError({
   error,
@@ -10,7 +11,9 @@ export default function AppError({
   reset: () => void;
 }) {
   useEffect(() => {
-    // Log for monitoring; never surface internal details to the user.
+    // Report to Sentry (no-op until NEXT_PUBLIC_SENTRY_DSN is configured) and
+    // log locally. Never surface internal details to the user.
+    Sentry.captureException(error);
     console.error(error);
   }, [error]);
 
