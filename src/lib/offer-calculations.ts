@@ -17,9 +17,14 @@ export function lineTotal(item: OfferItem): number {
   return item.quantity * item.unitPrice;
 }
 
+// THE single money formatter for every owner- AND customer-facing amount, so an
+// offer total reads identically on the owner's screen and the customer's document.
+// Greek-canonical form: "1.234,56 €" (suffix + space).
 export function fmtEur(amount: number): string {
-  return '€' + amount.toLocaleString('el-GR', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  return (
+    amount.toLocaleString('el-GR', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }) + ' €'
+  );
 }

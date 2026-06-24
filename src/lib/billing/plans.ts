@@ -8,6 +8,8 @@
 // The plan maps to the already-seeded package_plans.plan_key 'pro' so no DB
 // migration is required for the price to be consistent.
 
+import { fmtEur } from '@/lib/offer-calculations';
+
 export const VAT_RATE = 0.24; // Greek ΦΠΑ
 
 export const PLAN = {
@@ -21,10 +23,9 @@ export const PLAN = {
 /** Price incl. 24% ΦΠΑ, rounded to cents (29.95 → 37.14). */
 export const PLAN_PRICE_INC_VAT = Math.round(PLAN.priceExVat * (1 + VAT_RATE) * 100) / 100;
 
-/** Greek-style currency formatting (comma decimal): 29.95 → "29,95€". */
-export function formatEur(n: number): string {
-  return `${n.toFixed(2).replace('.', ',')}€`;
-}
+// Currency formatting delegates to the single app-wide formatter so pricing,
+// offers and the customer document all read identically (Greek-canonical "29,95 €").
+export const formatEur = fmtEur;
 
 export const PLAN_PRICE_EX_VAT_LABEL = `${formatEur(PLAN.priceExVat)} + ΦΠΑ`;
 export const PLAN_PRICE_INC_VAT_LABEL = `${formatEur(PLAN_PRICE_INC_VAT)} με ΦΠΑ`;
