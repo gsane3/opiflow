@@ -34,6 +34,8 @@ type BusinessMeResponse = {
   };
   phoneAssigned?: boolean;
   activationAllowed?: boolean;
+  billingConfigured?: boolean;
+  subscription?: { status?: string } | null;
   numberRequest?: NumberRequest | null;
   error?: string;
 };
@@ -105,6 +107,8 @@ export default function NumberPage() {
   const [requestSubmitting, setRequestSubmitting] = useState(false);
   const [requestError, setRequestError] = useState<string | null>(null);
   const [localNumberRequest, setLocalNumberRequest] = useState<NumberRequest | null>(null);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   // Initial mount fetch. Uses an inline async function and a cancellation flag so
   // that state setters are called directly inside the effect, satisfying lint.
@@ -143,6 +147,39 @@ export default function NumberPage() {
       setPhoneError('Δεν μπορέσαμε να ελέγξουμε τον αριθμό αυτή τη στιγμή.');
     }
     setPhoneLoading(false);
+  }
+
+  // Pay-at-signup: open Stripe Checkout for the subscription. On success the
+  // Stripe webhook flips the subscription to 'active'.
+  async function handleCheckout() {
+    if (checkoutBusy) return;
+    setCheckoutBusy(true);
+    setCheckoutError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        setCheckoutError('Πρέπει να συνδεθείς ξανά.');
+        setCheckoutBusy(false);
+        return;
+      }
+      const resp = await fetch('/api/billing/checkout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      });
+      const data = (await resp.json().catch(() => ({}))) as { ok?: boolean; url?: string };
+      if (resp.ok && typeof data.url === 'string') {
+        window.location.href = data.url; // leaving the app for Stripe
+        return;
+      }
+      setCheckoutError('Δεν μπόρεσε να ξεκινήσει η πληρωμή. Δοκίμασε ξανά ή επικοινώνησε μαζί μας.');
+      setCheckoutBusy(false);
+    } catch {
+      setCheckoutError('Δεν μπόρεσε να ξεκινήσει η πληρωμή.');
+      setCheckoutBusy(false);
+    }
   }
 
   async function handleCreateRequest() {
@@ -241,16 +278,28 @@ export default function NumberPage() {
             <>
               <p className="text-xs font-medium text-red-500">Απαιτείται ενεργοποίηση</p>
               <p className="mt-2 text-sm text-zinc-700 dark:text-zinc-200">
-                Χρειάζεται ενεργοποίηση πακέτου πριν χρησιμοποιήσεις αριθμό.
+                Ολοκλήρωσε τη συνδρομή σου για να ενεργοποιήσεις τον αριθμό και τις κλήσεις.
               </p>
               <div className="mt-3">
-                <Link
-                  href="/package?activation_required=1"
-                  className="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
-                >
-                  Επιλογή πακέτου
-                </Link>
+                {phoneInfo.billingConfigured ? (
+                  <button
+                    type="button"
+                    onClick={handleCheckout}
+                    disabled={checkoutBusy}
+                    className="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60"
+                  >
+                    {checkoutBusy ? 'Άνοιγμα πληρωμής…' : 'Πληρωμή & ενεργοποίηση'}
+                  </button>
+                ) : (
+                  <Link
+                    href="/package?activation_required=1"
+                    className="inline-flex items-center rounded-full bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 active:bg-indigo-800"
+                  >
+                    Επιλογή πακέτου
+                  </Link>
+                )}
               </div>
+              {checkoutError && <p className="mt-2 text-xs text-red-600">{checkoutError}</p>}
             </>
           ) : phoneInfo?.phoneAssigned && phoneInfo.business?.business_phone_number ? (
             <>

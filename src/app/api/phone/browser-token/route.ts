@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveBusinessContext } from '@/lib/api/auth';
+import { isEntitled } from '@/lib/billing/entitlement';
 import { isSipProvisioningEnabled, decryptSecret } from '@/lib/server/sip-credentials';
 
 export const runtime = 'nodejs';
@@ -129,8 +130,7 @@ export async function GET(request: NextRequest) {
       .maybeSingle();
 
     const subStatus = subRow ? (subRow as { status: string }).status : null;
-    const activationAllowed =
-      subStatus !== null && ['pending_manual_review', 'trialing', 'active'].includes(subStatus);
+    const activationAllowed = isEntitled(subStatus);
 
     if (!activationAllowed) {
       return NextResponse.json(

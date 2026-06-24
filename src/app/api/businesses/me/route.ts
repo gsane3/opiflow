@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveBusinessContext } from '@/lib/api/auth';
+import { isEntitled } from '@/lib/billing/entitlement';
+import { isStripeConfigured } from '@/lib/billing/stripe';
 
 const PATCH_VALID_TYPES = ['technical_services', 'sales_services', 'projects_construction', 'other'] as const;
 const PATCH_VALID_CONTACT_METHODS = ['phone', 'email', 'viber'] as const;
@@ -78,13 +80,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const ALLOWED_STATUSES = ['pending_manual_review', 'trialing', 'active'];
     const sub = subRow as {
       plan_key: string;
       status: string;
       trial_ends_at: string | null;
     } | null;
-    const activationAllowed = sub !== null && ALLOWED_STATUSES.includes(sub.status);
+    const activationAllowed = isEntitled(sub?.status);
 
     const subscription = sub
       ? {
@@ -135,6 +136,7 @@ export async function GET(request: NextRequest) {
       phoneAssigned:
         typeof biz.business_phone_number === 'string' && biz.business_phone_number.length > 0,
       activationAllowed,
+      billingConfigured: isStripeConfigured(),
       subscription,
       numberRequest,
     });
