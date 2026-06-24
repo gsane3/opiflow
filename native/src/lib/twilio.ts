@@ -6,7 +6,23 @@ import { Call, CallInvite, Voice } from '@twilio/voice-react-native-sdk';
 import { Platform } from 'react-native';
 
 import { apiGet, apiPost } from './api';
-import { type ActiveCall, type CallStatus, setIncomingState, setIncomingCall, getIncomingCall } from './twilio-state';
+import { resolveCallerName } from './caller-name';
+import { type ActiveCall, type CallStatus, setIncomingState, setIncomingCall, getIncomingCall, setIncomingCallName } from './twilio-state';
+
+// #10: resolve the caller's number to a name (Opiflow customer or device contact)
+// and push it into the call-name store IF this is still the current call. Async +
+// best-effort: the ring screen already shows the number instantly; this upgrades
+// it to a name when resolved. Called for both the ringing and connected phases
+// (resolveCallerName caches, so the second call is instant and re-shows the name
+// after the connected session resets it).
+function applyCallerName(from: string | null) {
+  if (!from) return;
+  void resolveCallerName(from).then((name) => {
+    if (!name) return;
+    const cur = getIncomingCall();
+    if (cur && cur.from === from) setIncomingCallName(name);
+  });
+}
 
 let _voice: Voice | null = null;
 function getVoice(): Voice {
@@ -159,6 +175,7 @@ function wireConnectedCall(call: Call, from: string | null) {
     disconnect: () => { try { void call.disconnect(); } catch { /* ignore */ } },
     mute: (on: boolean) => { try { void call.mute(on); } catch { /* ignore */ } },
   });
+  applyCallerName(from); // keep the resolved name showing during the call
 
   call.on(Call.Event.Disconnected, () => { doLog('completed'); setIncomingCall(null); });
   call.on(Call.Event.ConnectFailure, () => { doLog('failed'); setIncomingCall(null); });
@@ -202,6 +219,7 @@ function wireIncomingListeners() {
       const clearIfCurrent = () => { if (getIncomingCall() === session) setIncomingCall(null); };
 
       setIncomingCall(session);
+      applyCallerName(from); // #10: upgrade the ring screen from number → name when resolved
 
       // Answered — by our «Απάντηση» button OR the native iOS CallKit banner /
       // Android notification (the SDK emits this with the live Call either way).
