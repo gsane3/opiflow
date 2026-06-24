@@ -19,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/server/cron-auth';
+import { log } from '@/lib/observability';
 import {
   deleteTwilioRecording,
   downloadRecordingWav,
@@ -71,8 +72,14 @@ export async function GET(request: NextRequest) {
     .limit(BATCH_LIMIT);
 
   if (error) {
-    // Pre-043 schema (provider 'twilio' not allowed yet) — nothing to do.
-    return NextResponse.json({ ok: true, skipped: 'events_query_failed' });
+    // ONLY a missing table is a benign skip; any other error means the brief
+    // reconciliation is broken — surface it (500) instead of silently dropping
+    // recordings that never get their AI brief.
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      return NextResponse.json({ ok: true, skipped: 'events_unavailable' });
+    }
+    log.error('cron_recordings_reconcile_query_failed', { code: error.code });
+    return NextResponse.json({ ok: false, error: 'query_failed' }, { status: 500 });
   }
 
   const events = (data ?? []) as unknown as PendingEvent[];
