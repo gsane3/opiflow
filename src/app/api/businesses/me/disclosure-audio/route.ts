@@ -13,7 +13,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { resolveBusinessContext } from '@/lib/api/auth';
+import { resolveBusinessContext, isManagerRole } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
@@ -54,7 +54,7 @@ async function authBusiness(request: NextRequest) {
   if (!resolved) {
     return { error: NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 }) };
   }
-  return { supabase, businessId: resolved.businessId };
+  return { supabase, businessId: resolved.businessId, role: resolved.role };
 }
 
 export async function GET(request: NextRequest) {
@@ -86,6 +86,10 @@ export async function PUT(request: NextRequest) {
   }
   const a = await authBusiness(request);
   if ('error' in a) return a.error;
+  // Changing the recording-disclosure clip is a consent setting — owner/admin only.
+  if (!isManagerRole(a.role)) {
+    return NextResponse.json({ ok: false, error: 'forbidden_admin_only' }, { status: 403 });
+  }
 
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 }); }

@@ -4,7 +4,7 @@
 // mutation re-syncs the primary account into businesses.bank_*.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { authenticateBusinessRequest, requireManager } from '@/lib/api/auth';
 import { updateBankAccount, deleteBankAccount } from '@/lib/server/bank-accounts';
 
 export const runtime = 'nodejs';
@@ -31,6 +31,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
+  const denied = requireManager(auth.ctx);
+  if (denied) return denied;
   const { id } = await params;
 
   let body: unknown;
@@ -57,6 +59,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
+  const denied = requireManager(auth.ctx);
+  if (denied) return denied;
   const { id } = await params;
   try {
     await deleteBankAccount(auth.ctx.businessId, id);

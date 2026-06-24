@@ -24,6 +24,37 @@ export function getBearerToken(request: NextRequest): string | null {
   return h.slice(7);
 }
 
+/** True for owner/admin (the "manager" tier that may change billing-, bank-, and
+ *  consent-relevant settings). Invited 'member' users are excluded. */
+export function isManagerRole(role: string | null | undefined): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
+/**
+ * Role guards for owner-sensitive routes. authenticateBusinessRequest() only
+ * proves MEMBERSHIP; these add the missing role check so an invited 'member'
+ * can't perform owner/admin-only actions (delete the business, manage billing,
+ * read/write bank IBANs, change recording/disclosure consent settings).
+ *
+ *   const auth = await authenticateBusinessRequest(req);
+ *   if ('error' in auth) return auth.error;
+ *   const denied = requireOwner(auth.ctx);   // or requireManager
+ *   if (denied) return denied;
+ */
+export function requireOwner(ctx: BusinessAuthContext): NextResponse | null {
+  if (ctx.role !== 'owner') {
+    return NextResponse.json({ ok: false, error: 'forbidden_owner_only' }, { status: 403 });
+  }
+  return null;
+}
+
+export function requireManager(ctx: BusinessAuthContext): NextResponse | null {
+  if (!isManagerRole(ctx.role)) {
+    return NextResponse.json({ ok: false, error: 'forbidden_admin_only' }, { status: 403 });
+  }
+  return null;
+}
+
 /**
  * Resolves which business a user belongs to and their role.
  * Membership-first (business_users) so invited TEAM members get access, with a

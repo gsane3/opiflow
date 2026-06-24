@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { authenticateBusinessRequest, requireOwner } from '@/lib/api/auth';
 import { createCheckoutSession, isStripeConfigured } from '@/lib/billing/stripe';
 
 export const runtime = 'nodejs';
@@ -11,6 +11,9 @@ export async function POST(request: NextRequest) {
   }
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
+  // Billing is owner-only.
+  const denied = requireOwner(auth.ctx);
+  if (denied) return denied;
   const { businessId } = auth.ctx;
 
   const origin = request.headers.get('origin') ?? 'https://opiflow.ai';
