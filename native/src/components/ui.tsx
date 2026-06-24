@@ -173,15 +173,19 @@ export function Section({
   count,
   children,
   right,
+  visible = true,
 }: {
   title: string;
   count?: number;
   children: ReactNode;
   initiallyOpen?: boolean;
   right?: ReactNode;
+  /** When false the section renders nothing (used by the Settings drill-in to show one option at a time). */
+  visible?: boolean;
 }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
+  if (!visible) return null;
   return (
     <View style={styles.section}>
       <View style={styles.sectionHead}>
