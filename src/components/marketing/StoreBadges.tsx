@@ -1,38 +1,33 @@
-import Link from 'next/link';
+// The native apps (iOS/Android) are in beta (TestFlight / internal) but NOT yet
+// published on the public stores. Until they are, we must NOT show official
+// App Store / Google Play download badges that link nowhere real — that is both
+// deceptive UX and against Apple/Google badge-trademark guidelines. Instead we
+// show honest, non-clickable "coming soon" pills. When the apps ship, swap these
+// for the real badges + store URLs.
 
-// Until the native apps are published, both badges open the web app (/register).
-// Replace these hrefs with the real Google Play / App Store URLs after submission.
-const PLAY_STORE_URL = '/register';
-const APP_STORE_URL = '/register';
-
-function Badge({
-  href,
-  eyebrow,
-  title,
+function ComingSoonPill({
+  store,
   logo,
   dark,
 }: {
-  href: string;
-  eyebrow: string;
-  title: string;
+  store: string;
   logo: React.ReactNode;
   dark?: boolean;
 }) {
   return (
-    <Link
-      href={href}
-      className={`inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5 transition ${
+    <span
+      className={`inline-flex items-center gap-2.5 rounded-xl px-4 py-2.5 ${
         dark
-          ? 'bg-white/10 ring-1 ring-white/25 hover:bg-white/20'
-          : 'bg-zinc-900 hover:bg-zinc-800'
+          ? 'bg-white/5 ring-1 ring-white/15 text-white/70'
+          : 'bg-zinc-100 ring-1 ring-zinc-200 text-zinc-500'
       }`}
     >
-      <span className="text-white">{logo}</span>
-      <span className="flex flex-col leading-none text-white">
-        <span className="text-[9px] font-medium opacity-80">{eyebrow}</span>
-        <span className="text-[15px] font-semibold tracking-tight">{title}</span>
+      <span className={dark ? 'text-white/60' : 'text-zinc-400'}>{logo}</span>
+      <span className="flex flex-col leading-none">
+        <span className="text-[9px] font-medium opacity-80">Σύντομα στο</span>
+        <span className="text-[15px] font-semibold tracking-tight">{store}</span>
       </span>
-    </Link>
+    </span>
   );
 }
 
@@ -40,10 +35,8 @@ export default function StoreBadges({ theme = 'light' }: { theme?: 'light' | 'da
   const dark = theme === 'dark';
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <Badge
-        href={PLAY_STORE_URL}
-        eyebrow="GET IT ON"
-        title="Google Play"
+      <ComingSoonPill
+        store="Google Play"
         dark={dark}
         logo={
           <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -51,10 +44,8 @@ export default function StoreBadges({ theme = 'light' }: { theme?: 'light' | 'da
           </svg>
         }
       />
-      <Badge
-        href={APP_STORE_URL}
-        eyebrow="Download on the"
-        title="App Store"
+      <ComingSoonPill
+        store="App Store"
         dark={dark}
         logo={
           <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
