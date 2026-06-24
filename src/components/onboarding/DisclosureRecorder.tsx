@@ -45,6 +45,9 @@ export default function DisclosureRecorder({
   // is flaky/non-seekable in <audio> on WebKit, so derive an object URL from `value`
   // for reliable playback. `value` itself stays the saved data URL.
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  // Visible capture diagnostics (mic tracks / mime / chunks / size) — so a failing
+  // capture is observable instead of a silent empty clip.
+  const [diag, setDiag] = useState('');
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -81,7 +84,10 @@ export default function DisclosureRecorder({
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const atracks = stream.getAudioTracks();
+      const at = atracks[0];
       const mimeType = pickAudioMimeType();
+      setDiag(`mic: ${atracks.length} track(s)${at ? ` · enabled=${at.enabled} muted=${at.muted} "${at.label || '—'}"` : ''} · mime=${mimeType || '(default)'}`);
       const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
       chunksRef.current = [];
       recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunksRef.current.push(e.data); };
@@ -91,6 +97,7 @@ export default function DisclosureRecorder({
         const blob = chunksRef.current.length ? new Blob(chunksRef.current, { type }) : null;
         cleanup();
         setSeconds(0);
+        setDiag(`result: mime=${recorder.mimeType || mimeType || '?'} · chunks=${chunksRef.current.length} · ${blob ? Math.round(blob.size / 1024) + ' KB' : '0 B (empty!)'}`);
         if (!blob || blob.size === 0) {
           // Capture failed silently (e.g. codec/permission hiccup) — tell the user
           // instead of pretending it worked.
@@ -184,6 +191,11 @@ export default function DisclosureRecorder({
       <p className="text-[11px] text-zinc-400 dark:text-zinc-500">
         Προαιρετικό. Αν δεν ηχογραφήσεις, παίζει ένα τυποποιημένο μήνυμα ώστε να παραμένεις νόμιμος. Μέγιστο {MAX_SECONDS} δευτερόλεπτα.
       </p>
+      {diag ? (
+        <p className="select-all rounded-lg bg-zinc-100 px-2 py-1 font-mono text-[11px] text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
+          🛈 {diag}
+        </p>
+      ) : null}
     </div>
   );
 }
