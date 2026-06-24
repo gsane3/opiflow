@@ -97,3 +97,10 @@ export function createRateLimiter(opts: { windowMs: number; max: number }): Asyn
   const mem = createInMemoryRateLimiter(opts);
   return { check: (key: string) => Promise.resolve(mem.check(key)) };
 }
+
+/** True when a durable, cross-instance rate-limit backend (Upstash) is configured.
+ *  Surfaced in /api/health so a prod deploy WITHOUT it — which leaves the public
+ *  token surface with only per-instance, cold-start-resetting limits — is visible. */
+export function isDurableRateLimitConfigured(): boolean {
+  return !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+}

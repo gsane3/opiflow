@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { missingRequiredEnv, integrationStatus, missingIntegrationEnv } from '@/lib/env';
 import { isPushEnabled } from '@/lib/server/push';
+import { isDurableRateLimitConfigured } from '@/lib/rate-limit';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 
 export const runtime = 'nodejs';
@@ -34,6 +35,9 @@ export async function GET() {
       time: new Date().toISOString(),
       coreConfigured,
       database: dbReachable,
+      // Durable cross-instance rate limiting (Upstash). false in prod = the public
+      // token surface only has per-instance, cold-start-resetting limits.
+      rateLimitDurable: isDurableRateLimitConfigured(),
       integrations: { ...integrationStatus(), push: isPushEnabled() },
       // Names only (never values) of env vars still missing per integration —
       // a safe debugging aid for "why is X off?".

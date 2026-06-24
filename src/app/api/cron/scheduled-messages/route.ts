@@ -16,6 +16,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { checkCronSecret } from '@/lib/server/cron-auth';
+import { log } from '@/lib/observability';
 import { sendViaPreferredChannel } from '@/lib/server/send-channel';
 import { recordOutboundMessage, extractProviderIds } from '@/lib/server/record-message';
 
@@ -46,8 +47,14 @@ export async function GET(request: NextRequest) {
     .limit(BATCH_LIMIT);
 
   if (error) {
-    // pre-044 (table missing) → nothing to do.
-    return NextResponse.json({ ok: true, skipped: 'scheduled_messages_unavailable' });
+    // ONLY a missing table (pre-044) is a benign skip. Any other error (timeout,
+    // permission, connection) means the cron is actually broken — return 500 so
+    // Vercel/monitoring see it instead of silently never sending due messages.
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      return NextResponse.json({ ok: true, skipped: 'scheduled_messages_unavailable' });
+    }
+    log.error('cron_scheduled_messages_query_failed', { code: error.code });
+    return NextResponse.json({ ok: false, error: 'query_failed' }, { status: 500 });
   }
 
   const rows = (data ?? []) as Array<{ id: string; business_id: string; customer_id: string | null; channel: string; body: string }>;

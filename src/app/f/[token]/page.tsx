@@ -40,7 +40,13 @@ function Unavailable() {
     <main className="flex min-h-screen items-center justify-center bg-[#F5F5F7] p-6">
       <div className="w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-sm ring-1 ring-zinc-200/60">
         <p className="text-base font-medium text-zinc-700">Ο σύνδεσμος δεν είναι πλέον διαθέσιμος.</p>
-        <p className="mt-2 text-sm text-zinc-500">Επικοινωνήστε μαζί μας αν χρειάζεστε βοήθεια.</p>
+        <p className="mt-2 text-sm text-zinc-500">
+          Ζητήστε έναν νέο σύνδεσμο από την επιχείρηση που σας τον έστειλε, ή{' '}
+          <a href="mailto:info@opiflow.ai" className="font-medium text-indigo-600 hover:text-indigo-700">
+            επικοινωνήστε μαζί μας
+          </a>
+          .
+        </p>
       </div>
     </main>
   );

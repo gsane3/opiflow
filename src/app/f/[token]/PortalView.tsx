@@ -94,8 +94,32 @@ function Sheet({
 function CopyBtn({ value }: { value: string }) {
   const [ok, setOk] = useState(false);
   async function copy() {
-    try { await navigator.clipboard.writeText(value); } catch { /* value stays visible to copy manually */ }
-    setOk(true); setTimeout(() => setOk(false), 1400);
+    let copied = false;
+    // Modern API — unavailable in insecure contexts / some in-app webviews
+    // (Viber/Facebook), where it must NOT be reported as a success.
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value);
+        copied = true;
+      }
+    } catch { /* fall through to the legacy fallback */ }
+    // Fallback for in-app browsers: a hidden textarea + execCommand('copy').
+    if (!copied) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = value;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        copied = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { copied = false; }
+    }
+    // Only show «Αντιγράφηκε» when the copy ACTUALLY happened — never a false
+    // success that makes a customer paste an empty IBAN into their bank app.
+    if (copied) { setOk(true); setTimeout(() => setOk(false), 1400); }
   }
   return (
     <button type="button" className={'opf-copy-btn opf-press' + (ok ? ' opf-ok' : '')} onClick={() => void copy()}>
