@@ -17,10 +17,12 @@ const MAX_SECONDS = 20;
 
 function pickAudioMimeType(): string {
   if (typeof MediaRecorder === 'undefined') return '';
-  // Prefer mp4/AAC FIRST: a clip recorded on iOS (Safari/WKWebView) must be mp4 —
-  // webm cannot be recorded OR played back on iOS (the «δεν ακούγεται τίποτα»
-  // bug). Chrome/Firefox don't support mp4 here and fall through to webm/ogg.
-  for (const t of ['audio/mp4', 'audio/mp4;codecs=mp4a.40.2', 'audio/aac', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus']) {
+  // Prefer webm/opus FIRST (Chrome/Firefox encode AND play it reliably). Desktop
+  // Chrome reports isTypeSupported('audio/mp4')=true but has NO audio mp4 muxer, so
+  // MediaRecorder constructs fine yet emits ZERO data → empty clip. iOS doesn't
+  // support webm, so it falls through to mp4/aac (which it can record). This order
+  // makes every browser land on a type it can actually encode.
+  for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac']) {
     try { if (MediaRecorder.isTypeSupported(t)) return t; } catch { /* keep probing */ }
   }
   return '';
@@ -39,6 +41,10 @@ export default function DisclosureRecorder({
 }) {
   const [mic, setMic] = useState<MicState>('idle');
   const [seconds, setSeconds] = useState(0);
+  // Preview source: a base64 data: URL (esp. fragmented-mp4 from iOS MediaRecorder)
+  // is flaky/non-seekable in <audio> on WebKit, so derive an object URL from `value`
+  // for reliable playback. `value` itself stays the saved data URL.
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
@@ -55,6 +61,18 @@ export default function DisclosureRecorder({
 
   // Stop recording / release the mic if the component unmounts mid-capture.
   useEffect(() => () => cleanup(), []);
+
+  // Build a reliable object-URL preview from the saved data URL.
+  useEffect(() => {
+    if (!value) { setPreviewUrl(null); return; }
+    let url: string | null = null;
+    let cancelled = false;
+    fetch(value)
+      .then((r) => r.blob())
+      .then((b) => { if (!cancelled) { url = URL.createObjectURL(b); setPreviewUrl(url); } })
+      .catch(() => { if (!cancelled) setPreviewUrl(null); });
+    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+  }, [value]);
 
   async function startRecording() {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
@@ -130,7 +148,7 @@ export default function DisclosureRecorder({
         </button>
       ) : hasClip ? (
         <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/15 dark:bg-[#1e2b38]">
-          <audio src={value} controls className="w-full" />
+          <audio src={previewUrl ?? value} controls className="w-full" />
           <div className="flex gap-3">
             <button type="button" onClick={startRecording} disabled={saving} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50">
               Ηχογράφηση ξανά
