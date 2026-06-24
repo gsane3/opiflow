@@ -89,9 +89,9 @@ describe('calculateTotals', () => {
 });
 
 describe('fmtEur', () => {
-  it('prefixes the euro sign and shows exactly two decimals', () => {
+  it('suffixes the euro sign and shows exactly two decimals', () => {
     const out = fmtEur(1234.5);
-    expect(out.startsWith('€')).toBe(true);
+    expect(out.trim().endsWith('€')).toBe(true);
     // Regardless of locale grouping separators, the digits must read 1234.50 / 1234,50.
     const digitsOnly = out.replace(/[^0-9]/g, '');
     expect(digitsOnly).toBe('123450');
@@ -111,6 +111,6 @@ describe('fmtEur', () => {
   it('renders zero as a two-decimal value', () => {
     const out = fmtEur(0);
     expect(out.replace(/[^0-9]/g, '')).toBe('000');
-    expect(out.startsWith('€')).toBe(true);
+    expect(out.trim().endsWith('€')).toBe(true);
   });
 });
