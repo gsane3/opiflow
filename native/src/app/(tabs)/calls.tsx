@@ -179,6 +179,7 @@ export default function CallsScreen() {
   );
 
   function hangup() {
+    void hapticTap();
     call?.disconnect();
     setCall(null);
     setStatus(null);
@@ -191,6 +192,7 @@ export default function CallsScreen() {
 
   function toggleMute() {
     if (!call) return;
+    void hapticTap();
     const next = !muted;
     call.mute(next);
     setMuted(next);
@@ -198,6 +200,7 @@ export default function CallsScreen() {
 
   function toggleSpeaker() {
     if (!call) return;
+    void hapticTap();
     const next = !speaker;
     call.setSpeaker(next);
     setSpeaker(next);
