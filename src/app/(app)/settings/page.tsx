@@ -72,10 +72,11 @@ const SECTION_LABELS: Record<SettingsSection, string> = {
   notifications: 'Ειδοποιήσεις',
 };
 
+// Single plan now (key 'pro' → 'Opiflow'); legacy keys kept for old rows.
 const PLAN_NAMES: Record<string, string> = {
-  starter: 'Starter',
-  pro: 'Pro',
-  team: 'Team',
+  starter: 'Opiflow',
+  pro: 'Opiflow',
+  team: 'Opiflow',
 };
 
 // B4 — settings organised into logical categories (was a flat 10-item list).

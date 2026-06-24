@@ -242,12 +242,21 @@ export async function POST(request: NextRequest) {
     const subscriptionStatus: string =
       validVoucher !== null ? 'trialing' : 'pending_manual_review';
 
-    await supabase.from('business_subscriptions').insert({
+    const { error: subError } = await supabase.from('business_subscriptions').insert({
       business_id:     bizId,
       plan_key:        packageKey,
       status:          subscriptionStatus,
       voucher_code_id: validVoucher !== null ? validVoucher.id : null,
     });
+
+    // A business with NO subscription row can never be activated later (the Stripe
+    // webhook would have nothing to update), so fail loudly + roll back instead of
+    // leaving an orphaned business.
+    if (subError) {
+      await supabase.from('business_users').delete().eq('business_id', bizId);
+      await supabase.from('businesses').delete().eq('id', bizId);
+      return NextResponse.json({ ok: false, error: 'subscription_init_failed' }, { status: 500 });
+    }
 
     // If a valid voucher was used, record the redemption and increment counter.
     // The counter update is not atomic at this scale; acceptable for MVP.

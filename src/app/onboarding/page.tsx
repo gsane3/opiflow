@@ -68,10 +68,11 @@ const STEPS = [
 ];
 
 // Map plan keys to display names shown in the onboarding header badge.
+// Single plan now (key 'pro' → 'Opiflow'); legacy keys kept for old rows.
 const PLAN_NAMES: Record<string, string> = {
-  starter: 'Starter',
-  pro:     'Pro',
-  team:    'Team',
+  starter: 'Opiflow',
+  pro:     'Opiflow',
+  team:    'Opiflow',
 };
 
 function buildInitialFormData(): FormData {
