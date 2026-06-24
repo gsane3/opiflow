@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveBusinessContext } from '@/lib/api/auth';
-
-const ACTIVATION_ALLOWED_STATUSES = ['pending_manual_review', 'trialing', 'active'];
+import { isEntitled } from '@/lib/billing/entitlement';
 
 // ---------------------------------------------------------------------------
 // Shared auth helper
@@ -171,8 +170,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle();
 
     const subStatus = subRow ? (subRow as { status: string }).status : null;
-    const activationAllowed =
-      subStatus !== null && ACTIVATION_ALLOWED_STATUSES.includes(subStatus);
+    const activationAllowed = isEntitled(subStatus);
 
     if (!activationAllowed) {
       return NextResponse.json(

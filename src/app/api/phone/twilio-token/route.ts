@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { isEntitled } from '@/lib/billing/entitlement';
 
 export const runtime = 'nodejs';
 
@@ -59,7 +60,7 @@ export async function GET(request: NextRequest) {
     .eq('business_id', businessId)
     .maybeSingle();
   const subStatus = (subRow as { status?: string } | null)?.status ?? null;
-  if (!subStatus || !['pending_manual_review', 'trialing', 'active'].includes(subStatus)) {
+  if (!isEntitled(subStatus)) {
     return NextResponse.json(
       { ok: false, ready: false, error: 'activation_required' },
       { status: 403, headers: NO_STORE }

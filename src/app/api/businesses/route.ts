@@ -236,18 +236,28 @@ export async function POST(request: NextRequest) {
 
     const bizId = (business as unknown as { id: string }).id;
 
-    // Insert business_subscriptions row.
-    // No Stripe or payment provider in this slice. Status reflects whether
-    // a valid voucher was used (trialing) or not (pending_manual_review).
-    const subscriptionStatus: string =
-      validVoucher !== null ? 'trialing' : 'pending_manual_review';
+    // Insert business_subscriptions row. New self-serve signups must pay before
+    // access → 'pending_payment' (NOT entitled); the Stripe webhook flips them to
+    // 'active' after checkout. Voucher signups are entitled immediately ('trialing').
+    // Tolerant: if migration 061 (which adds 'pending_payment' to the status CHECK)
+    // isn't applied yet, the insert hits a CHECK violation (23514) and we retry with
+    // the legacy entitled status so signup keeps working pre-migration.
+    const desiredStatus: string = validVoucher !== null ? 'trialing' : 'pending_payment';
+    const insertSubscription = (status: string) =>
+      supabase.from('business_subscriptions').insert({
+        business_id:     bizId,
+        plan_key:        packageKey,
+        status,
+        voucher_code_id: validVoucher !== null ? validVoucher.id : null,
+      });
 
-    const { error: subError } = await supabase.from('business_subscriptions').insert({
-      business_id:     bizId,
-      plan_key:        packageKey,
-      status:          subscriptionStatus,
-      voucher_code_id: validVoucher !== null ? validVoucher.id : null,
-    });
+    // Track the status actually written (the response reports it to the client).
+    let subscriptionStatus = desiredStatus;
+    let { error: subError } = await insertSubscription(desiredStatus);
+    if (subError && subError.code === '23514' && desiredStatus === 'pending_payment') {
+      subscriptionStatus = 'pending_manual_review';
+      ({ error: subError } = await insertSubscription('pending_manual_review'));
+    }
 
     // A business with NO subscription row can never be activated later (the Stripe
     // webhook would have nothing to update), so fail loudly + roll back instead of
