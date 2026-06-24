@@ -3,55 +3,12 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-
-interface Plan {
-  id: string;
-  name: string;
-  price: string;
-  period: string;
-  description: string;
-  features: string[];
-  recommended: boolean;
-}
-
-const PLANS: Plan[] = [
-  {
-    id: 'starter',
-    name: 'Starter',
-    price: '€29',
-    period: '/μήνα',
-    description: 'Για έναν επαγγελματία',
-    features: [
-      'Κλήσεις και πελάτες',
-      'Βασικά follow-ups',
-    ],
-    recommended: false,
-  },
-  {
-    id: 'pro',
-    name: 'Pro',
-    price: '€59',
-    period: '/μήνα',
-    description: 'Για καθημερινή χρήση',
-    features: [
-      'AI brief κλήσεων',
-      'Προσφορές και ραντεβού',
-    ],
-    recommended: true,
-  },
-  {
-    id: 'team',
-    name: 'Team',
-    price: 'Κατόπιν επικοινωνίας',
-    period: '',
-    description: 'Για μικρή ομάδα',
-    features: [
-      'Περισσότεροι χρήστες',
-      'Προηγμένες ροές αργότερα',
-    ],
-    recommended: false,
-  },
-];
+import {
+  PLAN,
+  PLAN_FEATURES,
+  PLAN_PRICE_EX_VAT_LABEL,
+  PLAN_PRICE_INC_VAT_LABEL,
+} from '@/lib/billing/plans';
 
 function CheckIcon() {
   return (
@@ -70,11 +27,10 @@ function CheckIcon() {
 
 export default function PackagePage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<string>('pro');
   const [voucherInput, setVoucherInput] = useState<string>('');
 
   function handleContinue() {
-    const params = new URLSearchParams({ plan: selected });
+    const params = new URLSearchParams({ plan: PLAN.key });
     const trimmedVoucher = voucherInput.trim();
     if (trimmedVoucher) {
       params.set('voucher', trimmedVoucher);
@@ -102,67 +58,38 @@ export default function PackagePage() {
 
         {/* Title */}
         <h1 className="text-2xl font-bold leading-snug text-zinc-900 dark:text-zinc-100">
-          Διάλεξε πακέτο
+          Η συνδρομή σου
         </h1>
         <p className="mt-1.5 text-sm text-zinc-500 dark:text-zinc-400">
-          Ξεκίνα απλά. Μπορείς να αλλάξεις αργότερα.
+          Ένα απλό πακέτο με όλα μέσα. Ακύρωση οποτεδήποτε.
         </p>
 
-        {/* Plan cards */}
-        <div className="mt-6 space-y-3">
-          {PLANS.map((plan) => {
-            const isSelected = selected === plan.id;
-            return (
-              <button
-                key={plan.id}
-                type="button"
-                onClick={() => setSelected(plan.id)}
-                className={`relative w-full rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-4 text-left shadow-sm transition ${
-                  isSelected
-                    ? 'ring-2 ring-indigo-600'
-                    : 'ring-1 ring-zinc-200/60 dark:ring-white/10 hover:ring-zinc-300 dark:hover:ring-white/20'
-                }`}
-              >
-                {/* Recommended badge */}
-                {plan.recommended && (
-                  <span className="absolute right-4 top-4 rounded-full bg-indigo-600 px-2.5 py-0.5 text-[10px] font-semibold text-white">
-                    Προτείνεται
-                  </span>
-                )}
+        {/* The single plan */}
+        <div className="mt-6 rounded-[28px] bg-white dark:bg-[#17232f] px-5 py-5 shadow-sm ring-2 ring-indigo-600">
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">{PLAN.name}</p>
+              <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">Όλα όσα χρειάζεσαι</p>
+            </div>
+            <div className="ml-auto shrink-0 text-right">
+              <span className="text-lg font-bold text-zinc-900 dark:text-zinc-100">{PLAN_PRICE_EX_VAT_LABEL}</span>
+              <span className="block text-xs text-zinc-400 dark:text-zinc-500">/μήνα</span>
+            </div>
+          </div>
 
-                {/* Plan header */}
-                <div className="flex items-start justify-between pr-24">
-                  <div>
-                    <p className="text-base font-bold text-zinc-900 dark:text-zinc-100">{plan.name}</p>
-                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">{plan.description}</p>
-                  </div>
-                  <div className="ml-auto shrink-0 text-right">
-                    <span className={`font-bold ${plan.period ? 'text-lg text-zinc-900 dark:text-zinc-100' : 'text-sm text-zinc-500 dark:text-zinc-400'}`}>
-                      {plan.price}
-                    </span>
-                    {plan.period && (
-                      <span className="text-xs text-zinc-400 dark:text-zinc-500">{plan.period}</span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Features */}
-                <ul className="mt-3 space-y-1.5">
-                  {plan.features.map((f) => (
-                    <li key={f} className="flex items-center gap-2">
-                      <CheckIcon />
-                      <span className="text-sm text-zinc-600 dark:text-zinc-300">{f}</span>
-                    </li>
-                  ))}
-                </ul>
-              </button>
-            );
-          })}
+          <ul className="mt-4 space-y-1.5">
+            {PLAN_FEATURES.map((f) => (
+              <li key={f} className="flex items-center gap-2">
+                <CheckIcon />
+                <span className="text-sm text-zinc-600 dark:text-zinc-300">{f}</span>
+              </li>
+            ))}
+          </ul>
         </div>
 
         {/* Billing truth note */}
         <p className="mt-4 text-center text-xs text-zinc-400 dark:text-zinc-500">
-          Η επιβεβαίωση ενεργοποίησης γίνεται μετά την καταχώρηση.
+          {PLAN_PRICE_INC_VAT_LABEL} τον μήνα. Μηνιαία χρέωση, ακύρωση οποτεδήποτε.
         </p>
 
         {/* Voucher or demo code */}
