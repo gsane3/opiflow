@@ -1,6 +1,7 @@
 import 'react-native-gesture-handler';
 
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
+import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, View } from 'react-native';
@@ -8,7 +9,6 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AiSheetProvider } from '@/components/ai-sheet';
-import AppTabs from '@/components/app-tabs';
 import { IncomingCallModal } from '@/components/incoming-call-modal';
 import { LoginScreen } from '@/components/login-screen';
 import { NeedsSetupScreen } from '@/components/needs-setup-screen';
@@ -188,7 +188,25 @@ function Gate() {
 
   return (
     <AiSheetProvider>
-      <AppTabs />
+      {/* Root Stack: the (tabs) group is the home, and every secondary screen is a
+          pushed Stack screen. fullScreenGestureEnabled makes a left-edge (full-width)
+          swipe go back on ALL of them — #2 "go back everywhere". headerShown:false
+          because each screen draws its own header. */}
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          gestureEnabled: true,
+          fullScreenGestureEnabled: true,
+          animation: 'slide_from_right',
+        }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="tasks" />
+        <Stack.Screen name="appointments" />
+        <Stack.Screen name="offers" />
+        <Stack.Screen name="stats" />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="cmd" />
+      </Stack>
       {/* Global ring/in-call overlay (B7). Renders null until a call invite arrives. */}
       <IncomingCallModal />
     </AiSheetProvider>

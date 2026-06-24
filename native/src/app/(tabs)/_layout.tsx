@@ -3,10 +3,10 @@ import { Tabs } from 'expo-router';
 
 import { GlassTabBar } from '@/components/glass-tab-bar';
 
-// Stable expo-router Tabs (works in release on Expo SDK 54; replaces the SDK-56
-// unstable NativeTabs). The default bar is swapped for a floating glass bar with
-// a center AI FAB (redesign). Cross-platform — no separate .web variant needed.
-export default function AppTabs() {
+// The 4 primary tabs. The secondary screens (tasks/appointments/offers/stats/
+// search/cmd) live OUTSIDE this group, as screens of the ROOT Stack (app/_layout),
+// so opening them is a native push with edge-swipe-back — #2 "go back everywhere".
+export default function TabsLayout() {
   return (
     <Tabs
       tabBar={(props) => <GlassTabBar {...props} />}
@@ -33,15 +33,6 @@ export default function AppTabs() {
         name="settings"
         options={{ title: 'Ρυθμίσεις', tabBarIcon: ({ color, size }) => <Ionicons name="settings" color={color} size={size} /> }}
       />
-
-      {/* Secondary screens — reachable from the Αρχική dashboard / header, hidden
-          from the tab bar (mirrors the web, which also has only 4 nav tabs). */}
-      <Tabs.Screen name="tasks" options={{ href: null }} />
-      <Tabs.Screen name="appointments" options={{ href: null }} />
-      <Tabs.Screen name="offers" options={{ href: null }} />
-      <Tabs.Screen name="stats" options={{ href: null }} />
-      <Tabs.Screen name="search" options={{ href: null }} />
-      <Tabs.Screen name="cmd" options={{ href: null }} />
     </Tabs>
   );
 }
