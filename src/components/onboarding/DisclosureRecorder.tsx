@@ -17,12 +17,24 @@ const MAX_SECONDS = 20;
 
 function pickAudioMimeType(): string {
   if (typeof MediaRecorder === 'undefined') return '';
-  // Prefer webm/opus FIRST (Chrome/Firefox encode AND play it reliably). Desktop
-  // Chrome reports isTypeSupported('audio/mp4')=true but has NO audio mp4 muxer, so
-  // MediaRecorder constructs fine yet emits ZERO data → empty clip. iOS doesn't
-  // support webm, so it falls through to mp4/aac (which it can record). This order
-  // makes every browser land on a type it can actually encode.
-  for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac']) {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4', 'audio/aac'];
+  let probe: HTMLAudioElement | null = null;
+  try { if (typeof document !== 'undefined') probe = document.createElement('audio'); } catch { /* no probe */ }
+  const canPlay = (t: string): boolean => {
+    if (!probe) return true; // can't probe → don't block selection
+    try { return probe.canPlayType(t.split(';')[0].trim()) !== ''; } catch { return true; }
+  };
+  // Pick a type the browser can BOTH record (isTypeSupported) AND play (canPlayType),
+  // so the preview actually plays. CRITICAL: iOS WKWebView/Safari can RECORD webm/opus
+  // but CANNOT play it back (the «Error» preview); requiring canPlayType makes iOS skip
+  // webm and choose mp4/aac, while Chrome/Firefox/Brave keep webm/opus. (Plain mp4-first
+  // is wrong too: desktop Chrome reports mp4 supported but has no audio muxer → empty.)
+  for (const t of candidates) {
+    try { if (MediaRecorder.isTypeSupported(t) && canPlay(t)) return t; } catch { /* keep probing */ }
+  }
+  // Fallback: any recordable type (preview may not play, but it still saves and the
+  // PBX transcodes it via ffmpeg regardless of container).
+  for (const t of candidates) {
     try { if (MediaRecorder.isTypeSupported(t)) return t; } catch { /* keep probing */ }
   }
   return '';
@@ -53,6 +65,7 @@ export default function DisclosureRecorder({
   const chunksRef = useRef<BlobPart[]>([]);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
 
   function cleanup() {
     if (tickRef.current) { clearInterval(tickRef.current); tickRef.current = null; }
@@ -65,17 +78,17 @@ export default function DisclosureRecorder({
   // Stop recording / release the mic if the component unmounts mid-capture.
   useEffect(() => () => cleanup(), []);
 
-  // Build a reliable object-URL preview from the saved data URL.
+  // The preview object URL is created straight from the recorded blob (in onstop) —
+  // reliable in <audio> on Chrome AND iOS, unlike a webm/mp4 data: URL on WebKit.
+  // Clear it when the saved clip is removed externally; revoke on unmount.
   useEffect(() => {
-    if (!value) { setPreviewUrl(null); return; }
-    let url: string | null = null;
-    let cancelled = false;
-    fetch(value)
-      .then((r) => r.blob())
-      .then((b) => { if (!cancelled) { url = URL.createObjectURL(b); setPreviewUrl(url); } })
-      .catch(() => { if (!cancelled) setPreviewUrl(null); });
-    return () => { cancelled = true; if (url) URL.revokeObjectURL(url); };
+    if (!value && previewUrlRef.current) {
+      URL.revokeObjectURL(previewUrlRef.current);
+      previewUrlRef.current = null;
+      setPreviewUrl(null);
+    }
   }, [value]);
+  useEffect(() => () => { if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current); }, []);
 
   async function startRecording() {
     if (typeof navigator === 'undefined' || !navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
@@ -105,6 +118,12 @@ export default function DisclosureRecorder({
           return;
         }
         setMic('idle');
+        // Preview straight from the recorded blob (objectURL) — plays reliably in
+        // <audio> on Chrome AND iOS, unlike a base64 data: URL on WebKit.
+        if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+        previewUrlRef.current = URL.createObjectURL(blob);
+        setPreviewUrl(previewUrlRef.current);
+        // `value` (data URL) is still produced for SAVING to the server.
         const reader = new FileReader();
         reader.onload = () => { if (typeof reader.result === 'string') onChange(reader.result); };
         reader.readAsDataURL(blob);
@@ -155,7 +174,7 @@ export default function DisclosureRecorder({
         </button>
       ) : hasClip ? (
         <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 dark:border-white/15 dark:bg-[#1e2b38]">
-          <audio src={previewUrl ?? value} controls className="w-full" />
+          <audio key={previewUrl ?? value} src={previewUrl ?? value} controls className="w-full" />
           <div className="flex gap-3">
             <button type="button" onClick={startRecording} disabled={saving} className="text-sm font-medium text-indigo-600 hover:text-indigo-700 disabled:opacity-50">
               Ηχογράφηση ξανά
