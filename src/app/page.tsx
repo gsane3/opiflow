@@ -138,7 +138,7 @@ export default function LandingPage() {
               </Link>
             </div>
             <div className="mt-8">
-              <p className="mb-2.5 text-xs font-medium text-zinc-400">Κατέβασέ το στο κινητό σου</p>
+              <p className="mb-2.5 text-xs font-medium text-zinc-400">Έρχεται σύντομα και ως εφαρμογή — για τώρα τρέχει άψογα στον browser του κινητού σου</p>
               <StoreBadges />
             </div>
           </div>

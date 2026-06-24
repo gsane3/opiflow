@@ -13,7 +13,7 @@ export default function robots(): MetadataRoute.Robots {
           '/dashboard', '/customers', '/offers', '/tasks', '/appointments',
           '/settings', '/cmd', '/ai-review', '/number', '/package', '/onboarding',
           '/stats', '/search',
-          '/api/', '/auth/', '/intake/', '/offer-response/', '/appointment-response/',
+          '/api/', '/auth/', '/f/', '/intake/', '/offer-response/', '/appointment-response/',
           '/upload/', '/backend', '/login/backend', '/onboarding/backend',
           '/business/backend', '/communications/backend', '/customers/backend',
           '/phone-pool/backend',

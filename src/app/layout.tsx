@@ -10,6 +10,9 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
+  // Lets Next.js resolve relative OpenGraph/Twitter/canonical URLs to absolute
+  // ones (required for social-share previews). Override via NEXT_PUBLIC_SITE_URL.
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || 'https://opiflow.vercel.app'),
   title: {
     default: 'Opiflow',
     template: '%s · Opiflow',
