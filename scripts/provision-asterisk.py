@@ -90,6 +90,19 @@ DISCLOSURE_DEFAULT = env("OPIFLOW_DISCLOSURE_DEFAULT", "opiflow-call-recorded")
 FFMPEG = env("OPIFLOW_FFMPEG", "ffmpeg")
 
 
+def disc_ref(name):
+    """Asterisk resolves a BARE sound name from its data sounds dir (+ language
+    subdir, e.g. /usr/share/asterisk/sounds/en/), NOT from SOUNDS_DIR
+    (/var/lib/asterisk/sounds) where these clips live — so a bare name silently
+    fails to play (the «no disclosure heard» bug). Emit an ABSOLUTE, extension-less
+    path; Playback() and Dial A() accept it as-is and always find the file."""
+    return name if name.startswith("/") else os.path.join(SOUNDS_DIR, name)
+
+
+# The global default clip, as an absolute path Asterisk can always resolve.
+DISCLOSURE_DEFAULT = disc_ref(DISCLOSURE_DEFAULT)
+
+
 def load_key():
     raw = env("SIP_CRED_ENC_KEY", required=True).strip()
     key = bytes.fromhex(raw) if re.fullmatch(r"[0-9a-fA-F]{64}", raw) else base64.b64decode(raw)
@@ -209,7 +222,7 @@ def sync_disclosure(username, data_url):
     sha = hashlib.sha256(data_url.encode()).hexdigest()[:16]
     try:
         if os.path.exists(wav) and os.path.exists(shafile) and open(shafile).read().strip() == sha:
-            return base  # unchanged → already in place
+            return disc_ref(base)  # unchanged → already in place (absolute path)
     except Exception:
         pass
     try:
@@ -232,7 +245,7 @@ def sync_disclosure(username, data_url):
             pass
         with open(shafile, "w") as f:
             f.write(sha)
-        return base
+        return disc_ref(base)
     except Exception:
         return None
     finally:
