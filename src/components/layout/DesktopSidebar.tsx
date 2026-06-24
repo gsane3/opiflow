@@ -88,7 +88,7 @@ export default function DesktopSidebar() {
                   href={item.href}
                   className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                     active
-                      ? 'bg-indigo-50 text-indigo-700'
+                      ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
                       : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-zinc-100'
                   }`}
                 >
@@ -107,7 +107,7 @@ export default function DesktopSidebar() {
           href={settingsItem.href}
           className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
             settingsActive
-              ? 'bg-indigo-50 text-indigo-700'
+              ? 'bg-indigo-50 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
               : 'text-zinc-600 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-white/5 hover:text-zinc-900 dark:hover:text-zinc-100'
           }`}
         >
