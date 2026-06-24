@@ -194,6 +194,7 @@ function CallActionSheet({
   const [view, setView] = useState<'actions' | 'add_contact' | 'bulk_confirm' | 'create_task'>('actions');
   const [busy, setBusy] = useState(false);
   const [sheetError, setSheetError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   // Bulk link state: candidates and customer set after a successful single link.
   const [pendingBulkCalls, setPendingBulkCalls] = useState<BackendCall[]>([]);
   const [bulkCustomer, setBulkCustomer] = useState<Customer | null>(null);
@@ -227,6 +228,14 @@ function CallActionSheet({
   const actionSheetBrief = extractAiBrief(call.summary);
 
   async function handleDelete() {
+    // Two-tap confirm: deleting a call permanently removes its record + AI brief
+    // with no undo, so the first tap arms it and a second tap commits.
+    if (!confirmDelete) {
+      setConfirmDelete(true);
+      setSheetError(null);
+      window.setTimeout(() => setConfirmDelete(false), 4000);
+      return;
+    }
     const token = getAuthToken();
     if (!token) return;
     setBusy(true);
@@ -528,9 +537,13 @@ function CallActionSheet({
                 type="button"
                 onClick={handleDelete}
                 disabled={busy}
-                className="w-full rounded-2xl bg-red-50 py-3.5 text-sm font-semibold text-red-600 ring-1 ring-red-200 transition hover:bg-red-100 active:bg-red-200 disabled:opacity-50"
+                className={`w-full rounded-2xl py-3.5 text-sm font-semibold transition disabled:opacity-50 ${
+                  confirmDelete
+                    ? 'bg-red-600 text-white ring-1 ring-red-700 hover:bg-red-700 active:bg-red-800'
+                    : 'bg-red-50 text-red-600 ring-1 ring-red-200 hover:bg-red-100 active:bg-red-200'
+                }`}
               >
-                Διαγραφή κλήσης
+                {confirmDelete ? 'Πάτησε ξανά για οριστική διαγραφή' : 'Διαγραφή κλήσης'}
               </button>
 
               {/* Contact action: view linked, link existing match, open form, or no phone */}
