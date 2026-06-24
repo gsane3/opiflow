@@ -16,6 +16,7 @@ import React, { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { Modal, Pressable, Text, View } from 'react-native';
 
 import { Brand, BrandGradient } from '@/constants/theme';
+import { hapticTap } from '@/lib/haptics';
 import { maybePromptIntakeFor } from '@/lib/intake-prompt';
 import { getIncomingCall, getIncomingCallName, subscribeIncomingCall } from '@/lib/twilio-state';
 
@@ -113,13 +114,13 @@ export function IncomingCallModal() {
           <View>
             {connected ? (
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 56 }}>
-                <RoundButton label={muted ? 'Άρση σίγασης' : 'Σίγαση'} icon={muted ? 'mic-off' : 'mic'} onPress={toggleMute} bg="rgba(255,255,255,0.15)" />
-                <RoundButton label="Τερματισμός" icon="call" rotate big onPress={() => call.disconnect()} bg={Brand.danger} />
+                <RoundButton label={muted ? 'Άρση σίγασης' : 'Σίγαση'} icon={muted ? 'mic-off' : 'mic'} onPress={() => { void hapticTap(); toggleMute(); }} bg="rgba(255,255,255,0.15)" />
+                <RoundButton label="Τερματισμός" icon="call" rotate big onPress={() => { void hapticTap(); call.disconnect(); }} bg={Brand.danger} />
               </View>
             ) : (
               <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 72 }}>
-                <RoundButton label="Απόρριψη" icon="call" rotate big onPress={() => call.reject()} bg={Brand.danger} />
-                <RoundButton label="Απάντηση" icon="call" big onPress={() => call.accept()} bg={Brand.success} />
+                <RoundButton label="Απόρριψη" icon="call" rotate big onPress={() => { void hapticTap(); call.reject(); }} bg={Brand.danger} />
+                <RoundButton label="Απάντηση" icon="call" big onPress={() => { void hapticTap(); call.accept(); }} bg={Brand.success} />
               </View>
             )}
           </View>

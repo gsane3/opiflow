@@ -145,6 +145,11 @@ function Gate() {
 
     void doRegister();
 
+    // Register for NON-call push (missed-call / weekly-summary / customer-reply
+    // alerts that arrive while the app is closed). Best-effort + guarded; Android
+    // is wired end-to-end today, iOS no-ops until Firebase-iOS is configured.
+    void import('@/lib/push').then((m) => m.registerPushToken()).catch(() => {});
+
     // Re-register whenever the app returns to the foreground and the device is
     // not currently registered (error, idle, or a dropped binding) — the phone
     // must ring. Idempotent on the Twilio side; a no-op when already registered.
