@@ -65,6 +65,15 @@ const SETTINGS_GROUPS: { id: SettingsGroupTitle; subtitle: string; icon: keyof t
   { id: 'Λογαριασμός', subtitle: 'Συνδρομή & διαγραφή', icon: 'person-circle-outline' },
 ];
 
+// Item #1 — each group drills into a LIST of options; tapping one shows ONLY that
+// option (its own page within Settings), instead of all sections open at once.
+const GROUP_SECTIONS: Record<SettingsGroupTitle, string[]> = {
+  'Η επιχείρησή σου': ['Επιχείρηση', 'Τραπεζικά στοιχεία', 'Κατάλογος υπηρεσιών'],
+  'Επικοινωνία με πελάτες': ['Τηλεφωνία', 'Πρότυπα μηνυμάτων', 'Ωράριο & αυτοματισμοί'],
+  'Εφαρμογή': ['Εμφάνιση', 'Επαφές', 'Δεδομένα & Ειδοποιήσεις'],
+  'Λογαριασμός': ['Λογαριασμός'],
+};
+
 export default function SettingsScreen() {
   const { session, signOut } = useAuth();
   const email = session?.user?.email ?? '';
@@ -80,6 +89,7 @@ export default function SettingsScreen() {
   const [deletingImported, setDeletingImported] = useState(false);
   // Drill-in: which settings category is open (null = the category hub).
   const [activeGroup, setActiveGroup] = useState<SettingsGroupTitle | null>(null);
+  const [activeSection, setActiveSection] = useState<string | null>(null);
 
   function confirmDeleteImported() {
     Alert.alert(
@@ -613,7 +623,7 @@ export default function SettingsScreen() {
               {SETTINGS_GROUPS.map((g) => (
                 <Pressable
                   key={g.id}
-                  onPress={() => setActiveGroup(g.id)}
+                  onPress={() => { setActiveGroup(g.id); setActiveSection(GROUP_SECTIONS[g.id].length === 1 ? GROUP_SECTIONS[g.id][0] : null); }}
                   style={({ pressed }) => [styles.groupCard, pressed && styles.pressed]}>
                   <View style={styles.groupIcon}>
                     <Ionicons name={g.icon} size={22} color={Brand.primary} />
@@ -627,18 +637,45 @@ export default function SettingsScreen() {
               ))}
             </>
           ) : (
-            <Pressable onPress={() => setActiveGroup(null)} hitSlop={8} style={styles.backRow}>
-              <Ionicons name="chevron-back" size={20} color={Brand.primary} />
-              <ThemedText type="smallBold" style={{ color: Brand.primary }}>Ρυθμίσεις</ThemedText>
-            </Pressable>
+            <>
+              <Pressable
+                onPress={() => {
+                  if (activeSection && GROUP_SECTIONS[activeGroup].length > 1) setActiveSection(null);
+                  else { setActiveGroup(null); setActiveSection(null); }
+                }}
+                hitSlop={8}
+                style={styles.backRow}>
+                <Ionicons name="chevron-back" size={20} color={Brand.primary} />
+                <ThemedText type="smallBold" style={{ color: Brand.primary }}>
+                  {activeSection && GROUP_SECTIONS[activeGroup].length > 1 ? activeGroup : 'Ρυθμίσεις'}
+                </ThemedText>
+              </Pressable>
+              {/* Option list for the active group — tap one to open ONLY that option. */}
+              {activeSection === null && (
+                <>
+                  <GroupHeader title={activeGroup} />
+                  {GROUP_SECTIONS[activeGroup].map((s) => (
+                    <Pressable
+                      key={s}
+                      onPress={() => setActiveSection(s)}
+                      style={({ pressed }) => [styles.groupCard, pressed && styles.pressed]}>
+                      <View style={{ flex: 1 }}>
+                        <ThemedText type="smallBold">{s}</ThemedText>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={c.textFaint} />
+                    </Pressable>
+                  ))}
+                </>
+              )}
+            </>
           )}
 
           {activeGroup === 'Η επιχείρησή σου' && (<>
           {/* ───── Η επιχείρησή σου ───── */}
-          <GroupHeader title="Η επιχείρησή σου" />
+          {activeSection !== null && <GroupHeader title="Η επιχείρησή σου" />}
 
           {/* Επιχείρηση */}
-          <Section title="Επιχείρηση">
+          <Section title="Επιχείρηση" visible={activeSection === 'Επιχείρηση'}>
             {/* Logo από το κινητό (#8) — εμφανίζεται σε προσφορές/portal. */}
             <View style={styles.logoRow}>
               {logoPreview ? (
@@ -684,7 +721,7 @@ export default function SettingsScreen() {
           </Section>
 
           {/* Τραπεζικά στοιχεία (πολλαπλοί λογαριασμοί, α) */}
-          <Section title="Τραπεζικά στοιχεία" count={accounts.length}>
+          <Section title="Τραπεζικά στοιχεία" count={accounts.length} visible={activeSection === 'Τραπεζικά στοιχεία'}>
             <ThemedText type="small" themeColor="textSecondary">
               Εμφανίζονται στον πελάτη όταν του ζητάς κατάθεση/εξόφληση και στην προσφορά. Ο πρώτος λογαριασμός είναι ο κύριος. Το Opiflow δεν διαχειρίζεται χρήματα — ο πελάτης καταθέτει απευθείας σε εσένα.
             </ThemedText>
@@ -726,7 +763,7 @@ export default function SettingsScreen() {
           </Section>
 
           {/* Κατάλογος υπηρεσιών */}
-          <Section title="Κατάλογος υπηρεσιών" count={catalog.length}>
+          <Section title="Κατάλογος υπηρεσιών" count={catalog.length} visible={activeSection === 'Κατάλογος υπηρεσιών'}>
             {catalog.map((it) => (
               <ListRow
                 key={it.id}
@@ -763,10 +800,10 @@ export default function SettingsScreen() {
 
           {activeGroup === 'Επικοινωνία με πελάτες' && (<>
           {/* ───── Επικοινωνία με πελάτες ───── */}
-          <GroupHeader title="Επικοινωνία με πελάτες" />
+          {activeSection !== null && <GroupHeader title="Επικοινωνία με πελάτες" />}
 
           {/* Τηλεφωνία */}
-          <Section title="Τηλεφωνία" initiallyOpen>
+          <Section title="Τηλεφωνία" initiallyOpen visible={activeSection === 'Τηλεφωνία'}>
             <Row label="Ο αριθμός σου" value={biz?.business_phone_number ?? '—'} />
             <Row label="Τηλέφωνο app (εισερχόμενες)" value={phoneValue} />
             <PrimaryButton
@@ -812,7 +849,7 @@ export default function SettingsScreen() {
           </Section>
 
           {/* Πρότυπα μηνυμάτων */}
-          <Section title="Πρότυπα μηνυμάτων" count={snippets.length}>
+          <Section title="Πρότυπα μηνυμάτων" count={snippets.length} visible={activeSection === 'Πρότυπα μηνυμάτων'}>
             {snippets.map((s) => (
               <ListRow key={s.id} title={s.title} subtitle={s.body} onPress={() => onSnippetTap(s)} />
             ))}
@@ -840,7 +877,7 @@ export default function SettingsScreen() {
           </Section>
 
           {/* Ωράριο & αυτοματισμοί */}
-          <Section title="Ωράριο & αυτοματισμοί">
+          <Section title="Ωράριο & αυτοματισμοί" visible={activeSection === 'Ωράριο & αυτοματισμοί'}>
             <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
                 <ThemedText type="smallBold">Αυτόματη απάντηση σε αναπάντητη</ThemedText>
@@ -905,10 +942,10 @@ export default function SettingsScreen() {
 
           {activeGroup === 'Εφαρμογή' && (<>
           {/* ───── Εφαρμογή ───── */}
-          <GroupHeader title="Εφαρμογή" />
+          {activeSection !== null && <GroupHeader title="Εφαρμογή" />}
 
           {/* Εμφάνιση */}
-          <Section title="Εμφάνιση" initiallyOpen>
+          <Section title="Εμφάνιση" initiallyOpen visible={activeSection === 'Εμφάνιση'}>
             <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
                 <ThemedText type="smallBold">Σκούρο θέμα</ThemedText>
@@ -921,7 +958,7 @@ export default function SettingsScreen() {
           </Section>
 
           {/* Επαφές κινητού — εισαγωγή + καθαρισμός */}
-          <Section title="Επαφές">
+          <Section title="Επαφές" visible={activeSection === 'Επαφές'}>
             <ThemedText type="small" themeColor="textSecondary">
               Η εισαγωγή επαφών από το κινητό γίνεται από την καρτέλα «Πελάτες». Εδώ μπορείς να
               διαγράψεις όλες τις εισαγόμενες επαφές — οι επαφές της εφαρμογής (κλήσεις, έργα,
@@ -942,7 +979,7 @@ export default function SettingsScreen() {
           </Section>
 
           {/* Δεδομένα / Ειδοποιήσεις hint */}
-          <Section title="Δεδομένα & Ειδοποιήσεις">
+          <Section title="Δεδομένα & Ειδοποιήσεις" visible={activeSection === 'Δεδομένα & Ειδοποιήσεις'}>
             <ThemedText type="small" themeColor="textSecondary">
               Εξαγωγή πελατών (CSV), ομάδα και δοκιμή ειδοποιήσεων γίνονται από το web:
               www.opiflow.ai → Ρυθμίσεις.
@@ -953,10 +990,10 @@ export default function SettingsScreen() {
 
           {activeGroup === 'Λογαριασμός' && (<>
           {/* ───── Λογαριασμός ───── */}
-          <GroupHeader title="Λογαριασμός" />
+          {activeSection !== null && <GroupHeader title="Λογαριασμός" />}
 
           {/* Λογαριασμός */}
-          <Section title="Λογαριασμός">
+          <Section title="Λογαριασμός" visible={activeSection === 'Λογαριασμός'}>
             <Row label="Email" value={email || '—'} />
             <Row
               label="Συνδρομή"
