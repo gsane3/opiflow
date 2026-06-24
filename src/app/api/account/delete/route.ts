@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { authenticateBusinessRequest, requireOwner } from '@/lib/api/auth';
 import { recordAuditEvent } from '@/lib/server/audit';
 import { createRateLimiter, clientKey } from '@/lib/rate-limit';
 
@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
 
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
+  // Only the owner may erase the entire business + auth user.
+  const denied = requireOwner(auth.ctx);
+  if (denied) return denied;
   const { supabase, userId, businessId } = auth.ctx;
 
   await recordAuditEvent({ businessId, actorUserId: userId, action: 'account_delete' });

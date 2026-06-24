@@ -6,7 +6,7 @@
 // GET returns an empty list, POST returns 503 so Settings never hard-breaks.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { authenticateBusinessRequest, requireManager } from '@/lib/api/auth';
 import { listBankAccounts, createBankAccount } from '@/lib/server/bank-accounts';
 
 export const runtime = 'nodejs';
@@ -29,6 +29,9 @@ function isValidIban(s: string): boolean {
 export async function GET(request: NextRequest) {
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
+  // Bank IBANs are owner/admin-only (a 'member' must not read or exfiltrate them).
+  const denied = requireManager(auth.ctx);
+  if (denied) return denied;
   try {
     const accounts = await listBankAccounts(auth.ctx.businessId);
     return NextResponse.json({ ok: true, accounts });
@@ -45,6 +48,8 @@ export async function POST(request: NextRequest) {
   }
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
+  const denied = requireManager(auth.ctx);
+  if (denied) return denied;
 
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 }); }

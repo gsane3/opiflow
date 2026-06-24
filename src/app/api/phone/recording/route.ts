@@ -10,7 +10,7 @@
 // 500s, so the settings panel keeps rendering and the toggle stays usable).
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { authenticateBusinessRequest, requireManager } from '@/lib/api/auth';
 
 export const runtime = 'nodejs';
 
@@ -48,6 +48,9 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   const auth = await authenticateBusinessRequest(request);
   if ('error' in auth) return auth.error;
+  // Recording on/off is a consent/COGS setting — owner/admin only.
+  const denied = requireManager(auth.ctx);
+  if (denied) return denied;
   const { supabase, businessId } = auth.ctx;
 
   let body: { recordCalls?: unknown };
