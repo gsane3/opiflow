@@ -17,7 +17,7 @@ import { Modal, Pressable, Text, View } from 'react-native';
 
 import { Brand, BrandGradient } from '@/constants/theme';
 import { maybePromptIntakeFor } from '@/lib/intake-prompt';
-import { getIncomingCall, subscribeIncomingCall } from '@/lib/twilio-state';
+import { getIncomingCall, getIncomingCallName, subscribeIncomingCall } from '@/lib/twilio-state';
 
 type IconName = React.ComponentProps<typeof Ionicons>['name'];
 
@@ -39,6 +39,9 @@ function RoundButton({
 
 export function IncomingCallModal() {
   const call = useSyncExternalStore(subscribeIncomingCall, getIncomingCall, getIncomingCall);
+  // #10: resolved caller name (Opiflow customer or device contact). Separate store
+  // so it can upgrade the label without changing the call session's identity.
+  const callerName = useSyncExternalStore(subscribeIncomingCall, getIncomingCallName, getIncomingCallName);
   const [seconds, setSeconds] = useState(0);
   const [muted, setMuted] = useState(false);
 
@@ -94,8 +97,13 @@ export function IncomingCallModal() {
               <Ionicons name="call" size={48} color="#fff" />
             </View>
             <Text style={{ marginTop: 28, color: '#fff', fontSize: 24, fontWeight: '800' }} numberOfLines={1}>
-              {call.from ?? 'Άγνωστος'}
+              {callerName ?? call.from ?? 'Άγνωστος'}
             </Text>
+            {callerName && call.from ? (
+              <Text style={{ marginTop: 4, color: 'rgba(255,255,255,0.75)', fontSize: 15 }} numberOfLines={1}>
+                {call.from}
+              </Text>
+            ) : null}
             <Text style={{ marginTop: 8, color: 'rgba(255,255,255,0.75)', fontSize: 14 }}>
               {connected ? timer : 'Εισερχόμενη κλήση'}
             </Text>

@@ -74,12 +74,21 @@ export interface IncomingCallSession {
 let incomingCall: IncomingCallSession | null = null;
 const callListeners = new Set<Listener>();
 
+// Resolved caller display name (#10) for the CURRENT call, kept in a SEPARATE
+// snapshot from incomingCall so updating it doesn't change the session object's
+// identity (the CallInvite handler relies on `getIncomingCall() === session`).
+// The modal reads it via its own useSyncExternalStore.
+let incomingCallName: string | null = null;
+
 export function getIncomingCall(): IncomingCallSession | null {
   return incomingCall;
 }
 
-export function setIncomingCall(next: IncomingCallSession | null) {
-  incomingCall = next;
+export function getIncomingCallName(): string | null {
+  return incomingCallName;
+}
+
+function notifyCall() {
   for (const fn of callListeners) {
     try {
       fn();
@@ -87,6 +96,19 @@ export function setIncomingCall(next: IncomingCallSession | null) {
       // a broken listener must not break state updates
     }
   }
+}
+
+export function setIncomingCall(next: IncomingCallSession | null) {
+  incomingCall = next;
+  // A new (or cleared) call invalidates any previously resolved name.
+  incomingCallName = null;
+  notifyCall();
+}
+
+/** Set the resolved caller name for the current call (no-op once the call cleared). */
+export function setIncomingCallName(name: string | null) {
+  incomingCallName = name;
+  notifyCall();
 }
 
 /** Subscribe to incoming-call changes (the global ring/in-call modal). */
