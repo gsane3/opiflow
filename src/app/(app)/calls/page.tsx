@@ -873,10 +873,11 @@ function RecentTab({
 }) {
   // Newest first, then float missed calls to the top so they are impossible to
   // overlook. Date order is preserved within each group (stable, safe).
+  const [visibleCount, setVisibleCount] = useState(20);
   const sorted = [...calls]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .sort((a, b) => Number(b.status === 'missed') - Number(a.status === 'missed'))
-    .slice(0, 20);
+    .sort((a, b) => Number(b.status === 'missed') - Number(a.status === 'missed'));
+  const shown = sorted.slice(0, visibleCount);
 
   if (sorted.length === 0) {
     return (
@@ -893,8 +894,9 @@ function RecentTab({
   }
 
   return (
+    <>
     <ul className="space-y-2.5">
-      {sorted.map((call) => {
+      {shown.map((call) => {
         const linkedCustomer = call.customer;
         const displayName =
           linkedCustomer?.name ??
@@ -1042,6 +1044,16 @@ function RecentTab({
         );
       })}
     </ul>
+    {sorted.length > visibleCount && (
+      <button
+        type="button"
+        onClick={() => setVisibleCount((v) => v + 20)}
+        className="mt-3 w-full rounded-2xl bg-white dark:bg-[#17232f] py-3 text-sm font-semibold text-indigo-600 ring-1 ring-zinc-200/60 dark:ring-white/10 transition hover:bg-zinc-50 dark:hover:bg-white/5"
+      >
+        Φόρτωσε περισσότερες ({sorted.length - visibleCount})
+      </button>
+    )}
+    </>
   );
 }
 
