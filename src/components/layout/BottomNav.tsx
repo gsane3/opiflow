@@ -59,11 +59,12 @@ export default function BottomNav() {
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
+                aria-current={active ? 'page' : undefined}
                 className={`flex h-full flex-col items-center justify-center gap-0.5 text-[11px] font-medium transition ${
                   active ? 'text-indigo-600' : 'text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300'
                 }`}
               >
-                <span className="relative flex items-center justify-center transition active:scale-95">
+                <span className="relative flex items-center justify-center transition active:scale-95" aria-hidden="true">
                   {active && (
                     <span className="absolute inset-0 -z-10 -m-1 rounded-full bg-indigo-50" aria-hidden="true" />
                   )}
