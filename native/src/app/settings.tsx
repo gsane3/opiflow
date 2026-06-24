@@ -20,6 +20,7 @@ import { formatDate, formatEuro } from '@/lib/format';
 import { getIncomingState } from '@/lib/twilio-state';
 import type { Business, CatalogItem } from '@/lib/types';
 import DisclosureRecorderModal from '@/components/disclosure-recorder-modal';
+import { ExemptNumbersModal } from '@/components/exempt-numbers-modal';
 
 const PHONE_LABEL: Record<string, string> = {
   idle: 'Μη συνδεδεμένο',
@@ -167,6 +168,7 @@ export default function SettingsScreen() {
 
   const [phone, setPhone] = useState(getIncomingState());
   const [discModal, setDiscModal] = useState(false);
+  const [exemptModal, setExemptModal] = useState(false);
   useEffect(() => {
     const t = setInterval(() => setPhone(getIncomingState()), 1500);
     return () => clearInterval(t);
@@ -799,6 +801,14 @@ export default function SettingsScreen() {
               visible={discModal}
               onClose={(saved) => { setDiscModal(false); if (saved) Alert.alert('✓', 'Το μήνυμα ηχογράφησης αποθηκεύτηκε.'); }}
             />
+
+            <View style={{ height: 12 }} />
+            <ThemedText type="smallBold">Εξαιρέσεις ηχογράφησης</ThemedText>
+            <ThemedText type="small" themeColor="textSecondary">
+              Προσωπικές επαφές που ΔΕΝ θα ακούν το μήνυμα και ΔΕΝ θα ηχογραφούνται (π.χ. φίλοι/γνωστοί που σε καλούν στο ίδιο νούμερο).
+            </ThemedText>
+            <PrimaryButton label="Διαχείριση εξαιρέσεων" tone="outline" onPress={() => setExemptModal(true)} />
+            <ExemptNumbersModal visible={exemptModal} onClose={() => setExemptModal(false)} />
           </Section>
 
           {/* Πρότυπα μηνυμάτων */}

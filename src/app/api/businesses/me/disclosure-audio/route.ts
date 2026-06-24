@@ -20,7 +20,12 @@ export const runtime = 'nodejs';
 // A few seconds of opus/aac is tens of KB; cap the base64 string generously but
 // bounded so a runaway upload can't bloat the businesses row.
 const MAX_AUDIO_DATAURL_LEN = 1_400_000; // ~1 MB binary
-const AUDIO_DATAURL_RE = /^data:audio\/(webm|ogg|mp4|mpeg|mp3|wav|x-m4a|aac)(;[a-z0-9-]+=[^;,]*)*;base64,[A-Za-z0-9+/=]+$/i;
+// Accept ANY audio/* data URL with codec params. iOS WKWebView MediaRecorder emits
+// mimes like `audio/mp4;codecs="mp4a.40.2"` (quoted codecs) or subtypes outside a
+// fixed whitelist — the previous strict pattern silently 400'd those valid clips, so
+// recording "didn't work". We keep the hard `data:audio/…;base64,<base64>` shape (so
+// non-audio / oversized payloads can't slip in) but allow arbitrary `;param` segments.
+const AUDIO_DATAURL_RE = /^data:audio\/[a-z0-9.+-]+(;[^;,]+)*;base64,[A-Za-z0-9+/=]+$/i;
 
 /** Treat a PostgREST "column/relation missing" error as "migration not applied yet". */
 function isMissingColumn(err: { code?: string; message?: string } | null | undefined): boolean {
