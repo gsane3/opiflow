@@ -46,6 +46,17 @@ export default function CmdWidgetPage() {
   }
   useEffect(() => () => cleanup(), []);
 
+  // Auto-start listening when opened with ?autostart=1 (the native mic button does
+  // this) so it feels like one tap — ChatGPT-style. Best-effort: if the WebView
+  // blocks capture without an in-page gesture, the visible mic button is the fallback.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (new URLSearchParams(window.location.search).get('autostart') !== '1') return;
+    const t = setTimeout(() => { void start(); }, 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function post(dataUrl: string) {
     const w = window as unknown as { ReactNativeWebView?: { postMessage: (m: string) => void } };
     if (w.ReactNativeWebView) {
