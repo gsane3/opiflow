@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Opiflow">
   <rect width="512" height="512" fill="#0A1120"/>
-  <circle cx="256" cy="256" r="120" fill="none" stroke="#00C499" stroke-width="24" stroke-linecap="round" stroke-dasharray="586 168" transform="rotate(-90 256 256)"/>
-  <circle cx="256" cy="138" r="18" fill="#00C499"/>
-  <circle cx="256" cy="256" r="24" fill="#00C499"/>
+  <circle cx="256" cy="256" r="120" fill="none" stroke="#2A86C5" stroke-width="24" stroke-linecap="round" stroke-dasharray="586 168" transform="rotate(-90 256 256)"/>
+  <circle cx="256" cy="138" r="18" fill="#2A86C5"/>
+  <circle cx="256" cy="256" r="24" fill="#2A86C5"/>
 </svg>

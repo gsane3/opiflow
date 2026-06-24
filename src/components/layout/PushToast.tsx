@@ -46,7 +46,7 @@ export default function PushToast() {
         role="status"
         className="pointer-events-auto flex w-full max-w-md items-start gap-3 rounded-2xl bg-white/95 dark:bg-[#17232f]/95 p-3 shadow-lg ring-1 ring-zinc-200/70 dark:ring-white/10 backdrop-blur animate-[slideDown_0.25s_ease-out]"
       >
-        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-base">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-base" aria-hidden="true">
           🔔
         </div>
         <button
