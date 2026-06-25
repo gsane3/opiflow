@@ -1,0 +1,61 @@
+# Opiflow CI — copy this file to `.github/workflows/ci.yml`.
+#
+# Why it lives here as an example: the assistant's GitHub token doesn't carry the
+# `workflow` scope, so it can't commit under `.github/workflows/`. Add it yourself
+# via the GitHub web UI (Add file → Create new file → path `.github/workflows/ci.yml`
+# → paste this content), or push it from a local clone with a `workflow`-scoped token.
+#
+# It runs the same gates we run locally (tsc + vitest + next build for web, tsc for
+# native). It ONLY validates PRs on GitHub Actions — it never touches the Vercel
+# runtime, so it cannot affect the live app. Not a required check until it's green.
+
+name: CI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: web (tsc · vitest · build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npx vitest run
+      - name: Production build
+        run: npx next build
+        env:
+          # Dummy public values so the build never reads undefined env. No secrets:
+          # all integrations are env-gated and degrade to inert without real keys.
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-dummy.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-dummy-anon-key
+
+  native:
+    name: native (tsc)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: native
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Typecheck
+        run: npx tsc --noEmit
