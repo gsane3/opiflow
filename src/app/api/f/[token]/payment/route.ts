@@ -5,12 +5,17 @@
 // (atomic) — a foreign/guessed/already-settled id matches 0 rows → generic 409,
 // no oracle. 'declared' is NOT authoritative; the owner confirms separately.
 // Service-role only; raw DB errors never leak. Requires migration 048.
+//
+// Adopted to the public-folder module: the route keeps the token VERIFY +
+// content-type/JSON/paymentRequestId validation verbatim; the atomic declare +
+// owner push move to declareFolderPayment (service-role, business+folder scoped).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
 import { findValidFolderToken } from '@/lib/server/folder-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
 import { sendPushToBusinessOwner } from '@/lib/server/push';
+import { declareFolderPayment } from '@/server/modules/public-folder/public-folder.service';
 
 export const runtime = 'nodejs';
 
@@ -62,35 +67,23 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'payment_declare_failed' }, { status: 500 });
   }
 
-  // Atomic: mark 'pending' → 'declared', scoped to the token's folder + business.
-  // A wrong/foreign/already-declared id matches no row → generic 409 (no oracle).
-  const now = new Date().toISOString();
-  let updated: { id: string; customer_id: string | null }[] | null;
-  try {
-    const { data, error } = await supabase
-      .from('payment_requests')
-      .update({ status: 'declared', declared_at: now, updated_at: now })
-      .eq('id', paymentRequestId)
-      .eq('business_id', tokenRow.business_id)
-      .eq('work_folder_id', tokenRow.work_folder_id)
-      .eq('status', 'pending')
-      .select('id, customer_id');
-    if (error) return NextResponse.json({ ok: false, error: 'payment_declare_failed' }, { status: 500 });
-    updated = data as unknown as { id: string; customer_id: string | null }[];
-  } catch {
-    return NextResponse.json({ ok: false, error: 'payment_declare_failed' }, { status: 500 });
+  // Atomic: mark 'pending' → 'declared', scoped to the token's folder + business,
+  // then best-effort notify the owner to confirm. A wrong/foreign/already-declared
+  // id matches no row → generic 409 (no oracle).
+  const failure = await declareFolderPayment(
+    {
+      supabase,
+      businessId: tokenRow.business_id,
+      workFolderId: tokenRow.work_folder_id,
+      tokenId: tokenRow.id,
+      sentChannel: tokenRow.sent_channel,
+    },
+    paymentRequestId,
+    { notifyOwner: sendPushToBusinessOwner },
+  );
+  if (failure) {
+    return NextResponse.json({ ok: false, error: failure.error }, { status: failure.status });
   }
-  if (!updated || updated.length === 0) {
-    return NextResponse.json({ ok: false, error: 'payment_not_actionable' }, { status: 409 });
-  }
-
-  // Notify the owner to confirm (best-effort, inert until FCM configured).
-  await sendPushToBusinessOwner(tokenRow.business_id, {
-    title: 'Ο πελάτης δήλωσε κατάθεση',
-    body: 'Ένας πελάτης δήλωσε ότι έκανε την κατάθεση — επιβεβαίωσέ τη.',
-    ...(updated[0].customer_id ? { url: `/customers/${updated[0].customer_id}` } : {}),
-    data: { type: 'payment_declared', paymentRequestId },
-  });
 
   return NextResponse.json({ ok: true });
 }

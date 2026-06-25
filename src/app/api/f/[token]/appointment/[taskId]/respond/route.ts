@@ -6,19 +6,22 @@
 // run through the SAME shared lib as the appointment-response token route
 // (applyAppointmentResponse), tokenId omitted, work_folder_id stamped. Service-
 // role only; raw DB errors never leak.
+//
+// Adopted to the public-folder module: the route keeps the token VERIFY +
+// content-type/JSON/response/comment/requestedDueDate/requestedDueTime validation
+// verbatim; the task fetch + applyAppointmentResponse dispatch move to
+// respondToFolderAppointment (service-role, business+folder scoped).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
 import { findValidFolderToken } from '@/lib/server/folder-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
-import { applyAppointmentResponse, type AppointmentForResponse } from '@/lib/server/appointment-respond';
-import { APPOINTMENT_TYPES } from '@/lib/server/appointment-status';
+import { applyAppointmentResponse } from '@/lib/server/appointment-respond';
+import { respondToFolderAppointment } from '@/server/modules/public-folder/public-folder.service';
 
 export const runtime = 'nodejs';
 
 const publicLimiter = makePublicLimiter(10, 60_000);
-
-const TASK_COLUMNS = 'id, customer_id, title, type, status, due_date, due_time, note';
 
 export async function POST(
   request: NextRequest,
@@ -90,44 +93,27 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'appointment_response_failed' }, { status: 500 });
   }
 
-  // IDOR-critical: fetch the task scoped to BOTH the token's business_id AND its
-  // work_folder_id, and assert it is an appointment type. Any mismatch → 404.
-  let task: AppointmentForResponse;
-  try {
-    const { data, error } = await supabase
-      .from('tasks')
-      .select(TASK_COLUMNS)
-      .eq('id', taskId)
-      .eq('business_id', tokenRow.business_id)
-      .eq('work_folder_id', tokenRow.work_folder_id)
-      .maybeSingle();
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'appointment_response_failed' }, { status: 500 });
-    }
-    const row = data as unknown as (AppointmentForResponse & { type: string }) | null;
-    if (!row || !(APPOINTMENT_TYPES as readonly string[]).includes(row.type)) {
-      return NextResponse.json({ ok: false, error: 'appointment_not_found' }, { status: 404 });
-    }
-    task = row;
-  } catch {
-    return NextResponse.json({ ok: false, error: 'appointment_response_failed' }, { status: 500 });
-  }
-
-  // Same shared path as the token route — tokenId omitted; stamp work_folder_id.
-  const result = await applyAppointmentResponse({
-    supabase,
-    businessId: tokenRow.business_id,
-    task,
+  // IDOR-critical: the service fetches the task scoped to BOTH the token's
+  // business_id AND its work_folder_id, asserts it is an appointment type, then
+  // runs the SAME shared path as the token route (tokenId omitted; work_folder_id
+  // stamped).
+  const result = await respondToFolderAppointment(
+    {
+      supabase,
+      businessId: tokenRow.business_id,
+      workFolderId: tokenRow.work_folder_id,
+      tokenId: tokenRow.id,
+      sentChannel: tokenRow.sent_channel,
+    },
+    taskId,
     response,
     comment,
     requestedDueDate,
     requestedDueTime,
-    sentChannel: tokenRow.sent_channel,
-    tokenId: undefined,
-    workFolderId: tokenRow.work_folder_id,
-  });
+    { applyAppointmentResponse },
+  );
   if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.error }, { status: result.httpStatus });
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
   }
 
   return NextResponse.json({

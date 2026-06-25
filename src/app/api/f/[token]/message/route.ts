@@ -7,19 +7,21 @@
 // (work_folder_id) so it appears in the customer timeline, then best-effort push
 // the business owner. Service-role Supabase only; raw DB errors are never
 // returned. Requires migration 046 (work_folders + communications.work_folder_id).
+//
+// Adopted to the public-folder module: the route keeps the token VERIFY +
+// content-type/JSON/message validation verbatim; the post-token DB work moves to
+// logFolderQuestion / listPublicFolderMessages (service-role, business+folder scoped).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
 import { findValidFolderToken } from '@/lib/server/folder-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
 import { sendPushToBusinessOwner } from '@/lib/server/push';
+import { validateQuestionMessage } from '@/lib/server/folder-question';
 import {
-  validateQuestionMessage,
-  buildFolderQuestionSummary,
-  resolveFolderChannel,
-  buildQuestionPreview,
-} from '@/lib/server/folder-question';
-import { mapPublicMessages, type MessageRowForPublic } from '@/lib/server/public-folder';
+  logFolderQuestion,
+  listPublicFolderMessages,
+} from '@/server/modules/public-folder/public-folder.service';
 
 export const runtime = 'nodejs';
 
@@ -28,11 +30,6 @@ const publicLimiter = makePublicLimiter(10, 60_000);
 // The GET below is polled by the open chat sheet (~every 12s) so the customer
 // sees the technician's replies live — more generous than the write limit.
 const readLimiter = makePublicLimiter(40, 60_000);
-
-interface FolderRow {
-  customer_id: string;
-  title: string;
-}
 
 export async function POST(
   request: NextRequest,
@@ -85,60 +82,23 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'folder_message_failed' }, { status: 500 });
   }
 
-  // Resolve the folder, scoped to the token's business → customer_id + title.
-  // The token carries no customer_id; it is derived here (business-scoped) so the
-  // message can only ever be filed under this token's folder/customer/business.
-  let folder: FolderRow;
-  try {
-    const { data, error } = await supabase
-      .from('work_folders')
-      .select('customer_id, title')
-      .eq('id', tokenRow.work_folder_id)
-      .eq('business_id', tokenRow.business_id)
-      .maybeSingle();
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'folder_message_failed' }, { status: 500 });
-    }
-    if (!data) {
-      return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
-    }
-    folder = data as unknown as FolderRow;
-  } catch {
-    return NextResponse.json({ ok: false, error: 'folder_message_failed' }, { status: 500 });
-  }
-
-  // Log the inbound question on the customer timeline, filed under the folder.
-  const summary = buildFolderQuestionSummary(message);
-  try {
-    const { error } = await supabase.from('communications').insert({
-      business_id: tokenRow.business_id,
-      customer_id: folder.customer_id,
-      work_folder_id: tokenRow.work_folder_id,
-      channel: resolveFolderChannel(tokenRow.sent_channel),
-      direction: 'inbound',
-      status: 'completed',
-      phone: null,
-      summary,
-    });
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'folder_message_failed' }, { status: 500 });
-    }
-  } catch {
-    return NextResponse.json({ ok: false, error: 'folder_message_failed' }, { status: 500 });
-  }
-
-  // Notify the business owner's devices (best-effort; inert until FCM configured,
-  // never throws). This is the ONLY notification for a folder question.
-  await sendPushToBusinessOwner(tokenRow.business_id, {
-    title: 'Νέο μήνυμα από πελάτη',
-    body: `${folder.title} — ${buildQuestionPreview(message)}`,
-    url: `/customers/${folder.customer_id}`,
-    data: {
-      type: 'folder_question',
+  // Resolve the folder, log the inbound question, and push the owner — all scoped
+  // to the token's business → customer_id + title (the message can only ever be
+  // filed under this token's folder/customer/business).
+  const failure = await logFolderQuestion(
+    {
+      supabase,
+      businessId: tokenRow.business_id,
       workFolderId: tokenRow.work_folder_id,
-      customerId: folder.customer_id,
+      tokenId: tokenRow.id,
+      sentChannel: tokenRow.sent_channel,
     },
-  });
+    message,
+    { notifyOwner: sendPushToBusinessOwner },
+  );
+  if (failure) {
+    return NextResponse.json({ ok: false, error: failure.error }, { status: failure.status });
+  }
 
   return NextResponse.json({ ok: true });
 }
@@ -177,46 +137,16 @@ export async function GET(
     return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
   }
 
-  try {
-    // Mirrors loadPublicFolder's message query: only the customer↔business
-    // channels (call excluded), only delivered/seen-class statuses, oldest-first.
-    const { data, error } = await supabase
-      .from('communications')
-      .select('direction, channel, summary, created_at')
-      .eq('business_id', tokenRow.business_id)
-      .eq('work_folder_id', tokenRow.work_folder_id)
-      .in('channel', ['sms', 'viber', 'email'])
-      .in('status', ['completed', 'sent', 'delivered', 'seen'])
-      .order('created_at', { ascending: true })
-      .limit(50);
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
-    }
-    const messages = mapPublicMessages(((data ?? []) as unknown[]) as MessageRowForPublic[]);
-
-    // The customer is viewing the conversation → mark the owner's outbound
-    // messages for this folder as read, and roll the token's last_visited_at.
-    // Best-effort + tolerant: read_at / last_visited_at are migration 057, so a
-    // missing column (pre-057) is ignored and read receipts just don't show yet.
-    try {
-      const ts = new Date().toISOString();
-      await supabase
-        .from('communications')
-        .update({ read_at: ts })
-        .eq('business_id', tokenRow.business_id)
-        .eq('work_folder_id', tokenRow.work_folder_id)
-        .eq('direction', 'outbound')
-        .is('read_at', null);
-      await supabase
-        .from('customer_folder_tokens')
-        .update({ last_visited_at: ts })
-        .eq('id', tokenRow.id);
-    } catch {
-      // pre-057 schema → no read receipts yet
-    }
-
-    return NextResponse.json({ ok: true, messages }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'folder_messages_failed' }, { status: 500 });
+  const result = await listPublicFolderMessages({
+    supabase,
+    businessId: tokenRow.business_id,
+    workFolderId: tokenRow.work_folder_id,
+    tokenId: tokenRow.id,
+    sentChannel: tokenRow.sent_channel,
+  });
+  if (!result.ok) {
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
   }
+
+  return NextResponse.json({ ok: true, messages: result.messages }, { headers: { 'Cache-Control': 'no-store' } });
 }

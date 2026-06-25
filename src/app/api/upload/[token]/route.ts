@@ -7,12 +7,12 @@ import {
   createServiceSupabaseClient,
   findValidUploadToken,
   markUploadTokenOpened,
-  hashUploadToken,
-  ALLOWED_MIME_TYPES,
-  MAX_FILES_PER_SESSION,
-  MAX_FILE_SIZE_BYTES,
 } from '@/lib/server/upload-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
+import {
+  publicUploadConfig,
+  resolveNotFoundReason,
+} from '@/server/modules/public-upload/public-upload.service';
 
 export const runtime = 'nodejs';
 
@@ -29,16 +29,8 @@ export async function GET(
     const tokenRow = await findValidUploadToken(token);
 
     if (!tokenRow) {
-      const tokenHash = hashUploadToken(token);
       const supabase = createServiceSupabaseClient();
-      const { data } = await supabase
-        .from('customer_upload_tokens')
-        .select('status')
-        .eq('token_hash', tokenHash)
-        .maybeSingle();
-
-      const reason =
-        data && (data as { status: string }).status === 'completed' ? 'completed' : 'invalid';
+      const reason = await resolveNotFoundReason({ supabase }, token);
 
       return NextResponse.json({ ok: false, reason }, { status: 404 });
     }
@@ -51,9 +43,7 @@ export async function GET(
 
     return NextResponse.json({
       ok: true,
-      maxFiles: MAX_FILES_PER_SESSION,
-      maxFileSizeBytes: MAX_FILE_SIZE_BYTES,
-      allowedMimeTypes: [...ALLOWED_MIME_TYPES],
+      ...publicUploadConfig(),
     });
   } catch {
     return NextResponse.json({ ok: false, reason: 'server_error' }, { status: 500 });
