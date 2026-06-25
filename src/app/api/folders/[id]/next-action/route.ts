@@ -1,58 +1,55 @@
-// /api/folders/[id]/next-action
+// GET   /api/folders/[id]/next-action  → { ok, action: ClientNextAction | null }
+// PATCH /api/folders/[id]/next-action   → mark the active action accepted|dismissed|snooze|complete
 //
-// The single "Next Best Action" for one work folder (Έργο). Business-scoped via
-// authenticateBusinessRequest (+ next_actions RLS). The recommendation is computed
-// deterministically from existing signals and persisted (one active per folder).
-// Tolerant of migration 054 not being applied yet → returns a computed-only action.
-//
-//   GET   → { ok, action: ClientNextAction | null }
-//   PATCH → mark the active action accepted | dismissed | snoozed | completed
-//           body: { id: string, action: 'accept'|'dismiss'|'snooze'|'complete', snoozeMinutes?: number }
+// ADOPTED to the modular pattern (src/server/modules/folder-actions): thin adapter.
+// The folder-level compute (tolerant of a pending migration 054 → null) and the
+// lifecycle validation (invalid_body) live in the service; the PATCH returns the
+// lib's boolean ok verbatim. Distinct from the customer-level next-action module.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
-import {
-  computeFolderNextAction, applyNextActionLifecycle, isNextActionLifecycle,
-} from '@/lib/server/next-action-store';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, fail, handleApiError } from '@/server/core/errors';
+import { getFolderNextAction, applyFolderNextAction } from '@/server/modules/folder-actions/folder-actions.service';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-  const { id: folderId } = await params;
-
+  let ctx;
   try {
-    const action = await computeFolderNextAction(supabase, businessId, folderId);
-    return NextResponse.json({ ok: true, action });
-  } catch {
-    // Never break the folder view because of the recommendation engine.
-    return NextResponse.json({ ok: true, action: null });
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
   }
+  const { id: folderId } = await params;
+  const action = await getFolderNextAction(ctx, folderId);
+  return ok({ action });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const contentType = request.headers.get('content-type') ?? '';
-  if (!contentType.includes('application/json')) {
-    return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });
+  if (!(request.headers.get('content-type') ?? '').includes('application/json')) {
+    return fail('unsupported_content_type', 415);
   }
 
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   await params; // folderId not needed — the action id + business scope are authoritative.
 
   let body: unknown;
-  try { body = await request.json(); } catch { return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 }); }
-  if (typeof body !== 'object' || body === null) return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
-  const raw = body as Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return fail('invalid_body', 400);
+  }
+  if (typeof body !== 'object' || body === null) return fail('invalid_body', 400);
 
-  const id = typeof raw.id === 'string' ? raw.id : null;
-  const action = isNextActionLifecycle(raw.action) ? raw.action : null;
-  if (!id || !action) return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
-  const snoozeMinutes = typeof raw.snoozeMinutes === 'number' ? raw.snoozeMinutes : undefined;
-
-  const res = await applyNextActionLifecycle(supabase, { businessId, id, action, snoozeMinutes });
-  return NextResponse.json({ ok: res.ok });
+  try {
+    const result = await applyFolderNextAction(ctx, body as Record<string, unknown>);
+    return NextResponse.json({ ok: result });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }

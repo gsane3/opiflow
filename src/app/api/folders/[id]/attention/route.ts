@@ -1,28 +1,25 @@
-// GET /api/folders/[id]/attention
+// GET /api/folders/[id]/attention  → { ok, attention: ClientFolderAttention | null }
 //
-// The single primary "Τι χρειάζεται τώρα" attention state for one work folder.
-// Computed-only (no persistence, no migration). Business-scoped via
-// authenticateBusinessRequest. Returns null for closed/not-found folders. The
-// label/explanation are fixed Greek templates — no transcript or call-brief text,
-// no internal IDs. The public /f/[token] portal is unaffected (separate loader).
+// ADOPTED to the modular pattern (src/server/modules/folder-actions): thin adapter.
+// The single primary "Τι χρειάζεται τώρα" attention state is computed-only (no
+// persistence, no migration). Tolerant: any compute throw → null so the attention
+// engine never breaks the folder view. Returns null for closed/not-found folders.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
-import { computeFolderAttentionForFolder } from '@/lib/server/folder-attention-store';
+import { NextRequest } from 'next/server';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, handleApiError } from '@/server/core/errors';
+import { getFolderAttention } from '@/server/modules/folder-actions/folder-actions.service';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-  const { id: folderId } = await params;
-
+  let ctx;
   try {
-    const attention = await computeFolderAttentionForFolder(supabase, businessId, folderId);
-    return NextResponse.json({ ok: true, attention });
-  } catch {
-    // Never break the folder view because of the attention engine.
-    return NextResponse.json({ ok: true, attention: null });
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
   }
+  const { id: folderId } = await params;
+  const attention = await getFolderAttention(ctx, folderId);
+  return ok({ attention });
 }
