@@ -74,6 +74,43 @@ export async function insertCustomerRow(
   return data as unknown as CustomerRow;
 }
 
+/** pre-053 tolerance: a missing `imported_from_phone` column → degrade, don't 500. */
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === '42703') return true;
+  const msg = (error.message ?? '').toLowerCase();
+  return msg.includes('imported_from_phone') || (msg.includes('column') && msg.includes('does not exist'));
+}
+
+/** Hard-delete EVERY contact for this tenant (child rows handled by schema FKs). */
+export async function deleteAllCustomerRows(ctx: RepoContext): Promise<{ deleted: number }> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').delete().select('id');
+  if (error) throw new AppError('delete_failed', 500);
+  return { deleted: Array.isArray(data) ? data.length : 0 };
+}
+
+/**
+ * Hard-delete only phone-imported contacts. On a pre-053 schema (no
+ * `imported_from_phone` column) returns `{ columnMissing: true }` so the route can
+ * tell the UI to use «Διαγραφή όλων» instead — rather than 500.
+ */
+export async function deleteImportedCustomerRows(
+  ctx: RepoContext,
+): Promise<{ deleted: number } | { columnMissing: true }> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('customers')
+    .delete()
+    .eq('imported_from_phone', true)
+    .select('id');
+  if (error) {
+    if (isMissingColumnError(error)) return { columnMissing: true };
+    throw new AppError('delete_failed', 500);
+  }
+  return { deleted: Array.isArray(data) ? data.length : 0 };
+}
+
 /** Atomic per-business CRM number (#N), with a legacy scan fallback (pre-043). */
 export async function takeNextCrmNumber(ctx: RepoContext): Promise<string> {
   try {

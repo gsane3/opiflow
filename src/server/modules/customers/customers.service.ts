@@ -8,6 +8,8 @@
 import { CreateCustomerSchema, ListCustomersQuerySchema } from './customers.schema';
 import { type Customer, type CustomerRow } from './customers.types';
 import {
+  deleteAllCustomerRows,
+  deleteImportedCustomerRows,
   insertCustomerRow,
   listCustomerRows,
   takeNextCrmNumber,
@@ -92,4 +94,31 @@ export async function createCustomer(
   });
 
   return dbToCustomer(row);
+}
+
+export type BulkDeleteScope = 'all' | 'imported';
+export interface BulkDeleteResult {
+  deleted: number;
+  scope?: BulkDeleteScope;
+  columnMissing?: true;
+}
+
+/**
+ * Bulk-delete contacts (parity with DELETE /api/customers/imported):
+ *   - 'all'      → every contact for the business.
+ *   - 'imported' → only phone-imported contacts; on a pre-053 schema this returns
+ *                  `{ deleted: 0, columnMissing: true }` (no `scope`) so the UI can
+ *                  hint that «Διαγραφή όλων» is the way to clear contacts.
+ */
+export async function bulkDeleteCustomers(
+  ctx: RepoContext,
+  scope: BulkDeleteScope,
+): Promise<BulkDeleteResult> {
+  if (scope === 'all') {
+    const { deleted } = await deleteAllCustomerRows(ctx);
+    return { deleted, scope: 'all' };
+  }
+  const res = await deleteImportedCustomerRows(ctx);
+  if ('columnMissing' in res) return { deleted: 0, columnMissing: true };
+  return { deleted: res.deleted, scope: 'imported' };
 }

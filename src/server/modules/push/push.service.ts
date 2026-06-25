@@ -53,3 +53,47 @@ export async function unregisterDeviceToken(ctx: Ctx, body: { token?: string }):
     return { status: 'degraded' };
   }
 }
+
+// ---------------------------------------------------------------------------
+// Test push — parity-matched to /api/push/test.
+// ---------------------------------------------------------------------------
+//
+// The push lib (`src/lib/server/push`) imports via the `@/` alias, which the unit
+// runner can't resolve. So we keep its TYPES via a type-only `import(...)` query
+// (erased at compile time) and load its VALUES lazily, only when a dependency is not
+// injected — tests always inject both, so the real lib never enters the test graph.
+
+type PushLib = typeof import('../../../lib/server/push');
+type SendResult = Awaited<ReturnType<PushLib['sendPushToUser']>>;
+
+export type TestPushOutcome =
+  | { configured: false }
+  | { configured: true; result: SendResult };
+
+/** Dependencies are injected so the route uses the real push lib while tests stay pure. */
+export interface TestPushDeps {
+  isPushEnabled?: PushLib['isPushEnabled'];
+  sendPushToUser?: PushLib['sendPushToUser'];
+}
+
+/**
+ * Send a test notification to the caller's OWN devices. When push is not configured
+ * the route answers 200 with `push_not_configured` (never an error), so this returns
+ * `{ configured: false }` rather than throwing.
+ */
+export async function sendTestPush(userId: string, deps: TestPushDeps = {}): Promise<TestPushOutcome> {
+  let lib: PushLib | null = null;
+  const getLib = async (): Promise<PushLib> => (lib ??= await import('../../../lib/server/push'));
+
+  const enabled = (deps.isPushEnabled ?? (await getLib()).isPushEnabled)();
+  if (!enabled) return { configured: false };
+
+  const send = deps.sendPushToUser ?? (await getLib()).sendPushToUser;
+  const result = await send(userId, {
+    title: 'Opiflow',
+    body: 'Οι ειδοποιήσεις δουλεύουν! 🎉',
+    url: '/',
+    data: { type: 'test' },
+  });
+  return { configured: true, result };
+}

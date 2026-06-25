@@ -1,33 +1,32 @@
 // POST /api/push/test
 //
-// Sends a test notification to the caller's OWN registered devices. Lets a user
-// confirm push works end-to-end with one tap from Settings. Authed; inert-aware.
+// ADOPTED to the modular pattern (src/server/modules/push): thin adapter. The
+// "is push configured? send to the caller's OWN devices" logic lives in the service.
+// Preserves the exact behaviour: 200 + push_not_configured when push is off, the
+// sender result spread into the body, and Cache-Control: no-store on every response.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
-import { isPushEnabled, sendPushToUser } from '@/lib/server/push';
+import { requireBusinessUser } from '@/server/core/http';
+import { handleApiError } from '@/server/core/errors';
+import { sendTestPush } from '@/server/modules/push/push.service';
 
 export const runtime = 'nodejs';
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 export async function POST(request: NextRequest) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { userId } = auth.ctx;
-
-  if (!isPushEnabled()) {
-    return NextResponse.json(
-      { ok: false, error: 'push_not_configured' },
-      { status: 200, headers: NO_STORE }
-    );
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
   }
 
-  const result = await sendPushToUser(userId, {
-    title: 'Opiflow',
-    body: 'Οι ειδοποιήσεις δουλεύουν! 🎉',
-    url: '/',
-    data: { type: 'test' },
-  });
-
-  return NextResponse.json({ ok: true, ...result }, { headers: NO_STORE });
+  const outcome = await sendTestPush(ctx.userId);
+  if (!outcome.configured) {
+    return NextResponse.json(
+      { ok: false, error: 'push_not_configured' },
+      { status: 200, headers: NO_STORE },
+    );
+  }
+  return NextResponse.json({ ok: true, ...outcome.result }, { headers: NO_STORE });
 }

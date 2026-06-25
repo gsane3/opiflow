@@ -16,9 +16,12 @@ import {
 import { type Task, type TaskRow } from './tasks.types';
 import {
   customerExists,
+  fetchTaskRowForUpdate,
+  getTaskRowById,
   insertTaskRow,
   listTaskRows,
   offerExists,
+  updateTaskRow,
   type RepoContext,
 } from './tasks.repo';
 
@@ -149,5 +152,99 @@ export async function createTask(
     deps.notifyFolderUpdate?.(workFolderId, 'νέο ραντεβού');
   }
 
+  return dbToTask(row);
+}
+
+/** GET /api/tasks/[id]. task_query_failed (500) on DB error; task_not_found (404) when missing. */
+export async function getTask(ctx: RepoContext, id: string): Promise<Task> {
+  const row = await getTaskRowById(ctx, id);
+  if (!row) throw new AppError('task_not_found', 404);
+  return dbToTask(row);
+}
+
+/**
+ * PATCH /api/tasks/[id]. Validates with the route's exact codes and order, builds the
+ * update from whitelisted fields only (preserving every coercion quirk: dueTime ''→null,
+ * customerId/offerId null-or-string, auto completed_at on status='completed'), and
+ * returns the current row unchanged when no allowed field was supplied.
+ */
+export async function updateTask(
+  ctx: RepoContext,
+  id: string,
+  raw: Record<string, unknown>,
+): Promise<Task> {
+  // ---- validation (exact codes, exact order) ----
+  if ('title' in raw && !str(raw.title)) {
+    throw new AppError('invalid_title', 400);
+  }
+  if ('type' in raw && !isValidEnum(raw.type, TASK_TYPES)) {
+    throw new AppError('invalid_type', 400);
+  }
+  if ('status' in raw) {
+    if (raw.status === 'ai_draft') throw new AppError('invalid_status', 400);
+    if (!isValidEnum(raw.status, TASK_STATUSES_WRITE)) throw new AppError('invalid_status', 400);
+  }
+  if ('priority' in raw && !isValidEnum(raw.priority, TASK_PRIORITIES)) {
+    throw new AppError('invalid_priority', 400);
+  }
+  if ('dueDate' in raw && !isValidDueDate(raw.dueDate)) {
+    throw new AppError('invalid_due_date', 400);
+  }
+  if ('dueTime' in raw && raw.dueTime !== null && raw.dueTime !== '' && !isValidDueTime(raw.dueTime)) {
+    throw new AppError('invalid_due_time', 400);
+  }
+  // completedAt explicit null while status is being set to completed is contradictory.
+  if ('completedAt' in raw && raw.completedAt === null) {
+    const incomingStatus = 'status' in raw ? raw.status : undefined;
+    if (incomingStatus === 'completed') throw new AppError('invalid_completed_at', 400);
+  }
+  // Customer ownership validation (drops cross-tenant ids → 404).
+  if ('customerId' in raw && raw.customerId !== null) {
+    const customerId = str(raw.customerId);
+    if (customerId && !(await customerExists(ctx, customerId))) {
+      throw new AppError('customer_not_found', 404);
+    }
+  }
+
+  // ---- build update object from allowed fields only ----
+  const updateFields: Record<string, unknown> = {};
+  let hasUpdate = false;
+
+  if ('title' in raw) { updateFields.title = str(raw.title); hasUpdate = true; }
+  if ('type' in raw && isValidEnum(raw.type, TASK_TYPES)) { updateFields.type = raw.type; hasUpdate = true; }
+  if ('status' in raw && isValidEnum(raw.status, TASK_STATUSES_WRITE)) { updateFields.status = raw.status; hasUpdate = true; }
+  if ('priority' in raw && isValidEnum(raw.priority, TASK_PRIORITIES)) { updateFields.priority = raw.priority; hasUpdate = true; }
+  if ('dueDate' in raw && isValidDueDate(raw.dueDate)) { updateFields.due_date = raw.dueDate; hasUpdate = true; }
+  if ('dueTime' in raw) {
+    updateFields.due_time = (raw.dueTime === null || raw.dueTime === '') ? null : raw.dueTime;
+    hasUpdate = true;
+  }
+  if ('note' in raw) { updateFields.note = str(raw.note); hasUpdate = true; }
+  if ('customerId' in raw) {
+    updateFields.customer_id = raw.customerId === null ? null : str(raw.customerId);
+    hasUpdate = true;
+  }
+  if ('offerId' in raw) {
+    updateFields.offer_id = raw.offerId === null ? null : str(raw.offerId);
+    hasUpdate = true;
+  }
+  if ('completedAt' in raw) {
+    updateFields.completed_at = raw.completedAt === null ? null : str(raw.completedAt);
+    hasUpdate = true;
+  } else if ('status' in raw && isValidEnum(raw.status, TASK_STATUSES_WRITE) && raw.status === 'completed') {
+    updateFields.completed_at = new Date().toISOString();
+    hasUpdate = true;
+  }
+
+  // No allowed field supplied → return the current task unchanged.
+  if (!hasUpdate) {
+    const existing = await fetchTaskRowForUpdate(ctx, id);
+    if (!existing) throw new AppError('task_not_found', 404);
+    return dbToTask(existing);
+  }
+
+  updateFields.updated_at = new Date().toISOString();
+  const row = await updateTaskRow(ctx, id, updateFields);
+  if (!row) throw new AppError('task_not_found', 404);
   return dbToTask(row);
 }
