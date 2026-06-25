@@ -7,8 +7,12 @@
 // explicit id (ownership-checked) or by phone — never auto-created here.
 
 import { AppError } from '../../core/errors';
+import { deriveActionsFromBriefText } from '../../../lib/server/suggested-actions';
 import {
   customerBelongs,
+  fetchCallBriefs,
+  fetchCallComm,
+  fetchCallCustomerName,
   finalizeCall,
   findCallByProviderId,
   insertCall,
@@ -91,4 +95,58 @@ export async function logCall(ctx: RepoContext, raw: Record<string, unknown>): P
     ...(providerCallId ? { provider_call_id: providerCallId } : {}),
   });
   return { communicationId: id, brief: null };
+}
+
+export interface CallBriefResult {
+  id: string;
+  ready: boolean;
+  briefKind: string | null;
+  summary: string | null;
+  status: string;
+  direction: string;
+  phone: string | null;
+  customerId: string | null;
+  customerName: string | null;
+  suggestedActions: Array<{ actionType: string; label: string }>;
+}
+
+/**
+ * GET /api/calls/[id]/brief. not_found (404) for a missing call; server_error (500) on a
+ * hard DB error. Only a TRANSCRIPT brief counts as an AI brief (older speculative metadata
+ * briefs are ignored); suggestedActions are derived from the brief TEXT so they work for an
+ * unsaved number with no customer.
+ */
+export async function getCallBrief(ctx: RepoContext, id: string): Promise<CallBriefResult> {
+  const comm = await fetchCallComm(ctx, id);
+  if (!comm) throw new AppError('not_found', 404);
+
+  let briefKind: string | null = null;
+  let briefText: string | null = null;
+  for (const b of await fetchCallBriefs(ctx, comm.id)) {
+    if (b.brief_kind === 'transcript') {
+      briefKind = b.brief_kind;
+      briefText = b.brief_text;
+    }
+  }
+
+  const summary = briefText ?? comm.summary ?? null;
+  const ready = briefKind === 'transcript' || Boolean(comm.brief_created_at);
+
+  let customerName: string | null = null;
+  if (comm.customer_id) customerName = await fetchCallCustomerName(ctx, comm.customer_id);
+
+  const suggestedActions = deriveActionsFromBriefText(summary).map((a) => ({ actionType: a.actionType, label: a.label }));
+
+  return {
+    id: comm.id,
+    ready,
+    briefKind,
+    summary,
+    status: comm.status,
+    direction: comm.direction,
+    phone: comm.phone,
+    customerId: comm.customer_id,
+    customerName,
+    suggestedActions,
+  };
 }

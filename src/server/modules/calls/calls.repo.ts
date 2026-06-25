@@ -64,3 +64,65 @@ export async function insertCall(ctx: RepoContext, values: Record<string, unknow
   if (error || !data) throw new AppError('call_log_failed', 500);
   return (data as unknown as { id: string }).id;
 }
+
+// --- call brief (GET /api/calls/[id]/brief) ---------------------------------
+
+export interface CallCommRow {
+  id: string;
+  customer_id: string | null;
+  channel: string;
+  direction: string;
+  status: string;
+  phone: string | null;
+  summary: string | null;
+  brief_created_at: string | null;
+}
+
+/**
+ * Fetch the call's communications row (channel='call'), tolerant of a pre-migration DB
+ * with no brief_created_at column (falls back to a column-less select). server_error (500)
+ * only when BOTH selects error; null when no row matches.
+ */
+export async function fetchCallComm(ctx: RepoContext, id: string): Promise<CallCommRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const withCol = await db
+    .from('communications')
+    .select('id, customer_id, channel, direction, status, phone, summary, brief_created_at')
+    .eq('id', id)
+    .eq('channel', 'call')
+    .maybeSingle();
+  if (withCol.error) {
+    const base = await db
+      .from('communications')
+      .select('id, customer_id, channel, direction, status, phone, summary')
+      .eq('id', id)
+      .eq('channel', 'call')
+      .maybeSingle();
+    if (base.error) throw new AppError('server_error', 500);
+    return base.data ? ({ ...(base.data as object), brief_created_at: null } as CallCommRow) : null;
+  }
+  return (withCol.data as unknown as CallCommRow | null) ?? null;
+}
+
+/** All briefs for a communication, oldest first. Errors degrade to [] (parity with the route). */
+export async function fetchCallBriefs(
+  ctx: RepoContext,
+  communicationId: string,
+): Promise<Array<{ brief_kind: string; brief_text: string; created_at: string }>> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const res = await db
+    .from('call_briefs')
+    .select('brief_kind, brief_text, created_at')
+    .eq('communication_id', communicationId)
+    .order('created_at', { ascending: true });
+  if (res.error || !Array.isArray(res.data)) return [];
+  return res.data as unknown as Array<{ brief_kind: string; brief_text: string; created_at: string }>;
+}
+
+/** Display name for the (optional) linked customer: name ?? company_name ?? null. */
+export async function fetchCallCustomerName(ctx: RepoContext, customerId: string): Promise<string | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data } = await db.from('customers').byId(customerId, 'name, company_name').maybeSingle();
+  const c = data as { name: string | null; company_name: string | null } | null;
+  return c?.name ?? c?.company_name ?? null;
+}

@@ -7,6 +7,7 @@
 
 import { AppError } from '../../core/errors';
 import { parseOfferItems, calculateOfferTotals, type ValidOfferItem } from '../../../lib/offer-totals';
+import { createOfferResponseToken } from '../../../lib/server/offer-response-tokens';
 import { OFFER_STATUSES } from './offers.schema';
 import {
   type Offer,
@@ -30,7 +31,9 @@ import {
   insertOfferRow,
   listOfferRows,
   loadOfferCode,
+  offerExistsForLink,
   replaceOfferItems,
+  revokeOfferTokensForLink,
   taskExists,
   updateOfferRow,
   type RepoContext,
@@ -384,4 +387,30 @@ export async function deleteOffer(ctx: RepoContext, id: string): Promise<void> {
   }
 
   await deleteOfferRowChecked(ctx, id);
+}
+
+export interface OfferResponseLink {
+  responseUrl: string;
+  tokenId: string;
+  expiresAt: string;
+}
+
+/**
+ * POST /api/offers/[id]/response-link. Verify ownership (offer_not_found 404 /
+ * response_link_failed 500), revoke any active token for the offer, then mint a fresh
+ * one. Returns only the safe fields (never the raw token / hash).
+ */
+export async function createOfferResponseLink(ctx: RepoContext, offerId: string): Promise<OfferResponseLink> {
+  const exists = await offerExistsForLink(ctx, offerId);
+  if (!exists) throw new AppError('offer_not_found', 404);
+
+  await revokeOfferTokensForLink(ctx.businessId, offerId);
+
+  let result;
+  try {
+    result = await createOfferResponseToken({ businessId: ctx.businessId, offerId });
+  } catch {
+    throw new AppError('response_link_failed', 500);
+  }
+  return { responseUrl: result.responseUrl, tokenId: result.row.id, expiresAt: result.row.expires_at };
 }

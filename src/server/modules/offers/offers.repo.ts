@@ -162,6 +162,38 @@ export async function deleteOfferRowChecked(ctx: RepoContext, id: string): Promi
   if (error) throw new AppError('offer_delete_failed', 500);
 }
 
+// --- response-link (POST /api/offers/[id]/response-link) ---------------------
+
+/** True if the offer exists for this tenant. DB error → response_link_failed (the link path). */
+export async function offerExistsForLink(ctx: RepoContext, id: string): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('offers').byId(id, 'id').maybeSingle();
+  if (error) throw new AppError('response_link_failed', 500);
+  return data !== null && data !== undefined;
+}
+
+/**
+ * Revoke any existing pending/sent response tokens for an offer (service client, since
+ * offer_response_tokens is RLS-protected). Any failure → response_link_failed.
+ */
+export async function revokeOfferTokensForLink(businessId: string, offerId: string): Promise<void> {
+  try {
+    const service = createServiceSupabaseClient();
+    const now = new Date().toISOString();
+    const { error } = await service
+      .from('offer_response_tokens')
+      .update({ status: 'revoked', revoked_at: now, updated_at: now })
+      .eq('business_id', businessId)
+      .eq('offer_id', offerId)
+      .in('status', ['pending', 'sent'])
+      .is('revoked_at', null);
+    if (error) throw new AppError('response_link_failed', 500);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError('response_link_failed', 500);
+  }
+}
+
 export async function customerExists(ctx: RepoContext, id: string): Promise<boolean> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   const { data } = await db.from('customers').byId(id, 'id').maybeSingle();

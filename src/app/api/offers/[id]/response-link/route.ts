@@ -1,82 +1,30 @@
 // POST /api/offers/[id]/response-link
-// Creates a fresh secure offer response token for a backend offer.
-// Requires authenticated Bearer token.
-// Revokes any existing pending or sent tokens for the same offer before
-// creating a new one, so only one active link exists at a time.
-// Returns: { ok: true, responseUrl, tokenId, expiresAt }
-// Does NOT return the raw token or token hash.
+//
+// ADOPTED to the modular pattern (src/server/modules/offers): thin adapter. Creates a
+// fresh secure offer-response token (revoking any active one first) — the ownership
+// check, the service-role revoke, and the token mint live in the service. Returns only
+// the safe fields ({ ok, responseUrl, tokenId, expiresAt }); never the raw token/hash.
+// Byte-identical: offer_not_found (404), response_link_failed (500).
 
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
-import {
-  createServiceSupabaseClient,
-  createOfferResponseToken,
-} from '@/lib/server/offer-response-tokens';
+import { NextRequest } from 'next/server';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, handleApiError } from '@/server/core/errors';
+import { createOfferResponseLink } from '@/server/modules/offers/offers.service';
 
 export const runtime = 'nodejs';
 
-// ---------------------------------------------------------------------------
-// POST /api/offers/[id]/response-link
-// ---------------------------------------------------------------------------
-
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   try {
     const { id: offerId } = await params;
-
-    // Verify the offer exists and belongs to this business.
-    const { data: offerData, error: offerError } = await supabase
-      .from('offers')
-      .select('id')
-      .eq('id', offerId)
-      .eq('business_id', businessId)
-      .maybeSingle();
-
-    if (offerError) {
-      return NextResponse.json({ ok: false, error: 'response_link_failed' }, { status: 500 });
-    }
-    if (!offerData) {
-      return NextResponse.json({ ok: false, error: 'offer_not_found' }, { status: 404 });
-    }
-
-    // Revoke any existing pending or sent tokens for this offer.
-    // Service-role client is used because offer_response_tokens may be
-    // protected by RLS policies that only allow insert/read by service role.
-    const serviceClient = createServiceSupabaseClient();
-    const now = new Date().toISOString();
-
-    const { error: revokeError } = await serviceClient
-      .from('offer_response_tokens')
-      .update({ status: 'revoked', revoked_at: now, updated_at: now })
-      .eq('business_id', businessId)
-      .eq('offer_id', offerId)
-      .in('status', ['pending', 'sent'])
-      .is('revoked_at', null);
-
-    if (revokeError) {
-      return NextResponse.json({ ok: false, error: 'response_link_failed' }, { status: 500 });
-    }
-
-    // Create a fresh token. sentChannel is omitted so status starts as 'pending'.
-    // The raw token is discarded here; only the safe fields are returned.
-    const result = await createOfferResponseToken({
-      businessId,
-      offerId,
-    });
-
-    return NextResponse.json({
-      ok: true,
-      responseUrl: result.responseUrl,
-      tokenId: result.row.id,
-      expiresAt: result.row.expires_at,
-    });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'response_link_failed' }, { status: 500 });
+    const result = await createOfferResponseLink(ctx, offerId);
+    return ok({ responseUrl: result.responseUrl, tokenId: result.tokenId, expiresAt: result.expiresAt });
+  } catch (err) {
+    return handleApiError(err);
   }
 }
