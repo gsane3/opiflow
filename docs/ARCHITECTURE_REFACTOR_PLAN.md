@@ -134,6 +134,29 @@ flow, καμία migration, κανένα PBX.**
 
 ---
 
+## 4b. Επιπλέον σε αυτό το branch (Phase 2 — όλα additive/unwired, verified green)
+
+- **Domain modules** `src/server/modules/{tasks,offers}/*` (schema/types/repo/service + tests),
+  parity-matched στα live `/api/tasks` & `/api/offers` — δείχνουν ότι το pattern κλιμακώνεται
+  (offer_items, ownership validation). Τα live routes **δεν** αγγίχτηκαν.
+- **Job queue** `src/server/jobs/queue.ts` πάνω στο υπάρχον `jobs` table (030): durable,
+  optimistic claim, linear backoff, handler registry. (Phase Γ, #6)
+- **Outbox** `src/server/outbox/outbox.ts` + migration **063_outbox_events** (νέος πίνακας,
+  RLS service-role-only): idempotent outbound με dedup-key + retries. (Phase Γ, #7)
+- **Correlation IDs** `src/server/core/correlation.ts` + context-bound structured logs. (#19)
+- **Migration pipeline**: `scripts/build-schema.mjs` → `supabase/schema.sql` (single committed
+  view· `npm run db:schema` / `db:schema:check` για CI drift-check). (Phase Δ)
+- **PBX-as-code scaffold** `infra/pbx/*` (README + Ansible playbook + restore runbook) — κάνει
+  το PBX reproducible· το live box **δεν** αγγίζεται (μένει ένα read-only dump των base configs
+  ως `TODO(extract)`). (#9, το #1 SPOF)
+- **Worker example** `docs/examples/cron-worker.md` — wire job/outbox worker πίσω από
+  `CRON_SECRET` + `WORKER_ENABLED` flag (dormant μέχρι το flip).
+
+**Σκόπιμα ΕΚΤΟΣ (για adoption με δική σου έγκριση):** καμία μετατροπή live route, κανένα νέο live
+endpoint, καμία εφαρμογή migration, κανένα άγγιγμα σε PBX/Supabase/Vercel. Όλα σε draft PR, χωρίς merge.
+
+---
+
 ## 5. Κανόνας για κάθε επόμενο PR
 
 1. Μικρό & ένα domain/θέμα τη φορά.

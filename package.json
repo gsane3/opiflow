@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "db:types": "supabase gen types typescript --project-id oluhmztfimmgmbxoioea --schema public > src/server/db/database.types.ts",
+    "db:schema": "node scripts/build-schema.mjs",
+    "db:schema:check": "node scripts/build-schema.mjs --check",
     "cap:sync": "cap sync",
     "cap:assets": "capacitor-assets generate",
     "cap:android": "cap open android",
