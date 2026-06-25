@@ -10,13 +10,18 @@ import {
   type OfferItemRow,
   type OfferRow,
 } from './offers.types';
-import type { ListOffersQuery } from './offers.schema';
-
 export type RepoContext = TenantContext & {
   supabase: ReturnType<typeof createServerSupabaseClient>;
 };
 
-export async function listOfferRows(ctx: RepoContext, query: ListOffersQuery): Promise<OfferRow[]> {
+export interface ListOfferRowsParams {
+  status?: string;
+  customerId?: string;
+  limit: number;
+  offset: number;
+}
+
+export async function listOfferRows(ctx: RepoContext, query: ListOfferRowsParams): Promise<OfferRow[]> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   let qb = db.from('offers').select(OFFER_COLUMNS);
   if (query.status) qb = qb.eq('status', query.status);
