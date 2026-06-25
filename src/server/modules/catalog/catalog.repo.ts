@@ -47,3 +47,32 @@ export async function insertCatalogRow(
   }
   return data as unknown as CatalogRow;
 }
+
+export async function updateCatalogRow(
+  ctx: RepoContext,
+  id: string,
+  update: Record<string, unknown>,
+): Promise<CatalogRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('service_catalog_items')
+    .update(update)
+    .eq('id', id)
+    .select(CATALOG_COLUMNS)
+    .maybeSingle();
+  if (error) {
+    const dup = (error as { code?: string }).code === '23505';
+    throw new AppError(dup ? 'duplicate_code' : 'catalog_update_failed', dup ? 409 : 500);
+  }
+  return (data as unknown as CatalogRow) ?? null;
+}
+
+/** Soft-delete: mark inactive (keeps historical offer references intact). */
+export async function softDeleteCatalogRow(ctx: RepoContext, id: string): Promise<void> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db
+    .from('service_catalog_items')
+    .update({ active: false, updated_at: new Date().toISOString() })
+    .eq('id', id);
+  if (error) throw new AppError('catalog_delete_failed', 500);
+}

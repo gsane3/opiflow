@@ -12,6 +12,8 @@ import { AppError } from '../../core/errors';
 import {
   insertCatalogRow,
   listCatalogRows,
+  softDeleteCatalogRow,
+  updateCatalogRow,
   type ListCatalogParams,
   type RepoContext,
 } from './catalog.repo';
@@ -25,6 +27,11 @@ function str(v: unknown): string | null {
 function nonNegNumber(v: unknown, fallback: number): number {
   const n = typeof v === 'number' ? v : Number(v);
   return isFinite(n) && n >= 0 ? n : fallback;
+}
+
+function nonNegNumberOrNull(v: unknown): number | null {
+  const n = typeof v === 'number' ? v : Number(v);
+  return isFinite(n) && n >= 0 ? n : null;
 }
 
 export function dbToItem(r: CatalogRow): CatalogItem {
@@ -74,4 +81,41 @@ export async function createCatalogItem(
   });
 
   return dbToItem(row);
+}
+
+export async function updateCatalogItem(
+  ctx: RepoContext,
+  id: string,
+  raw: Record<string, unknown>,
+): Promise<CatalogItem> {
+  const update: Record<string, unknown> = {};
+  if ('code' in raw) update.code = str(raw.code);
+  if ('name' in raw) {
+    const n = str(raw.name);
+    if (!n) throw new AppError('invalid_name', 400);
+    update.name = n;
+  }
+  if ('description' in raw) update.description = str(raw.description);
+  if ('category' in raw) update.category = str(raw.category);
+  if ('unit' in raw) update.unit = str(raw.unit);
+  if ('unitPrice' in raw) {
+    const p = nonNegNumberOrNull(raw.unitPrice);
+    if (p !== null) update.unit_price = p;
+  }
+  if ('vatRate' in raw) {
+    const v = nonNegNumberOrNull(raw.vatRate);
+    if (v !== null) update.vat_rate = v;
+  }
+  if ('active' in raw) update.active = raw.active === true;
+
+  if (Object.keys(update).length === 0) throw new AppError('no_fields', 400);
+  update.updated_at = new Date().toISOString();
+
+  const row = await updateCatalogRow(ctx, id, update);
+  if (!row) throw new AppError('not_found', 404);
+  return dbToItem(row);
+}
+
+export async function softDeleteCatalogItem(ctx: RepoContext, id: string): Promise<void> {
+  await softDeleteCatalogRow(ctx, id);
 }
