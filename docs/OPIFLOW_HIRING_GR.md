@@ -65,8 +65,8 @@ Supabase σύστημα, διορθώνει bugs, βγάζει νέα features, 
 
 **Γιατί:** Είναι το **πιο εξειδικευμένο και πιο επικίνδυνο** κομμάτι. Η ρύθμιση του Asterisk
 **δεν είναι στο git** — αν χαλάσει/χαθεί ο server, **σταματάνε όλες οι κλήσεις**. Επίσης
-εκκρεμούν πραγματικά τηλεφωνικά θέματα (π.χ. εμφάνιση caller-ID «S», iOS push σε κλειστή app,
-προώθηση κλήσεων).
+εκκρεμούν πραγματικά τηλεφωνικά θέματα (π.χ. εμφάνιση caller-ID «S» σε εξερχόμενες, προώθηση
+κλήσεων από κινητό). *(Σημ.: το «χτύπημα» κλειστής iOS app στις κλήσεις πλέον **δουλεύει**.)*
 
 **Τι να ψάξεις (must-have):**
 - **Asterisk / FreePBX** σε βάθος (dialplan, **PJSIP**, MixMonitor recording).
@@ -122,10 +122,11 @@ migrations**, και ένα σχέδιο **disaster recovery** για το PBX.
 ## 4. Mobile Engineer (React Native / Expo)  📱 (μεσαία προτεραιότητα — contract ή part-time)
 
 **Τι αναλαμβάνει:** Τη native εφαρμογή: **EAS builds & υποβολές** σε App Store/Google Play,
-ολοκλήρωση του **iOS push** (Firebase-iOS + APNs), CallKit/PushKit, και τα native bug fixes.
+ολοκλήρωση του **iOS non-call push** (ειδοποιήσεις — Firebase-iOS + APNs), και τα native bug fixes.
 
 **Γιατί:** Η native έχει **δικές της παγίδες** (builds μόνο μέσω EAS, δοκιμή σε συσκευή, χωρίς
-CI) και **εκκρεμεί** το iOS push & το app icon. Είναι διακριτή δεξιότητα από το web.
+CI) και **εκκρεμεί** το iOS push **των ειδοποιήσεων** (οι κλήσεις χτυπούν ήδη) & το app icon.
+Είναι διακριτή δεξιότητα από το web.
 
 **Τι να ψάξεις:**
 - **Expo / React Native** με **EAS builds** & **store submissions** (έχει ανεβάσει app live).
