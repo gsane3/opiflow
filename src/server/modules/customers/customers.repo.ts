@@ -11,7 +11,7 @@
 import { AppError } from '../../core/errors';
 import { tenantDb, type TenantContext } from '../../core/tenant';
 import type { createServerSupabaseClient } from '../../../lib/supabase/server';
-import { CUSTOMER_COLUMNS, type CustomerRow } from './customers.types';
+import { CUSTOMER_COLUMNS, type CustomerRow, type CustomerDetailRow } from './customers.types';
 import type { ListCustomersQuery } from './customers.schema';
 
 /** A resolved request context carrying the service-role client + tenant. */
@@ -72,6 +72,112 @@ export async function insertCustomerRow(
     .single();
   if (error || !data) throw new AppError('customer_create_failed', 500);
   return data as unknown as CustomerRow;
+}
+
+// --- single-customer reads/writes for /api/customers/[id] (GET/PATCH/DELETE) ---
+
+/** Fetch one customer by id (GET). DB error → customer_query_failed; null when no row. */
+export async function getCustomerDetailRow(ctx: RepoContext, id: string): Promise<CustomerDetailRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').byId(id, CUSTOMER_COLUMNS).maybeSingle();
+  if (error) throw new AppError('customer_query_failed', 500);
+  return (data as unknown as CustomerDetailRow) ?? null;
+}
+
+/** Fetch one customer by id on the no-field-change PATCH path. DB error → customer_update_failed; null when no row. */
+export async function fetchCustomerRowForUpdate(ctx: RepoContext, id: string): Promise<CustomerDetailRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').byId(id, CUSTOMER_COLUMNS).maybeSingle();
+  if (error) throw new AppError('customer_update_failed', 500);
+  return (data as unknown as CustomerDetailRow) ?? null;
+}
+
+/** Apply the core partial update to one customer. DB error → customer_update_failed; null when no row. */
+export async function updateCustomerRow(
+  ctx: RepoContext,
+  id: string,
+  fields: Record<string, unknown>,
+): Promise<CustomerDetailRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('customers')
+    .update(fields)
+    .eq('id', id)
+    .select(CUSTOMER_COLUMNS)
+    .maybeSingle();
+  if (error) throw new AppError('customer_update_failed', 500);
+  return (data as unknown as CustomerDetailRow) ?? null;
+}
+
+/** Tolerant pin read (pre-044 → undefined). Returns the value only when the row resolves. */
+export async function fetchCustomerPinned(ctx: RepoContext, id: string): Promise<boolean | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db.from('customers').byId(id, 'pinned').maybeSingle();
+    if (!error && data) return (data as { pinned?: boolean }).pinned ?? false;
+  } catch {
+    // pre-044 → leave the default
+  }
+  return undefined;
+}
+
+/** Tolerant 053 extras read (postal_code / region / imported_from_phone). */
+export async function fetchCustomerExtras(
+  ctx: RepoContext,
+  id: string,
+): Promise<{ postalCode: string | null; region: string | null; importedFromPhone: boolean } | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db
+      .from('customers')
+      .byId(id, 'postal_code, region, imported_from_phone')
+      .maybeSingle();
+    if (!error && data) {
+      const r = data as unknown as { postal_code: string | null; region: string | null; imported_from_phone: boolean | null };
+      return { postalCode: r.postal_code ?? null, region: r.region ?? null, importedFromPhone: r.imported_from_phone ?? false };
+    }
+  } catch {
+    // pre-053 → leave the defaults
+  }
+  return undefined;
+}
+
+/** Tolerant 058 blocked read. */
+export async function fetchCustomerBlocked(ctx: RepoContext, id: string): Promise<boolean | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db.from('customers').byId(id, 'blocked').maybeSingle();
+    if (!error && data) return (data as unknown as { blocked: boolean | null }).blocked ?? false;
+  } catch {
+    // pre-058 → leave the default
+  }
+  return undefined;
+}
+
+/** Isolated 053 extras write — returns whether the write succeeded (pre-053 column-missing → false). */
+export async function applyCustomerExtras(
+  ctx: RepoContext,
+  id: string,
+  extra: Record<string, unknown>,
+): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('customers').update(extra).eq('id', id);
+  return !error;
+}
+
+/** Isolated 058 blocked write — returns whether the write succeeded (pre-058 → false). */
+export async function applyCustomerBlocked(ctx: RepoContext, id: string, blocked: boolean): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('customers').update({ blocked }).eq('id', id);
+  return !error;
+}
+
+/** Hard-delete one customer (any kind). DB error → customer_delete_failed; returns the deleted count. */
+export async function deleteCustomerRow(ctx: RepoContext, id: string): Promise<number> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').delete().eq('id', id).select('id');
+  if (error) throw new AppError('customer_delete_failed', 500);
+  return Array.isArray(data) ? data.length : 0;
 }
 
 /** pre-053 tolerance: a missing `imported_from_phone` column → degrade, don't 500. */

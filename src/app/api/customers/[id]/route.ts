@@ -1,434 +1,76 @@
-// CRM customer get-by-id and patch endpoints.
-// Phase 3: business isolation enforced via explicit business_id + id filter on every query.
+// CRM customer get-by-id, patch, and delete endpoints (GET/PATCH/DELETE /api/customers/[id]).
+//
+// ADOPTED to the modular pattern (src/server/modules/customers): thin adapter. The
+// detail fetch (+ the tolerant pinned/053/058 reads), the PATCH whitelist + the
+// isolated extras/blocked writes, and the single-contact delete live in the service.
+// Responses are byte-identical.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { NextRequest } from 'next/server';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, fail, handleApiError } from '@/server/core/errors';
+import { getCustomer, updateCustomer, deleteCustomer } from '@/server/modules/customers/customers.service';
 
 export const runtime = 'nodejs';
 
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-const CUSTOMER_COLUMNS = [
-  'id', 'crm_number', 'name', 'company_name', 'phone', 'mobile_phone',
-  'landline_phone', 'email', 'address', 'source', 'status',
-  'opportunity_value', 'needs_summary', 'notes', 'preferred_contact_method',
-  'intake_status', 'last_contact_at', 'created_at', 'updated_at',
-  'status_summary', 'business_notes', 'personal_notes', 'next_best_action', 'memory_updated_at',
-].join(', ');
-
-const VALID_STATUSES = ['new', 'in_progress', 'won', 'lost'] as const;
-
-const VALID_SOURCES = [
-  'facebook_ads', 'google_ads', 'website_form', 'referral',
-  'inbound_call', 'missed_call', 'manual_entry', 'other',
-] as const;
-
-const VALID_CONTACT_METHODS = ['viber', 'sms', 'email', 'phone'] as const;
-
-const VALID_INTAKE_STATUSES = [
-  'none', 'pending', 'sent', 'opened', 'submitted', 'expired', 'revoked',
-] as const;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function str(val: unknown): string | null {
-  if (typeof val !== 'string') return null;
-  const trimmed = val.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function optionalNumber(val: unknown): number | null {
-  if (val === null || val === undefined) return null;
-  const n = Number(val);
-  return isFinite(n) ? n : null;
-}
-
-function normalizePhone(raw: string | null): string | null {
-  if (!raw) return null;
-  const s = raw.trim().replace(/[\s\-().]/g, '');
-  if (!s) return null;
-  if (/^\+30\d{10}$/.test(s)) return s;
-  if (/^30\d{10}$/.test(s)) return '+' + s;
-  if (/^[26]\d{9}$/.test(s)) return '+30' + s;
-  return s;
-}
-
-function isValidEnum<T extends string>(
-  value: unknown,
-  validValues: readonly T[]
-): value is T {
-  return typeof value === 'string' && (validValues as readonly string[]).includes(value);
-}
-
-// ---------------------------------------------------------------------------
-// DB row type and mapper
-// ---------------------------------------------------------------------------
-
-interface CustomerRow {
-  id: string;
-  crm_number: string | null;
-  name: string | null;
-  company_name: string | null;
-  phone: string | null;
-  mobile_phone: string | null;
-  landline_phone: string | null;
-  email: string | null;
-  address: string | null;
-  source: string | null;
-  status: string;
-  opportunity_value: number | null;
-  needs_summary: string | null;
-  notes: string | null;
-  preferred_contact_method: string;
-  intake_status: string;
-  last_contact_at: string | null;
-  created_at: string;
-  updated_at: string;
-  status_summary: string | null;
-  business_notes: string | null;
-  personal_notes: string | null;
-  next_best_action: string | null;
-  memory_updated_at: string | null;
-  pinned?: boolean;
-  // migration 053 — read tolerantly, may be absent pre-053
-  postal_code?: string | null;
-  region?: string | null;
-  imported_from_phone?: boolean | null;
-  // migration 058 — read tolerantly, may be absent pre-058
-  blocked?: boolean | null;
-}
-
-function dbToCustomer(row: CustomerRow) {
-  return {
-    id: row.id,
-    crmNumber: row.crm_number,
-    name: row.name,
-    companyName: row.company_name,
-    phone: row.phone,
-    mobilePhone: row.mobile_phone,
-    landlinePhone: row.landline_phone,
-    email: row.email,
-    address: row.address,
-    postalCode: row.postal_code ?? null,
-    region: row.region ?? null,
-    importedFromPhone: row.imported_from_phone ?? false,
-    blocked: row.blocked ?? false,
-    source: row.source,
-    status: row.status,
-    opportunityValue: row.opportunity_value,
-    needsSummary: row.needs_summary,
-    notes: row.notes,
-    preferredContactMethod: row.preferred_contact_method,
-    intakeStatus: row.intake_status,
-    lastContactAt: row.last_contact_at,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    nextTaskId: null,
-    statusSummary: row.status_summary,
-    businessNotes: row.business_notes,
-    personalNotes: row.personal_notes,
-    nextBestAction: row.next_best_action,
-    memoryUpdatedAt: row.memory_updated_at,
-    pinned: row.pinned ?? false,
-  };
-}
-
-// Cast helper: routes Supabase's untyped query result through unknown to CustomerRow.
-// Required because .select(stringVar) returns GenericStringError without a DB schema type.
-function asCustomerRow(value: unknown): CustomerRow {
-  return value as CustomerRow;
-}
-
-// ---------------------------------------------------------------------------
-// GET /api/customers/[id]
-// ---------------------------------------------------------------------------
-
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   try {
     const { id } = await params;
-
-    const { data, error } = await supabase
-      .from('customers')
-      .select(CUSTOMER_COLUMNS)
-      .eq('id', id)
-      .eq('business_id', businessId)
-      .maybeSingle();
-
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'customer_query_failed' }, { status: 500 });
-    }
-    if (!data) {
-      return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
-    }
-
-    const customer = dbToCustomer(asCustomerRow(data));
-    // Pin status (F6) — separate tolerant fetch so a pending migration 044 can't
-    // break the customer detail.
-    try {
-      const { data: pinRow, error: pinErr } = await supabase
-        .from('customers')
-        .select('pinned')
-        .eq('id', id)
-        .eq('business_id', businessId)
-        .maybeSingle();
-      if (!pinErr && pinRow) customer.pinned = (pinRow as { pinned?: boolean }).pinned ?? false;
-    } catch {
-      // pre-044 → pinned stays false
-    }
-
-    // postal_code / region / imported_from_phone (migration 053) — tolerant read
-    // so the edit sheet can prefill ΤΚ / Περιοχή before 053 is applied.
-    try {
-      const { data: extra, error: extraErr } = await supabase
-        .from('customers')
-        .select('postal_code, region, imported_from_phone')
-        .eq('id', id)
-        .eq('business_id', businessId)
-        .maybeSingle();
-      if (!extraErr && extra) {
-        const r = extra as { postal_code: string | null; region: string | null; imported_from_phone: boolean | null };
-        customer.postalCode = r.postal_code ?? null;
-        customer.region = r.region ?? null;
-        customer.importedFromPhone = r.imported_from_phone ?? false;
-      }
-    } catch {
-      // pre-053 → fields stay null/false
-    }
-
-    // blocked (migration 058) — SEPARATE tolerant read so a pre-058 schema can't
-    // break the 053 read above.
-    try {
-      const { data: b, error: bErr } = await supabase
-        .from('customers')
-        .select('blocked')
-        .eq('id', id)
-        .eq('business_id', businessId)
-        .maybeSingle();
-      if (!bErr && b) customer.blocked = (b as { blocked: boolean | null }).blocked ?? false;
-    } catch {
-      // pre-058 → blocked stays false
-    }
-
-    return NextResponse.json({ ok: true, customer });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'customer_query_failed' }, { status: 500 });
+    const customer = await getCustomer(ctx, id);
+    return ok({ customer });
+  } catch (err) {
+    return handleApiError(err);
   }
 }
 
-// ---------------------------------------------------------------------------
-// PATCH /api/customers/[id]
-// ---------------------------------------------------------------------------
-
-export async function PATCH(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const contentType = request.headers.get('content-type') ?? '';
-  if (!contentType.includes('application/json')) {
-    return NextResponse.json(
-      { ok: false, error: 'unsupported_content_type' },
-      { status: 415 }
-    );
+  if (!contentType.includes('application/json')) return fail('unsupported_content_type', 415);
+
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
   }
 
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
+  const { id } = await params;
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return fail('invalid_json', 400);
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return fail('invalid_json', 400);
+  }
 
   try {
-    const { id } = await params;
-
-    let body: unknown;
-    try {
-      body = await request.json();
-    } catch {
-      return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
-    }
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-      return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
-    }
-    const raw = body as Record<string, unknown>;
-
-    // Enum validation for any provided fields
-    if (raw.status != null && !isValidEnum(raw.status, VALID_STATUSES)) {
-      return NextResponse.json({ ok: false, error: 'invalid_status' }, { status: 400 });
-    }
-    if (raw.source != null && !isValidEnum(raw.source, VALID_SOURCES)) {
-      return NextResponse.json({ ok: false, error: 'invalid_source' }, { status: 400 });
-    }
-    if (raw.preferredContactMethod != null && !isValidEnum(raw.preferredContactMethod, VALID_CONTACT_METHODS)) {
-      return NextResponse.json(
-        { ok: false, error: 'invalid_preferred_contact_method' },
-        { status: 400 }
-      );
-    }
-    if (raw.intakeStatus != null && !isValidEnum(raw.intakeStatus, VALID_INTAKE_STATUSES)) {
-      return NextResponse.json({ ok: false, error: 'invalid_intake_status' }, { status: 400 });
-    }
-
-    // Build update object from allowed fields only.
-    // crmNumber is intentionally not updatable.
-    const updateFields: Record<string, unknown> = {};
-    let hasUpdate = false;
-
-    if ('name' in raw) { updateFields.name = str(raw.name); hasUpdate = true; }
-    if ('companyName' in raw) { updateFields.company_name = str(raw.companyName); hasUpdate = true; }
-    if ('phone' in raw) { updateFields.phone = normalizePhone(str(raw.phone)); hasUpdate = true; }
-    if ('mobilePhone' in raw) { updateFields.mobile_phone = normalizePhone(str(raw.mobilePhone)); hasUpdate = true; }
-    if ('landlinePhone' in raw) { updateFields.landline_phone = normalizePhone(str(raw.landlinePhone)); hasUpdate = true; }
-    if ('email' in raw) { updateFields.email = str(raw.email); hasUpdate = true; }
-    if ('address' in raw) { updateFields.address = str(raw.address); hasUpdate = true; }
-    if ('source' in raw) { updateFields.source = isValidEnum(raw.source, VALID_SOURCES) ? raw.source : null; hasUpdate = true; }
-    if ('status' in raw && isValidEnum(raw.status, VALID_STATUSES)) { updateFields.status = raw.status; hasUpdate = true; }
-    if ('opportunityValue' in raw) { updateFields.opportunity_value = optionalNumber(raw.opportunityValue); hasUpdate = true; }
-    if ('needsSummary' in raw) { updateFields.needs_summary = str(raw.needsSummary); hasUpdate = true; }
-    if ('notes' in raw) { updateFields.notes = str(raw.notes); hasUpdate = true; }
-    if ('preferredContactMethod' in raw && isValidEnum(raw.preferredContactMethod, VALID_CONTACT_METHODS)) {
-      updateFields.preferred_contact_method = raw.preferredContactMethod;
-      hasUpdate = true;
-    }
-    if ('intakeStatus' in raw && isValidEnum(raw.intakeStatus, VALID_INTAKE_STATUSES)) {
-      updateFields.intake_status = raw.intakeStatus;
-      hasUpdate = true;
-    }
-    if ('lastContactAt' in raw) { updateFields.last_contact_at = str(raw.lastContactAt); hasUpdate = true; }
-
-    // postal_code / region (migration 053) are written in a separate isolated
-    // update so a pre-053 deployment can't fail the core PATCH. Detect them here
-    // and force a save even when they're the only edited fields.
-    const extraPostal = 'postalCode' in raw ? str(raw.postalCode) : undefined;
-    const extraRegion = 'region' in raw ? str(raw.region) : undefined;
-    const wantsExtras = extraPostal !== undefined || extraRegion !== undefined;
-    if (wantsExtras) hasUpdate = true;
-
-    // blocked (migration 058) — also written in its own isolated update.
-    const extraBlocked = 'blocked' in raw ? raw.blocked === true : undefined;
-    if (extraBlocked !== undefined) hasUpdate = true;
-
-    let hasMemoryFieldUpdate = false;
-    if ('statusSummary' in raw) { updateFields.status_summary = str(raw.statusSummary); hasUpdate = true; hasMemoryFieldUpdate = true; }
-    if ('businessNotes' in raw) { updateFields.business_notes = str(raw.businessNotes); hasUpdate = true; hasMemoryFieldUpdate = true; }
-    if ('personalNotes' in raw) { updateFields.personal_notes = str(raw.personalNotes); hasUpdate = true; hasMemoryFieldUpdate = true; }
-    if ('nextBestAction' in raw) { updateFields.next_best_action = str(raw.nextBestAction); hasUpdate = true; hasMemoryFieldUpdate = true; }
-    if (hasMemoryFieldUpdate) { updateFields.memory_updated_at = new Date().toISOString(); }
-
-    // If no allowed fields were provided, return the current customer unchanged.
-    if (!hasUpdate) {
-      const { data: existing, error: fetchError } = await supabase
-        .from('customers')
-        .select(CUSTOMER_COLUMNS)
-        .eq('id', id)
-        .eq('business_id', businessId)
-        .maybeSingle();
-
-      if (fetchError) {
-        return NextResponse.json({ ok: false, error: 'customer_update_failed' }, { status: 500 });
-      }
-      if (!existing) {
-        return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
-      }
-      return NextResponse.json({ ok: true, customer: dbToCustomer(asCustomerRow(existing)) });
-    }
-
-    updateFields.updated_at = new Date().toISOString();
-
-    const { data, error } = await supabase
-      .from('customers')
-      .update(updateFields)
-      .eq('id', id)
-      .eq('business_id', businessId)
-      .select(CUSTOMER_COLUMNS)
-      .maybeSingle();
-
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'customer_update_failed' }, { status: 500 });
-    }
-    if (!data) {
-      return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
-    }
-
-    const patched = dbToCustomer(asCustomerRow(data));
-
-    if (wantsExtras) {
-      // supabase-js does NOT throw on SQL errors — inspect the returned error and
-      // only reflect the value in the response when the write actually succeeded
-      // (pre-053 missing column → error 42703 → leave patched as-is, no false success).
-      const extraUpdate: Record<string, unknown> = {};
-      if (extraPostal !== undefined) extraUpdate.postal_code = extraPostal;
-      if (extraRegion !== undefined) extraUpdate.region = extraRegion;
-      const { error: extraErr } = await supabase
-        .from('customers')
-        .update(extraUpdate)
-        .eq('id', id)
-        .eq('business_id', businessId);
-      if (!extraErr) {
-        if (extraPostal !== undefined) patched.postalCode = extraPostal;
-        if (extraRegion !== undefined) patched.region = extraRegion;
-      }
-    }
-
-    if (extraBlocked !== undefined) {
-      // Same tolerant-but-honest pattern: only set patched.blocked if the DB write
-      // succeeded (pre-058 missing column → error, the core PATCH already saved).
-      const { error: blockErr } = await supabase
-        .from('customers')
-        .update({ blocked: extraBlocked })
-        .eq('id', id)
-        .eq('business_id', businessId);
-      if (!blockErr) patched.blocked = extraBlocked;
-    }
-
-    return NextResponse.json({ ok: true, customer: patched });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'customer_update_failed' }, { status: 500 });
+    const customer = await updateCustomer(ctx, id, body as Record<string, unknown>);
+    return ok({ customer });
+  } catch (err) {
+    return handleApiError(err);
   }
 }
 
-// ---------------------------------------------------------------------------
-// DELETE /api/customers/[id] — permanently delete ONE contact.
-// ---------------------------------------------------------------------------
-// Works for ANY contact (phone-imported "apple" OR app/CRM), unlike the
-// imported-only bulk endpoint. Business-scoped. Child rows are handled by the
-// schema's FKs (work_folders.customer_id ON DELETE CASCADE; offers/tasks/
-// communications/payments customer_id ON DELETE SET NULL; intake/upload tokens
-// CASCADE), so a single delete never FK-errors.
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   try {
     const { id } = await params;
-
-    const { data, error } = await supabase
-      .from('customers')
-      .delete()
-      .eq('id', id)
-      .eq('business_id', businessId)
-      .select('id');
-
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'customer_delete_failed' }, { status: 500 });
-    }
-    if (!Array.isArray(data) || data.length === 0) {
-      return NextResponse.json({ ok: false, error: 'customer_not_found' }, { status: 404 });
-    }
-    return NextResponse.json({ ok: true, deleted: data.length });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'customer_delete_failed' }, { status: 500 });
+    const result = await deleteCustomer(ctx, id);
+    return ok({ ...result });
+  } catch (err) {
+    return handleApiError(err);
   }
 }

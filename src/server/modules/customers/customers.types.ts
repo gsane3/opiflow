@@ -39,6 +39,19 @@ export interface CustomerRow {
   memory_updated_at: string | null;
 }
 
+/**
+ * Detail row for /api/customers/[id] — the core columns plus the migration-gated
+ * extras read tolerantly (pinned 044, postal/region/imported 053, blocked 058).
+ * They are optional because the core CUSTOMER_COLUMNS select doesn't include them.
+ */
+export interface CustomerDetailRow extends CustomerRow {
+  pinned?: boolean;
+  postal_code?: string | null;
+  region?: string | null;
+  imported_from_phone?: boolean | null;
+  blocked?: boolean | null;
+}
+
 /** The camelCase DTO returned to web/native clients. */
 export interface Customer {
   id: string;
@@ -65,4 +78,42 @@ export interface Customer {
   personalNotes: string | null;
   nextBestAction: string | null;
   memoryUpdatedAt: string | null;
+}
+
+/**
+ * The DTO returned by /api/customers/[id] — the list DTO plus the detail-only fields,
+ * IN THE SAME KEY ORDER the live route emits (postalCode/region/importedFromPhone/blocked
+ * after address; nextTaskId after updatedAt; pinned last) so the JSON body is byte-identical.
+ */
+export interface CustomerDetail {
+  id: string;
+  crmNumber: string | null;
+  name: string | null;
+  companyName: string | null;
+  phone: string | null;
+  mobilePhone: string | null;
+  landlinePhone: string | null;
+  email: string | null;
+  address: string | null;
+  postalCode: string | null;
+  region: string | null;
+  importedFromPhone: boolean;
+  blocked: boolean;
+  source: string | null;
+  status: string;
+  opportunityValue: number | null;
+  needsSummary: string | null;
+  notes: string | null;
+  preferredContactMethod: string;
+  intakeStatus: string;
+  lastContactAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+  nextTaskId: string | null;
+  statusSummary: string | null;
+  businessNotes: string | null;
+  personalNotes: string | null;
+  nextBestAction: string | null;
+  memoryUpdatedAt: string | null;
+  pinned: boolean;
 }
