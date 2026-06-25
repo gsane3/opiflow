@@ -6,7 +6,7 @@
 // tenantDb wrapper; every query carries its explicit .eq('business_id', …) / id filter
 // exactly as the original routes did. The intent is byte-identical SQL: column lists,
 // filters, ordering, limits, and `.maybeSingle()`/`.single()` are preserved verbatim so
-// the response shapes the PBX/Twilio/Telnyx callers parse never change.
+// the response shapes the PBX/Twilio callers parse never change.
 
 import { createServerSupabaseClient } from '../../../lib/supabase/server';
 

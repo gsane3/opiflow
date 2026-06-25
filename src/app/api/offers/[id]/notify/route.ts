@@ -1,5 +1,10 @@
 // POST /api/offers/[id]/notify
-// Builds a Viber message for an offer response link.
+//
+// ADOPTED to the modular pattern (src/server/modules/offer-notify): the route keeps the
+// content-type 415 guard, authentication and body/mode parsing verbatim, then hands the
+// auth-scoped client, the SERVICE-ROLE client (for offer_response_tokens) and the
+// effectful send/token libs to the service, which runs the draft/send orchestration and
+// returns the byte-identical response.
 //
 // mode='draft' (default):
 //   Revokes existing pending/sent tokens, creates a new pending token,
@@ -17,7 +22,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { selectViberPhone } from '@/lib/server/viber-phone';
-import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
 import {
   createServiceSupabaseClient,
@@ -29,12 +33,9 @@ import {
 import { normalizeApifonMsisdn } from '@/lib/server/apifon-viber';
 import { sendViaPreferredChannel } from '@/lib/server/send-channel';
 import { recordOutboundMessage } from '@/lib/server/record-message';
+import { notifyOffer } from '@/server/modules/offer-notify/offer-notify.service';
 
 export const runtime = 'nodejs';
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
 
 function str(val: unknown): string | null {
   if (typeof val !== 'string') return null;
@@ -42,101 +43,8 @@ function str(val: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
-// selectViberPhone + looksLikeGreekMobile → @/lib/server/viber-phone
-
-// Extracts the raw base64url token from a response URL of the form
-// {origin}/offer-response/{rawToken}. Returns null for any invalid input.
-function extractRawTokenFromResponseUrl(responseUrl: string): string | null {
-  try {
-    const url = new URL(responseUrl);
-    const parts = url.pathname.split('/');
-    const lastPart = parts[parts.length - 1];
-    if (!lastPart) return null;
-    const rawToken = decodeURIComponent(lastPart);
-    if (!/^[A-Za-z0-9_-]+$/.test(rawToken)) return null;
-    return rawToken;
-  } catch {
-    return null;
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface OfferRow {
-  id: string;
-  business_id: string;
-  customer_id: string | null;
-  offer_number: string | null;
-  status: string;
-  total: number | null;
-}
-
-interface CustomerRow {
-  id: string;
-  mobile_phone: string | null;
-  phone: string | null;
-  preferred_contact_method?: string | null;
-}
-
-interface TokenRow {
-  id: string;
-}
-
-type SupabaseClient = ReturnType<typeof createServerSupabaseClient>;
-
-// Fetch a customer (business-scoped) including preferred_contact_method.
-// Degrades gracefully if migration 035 (preferred_contact_method present /
-// extended) has not been applied yet: on a column error we retry without it.
-async function fetchOfferCustomer(
-  supabase: SupabaseClient,
-  customerId: string,
-  businessId: string
-): Promise<CustomerRow | null> {
-  const withPref = await supabase
-    .from('customers')
-    .select('id, mobile_phone, phone, preferred_contact_method')
-    .eq('id', customerId)
-    .eq('business_id', businessId)
-    .maybeSingle();
-
-  if (!withPref.error) {
-    return (withPref.data as unknown as CustomerRow | null) ?? null;
-  }
-
-  const base = await supabase
-    .from('customers')
-    .select('id, mobile_phone, phone')
-    .eq('id', customerId)
-    .eq('business_id', businessId)
-    .maybeSingle();
-
-  return (base.data as unknown as CustomerRow | null) ?? null;
-}
-
 const VALID_MODES = ['draft', 'send'] as const;
 type NotificationMode = typeof VALID_MODES[number];
-
-// ---------------------------------------------------------------------------
-// Message builder
-// ---------------------------------------------------------------------------
-
-function buildOfferMessage(offerNumber: string | null, responseUrl: string): string {
-  const lines: string[] = ['Γεια σας.'];
-  if (offerNumber) {
-    lines.push(`Σας αποστέλλουμε την προσφορά μας ${offerNumber}.`);
-  } else {
-    lines.push('Σας αποστέλλουμε την προσφορά μας.');
-  }
-  lines.push('Για να την αποδεχτείτε ή απορρίψετε, επισκεφθείτε:');
-  lines.push(responseUrl);
-  return lines.join(' ');
-}
-
-// ---------------------------------------------------------------------------
-// POST /api/offers/[id]/notify
-// ---------------------------------------------------------------------------
 
 export async function POST(
   request: NextRequest,
@@ -174,311 +82,21 @@ export async function POST(
     }
 
     const { id: offerId } = await params;
-
-    // Fetch offer (business-scoped)
-    const { data: offerData, error: offerError } = await supabase
-      .from('offers')
-      .select('id, business_id, customer_id, offer_number, status, total')
-      .eq('id', offerId)
-      .eq('business_id', businessId)
-      .maybeSingle();
-
-    if (offerError) {
-      return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
-    }
-    if (!offerData) {
-      return NextResponse.json({ ok: false, error: 'offer_not_found' }, { status: 404 });
-    }
-
-    const offer = offerData as unknown as OfferRow;
     const serviceClient = createServiceSupabaseClient();
-    const now = new Date().toISOString();
 
-    // -------------------------------------------------------------------------
-    // Draft mode: create pending token, return message + responseUrl + recipient
-    // -------------------------------------------------------------------------
-
-    if (mode === 'draft') {
-      const { error: revokeError } = await serviceClient
-        .from('offer_response_tokens')
-        .update({ status: 'revoked', revoked_at: now, updated_at: now })
-        .eq('business_id', businessId)
-        .eq('offer_id', offerId)
-        .in('status', ['pending', 'sent'])
-        .is('revoked_at', null);
-
-      if (revokeError) {
-        return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
-      }
-
-      let tokenResult: Awaited<ReturnType<typeof createOfferResponseToken>>;
-      try {
-        tokenResult = await createOfferResponseToken({
-          businessId,
-          offerId,
-          sentChannel: null,
-        });
-      } catch {
-        return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
-      }
-
-      const responseUrl = tokenResult.responseUrl;
-      const message = buildOfferMessage(offer.offer_number, responseUrl);
-
-      // Look up customer phone for display in the review modal.
-      let recipient: string | null = null;
-      if (offer.customer_id) {
-        const customerData = await fetchOfferCustomer(supabase, offer.customer_id, businessId);
-        if (customerData) {
-          recipient = selectViberPhone(customerData);
-        }
-      }
-
-      return NextResponse.json({
-        ok: true,
-        mode: 'draft',
-        responseUrl,
-        message,
-        recipient,
-        sent: false,
-      });
-    }
-
-    // -------------------------------------------------------------------------
-    // Send mode
-    // -------------------------------------------------------------------------
-
-    const reviewedResponseUrl = str(raw.responseUrl);
-    // Optional user-edited message from the review/wizard step. We still force the
-    // verified canonical link to be present so SMS (no buttons) stays usable.
-    const customMessage = str(raw.message);
-    let finalUrl: string;
-    let verifiedTokenId: string | null = null;
-
-    if (reviewedResponseUrl) {
-      // Verify the reviewed responseUrl: extract raw token, hash it, look up the
-      // row. The query is scoped to this offer and business so an attacker cannot
-      // substitute a token that belongs to a different offer.
-      const rawToken = extractRawTokenFromResponseUrl(reviewedResponseUrl);
-      if (!rawToken) {
-        return NextResponse.json({ ok: false, error: 'invalid_response_url' }, { status: 400 });
-      }
-
-      const tokenHash = hashOfferResponseToken(rawToken);
-
-      const { data: tokenData, error: tokenQueryError } = await serviceClient
-        .from('offer_response_tokens')
-        .select('id')
-        .eq('token_hash', tokenHash)
-        .eq('offer_id', offerId)
-        .eq('business_id', businessId)
-        .in('status', ['pending', 'sent', 'opened'])
-        .gt('expires_at', now)
-        .maybeSingle();
-
-      if (tokenQueryError) {
-        return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
-      }
-      if (!tokenData) {
-        return NextResponse.json({ ok: false, error: 'link_expired' }, { status: 422 });
-      }
-
-      verifiedTokenId = (tokenData as unknown as TokenRow).id;
-      // Use the server-canonical URL (same as what draft returned), not the raw
-      // frontend-provided string.
-      finalUrl = buildOfferResponseUrl(rawToken);
-    } else {
-      // No reviewed URL provided: revoke and create a fresh token as fallback.
-      const { error: revokeError } = await serviceClient
-        .from('offer_response_tokens')
-        .update({ status: 'revoked', revoked_at: now, updated_at: now })
-        .eq('business_id', businessId)
-        .eq('offer_id', offerId)
-        .in('status', ['pending', 'sent'])
-        .is('revoked_at', null);
-
-      if (revokeError) {
-        return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
-      }
-
-      let tokenResult: Awaited<ReturnType<typeof createOfferResponseToken>>;
-      try {
-        tokenResult = await createOfferResponseToken({
-          businessId,
-          offerId,
-          sentChannel: 'viber',
-        });
-      } catch {
-        return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
-      }
-
-      finalUrl = tokenResult.responseUrl;
-    }
-
-    // Prefer the user-edited message from the wizard; otherwise the default.
-    // Guarantee the verified link is in the text so SMS delivers a usable link.
-    const messageText = customMessage
-      ? (customMessage.includes(finalUrl) ? customMessage : `${customMessage}\n${finalUrl}`)
-      : buildOfferMessage(offer.offer_number, finalUrl);
-
-    // Look up customer phone for Viber send
-    if (!offer.customer_id) {
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        channel: 'viber',
-        status: 'fallback_required',
-        reason: 'missing_customer',
-        message: messageText,
-      });
-    }
-
-    const customerData = await fetchOfferCustomer(supabase, offer.customer_id, businessId);
-
-    if (!customerData) {
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        channel: 'viber',
-        status: 'fallback_required',
-        reason: 'missing_customer',
-        message: messageText,
-      });
-    }
-
-    const customer = customerData;
-    const rawPhone = selectViberPhone(customer);
-
-    if (!rawPhone) {
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        channel: 'viber',
-        status: 'fallback_required',
-        reason: 'missing_mobile',
-        message: messageText,
-      });
-    }
-
-    const msisdn = normalizeApifonMsisdn(rawPhone);
-    if (!msisdn) {
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        channel: 'viber',
-        status: 'fallback_required',
-        reason: 'missing_mobile',
-        message: messageText,
-      });
-    }
-
-    const referenceId = verifiedTokenId
-      ? `offer-notif:${businessId.slice(0, 8)}:${verifiedTokenId.slice(0, 8)}`
-      : `offer-notif:${businessId.slice(0, 8)}:${offerId.slice(0, 8)}`;
-
-    // Send via the customer's preferred channel (Viber with SMS fallback, or
-    // SMS direct). messageText already contains the response URL, so SMS —
-    // which has no action button — still delivers a usable link.
-    const sendResult = await sendViaPreferredChannel({
-      preferred: customer.preferred_contact_method ?? null,
-      phone: rawPhone,
-      text: messageText,
-      customerId: offer.customer_id,
-      referenceId,
-    });
-
-    if (!sendResult.ok) {
-      const reason =
-        sendResult.reason === 'missing_apifon_config' ? 'provider_unavailable' : 'provider_failed';
-      return NextResponse.json({
-        ok: true,
-        sent: false,
-        channel: sendResult.channel,
-        status: 'fallback_required',
-        reason,
-        message: messageText,
-      });
-    }
-
-    // Mark the reviewed token as sent (non-fatal if it fails -- the message was already sent).
-    if (verifiedTokenId) {
-      try {
-        await markOfferResponseTokenSent({
-          tokenId: verifiedTokenId,
-          sentChannel: sendResult.channel === 'sms' ? 'sms' : 'viber',
-          sentTo: rawPhone,
-        });
-      } catch {
-        // intentionally swallowed
-      }
-    }
-
-    // Sent successfully → advance the customer through the pipeline.
-    //  - status = 'in_progress' so the funnel reflects that an offer is out.
-    //  - opportunity_value = offer total (when known) so we can build sales stats later.
-    // Both are best-effort and non-fatal: the offer (Viber message) was already sent.
-    if (offer.customer_id) {
-      try {
-        const customerUpdate: Record<string, unknown> = {
-          status: 'in_progress',
-          updated_at: new Date().toISOString(),
-        };
-        if (typeof offer.total === 'number' && offer.total > 0) {
-          customerUpdate.opportunity_value = offer.total;
-        }
-        await supabase
-          .from('customers')
-          .update(customerUpdate)
-          .eq('id', offer.customer_id)
-          .eq('business_id', businessId);
-      } catch {
-        // intentionally swallowed: the offer was already sent
-      }
-    }
-
-    // Advance the OFFER's own status so it no longer reads as "Πρόχειρη" after a
-    // real send. Best-effort & non-fatal; never regress an offer that already
-    // reached a final state (accepted/rejected/expired) or was already sent.
-    try {
-      if (offer.status === 'draft' || offer.status === 'ready_to_send') {
-        await supabase
-          .from('offers')
-          .update({ status: 'sent_manually', updated_at: new Date().toISOString() })
-          .eq('id', offer.id)
-          .eq('business_id', businessId);
-      }
-    } catch {
-      // intentionally swallowed: the Viber message was already sent
-    }
-
-    // Surface requestId / messageId from whichever underlying send succeeded.
-    const sentDetail = (sendResult.channel === 'sms' ? sendResult.sms : sendResult.viber) as
-      | { requestId?: string | null; messageId?: string | null }
-      | undefined;
-
-    // Log to the customer timeline (#57). Best-effort; non-fatal.
-    if (offer.customer_id) {
-      await recordOutboundMessage({
-        businessId,
-        customerId: offer.customer_id,
-        channel: sendResult.channel === 'sms' ? 'sms' : 'viber',
-        summary: offer.offer_number ? `Προσφορά ${offer.offer_number}` : 'Αποστολή προσφοράς',
-        phone: rawPhone,
-        referenceId,
-        providerRequestId: sentDetail?.requestId ?? null,
-        providerMessageId: sentDetail?.messageId ?? null,
-      });
-    }
-
-    return NextResponse.json({
-      ok: true,
-      sent: true,
-      channel: sendResult.channel,
-      status: 'sent',
-      reason: null,
-      requestId: sentDetail?.requestId ?? null,
-      messageId: sentDetail?.messageId ?? null,
-    });
+    return await notifyOffer(
+      { supabase, serviceClient, businessId, offerId, mode, raw },
+      {
+        selectViberPhone,
+        normalizeApifonMsisdn,
+        sendViaPreferredChannel,
+        recordOutboundMessage,
+        createOfferResponseToken,
+        hashOfferResponseToken,
+        buildOfferResponseUrl,
+        markOfferResponseTokenSent,
+      },
+    );
   } catch {
     return NextResponse.json({ ok: false, error: 'offer_notify_failed' }, { status: 500 });
   }

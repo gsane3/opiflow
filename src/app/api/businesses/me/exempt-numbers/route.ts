@@ -10,26 +10,25 @@
 //   POST   → body { numbers: [{ phone, label? }] } | { phone, label? }  → upserts; { ok, added }
 //   DELETE → body { phone }                                             → { ok, removed }
 //
-// Business-scoped (owner) via Bearer + resolveBusinessContext. TOLERANT of the table
-// being absent (migration 060 not applied) → degrades cleanly to an empty list.
+// ADOPTED to the modular pattern (src/server/modules/exempt-numbers): the table logic
+// (list / upsert / delete + migration-060-absent tolerance) lives in the service; the
+// route keeps its bespoke `authBusiness` VERBATIM (its getUser is intentionally NOT
+// wrapped so a throw → query_failed/insert_failed/delete_failed 500, NOT 401 — a
+// deliberate edge contract), parses/validates the body, and maps the service result to
+// the exact byte-identical responses.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveBusinessContext } from '@/lib/api/auth';
+import {
+  MAX_NUMBERS,
+  last10,
+  listExemptNumbers,
+  upsertExemptNumbers,
+  deleteExemptNumber,
+} from '@/server/modules/exempt-numbers/exempt-numbers.service';
 
 export const runtime = 'nodejs';
-
-// Cap the list so a runaway "select all contacts" can't insert unbounded rows.
-const MAX_NUMBERS = 2000;
-
-const last10 = (s: unknown): string => (typeof s === 'string' ? s.replace(/\D/g, '').slice(-10) : '');
-
-/** Treat a PostgREST "relation missing" error as "migration 060 not applied yet". */
-function isMissingTable(err: { code?: string; message?: string } | null | undefined): boolean {
-  if (!err) return false;
-  const m = (err.message ?? '').toLowerCase();
-  return err.code === '42P01' || err.code === 'PGRST205' || m.includes('business_exempt_numbers');
-}
 
 async function authBusiness(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -58,16 +57,10 @@ export async function GET(request: NextRequest) {
   const a = await authBusiness(request);
   if ('error' in a) return a.error;
   try {
-    const { data, error } = await a.supabase
-      .from('business_exempt_numbers')
-      .select('phone, label')
-      .eq('business_id', a.businessId)
-      .order('created_at', { ascending: false });
-    if (error) {
-      if (isMissingTable(error)) return NextResponse.json({ ok: true, numbers: [], migrationPending: true });
-      return NextResponse.json({ ok: false, error: 'query_failed' }, { status: 500 });
-    }
-    return NextResponse.json({ ok: true, numbers: data ?? [] });
+    const result = await listExemptNumbers(a.supabase, a.businessId);
+    if (result.kind === 'missing_table') return NextResponse.json({ ok: true, numbers: [], migrationPending: true });
+    if (result.kind === 'error') return NextResponse.json({ ok: false, error: 'query_failed' }, { status: 500 });
+    return NextResponse.json({ ok: true, numbers: result.numbers });
   } catch {
     return NextResponse.json({ ok: false, error: 'query_failed' }, { status: 500 });
   }
@@ -99,13 +92,9 @@ export async function POST(request: NextRequest) {
   if (rows.length === 0) return NextResponse.json({ ok: false, error: 'no_valid_numbers' }, { status: 400 });
 
   try {
-    const { error } = await a.supabase
-      .from('business_exempt_numbers')
-      .upsert(rows, { onConflict: 'business_id,phone', ignoreDuplicates: true });
-    if (error) {
-      if (isMissingTable(error)) return NextResponse.json({ ok: false, error: 'migration_pending' }, { status: 503 });
-      return NextResponse.json({ ok: false, error: 'insert_failed' }, { status: 500 });
-    }
+    const result = await upsertExemptNumbers(a.supabase, rows);
+    if (result.kind === 'missing_table') return NextResponse.json({ ok: false, error: 'migration_pending' }, { status: 503 });
+    if (result.kind === 'error') return NextResponse.json({ ok: false, error: 'insert_failed' }, { status: 500 });
     return NextResponse.json({ ok: true, added: rows.length });
   } catch {
     return NextResponse.json({ ok: false, error: 'insert_failed' }, { status: 500 });
@@ -128,15 +117,9 @@ export async function DELETE(request: NextRequest) {
   if (phone.length !== 10) return NextResponse.json({ ok: false, error: 'invalid_phone' }, { status: 400 });
 
   try {
-    const { error } = await a.supabase
-      .from('business_exempt_numbers')
-      .delete()
-      .eq('business_id', a.businessId)
-      .eq('phone', phone);
-    if (error) {
-      if (isMissingTable(error)) return NextResponse.json({ ok: true, removed: 0, migrationPending: true });
-      return NextResponse.json({ ok: false, error: 'delete_failed' }, { status: 500 });
-    }
+    const result = await deleteExemptNumber(a.supabase, a.businessId, phone);
+    if (result.kind === 'missing_table') return NextResponse.json({ ok: true, removed: 0, migrationPending: true });
+    if (result.kind === 'error') return NextResponse.json({ ok: false, error: 'delete_failed' }, { status: 500 });
     return NextResponse.json({ ok: true, removed: 1 });
   } catch {
     return NextResponse.json({ ok: false, error: 'delete_failed' }, { status: 500 });

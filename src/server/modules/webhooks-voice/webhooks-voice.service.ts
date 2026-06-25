@@ -14,6 +14,7 @@
 
 import { NextResponse } from 'next/server';
 import type { BusinessHours } from '../../../lib/server/business-hours';
+import type { CallCommRow } from '../../../lib/server/twilio-recording';
 import type { SupabaseServer } from './webhooks-voice.repo';
 import {
   businessExistsById,
@@ -737,4 +738,123 @@ export async function resolveOutboundDialPlan(
   }
 
   return { kind: 'ok', callerId, recordCalls };
+}
+
+// ===========================================================================
+// Twilio RecordingStatusCallback webhook
+// ===========================================================================
+
+export interface TwilioRecordingDeps {
+  findCallCommunication: (supabase: SupabaseServer, callSid: string) => Promise<CallCommRow | null>;
+  persistRecordingEvent: (
+    supabase: SupabaseServer,
+    args: { callSid: string; recordingUrl: string; recordingSid: string | null; fromNumber: string | null; reason: string },
+  ) => Promise<void>;
+  deleteTwilioRecording: (recordingSid: string, accountSid: string, authToken: string) => Promise<boolean>;
+  downloadRecordingWav: (
+    recordingUrl: string,
+    accountSid: string,
+    authToken: string,
+  ) => Promise<{ file: File } | { error: 'download_failed' | 'size_invalid' }>;
+  processRecordingForCommunication: (args: {
+    supabase: SupabaseServer;
+    comm: CallCommRow;
+    audioFile: File;
+    fromNumber: string | null;
+    callSid: string;
+  }) => Promise<boolean>;
+}
+
+export interface TwilioRecordingInput {
+  accountSid: string;
+  authToken: string;
+  callSid: string;
+  recordingUrl: string;
+  recordingSid: string | null;
+  fromNumber: string | null;
+}
+
+/**
+ * The post-auth Twilio recording pipeline. The route handles env-gating, form
+ * parsing, signature validation, the missing-url/status guards and the Supabase
+ * client creation; this runs once a completed recording with a CallSid is in hand.
+ * Returns the exact route response for each branch (communication_not_found,
+ * already_processed, recording_size_invalid, recording_download_failed,
+ * transcription_failed, communication_updated).
+ */
+export async function processTwilioRecording(
+  supabase: SupabaseServer,
+  input: TwilioRecordingInput,
+  deps: TwilioRecordingDeps,
+): Promise<NextResponse> {
+  const { accountSid, authToken, callSid, recordingUrl, recordingSid, fromNumber } = input;
+
+  const comm = await deps.findCallCommunication(supabase, callSid);
+
+  if (!comm) {
+    // Not logged yet (e.g. the dial-time insert failed) — persist for the
+    // reconcile cron and keep the recording at Twilio until it succeeds.
+    await deps.persistRecordingEvent(supabase, {
+      callSid,
+      recordingUrl,
+      recordingSid,
+      fromNumber,
+      reason: 'communication_not_found',
+    });
+    return NextResponse.json({ ok: true, received: true, error: 'communication_not_found' });
+  }
+
+  // Idempotency: a re-delivered callback for an already-briefed call only
+  // needs the cloud-side cleanup.
+  if (comm.brief_created_at) {
+    if (recordingSid) await deps.deleteTwilioRecording(recordingSid, accountSid, authToken);
+    return NextResponse.json({ ok: true, received: true, already_processed: true });
+  }
+
+  const download = await deps.downloadRecordingWav(recordingUrl, accountSid, authToken);
+  if ('error' in download) {
+    if (download.error === 'size_invalid') {
+      // Unusable audio — never retryable; delete the cloud copy.
+      if (recordingSid) await deps.deleteTwilioRecording(recordingSid, accountSid, authToken);
+      return NextResponse.json({ ok: true, received: true, error: 'recording_size_invalid' });
+    }
+    await deps.persistRecordingEvent(supabase, {
+      callSid,
+      recordingUrl,
+      recordingSid,
+      fromNumber,
+      reason: 'download_failed',
+    });
+    return NextResponse.json({ ok: true, received: true, error: 'recording_download_failed' });
+  }
+
+  const okProcessed = await deps.processRecordingForCommunication({
+    supabase,
+    comm,
+    audioFile: download.file,
+    fromNumber,
+    callSid,
+  });
+
+  if (!okProcessed) {
+    // Transient Deepgram/OpenAI failure — schedule a retry, keep the recording.
+    await deps.persistRecordingEvent(supabase, {
+      callSid,
+      recordingUrl,
+      recordingSid,
+      fromNumber,
+      reason: 'transcription_failed',
+    });
+    return NextResponse.json({ ok: true, received: true, error: 'transcription_failed' });
+  }
+
+  // Success — the brief is in the CRM; remove the cloud copy (privacy + cost).
+  if (recordingSid) await deps.deleteTwilioRecording(recordingSid, accountSid, authToken);
+
+  return NextResponse.json({
+    ok: true,
+    received: true,
+    communication_updated: true,
+    communication_id: comm.id,
+  });
 }

@@ -2,10 +2,13 @@ import { describe, it, expect } from 'vitest';
 import {
   processPbxRecording,
   processPbxVoicemail,
+  processTwilioRecording,
   type PbxRecordingDeps,
   type PbxVoicemailDeps,
+  type TwilioRecordingDeps,
 } from '../webhooks-voice.service';
 import type { SupabaseServer } from '../webhooks-voice.repo';
+import type { CallCommRow } from '../../../../lib/server/twilio-recording';
 
 // ---------------------------------------------------------------------------
 // Hermetic fake Supabase client. Mirrors the chainable query-builder shape the
@@ -194,5 +197,87 @@ describe('processPbxVoicemail (parity)', () => {
       deps,
     );
     expect(await res.json()).toEqual({ ok: true, communication_id: 'vm2', transcribed: false });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Twilio RecordingStatusCallback — the post-auth pipeline (the route keeps the
+// env-gate, form parsing, signature validation and guards verbatim; the twilio
+// SDK + recording libs are injected so this stays hermetic).
+// ---------------------------------------------------------------------------
+
+const TWILIO_COMM: CallCommRow = {
+  id: 'c1', business_id: 'b1', summary: null, customer_id: 'cust1', brief_created_at: null,
+};
+const TWILIO_INPUT = {
+  accountSid: 'AC1', authToken: 'tok', callSid: 'CA1',
+  recordingUrl: 'https://api.twilio.com/rec', recordingSid: 'RE1', fromNumber: '+302101234567',
+};
+function twilioDeps(over: Partial<TwilioRecordingDeps> = {}): TwilioRecordingDeps {
+  return {
+    findCallCommunication: async () => TWILIO_COMM,
+    persistRecordingEvent: async () => {},
+    deleteTwilioRecording: async () => true,
+    downloadRecordingWav: async () => ({ file: new File([new Uint8Array([1, 2, 3])], 'r.wav', { type: 'audio/wav' }) }),
+    processRecordingForCommunication: async () => true,
+    ...over,
+  };
+}
+
+describe('processTwilioRecording (parity)', () => {
+  it('communication_not_found → persists for reconcile and acks 200', async () => {
+    let persisted = false;
+    const res = await processTwilioRecording({} as unknown as SupabaseServer, TWILIO_INPUT, twilioDeps({
+      findCallCommunication: async () => null,
+      persistRecordingEvent: async () => { persisted = true; },
+    }));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, received: true, error: 'communication_not_found' });
+    expect(persisted).toBe(true);
+  });
+
+  it('already_processed → deletes the cloud copy and acks (idempotent)', async () => {
+    let deleted = false;
+    const res = await processTwilioRecording({} as unknown as SupabaseServer, TWILIO_INPUT, twilioDeps({
+      findCallCommunication: async () => ({ ...TWILIO_COMM, brief_created_at: '2026-06-01T00:00:00Z' }),
+      deleteTwilioRecording: async () => { deleted = true; return true; },
+    }));
+    expect(await res.json()).toEqual({ ok: true, received: true, already_processed: true });
+    expect(deleted).toBe(true);
+  });
+
+  it('recording_size_invalid → deletes the cloud copy and acks', async () => {
+    let deleted = false;
+    const res = await processTwilioRecording({} as unknown as SupabaseServer, TWILIO_INPUT, twilioDeps({
+      downloadRecordingWav: async () => ({ error: 'size_invalid' }),
+      deleteTwilioRecording: async () => { deleted = true; return true; },
+    }));
+    expect(await res.json()).toEqual({ ok: true, received: true, error: 'recording_size_invalid' });
+    expect(deleted).toBe(true);
+  });
+
+  it('recording_download_failed → persists and acks', async () => {
+    const res = await processTwilioRecording({} as unknown as SupabaseServer, TWILIO_INPUT, twilioDeps({
+      downloadRecordingWav: async () => ({ error: 'download_failed' }),
+    }));
+    expect(await res.json()).toEqual({ ok: true, received: true, error: 'recording_download_failed' });
+  });
+
+  it('transcription_failed → persists and acks', async () => {
+    const res = await processTwilioRecording({} as unknown as SupabaseServer, TWILIO_INPUT, twilioDeps({
+      processRecordingForCommunication: async () => false,
+    }));
+    expect(await res.json()).toEqual({ ok: true, received: true, error: 'transcription_failed' });
+  });
+
+  it('success → deletes the cloud copy and reports communication_updated', async () => {
+    let deleted = false;
+    const res = await processTwilioRecording({} as unknown as SupabaseServer, TWILIO_INPUT, twilioDeps({
+      deleteTwilioRecording: async () => { deleted = true; return true; },
+    }));
+    expect(await res.json()).toEqual({
+      ok: true, received: true, communication_updated: true, communication_id: 'c1',
+    });
+    expect(deleted).toBe(true);
   });
 });
