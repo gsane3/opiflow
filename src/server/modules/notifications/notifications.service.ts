@@ -1,0 +1,574 @@
+// Notifications — service. Parity-matched to GET /api/notifications.
+//
+// Read-only aggregation over offer_response_tokens, appointment_response_tokens,
+// customer_intake_tokens, customer_upload_sessions (joined to customer_upload_tokens),
+// communications, offers, tasks and customers. No provider sends. The item-building,
+// the dedup of offer/appointment audit rows out of the inbound messages, the sort and
+// the TOTAL_LIMIT cap are ported VERBATIM from the live route; only the auth/response
+// shell moved to the thin route.
+//
+// Every query is scoped by business_id via tenantDb (the service-role client bypasses
+// RLS). The whole body is wrapped so any unexpected DB/fetch rejection — and the
+// explicit offer/appointment token-query error — yields notifications_query_failed 500,
+// exactly as the original single broad catch did.
+
+import { AppError } from '../../core/errors';
+import { tenantDb, type TenantContext } from '../../core/tenant';
+import type { createServerSupabaseClient } from '../../../lib/supabase/server';
+
+type Ctx = TenantContext & { supabase: ReturnType<typeof createServerSupabaseClient> };
+
+// Recency window for the coverage-expansion kinds (intake / upload / call / sms).
+const RECENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const RECENT_WINDOW_ISO = () => new Date(Date.now() - RECENT_WINDOW_MS).toISOString();
+
+// Total cap across all merged kinds.
+const TOTAL_LIMIT = 40;
+
+function isWithin24h(eventAt: string): boolean {
+  try {
+    const ms = Date.now() - new Date(eventAt).getTime();
+    return ms >= 0 && ms < 24 * 60 * 60 * 1000;
+  } catch {
+    return false;
+  }
+}
+
+// date string from DB is either YYYY-MM-DD or starts with YYYY-MM-DD
+function formatDateGr(dateStr: string | null): string {
+  if (!dateStr) return '';
+  try {
+    const ymd = dateStr.split('T')[0].split('-');
+    if (ymd.length !== 3) return dateStr;
+    return `${ymd[2]}-${ymd[1]}-${ymd[0]}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// DB row types (minimal columns needed)
+// ---------------------------------------------------------------------------
+
+interface OfferTokenRow {
+  id: string;
+  offer_id: string;
+  response: string | null;
+  responded_at: string;
+}
+
+interface ApptTokenRow {
+  id: string;
+  task_id: string;
+  response: string | null;
+  responded_at: string;
+  requested_due_date: string | null;
+  requested_due_time: string | null;
+}
+
+interface OfferRow {
+  id: string;
+  offer_number: string | null;
+  customer_id: string | null;
+}
+
+interface TaskRow {
+  id: string;
+  title: string | null;
+  customer_id: string | null;
+}
+
+interface CustomerRow {
+  id: string;
+  name: string | null;
+  company_name: string | null;
+  crm_number: string | null;
+}
+
+interface IntakeTokenRow {
+  id: string;
+  customer_id: string | null;
+  submitted_at: string | null;
+}
+
+interface UploadSessionRow {
+  id: string;
+  customer_id: string | null;
+  upload_token_id: string | null;
+  file_count: number | null;
+  uploaded_at: string;
+}
+
+interface UploadTokenRow {
+  id: string;
+  sent_channel: string | null;
+}
+
+interface CommunicationRow {
+  id: string;
+  customer_id: string | null;
+  channel: string;
+  direction: string;
+  status: string;
+  summary: string | null;
+  created_at: string;
+}
+
+// ---------------------------------------------------------------------------
+// Output type
+// ---------------------------------------------------------------------------
+
+type NotificationKind =
+  | 'offer'
+  | 'appointment'
+  | 'intake'
+  | 'upload'
+  | 'call'
+  | 'sms'
+  | 'message';
+
+export interface Notification {
+  id: string;
+  kind: NotificationKind;
+  response: string;
+  title: string;
+  description: string;
+  customerId: string | null;
+  customerName: string;
+  href: string;
+  // Canonical event timestamp for sorting / seen logic. For backward
+  // compatibility respondedAt mirrors eventAt for every kind.
+  eventAt: string;
+  respondedAt: string;
+  isNew: boolean;
+  taskId: string | null;
+  requestedDueDate: string | null;
+  requestedDueTime: string | null;
+}
+
+function customerDisplayName(c: CustomerRow | undefined): string {
+  return c?.name ?? c?.company_name ?? c?.crm_number ?? 'Πελάτης';
+}
+
+function customerHref(customerId: string | null, fallback: string): string {
+  return customerId ? `/customers/${customerId}` : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// Build the notifications list for a business.
+// ---------------------------------------------------------------------------
+
+export async function listNotifications(ctx: Ctx): Promise<Notification[]> {
+  const businessId = ctx.businessId;
+  const db = tenantDb(ctx.supabase, businessId);
+
+  try {
+    const recentSince = RECENT_WINDOW_ISO();
+
+    // -------------------------------------------------------------------------
+    // Stage 1 — the five independent source queries, in parallel. This endpoint
+    // renders on every dashboard load, so round-trips matter more than rows.
+    // -------------------------------------------------------------------------
+    const [offerTokensRes, apptTokensRes, intakeTokensRes, uploadSessionsRes, commsRes] =
+      await Promise.all([
+        db
+          .from('offer_response_tokens')
+          .select('id, offer_id, response, responded_at')
+          .not('responded_at', 'is', null)
+          .order('responded_at', { ascending: false })
+          .limit(30),
+        db
+          .from('appointment_response_tokens')
+          .select('id, task_id, response, responded_at, requested_due_date, requested_due_time')
+          .not('responded_at', 'is', null)
+          .order('responded_at', { ascending: false })
+          .limit(30),
+        db
+          .from('customer_intake_tokens')
+          .select('id, customer_id, submitted_at')
+          .not('submitted_at', 'is', null)
+          .gte('submitted_at', recentSince)
+          .order('submitted_at', { ascending: false })
+          .limit(30),
+        db
+          .from('customer_upload_sessions')
+          .select('id, customer_id, upload_token_id, file_count, uploaded_at')
+          .gte('uploaded_at', recentSince)
+          .order('uploaded_at', { ascending: false })
+          .limit(30),
+        db
+          .from('communications')
+          .select('id, customer_id, channel, direction, status, summary, created_at')
+          .eq('direction', 'inbound')
+          // Calls are intentionally EXCLUDED from notifications (owner request):
+          // only real customer interactions (messages/SMS) belong here. Missed/
+          // inbound calls live in the Calls «Πρόσφατες» list (red «αναπάντητη»).
+          .in('channel', ['sms', 'viber', 'email'])
+          .gte('created_at', recentSince)
+          .order('created_at', { ascending: false })
+          .limit(30),
+      ]);
+
+    if (offerTokensRes.error || apptTokensRes.error) {
+      throw new AppError('notifications_query_failed', 500);
+    }
+
+    const offerTokens = ((offerTokensRes.data ?? []) as unknown[]) as OfferTokenRow[];
+    const apptTokens = ((apptTokensRes.data ?? []) as unknown[]) as ApptTokenRow[];
+    const intakeTokens = ((intakeTokensRes.data ?? []) as unknown[]) as IntakeTokenRow[];
+    const uploadSessions = ((uploadSessionsRes.data ?? []) as unknown[]) as UploadSessionRow[];
+    const comms = ((commsRes.data ?? []) as unknown[]) as CommunicationRow[];
+
+    // -------------------------------------------------------------------------
+    // Stage 2 — the metadata lookups that depend only on stage-1 ids.
+    // -------------------------------------------------------------------------
+    const offerIds = [...new Set(offerTokens.map((t) => t.offer_id).filter(Boolean))];
+    const taskIds = [...new Set(apptTokens.map((t) => t.task_id).filter(Boolean))];
+    const uploadTokenIds = [
+      ...new Set(uploadSessions.map((s) => s.upload_token_id).filter((v): v is string => !!v)),
+    ];
+
+    const [offersRes, tasksRes, uploadTokensRes] = await Promise.all([
+      offerIds.length > 0
+        ? db
+            .from('offers')
+            .select('id, offer_number, customer_id')
+            .in('id', offerIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      taskIds.length > 0
+        ? db
+            .from('tasks')
+            .select('id, title, customer_id')
+            .in('id', taskIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+      uploadTokenIds.length > 0
+        ? db
+            .from('customer_upload_tokens')
+            .select('id, sent_channel')
+            .in('id', uploadTokenIds)
+        : Promise.resolve({ data: [] as unknown[] }),
+    ]);
+
+    const offersById = new Map<string, OfferRow>();
+    for (const row of ((offersRes.data ?? []) as unknown[]) as OfferRow[]) {
+      offersById.set(row.id, row);
+    }
+
+    const tasksById = new Map<string, TaskRow>();
+    for (const row of ((tasksRes.data ?? []) as unknown[]) as TaskRow[]) {
+      tasksById.set(row.id, row);
+    }
+
+    const uploadTokensById = new Map<string, UploadTokenRow>();
+    for (const row of ((uploadTokensRes.data ?? []) as unknown[]) as UploadTokenRow[]) {
+      uploadTokensById.set(row.id, row);
+    }
+
+    // Keep only customer-originated uploads: the token must exist and its
+    // sent_channel must not be 'manual'.
+    const customerUploadSessions = uploadSessions.filter((s) => {
+      if (!s.upload_token_id) return false;
+      const tok = uploadTokensById.get(s.upload_token_id);
+      if (!tok) return false;
+      return tok.sent_channel !== 'manual';
+    });
+
+    // -------------------------------------------------------------------------
+    // 8. Customer names for all referenced customers (single batched lookup)
+    // -------------------------------------------------------------------------
+    const allCustomerIds = new Set<string>();
+    for (const offer of offersById.values()) {
+      if (offer.customer_id) allCustomerIds.add(offer.customer_id);
+    }
+    for (const task of tasksById.values()) {
+      if (task.customer_id) allCustomerIds.add(task.customer_id);
+    }
+    for (const tok of intakeTokens) {
+      if (tok.customer_id) allCustomerIds.add(tok.customer_id);
+    }
+    for (const s of customerUploadSessions) {
+      if (s.customer_id) allCustomerIds.add(s.customer_id);
+    }
+    for (const c of comms) {
+      if (c.customer_id) allCustomerIds.add(c.customer_id);
+    }
+
+    const customersById = new Map<string, CustomerRow>();
+    const customerIdList = [...allCustomerIds];
+
+    if (customerIdList.length > 0) {
+      const { data: rawCustomers } = await db
+        .from('customers')
+        .select('id, name, company_name, crm_number')
+        .in('id', customerIdList);
+
+      for (const row of ((rawCustomers ?? []) as unknown[]) as CustomerRow[]) {
+        customersById.set(row.id, row);
+      }
+    }
+
+    const nameFor = (customerId: string | null): string =>
+      customerDisplayName(customerId ? customersById.get(customerId) : undefined);
+
+    // -------------------------------------------------------------------------
+    // 9. Build offer notifications
+    // -------------------------------------------------------------------------
+    const offerNotifs: Notification[] = offerTokens.map((tok) => {
+      const offer = offersById.get(tok.offer_id);
+      const customerId = offer?.customer_id ?? null;
+      const name = nameFor(customerId);
+      const offerNum = offer?.offer_number ?? '';
+      const response = tok.response ?? '';
+
+      let title: string;
+      let description: string;
+
+      if (response === 'accepted') {
+        title = 'Αποδοχή προσφοράς';
+        description = offerNum
+          ? `Ο πελάτης ${name} αποδέχτηκε την προσφορά ${offerNum}.`
+          : `Ο πελάτης ${name} αποδέχτηκε την προσφορά.`;
+      } else if (response === 'rejected') {
+        title = 'Απόρριψη προσφοράς';
+        description = offerNum
+          ? `Ο πελάτης ${name} απέρριψε την προσφορά ${offerNum}.`
+          : `Ο πελάτης ${name} απέρριψε την προσφορά.`;
+      } else {
+        title = 'Απάντηση σε προσφορά';
+        description = `Ο πελάτης ${name} απάντησε σε προσφορά.`;
+      }
+
+      return {
+        id: tok.id,
+        kind: 'offer',
+        response,
+        title,
+        description,
+        customerId,
+        customerName: name,
+        href: customerHref(customerId, '/offers'),
+        eventAt: tok.responded_at,
+        respondedAt: tok.responded_at,
+        isNew: isWithin24h(tok.responded_at),
+        taskId: null,
+        requestedDueDate: null,
+        requestedDueTime: null,
+      };
+    });
+
+    // -------------------------------------------------------------------------
+    // 10. Build appointment notifications
+    // -------------------------------------------------------------------------
+    const apptNotifs: Notification[] = apptTokens.map((tok) => {
+      const task = tasksById.get(tok.task_id);
+      const customerId = task?.customer_id ?? null;
+      const name = nameFor(customerId);
+      const response = tok.response ?? '';
+
+      let title: string;
+      let description: string;
+
+      if (response === 'accepted') {
+        title = 'Αποδοχή ραντεβού';
+        description = `Ο πελάτης ${name} αποδέχτηκε το ραντεβού.`;
+      } else if (response === 'declined') {
+        title = 'Απόρριψη ραντεβού';
+        description = `Ο πελάτης ${name} απέρριψε το ραντεβού.`;
+      } else if (response === 'time_change_requested') {
+        title = 'Αίτημα αλλαγής ώρας';
+        const dateStr = tok.requested_due_date ? formatDateGr(tok.requested_due_date) : null;
+        const timeStr = tok.requested_due_time ?? null;
+        if (dateStr && timeStr) {
+          description = `Ο πελάτης ${name} ζήτησε αλλαγή ώρας για ${dateStr} στις ${timeStr}.`;
+        } else if (dateStr) {
+          description = `Ο πελάτης ${name} ζήτησε αλλαγή ώρας για ${dateStr}.`;
+        } else {
+          description = `Ο πελάτης ${name} ζήτησε αλλαγή ώρας.`;
+        }
+      } else {
+        title = 'Απάντηση σε ραντεβού';
+        description = `Ο πελάτης ${name} απάντησε σε ραντεβού.`;
+      }
+
+      return {
+        id: tok.id,
+        kind: 'appointment',
+        response,
+        title,
+        description,
+        customerId,
+        customerName: name,
+        href: customerHref(customerId, '/tasks'),
+        eventAt: tok.responded_at,
+        respondedAt: tok.responded_at,
+        isNew: isWithin24h(tok.responded_at),
+        taskId: tok.task_id,
+        requestedDueDate: tok.requested_due_date,
+        requestedDueTime: tok.requested_due_time,
+      };
+    });
+
+    // -------------------------------------------------------------------------
+    // 11. Build intake-submitted notifications
+    // -------------------------------------------------------------------------
+    const intakeNotifs: Notification[] = intakeTokens
+      .filter((tok) => !!tok.submitted_at)
+      .map((tok) => {
+        const customerId = tok.customer_id ?? null;
+        const name = nameFor(customerId);
+        const eventAt = tok.submitted_at as string;
+        return {
+          id: `intake:${tok.id}`,
+          kind: 'intake',
+          response: 'submitted',
+          title: 'Ο πελάτης έστειλε στοιχεία',
+          description: `Ο πελάτης ${name} συμπλήρωσε και έστειλε τα στοιχεία του.`,
+          customerId,
+          customerName: name,
+          href: customerHref(customerId, '/customers'),
+          eventAt,
+          respondedAt: eventAt,
+          isNew: isWithin24h(eventAt),
+          taskId: null,
+          requestedDueDate: null,
+          requestedDueTime: null,
+        };
+      });
+
+    // -------------------------------------------------------------------------
+    // 12. Build customer-upload notifications
+    // -------------------------------------------------------------------------
+    const uploadNotifs: Notification[] = customerUploadSessions.map((s) => {
+      const customerId = s.customer_id ?? null;
+      const name = nameFor(customerId);
+      const count = typeof s.file_count === 'number' && s.file_count > 0 ? s.file_count : null;
+      const description = count
+        ? `Ο πελάτης ${name} ανέβασε ${count} ${count === 1 ? 'αρχείο' : 'αρχεία'}.`
+        : `Ο πελάτης ${name} ανέβασε φωτογραφίες/αρχεία.`;
+      return {
+        id: `upload:${s.id}`,
+        kind: 'upload',
+        response: 'uploaded',
+        title: 'Ο πελάτης ανέβασε φωτογραφίες/αρχεία',
+        description,
+        customerId,
+        customerName: name,
+        href: customerHref(customerId, '/customers'),
+        eventAt: s.uploaded_at,
+        respondedAt: s.uploaded_at,
+        isNew: isWithin24h(s.uploaded_at),
+        taskId: null,
+        requestedDueDate: null,
+        requestedDueTime: null,
+      };
+    });
+
+    // -------------------------------------------------------------------------
+    // 13. Build inbound communication notifications (call / sms / message)
+    // -------------------------------------------------------------------------
+    // Offer/appointment responses ALSO write an inbound communications row for
+    // the timeline audit trail, and those events are already surfaced above via
+    // the token queries. So we must not double-count them as generic "messages".
+    // Build a per-customer set of response timestamps and drop any inbound
+    // viber/email comm that coincides with one (same customer, within ~15s).
+    const responseTimes = new Map<string, number[]>();
+    for (const n of [...offerNotifs, ...apptNotifs]) {
+      if (!n.customerId) continue;
+      const t = Date.parse(n.eventAt);
+      if (Number.isNaN(t)) continue;
+      const arr = responseTimes.get(n.customerId);
+      if (arr) arr.push(t);
+      else responseTimes.set(n.customerId, [t]);
+    }
+    const isOfferApptAuditRow = (c: CommunicationRow): boolean => {
+      if (!c.customer_id) return false;
+      const times = responseTimes.get(c.customer_id);
+      if (!times) return false;
+      const t = Date.parse(c.created_at);
+      if (Number.isNaN(t)) return false;
+      return times.some((rt) => Math.abs(rt - t) < 15_000);
+    };
+
+    const commNotifs: Notification[] = comms
+      // call/sms keep their existing behavior; viber/email are the newly-included
+      // customer messages — exclude offer/appointment audit-row duplicates.
+      .filter((c) =>
+        c.channel === 'viber' || c.channel === 'email' ? !isOfferApptAuditRow(c) : true,
+      )
+      .map((c) => {
+        const customerId = c.customer_id ?? null;
+        const name = nameFor(customerId);
+        const isMissed = c.status === 'missed' || c.status === 'failed';
+
+        let kind: NotificationKind;
+        let title: string;
+        let description: string;
+        let href: string;
+
+        if (c.channel === 'viber' || c.channel === 'email') {
+          // Customer free-text message from a public link (intake/upload comment).
+          kind = 'message';
+          title = 'Νέο μήνυμα από πελάτη';
+          const text = c.summary?.trim();
+          description = text
+            ? text.length > 160
+              ? `${text.slice(0, 159)}…`
+              : text
+            : `Ο πελάτης ${name} έστειλε μήνυμα.`;
+          href = customerHref(customerId, '/customers');
+        } else if (c.channel === 'sms') {
+          kind = 'sms';
+          title = 'Εισερχόμενο SMS';
+          description = `Ο πελάτης ${name} έστειλε SMS.`;
+          href = customerHref(customerId, '/communications');
+        } else {
+          kind = 'call';
+          if (isMissed) {
+            title = 'Χαμένη κλήση';
+            description = `Χαμένη κλήση από ${name}.`;
+          } else {
+            title = 'Εισερχόμενη κλήση';
+            description = `Εισερχόμενη κλήση από ${name}.`;
+          }
+          href = customerHref(customerId, '/calls');
+        }
+
+        return {
+          id: `comm:${c.id}`,
+          kind,
+          response: c.status,
+          title,
+          description,
+          customerId,
+          customerName: name,
+          href,
+          eventAt: c.created_at,
+          respondedAt: c.created_at,
+          isNew: isWithin24h(c.created_at),
+          taskId: null,
+          requestedDueDate: null,
+          requestedDueTime: null,
+        };
+      });
+
+    // -------------------------------------------------------------------------
+    // 14. Merge ALL kinds, sort newest-first by event time, cap.
+    // -------------------------------------------------------------------------
+    const all: Notification[] = [
+      ...offerNotifs,
+      ...apptNotifs,
+      ...intakeNotifs,
+      ...uploadNotifs,
+      ...commNotifs,
+    ]
+      .sort((a, b) => b.eventAt.localeCompare(a.eventAt))
+      .slice(0, TOTAL_LIMIT);
+
+    return all;
+  } catch (err) {
+    // Single broad catch → notifications_query_failed 500 (mirrors the original
+    // route's lone try/catch and its offerTokensRes/apptTokensRes error branch).
+    if (err instanceof AppError) throw err;
+    throw new AppError('notifications_query_failed', 500);
+  }
+}

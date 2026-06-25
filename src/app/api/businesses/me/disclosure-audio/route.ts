@@ -8,31 +8,20 @@
 //   GET → { ok, audio: dataUrl|null, configured: boolean, migrationPending?: true }
 //   PUT → body { audio: string|null }  (data:audio/* base64, or null/'' to clear)
 //
-// Business-scoped (owner) via Bearer + resolveBusinessContext. TOLERANT of the
-// column being absent (migration 055 not applied yet) → degrades cleanly.
+// ADOPTED to the modular pattern (src/server/modules/disclosure-audio): thin adapter.
+// The mime/data-url + size validation and the migration-055-tolerant read/write live in
+// the service+repo. The route KEEPS its custom Bearer auth VERBATIM (the caller may not
+// belong to a business; same missing_auth/invalid_auth/missing_supabase_config/
+// business_not_found codes), the content-type + owner/admin gates, and the exact GET/PUT
+// response shapes and statuses. Byte-identical.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveBusinessContext, isManagerRole } from '@/lib/api/auth';
+import { AppError } from '@/server/core/errors';
+import { getAudio, putAudio } from '@/server/modules/disclosure-audio/disclosure-audio.service';
 
 export const runtime = 'nodejs';
-
-// A few seconds of opus/aac is tens of KB; cap the base64 string generously but
-// bounded so a runaway upload can't bloat the businesses row.
-const MAX_AUDIO_DATAURL_LEN = 1_400_000; // ~1 MB binary
-// Accept ANY audio/* data URL with codec params. iOS WKWebView MediaRecorder emits
-// mimes like `audio/mp4;codecs="mp4a.40.2"` (quoted codecs) or subtypes outside a
-// fixed whitelist — the previous strict pattern silently 400'd those valid clips, so
-// recording "didn't work". We keep the hard `data:audio/…;base64,<base64>` shape (so
-// non-audio / oversized payloads can't slip in) but allow arbitrary `;param` segments.
-const AUDIO_DATAURL_RE = /^data:audio\/[a-z0-9.+-]+(;[^;,]+)*;base64,[A-Za-z0-9+/=]+$/i;
-
-/** Treat a PostgREST "column/relation missing" error as "migration not applied yet". */
-function isMissingColumn(err: { code?: string; message?: string } | null | undefined): boolean {
-  if (!err) return false;
-  const m = (err.message ?? '').toLowerCase();
-  return err.code === '42703' || err.code === 'PGRST204' || m.includes('recording_disclosure_audio');
-}
 
 async function authBusiness(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -61,20 +50,15 @@ export async function GET(request: NextRequest) {
   const a = await authBusiness(request);
   if ('error' in a) return a.error;
   try {
-    const { data, error } = await a.supabase
-      .from('businesses')
-      .select('recording_disclosure_audio')
-      .eq('id', a.businessId)
-      .maybeSingle();
-    if (error) {
-      if (isMissingColumn(error)) {
-        return NextResponse.json({ ok: true, audio: null, configured: false, migrationPending: true });
-      }
-      return NextResponse.json({ ok: false, error: 'query_failed' }, { status: 500 });
+    const result = await getAudio({ supabase: a.supabase, businessId: a.businessId });
+    if ('migrationPending' in result) {
+      return NextResponse.json({ ok: true, audio: null, configured: false, migrationPending: true });
     }
-    const audio = (data as { recording_disclosure_audio?: string | null } | null)?.recording_disclosure_audio ?? null;
-    return NextResponse.json({ ok: true, audio, configured: !!audio });
-  } catch {
+    return NextResponse.json({ ok: true, audio: result.audio, configured: result.configured });
+  } catch (err) {
+    if (err instanceof AppError) {
+      return NextResponse.json({ ok: false, error: err.code }, { status: err.status });
+    }
     return NextResponse.json({ ok: false, error: 'query_failed' }, { status: 500 });
   }
 }
@@ -96,35 +80,16 @@ export async function PUT(request: NextRequest) {
   if (typeof body !== 'object' || body === null) return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
   const raw = (body as Record<string, unknown>).audio;
 
-  // null / '' clears the recording (revert to the global default disclosure).
-  let value: string | null;
-  if (raw === null || raw === '') {
-    value = null;
-  } else if (typeof raw === 'string') {
-    if (raw.length > MAX_AUDIO_DATAURL_LEN) {
-      return NextResponse.json({ ok: false, error: 'audio_too_large' }, { status: 400 });
-    }
-    if (!AUDIO_DATAURL_RE.test(raw)) {
-      return NextResponse.json({ ok: false, error: 'invalid_audio' }, { status: 400 });
-    }
-    value = raw;
-  } else {
-    return NextResponse.json({ ok: false, error: 'invalid_audio' }, { status: 400 });
-  }
-
   try {
-    const { error } = await a.supabase
-      .from('businesses')
-      .update({ recording_disclosure_audio: value, updated_at: new Date().toISOString() })
-      .eq('id', a.businessId);
-    if (error) {
-      if (isMissingColumn(error)) {
-        return NextResponse.json({ ok: false, error: 'migration_pending' }, { status: 503 });
-      }
-      return NextResponse.json({ ok: false, error: 'update_failed' }, { status: 500 });
+    const result = await putAudio({ supabase: a.supabase, businessId: a.businessId }, raw);
+    if ('migrationPending' in result) {
+      return NextResponse.json({ ok: false, error: 'migration_pending' }, { status: 503 });
     }
-    return NextResponse.json({ ok: true, configured: value !== null });
-  } catch {
+    return NextResponse.json({ ok: true, configured: result.configured });
+  } catch (err) {
+    if (err instanceof AppError) {
+      return NextResponse.json({ ok: false, error: err.code }, { status: err.status });
+    }
     return NextResponse.json({ ok: false, error: 'update_failed' }, { status: 500 });
   }
 }
