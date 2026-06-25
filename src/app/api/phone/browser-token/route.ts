@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveBusinessContext } from '@/lib/api/auth';
-import { isEntitled } from '@/lib/billing/entitlement';
-import { isSipProvisioningEnabled, decryptSecret } from '@/lib/server/sip-credentials';
+import { isSipProvisioningEnabled } from '@/lib/server/sip-credentials';
+import {
+  ensureBrowserEndpoint,
+  getBusinessCount,
+  isBrowserActivationAllowed,
+  loadBrowserTokenBusiness,
+  resolvePerUserCredential,
+} from '@/server/modules/phone/phone.service';
 
 export const runtime = 'nodejs';
 
@@ -39,39 +45,6 @@ const NO_STORE = { 'Cache-Control': 'no-store' } as const;
 
 type SupabaseServer = ReturnType<typeof createServerSupabaseClient>;
 
-/**
- * Resolves the business's own SIP credential by DECRYPTING the password the
- * PBX provisioner already minted. The provisioner is the SOLE password
- * authority — the app NEVER mints — so the app-issued credential can never
- * diverge from what Asterisk has. Returns null (→ shared-env fallback) until
- * the provisioner has written a password for this business.
- */
-async function resolvePerUserCredential(
-  supabase: SupabaseServer,
-  businessId: string
-): Promise<{ sipUsername: string; sipPassword: string } | null> {
-  const { data: rows, error } = await supabase
-    .from('browser_sip_endpoints')
-    .select('id, sip_username, sip_password_enc, status')
-    .eq('business_id', businessId)
-    .neq('status', 'revoked')
-    .limit(1);
-
-  if (error || !rows || rows.length === 0) return null;
-  const row = rows[0] as {
-    id: string;
-    sip_username: string | null;
-    sip_password_enc: string | null;
-    status: string;
-  };
-  // Decrypt only — never mint. Fall back to shared env until the provisioner has minted.
-  if (!row.sip_username || !row.sip_password_enc) return null;
-  const plaintext = decryptSecret(row.sip_password_enc);
-  if (!plaintext) return null;
-
-  return { sipUsername: row.sip_username, sipPassword: plaintext };
-}
-
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -104,11 +77,7 @@ export async function GET(request: NextRequest) {
     if (!resolved) {
       return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404, headers: NO_STORE });
     }
-    const { data: business, error: businessError } = await supabase
-      .from('businesses')
-      .select('id, business_phone_number')
-      .eq('id', resolved.businessId)
-      .maybeSingle();
+    const { data: business, error: businessError } = await loadBrowserTokenBusiness(supabase, resolved.businessId);
 
     if (businessError) {
       return NextResponse.json({ ok: false, error: 'business_query_failed' }, { status: 500, headers: NO_STORE });
@@ -123,14 +92,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Gate: subscription must allow access (pending_manual_review, trialing, or active).
-    const { data: subRow } = await supabase
-      .from('business_subscriptions')
-      .select('status')
-      .eq('business_id', business.id)
-      .maybeSingle();
-
-    const subStatus = subRow ? (subRow as { status: string }).status : null;
-    const activationAllowed = isEntitled(subStatus);
+    const activationAllowed = await isBrowserActivationAllowed(supabase, business.id);
 
     if (!activationAllowed) {
       return NextResponse.json(
@@ -141,10 +103,7 @@ export async function GET(request: NextRequest) {
 
     // Best-effort: create/refresh the per-business browser SIP endpoint row.
     try {
-      await supabase.rpc('ensure_browser_sip_endpoint', {
-        p_business_id: business.id,
-        p_user_id: user.id,
-      });
+      await ensureBrowserEndpoint(supabase, business.id, user.id);
     } catch {
       // Bookkeeping only; credential delivery does not depend on it.
     }
@@ -185,10 +144,8 @@ export async function GET(request: NextRequest) {
     // the moment a second business exists, unless explicitly overridden with
     // PHONE_SIP_SHARED_OK=1 (e.g. a controlled migration window).
     if (process.env.PHONE_SIP_SHARED_OK !== '1') {
-      const { count: businessCount } = await supabase
-        .from('businesses')
-        .select('id', { count: 'exact', head: true });
-      if ((businessCount ?? 0) > 1) {
+      const businessCount = await getBusinessCount(supabase);
+      if (businessCount > 1) {
         return NextResponse.json(
           { ok: true, ready: false, message: 'per_user_endpoint_pending' },
           { headers: NO_STORE }

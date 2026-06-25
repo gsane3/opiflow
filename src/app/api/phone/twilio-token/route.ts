@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import twilio from 'twilio';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
-import { isEntitled } from '@/lib/billing/entitlement';
+import { checkTwilioTokenGate } from '@/server/modules/phone/phone.service';
 
 export const runtime = 'nodejs';
 
@@ -43,27 +43,11 @@ export async function GET(request: NextRequest) {
   // outbound calls through the TwiML App (toll-fraud surface), so it is only
   // issued to a business with an assigned number AND an activation-allowed
   // subscription — never to a bare self-signup account.
-  const { data: bizRow } = await supabase
-    .from('businesses')
-    .select('business_phone_number')
-    .eq('id', businessId)
-    .maybeSingle();
-  if (!(bizRow as { business_phone_number?: string | null } | null)?.business_phone_number) {
+  const gate = await checkTwilioTokenGate(supabase, businessId);
+  if (!gate.ok) {
     return NextResponse.json(
-      { ok: false, ready: false, error: 'no_number_assigned' },
-      { status: 409, headers: NO_STORE }
-    );
-  }
-  const { data: subRow } = await supabase
-    .from('business_subscriptions')
-    .select('status')
-    .eq('business_id', businessId)
-    .maybeSingle();
-  const subStatus = (subRow as { status?: string } | null)?.status ?? null;
-  if (!isEntitled(subStatus)) {
-    return NextResponse.json(
-      { ok: false, ready: false, error: 'activation_required' },
-      { status: 403, headers: NO_STORE }
+      { ok: false, ready: false, error: gate.error },
+      { status: gate.status, headers: NO_STORE }
     );
   }
 

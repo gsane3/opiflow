@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { buildPrompt } from '@/lib/ai/prompt';
-import { parseAiResponse } from '@/lib/ai/schema';
 import type { BusinessType } from '@/lib/types';
+import { runReview } from '@/server/modules/ai/ai.service';
 
 export const runtime = 'nodejs';
 
-const AI_PROVIDER_TIMEOUT_MS = 20_000;
 const AI_REVIEW_MAX_BODY_BYTES = 32_000;
 
 // MVP-only in-memory rate limiter. Resets on cold start; not shared across
@@ -104,63 +102,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'invalid_input' }, { status: 400 });
   }
 
-  const prompt = buildPrompt({
-    inputText,
-    businessType: body.businessType,
-    businessName: body.businessName,
-    defaultVatRate: body.defaultVatRate,
-  });
-
-  let rawText: string;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), AI_PROVIDER_TIMEOUT_MS);
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        temperature: 0.2,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!res.ok) {
-      console.error('Anthropic API error:', res.status, await res.text());
-      return NextResponse.json({ error: 'ai_failed' }, { status: 502 });
-    }
-
-    const data = await res.json() as { content?: Array<{ text?: string }> };
-    rawText = data?.content?.[0]?.text ?? '';
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      return NextResponse.json({ error: 'ai_timeout' }, { status: 504 });
-    }
-    console.error('Anthropic fetch error:', err);
-    return NextResponse.json({ error: 'ai_failed' }, { status: 502 });
-  } finally {
-    clearTimeout(timeoutId);
+  const outcome = await runReview(
+    {
+      inputText,
+      businessType: body.businessType,
+      businessName: body.businessName,
+      defaultVatRate: body.defaultVatRate,
+    },
+    apiKey,
+  );
+  if (!outcome.ok) {
+    return NextResponse.json({ error: outcome.code }, { status: outcome.status });
   }
 
-  let parsed: unknown;
-  try {
-    // Strip optional markdown code fences the model may add
-    const cleaned = rawText
-      .replace(/^```(?:json)?\n?/i, '')
-      .replace(/\n?```$/i, '')
-      .trim();
-    parsed = JSON.parse(cleaned);
-  } catch {
-    console.error('AI response JSON parse failed. Raw:', rawText.slice(0, 300));
-    return NextResponse.json({ error: 'invalid_response' }, { status: 502 });
-  }
-
-  const result = parseAiResponse(parsed);
-  return NextResponse.json({ result });
+  return NextResponse.json({ result: outcome.result });
 }

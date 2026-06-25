@@ -3,31 +3,11 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { verifyStripeSignature } from '@/lib/billing/stripe';
 import { PLAN } from '@/lib/billing/plans';
 import { log } from '@/lib/observability';
+import { applyStripeEvent } from '@/server/modules/webhooks-other/webhooks-other.service';
 
 export const runtime = 'nodejs';
 
 type SupabaseServer = ReturnType<typeof createServerSupabaseClient>;
-
-// Idempotent upsert keyed on the business_subscriptions.business_id UNIQUE. If no
-// row exists yet (e.g. the webhook raced ahead of signup), insert one. Returns
-// false on any DB error so the caller can force Stripe to retry.
-async function applySubscription(
-  supabase: SupabaseServer,
-  businessId: string,
-  fields: Record<string, unknown>
-): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('business_subscriptions')
-    .update(fields)
-    .eq('business_id', businessId)
-    .select('id');
-  if (error) return false;
-  if (Array.isArray(data) && data.length > 0) return true;
-  const { error: insErr } = await supabase
-    .from('business_subscriptions')
-    .insert({ business_id: businessId, plan_key: PLAN.key, ...fields });
-  return !insErr;
-}
 
 // Stripe webhook: activates/cancels the business subscription on payment events.
 // Hardened (audit P0-7): idempotent upsert with row-count, persists the Stripe
@@ -56,10 +36,6 @@ export async function POST(request: NextRequest) {
   const obj = event.data?.object ?? {};
   const metadata = (obj.metadata as Record<string, unknown> | undefined) ?? {};
   const businessId = typeof metadata.businessId === 'string' ? metadata.businessId : null;
-  // On a checkout session `subscription` holds the sub id; on a subscription
-  // object the id IS `obj.id`.
-  const subscriptionId =
-    typeof obj.subscription === 'string' ? obj.subscription : typeof obj.id === 'string' ? obj.id : null;
 
   const HANDLED = new Set([
     'checkout.session.completed',
@@ -91,40 +67,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'config' }, { status: 503 });
   }
 
-  const now = new Date().toISOString();
-  let ok = true;
-
-  if (event.type === 'checkout.session.completed') {
-    ok = await applySubscription(supabase, businessId, {
-      status: 'active',
-      billing_provider: 'stripe',
-      billing_ref: subscriptionId,
-      updated_at: now,
-    });
-  } else if (event.type === 'customer.subscription.updated') {
-    const s = typeof obj.status === 'string' ? obj.status : '';
-    if (s === 'active' || s === 'trialing') {
-      ok = await applySubscription(supabase, businessId, {
-        status: 'active',
-        billing_provider: 'stripe',
-        billing_ref: subscriptionId,
-        updated_at: now,
-      });
-    } else if (s === 'canceled' || s === 'unpaid' || s === 'incomplete_expired') {
-      ok = await applySubscription(supabase, businessId, {
-        status: 'cancelled',
-        cancelled_at: now,
-        updated_at: now,
-      });
-    }
-    // transient states (past_due, incomplete) are left unchanged in this slice
-  } else if (event.type === 'customer.subscription.deleted') {
-    ok = await applySubscription(supabase, businessId, {
-      status: 'cancelled',
-      cancelled_at: now,
-      updated_at: now,
-    });
-  }
+  const ok = await applyStripeEvent(supabase, event, businessId, PLAN.key);
 
   if (!ok) {
     log.error('stripe_subscription_write_failed', { type: event.type, businessId });

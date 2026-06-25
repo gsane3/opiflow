@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest, requireOwner } from '@/lib/api/auth';
-import { createPortalSession, findCustomerIdByEmail, isStripeConfigured } from '@/lib/billing/stripe';
+import { isStripeConfigured } from '@/lib/billing/stripe';
+import { startPortal } from '@/server/modules/billing/billing.service';
 
 export const runtime = 'nodejs';
 
@@ -16,22 +17,16 @@ export async function POST(request: NextRequest) {
   if (denied) return denied;
   const { supabase, userId } = auth.ctx;
 
-  let email: string | null = null;
-  try {
-    const { data } = await supabase.auth.admin.getUserById(userId);
-    email = data.user?.email ?? null;
-  } catch {
-    // ignore
-  }
-  if (!email) return NextResponse.json({ ok: false, error: 'no_email' }, { status: 400 });
-
-  const customerId = await findCustomerIdByEmail(email);
-  if (!customerId) return NextResponse.json({ ok: false, error: 'no_customer' }, { status: 404 });
-
   const origin = request.headers.get('origin') ?? 'https://opiflow.ai';
-  const result = await createPortalSession({ customerId, returnUrl: `${origin}/settings` });
-  if (!result.ok || typeof result.data.url !== 'string') {
+  const result = await startPortal({ supabase, userId, origin });
+  if (result.kind === 'no_email') {
+    return NextResponse.json({ ok: false, error: 'no_email' }, { status: 400 });
+  }
+  if (result.kind === 'no_customer') {
+    return NextResponse.json({ ok: false, error: 'no_customer' }, { status: 404 });
+  }
+  if (result.kind !== 'ok') {
     return NextResponse.json({ ok: false, error: 'portal_failed' }, { status: 502 });
   }
-  return NextResponse.json({ ok: true, url: result.data.url });
+  return NextResponse.json({ ok: true, url: result.url });
 }

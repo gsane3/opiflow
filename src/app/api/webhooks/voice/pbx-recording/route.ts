@@ -16,6 +16,10 @@ import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { transcribeAndBriefCallAudio } from '@/lib/server/openai-call-audio';
 import { appendCallBrief } from '@/lib/server/call-briefs';
 import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
+import {
+  processPbxRecording,
+  type PbxRecordingInput,
+} from '@/server/modules/webhooks-voice/webhooks-voice.service';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -121,212 +125,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'internal_error' }, { status: 500 });
   }
 
-  // ---------------------------------------------------------------------------
-  // Resolve the business + the matching communications row.
-  // The communication_id is a global UUID created by the JSON webhook: look it up
-  // directly (no business scope) and read its business_id — the multi-tenant path.
-  // Otherwise resolve the business from the biz_<hex> endpoint or the single-tenant
-  // env, then match by uniqueid within that business.
-  // ---------------------------------------------------------------------------
-  let businessId: string | null = null;
-  let communicationId: string | null = null;
-  let existingSummary: string | null = null;
-  let communicationCustomerId: string | null = null;
-
-  if (communicationIdParam) {
-    const { data, error } = await supabase
-      .from('communications')
-      .select('id, summary, customer_id, business_id')
-      .eq('id', communicationIdParam)
-      .eq('channel', 'call')
-      .maybeSingle();
-
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'communication_lookup_failed' }, { status: 500 });
-    }
-
-    if (data) {
-      const row = data as unknown as { id: string; summary: string | null; customer_id: string | null; business_id: string | null };
-      communicationId = row.id;
-      existingSummary = row.summary;
-      communicationCustomerId = row.customer_id ?? null;
-      businessId = row.business_id ?? null;
-    }
-  }
-
-  if (!businessId) businessId = bizEndpointId ?? pbxBusinessIdFromEnv;
-
-  if (!businessId) {
-    // No business could be resolved — nothing to attach the brief to.
-    return NextResponse.json({ ok: false, received: true, error: 'business_unresolved' });
-  }
-
-  if (!communicationId && uniqueid) {
-    const { data, error } = await supabase
-      .from('communications')
-      .select('id, summary, customer_id')
-      .eq('business_id', businessId)
-      .eq('channel', 'call')
-      .like('summary', `%uniqueid=${uniqueid}%`)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'communication_lookup_failed' }, { status: 500 });
-    }
-
-    if (data) {
-      const row = data as unknown as { id: string; summary: string | null; customer_id: string | null };
-      communicationId = row.id;
-      existingSummary = row.summary;
-      communicationCustomerId = row.customer_id ?? null;
-    }
-  }
-
-  if (!communicationId) {
-    // Return HTTP 200 so the PBX script does not treat this as a fatal error.
-    return NextResponse.json({
-      ok: false,
-      received: true,
-      error: 'communication_not_found',
-    });
-  }
-
-  // Track D: record that audio was received and transcription is about to start.
-  // Best-effort: failure here does not abort the pipeline.
-  const auditNow = new Date().toISOString();
-  await supabase
-    .from('communications')
-    .update({
-      recording_received_at: auditNow,
-      transcription_started_at: auditNow,
-    })
-    .eq('id', communicationId)
-    .eq('business_id', businessId);
-
-  // ---------------------------------------------------------------------------
-  // Transcribe and generate brief.
-  // ---------------------------------------------------------------------------
-  const result = await transcribeAndBriefCallAudio({
+  const input: PbxRecordingInput = {
     audioFile,
+    uniqueid,
+    communicationIdParam,
     callerNumber,
     dialStatus,
-    uniqueId: uniqueid,
-    communicationSummary: existingSummary,
-  });
+    bizEndpointId,
+    pbxBusinessIdFromEnv,
+  };
 
-  if (!result) {
-    await supabase
-      .from('communications')
-      .update({
-        processing_failed_at: new Date().toISOString(),
-        processing_error_code: 'transcription_or_brief_failed',
-      })
-      .eq('id', communicationId)
-      .eq('business_id', businessId);
-    // Return HTTP 200 so the PBX script does not treat this as a fatal error.
-    return NextResponse.json({
-      ok: false,
-      received: true,
-      error: 'transcription_failed',
-    });
-  }
-
-  // Save only the concise brief. Transcript is intentionally excluded from CRM.
-  // Audio and transcript were held in RAM only; these timestamps confirm they were not persisted.
-  const briefNow = new Date().toISOString();
-  const { error: updateError } = await supabase
-    .from('communications')
-    .update({
-      summary: result.brief,
-      brief_created_at: briefNow,
-      audio_discarded_at: briefNow,
-      transcript_discarded_at: briefNow,
-    })
-    .eq('id', communicationId)
-    .eq('business_id', businessId);
-
-  if (updateError) {
-    await supabase
-      .from('communications')
-      .update({
-        processing_failed_at: new Date().toISOString(),
-        processing_error_code: 'communication_update_failed',
-      })
-      .eq('id', communicationId)
-      .eq('business_id', businessId);
-    return NextResponse.json(
-      { ok: false, error: 'communication_update_failed' },
-      { status: 500 }
-    );
-  }
-
-  // Append the transcript brief to the per-call brief timeline (non-fatal) so the
-  // metadata brief from call-logging is preserved as history rather than overwritten.
-  await appendCallBrief(supabase, {
-    businessId,
-    customerId: communicationCustomerId,
-    communicationId,
-    briefKind: 'transcript',
-    briefText: result.brief,
-  });
-
-  // ---------------------------------------------------------------------------
-  // Insert ai_draft task if customer is known and task data is available.
-  // Non-blocking: failure here does not affect the communication update result.
-  // ---------------------------------------------------------------------------
-  let taskCreated = false;
-  let taskId: string | null = null;
-  let taskError: string | null = null;
-
-  if (communicationCustomerId && result.taskTitle) {
-    const { data: taskRow, error: taskInsertError } = await supabase
-      .from('tasks')
-      .insert({
-        business_id: businessId,
-        customer_id: communicationCustomerId,
-        offer_id: null,
-        title: result.taskTitle,
-        type: result.taskType,
-        status: 'ai_draft',
-        priority: 'normal',
-        due_date: result.taskDueDate,
-        due_time: null,
-        note: result.taskNote,
-        created_from_ai: true,
-        source_brief_id: communicationId,
-        completed_at: null,
-        updated_at: new Date().toISOString(),
-      })
-      .select('id')
-      .single();
-
-    if (taskInsertError || !taskRow) {
-      taskError = 'task_create_failed';
-      await supabase
-        .from('communications')
-        .update({
-          processing_failed_at: new Date().toISOString(),
-          processing_error_code: 'task_insert_failed',
-        })
-        .eq('id', communicationId)
-        .eq('business_id', businessId);
-    } else {
-      taskCreated = true;
-      taskId = (taskRow as unknown as { id: string }).id;
-    }
-  }
-
-  return NextResponse.json({
-    ok: true,
-    received: true,
-    communication_updated: true,
-    communication_id: communicationId,
-    task_created: taskCreated,
-    task_id: taskId,
-    ...(taskError ? { task_error: taskError } : {}),
-    transcript_length: result.transcript.length,
-    brief_length: result.brief.length,
+  return processPbxRecording(supabase, input, {
+    transcribeAndBriefCallAudio,
+    appendCallBrief,
   });
 }

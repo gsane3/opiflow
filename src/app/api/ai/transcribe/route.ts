@@ -6,7 +6,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { transcribeWithOpenAI } from '@/lib/server/openai-call-audio';
+import { runTranscribe } from '@/server/modules/ai/ai.service';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -81,12 +81,7 @@ export async function POST(req: NextRequest) {
   try { buf = Buffer.from(m[2], 'base64'); } catch { return NextResponse.json({ ok: false, error: 'invalid_audio' }, { status: 400 }); }
   if (buf.length === 0) return NextResponse.json({ ok: false, error: 'empty_audio' }, { status: 400 });
 
-  const model = process.env.OPENAI_TRANSCRIPTION_MODEL?.trim() || 'gpt-4o-transcribe';
-  // Buffer → a plain ArrayBuffer slice so it's a valid BlobPart for File().
-  const ab = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer;
-  const file = new File([ab], `voice.${extFor(mime)}`, { type: mime });
-
-  const text = await transcribeWithOpenAI(file, model, apiKey);
-  if (!text) return NextResponse.json({ ok: false, error: 'transcription_failed' }, { status: 502 });
-  return NextResponse.json({ ok: true, text });
+  const outcome = await runTranscribe(apiKey, mime, buf);
+  if (!outcome.ok) return NextResponse.json({ ok: false, error: outcome.code }, { status: outcome.status });
+  return NextResponse.json({ ok: true, text: outcome.text });
 }

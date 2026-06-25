@@ -23,6 +23,7 @@
 import { NextRequest } from 'next/server';
 import twilio from 'twilio';
 import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
+import { isCallerBlocked, isOwnerDnd } from '@/server/modules/webhooks-voice/webhooks-voice.service';
 
 export const runtime = 'nodejs';
 
@@ -103,23 +104,9 @@ export async function POST(request: NextRequest) {
     const hex = identity.slice(4);
     const businessId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
     const supabase = createServiceSupabaseClient();
-    const { data: biz } = await supabase
-      .from('businesses')
-      .select('owner_id')
-      .eq('id', businessId)
-      .maybeSingle();
-    const ownerId = (biz as { owner_id?: string } | null)?.owner_id;
-    if (ownerId) {
-      const { data: presence } = await supabase
-        .from('business_user_presence')
-        .select('status')
-        .eq('business_id', businessId)
-        .eq('user_id', ownerId)
-        .maybeSingle();
-      if ((presence as { status?: string } | null)?.status === 'dnd') {
-        tw.reject({ reason: 'busy' });
-        return xml(tw.toString());
-      }
+    if (await isOwnerDnd(supabase, businessId)) {
+      tw.reject({ reason: 'busy' });
+      return xml(tw.toString());
     }
   } catch {
     // fail-open — ring the device
@@ -135,16 +122,7 @@ export async function POST(request: NextRequest) {
       const hex = identity.slice(4);
       const businessId = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
       const supabase = createServiceSupabaseClient();
-      const { data: blockedRows } = await supabase
-        .from('customers')
-        .select('phone, mobile_phone, landline_phone')
-        .eq('business_id', businessId)
-        .eq('blocked', true);
-      const rows = (blockedRows as Array<{ phone: string | null; mobile_phone: string | null; landline_phone: string | null }> | null) ?? [];
-      const isBlocked = rows.some((r) =>
-        [r.phone, r.mobile_phone, r.landline_phone].some((p) => (p ?? '').replace(/\D/g, '').slice(-10) === last10),
-      );
-      if (isBlocked) {
+      if (await isCallerBlocked(supabase, businessId, last10)) {
         tw.reject({ reason: 'rejected' });
         return xml(tw.toString());
       }
