@@ -1,57 +1,54 @@
-// /api/customers/[id]/next-action
+// GET   /api/customers/[id]/next-action  → { ok, action: ClientNextAction | null }
+// PATCH /api/customers/[id]/next-action   → mark the active action accepted|dismissed|snooze|complete
 //
-// The single "Next Best Action" for a customer that has NO work folder yet (the
-// fallback surface — once a folder exists, the recommendation lives at folder
-// level and this returns null). Business-scoped via authenticateBusinessRequest
-// (+ next_actions RLS). Tolerant of migration 054 not being applied yet.
-//
-//   GET   → { ok, action: ClientNextAction | null }
-//   PATCH → mark the active action accepted | dismissed | snoozed | completed
-//           body: { id: string, action: 'accept'|'dismiss'|'snooze'|'complete', snoozeMinutes?: number }
+// ADOPTED to the modular pattern (src/server/modules/next-action): thin adapter. The
+// compute (tolerant of a pending migration 054 → null) and the lifecycle validation
+// (invalid_body) live in the service; the PATCH returns the lib's boolean ok verbatim.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
-import {
-  computeCustomerNextAction, applyNextActionLifecycle, isNextActionLifecycle,
-} from '@/lib/server/next-action-store';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, fail, handleApiError } from '@/server/core/errors';
+import { getNextAction, applyNextAction } from '@/server/modules/next-action/next-action.service';
 
 export const runtime = 'nodejs';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-  const { id: customerId } = await params;
-
+  let ctx;
   try {
-    const action = await computeCustomerNextAction(supabase, businessId, customerId);
-    return NextResponse.json({ ok: true, action });
-  } catch {
-    return NextResponse.json({ ok: true, action: null });
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
   }
+  const { id: customerId } = await params;
+  const action = await getNextAction(ctx, customerId);
+  return ok({ action });
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const contentType = request.headers.get('content-type') ?? '';
-  if (!contentType.includes('application/json')) {
-    return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });
+  if (!(request.headers.get('content-type') ?? '').includes('application/json')) {
+    return fail('unsupported_content_type', 415);
   }
 
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   await params;
 
   let body: unknown;
-  try { body = await request.json(); } catch { return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 }); }
-  if (typeof body !== 'object' || body === null) return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
-  const raw = body as Record<string, unknown>;
+  try {
+    body = await request.json();
+  } catch {
+    return fail('invalid_body', 400);
+  }
+  if (typeof body !== 'object' || body === null) return fail('invalid_body', 400);
 
-  const id = typeof raw.id === 'string' ? raw.id : null;
-  const action = isNextActionLifecycle(raw.action) ? raw.action : null;
-  if (!id || !action) return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
-  const snoozeMinutes = typeof raw.snoozeMinutes === 'number' ? raw.snoozeMinutes : undefined;
-
-  const res = await applyNextActionLifecycle(supabase, { businessId, id, action, snoozeMinutes });
-  return NextResponse.json({ ok: res.ok });
+  try {
+    const result = await applyNextAction(ctx, body as Record<string, unknown>);
+    return NextResponse.json({ ok: result });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }
