@@ -4,15 +4,21 @@ import { AppError } from '../../core/errors';
 import { tenantDb, type TenantContext } from '../../core/tenant';
 import type { createServerSupabaseClient } from '../../../lib/supabase/server';
 import { TASK_COLUMNS, type TaskRow } from './tasks.types';
-import type { ListTasksQuery } from './tasks.schema';
 
 export type RepoContext = TenantContext & {
   supabase: ReturnType<typeof createServerSupabaseClient>;
 };
 
+export interface ListTaskRowsParams {
+  status?: string;
+  customerId?: string;
+  limit: number;
+  offset: number;
+}
+
 export async function listTaskRows(
   ctx: RepoContext,
-  query: ListTasksQuery,
+  query: ListTaskRowsParams,
 ): Promise<TaskRow[]> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   let qb = db.from('tasks').select(TASK_COLUMNS);
