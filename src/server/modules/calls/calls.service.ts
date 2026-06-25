@@ -117,36 +117,45 @@ export interface CallBriefResult {
  * unsaved number with no customer.
  */
 export async function getCallBrief(ctx: RepoContext, id: string): Promise<CallBriefResult> {
-  const comm = await fetchCallComm(ctx, id);
-  if (!comm) throw new AppError('not_found', 404);
+  // The live route wraps the whole body in a single broad catch → server_error, so ANY
+  // unexpected throw (incl. a fetch-level DB rejection) becomes server_error — not_found
+  // (a return) is the only other observable code. Mirror that here: rethrow AppError
+  // (not_found / server_error) as-is, convert anything else to server_error.
+  try {
+    const comm = await fetchCallComm(ctx, id);
+    if (!comm) throw new AppError('not_found', 404);
 
-  let briefKind: string | null = null;
-  let briefText: string | null = null;
-  for (const b of await fetchCallBriefs(ctx, comm.id)) {
-    if (b.brief_kind === 'transcript') {
-      briefKind = b.brief_kind;
-      briefText = b.brief_text;
+    let briefKind: string | null = null;
+    let briefText: string | null = null;
+    for (const b of await fetchCallBriefs(ctx, comm.id)) {
+      if (b.brief_kind === 'transcript') {
+        briefKind = b.brief_kind;
+        briefText = b.brief_text;
+      }
     }
+
+    const summary = briefText ?? comm.summary ?? null;
+    const ready = briefKind === 'transcript' || Boolean(comm.brief_created_at);
+
+    let customerName: string | null = null;
+    if (comm.customer_id) customerName = await fetchCallCustomerName(ctx, comm.customer_id);
+
+    const suggestedActions = deriveActionsFromBriefText(summary).map((a) => ({ actionType: a.actionType, label: a.label }));
+
+    return {
+      id: comm.id,
+      ready,
+      briefKind,
+      summary,
+      status: comm.status,
+      direction: comm.direction,
+      phone: comm.phone,
+      customerId: comm.customer_id,
+      customerName,
+      suggestedActions,
+    };
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError('server_error', 500);
   }
-
-  const summary = briefText ?? comm.summary ?? null;
-  const ready = briefKind === 'transcript' || Boolean(comm.brief_created_at);
-
-  let customerName: string | null = null;
-  if (comm.customer_id) customerName = await fetchCallCustomerName(ctx, comm.customer_id);
-
-  const suggestedActions = deriveActionsFromBriefText(summary).map((a) => ({ actionType: a.actionType, label: a.label }));
-
-  return {
-    id: comm.id,
-    ready,
-    briefKind,
-    summary,
-    status: comm.status,
-    direction: comm.direction,
-    phone: comm.phone,
-    customerId: comm.customer_id,
-    customerName,
-    suggestedActions,
-  };
 }
