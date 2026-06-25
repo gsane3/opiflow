@@ -172,6 +172,31 @@ export async function applyCustomerBlocked(ctx: RepoContext, id: string, blocked
   return !error;
 }
 
+/** Pin/unpin a customer (F6). Returns whether the write succeeded (pre-044 → false). */
+export async function setCustomerPinned(ctx: RepoContext, id: string, pinned: boolean): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('customers').update({ pinned, updated_at: new Date().toISOString() }).eq('id', id);
+  return !error;
+}
+
+/** Offers for the per-customer summary block. DB error → offers_summary_failed. */
+export async function listOffersForCustomerSummary(
+  ctx: RepoContext,
+  customerId: string,
+): Promise<Array<{ id: string; status: string; total: number | null; offer_date: string | null; created_at: string }>> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('offers')
+    .select('id, status, total, offer_date, created_at')
+    .eq('customer_id', customerId)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) throw new AppError('offers_summary_failed', 500);
+  return ((data ?? []) as unknown[]).map(
+    (r) => r as { id: string; status: string; total: number | null; offer_date: string | null; created_at: string },
+  );
+}
+
 /** Hard-delete one customer (any kind). DB error → customer_delete_failed; returns the deleted count. */
 export async function deleteCustomerRow(ctx: RepoContext, id: string): Promise<number> {
   const db = tenantDb(ctx.supabase, ctx.businessId);

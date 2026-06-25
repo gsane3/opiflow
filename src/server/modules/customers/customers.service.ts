@@ -21,6 +21,8 @@ import {
   getCustomerDetailRow,
   insertCustomerRow,
   listCustomerRows,
+  listOffersForCustomerSummary,
+  setCustomerPinned,
   takeNextCrmNumber,
   updateCustomerRow,
   type RepoContext,
@@ -324,4 +326,41 @@ export async function deleteCustomer(ctx: RepoContext, id: string): Promise<{ de
   const count = await deleteCustomerRow(ctx, id);
   if (count === 0) throw new AppError('customer_not_found', 404);
   return { deleted: count };
+}
+
+/** POST /api/customers/[id]/pin. Returns whether the write succeeded (pre-044 → false → 503 route-side). */
+export async function pinCustomer(ctx: RepoContext, id: string, pinned: boolean): Promise<boolean> {
+  return setCustomerPinned(ctx, id, pinned);
+}
+
+export interface OffersSummary {
+  offerCount: number;
+  totalValue: number;
+  acceptedCount: number;
+  pendingCount: number;
+  latestStatus: string | null;
+  latestOfferDate: string | null;
+}
+
+/** GET /api/customers/[id]/offers/summary. offers_summary_failed (500) on DB error. */
+export async function getCustomerOffersSummary(ctx: RepoContext, customerId: string): Promise<OffersSummary> {
+  const offers = await listOffersForCustomerSummary(ctx, customerId);
+  const PENDING = new Set(['draft', 'ready_to_send', 'sent_manually']);
+  let totalValue = 0;
+  let acceptedCount = 0;
+  let pendingCount = 0;
+  for (const o of offers) {
+    if (typeof o.total === 'number') totalValue += o.total;
+    if (o.status === 'accepted') acceptedCount += 1;
+    else if (PENDING.has(o.status)) pendingCount += 1;
+  }
+  const latest = offers[0] ?? null;
+  return {
+    offerCount: offers.length,
+    totalValue,
+    acceptedCount,
+    pendingCount,
+    latestStatus: latest?.status ?? null,
+    latestOfferDate: latest?.offer_date ?? latest?.created_at ?? null,
+  };
 }
