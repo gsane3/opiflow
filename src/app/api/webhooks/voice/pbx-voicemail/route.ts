@@ -16,6 +16,10 @@ import { transcribeAndBriefCallAudio } from '@/lib/server/openai-call-audio';
 import { appendCallBrief } from '@/lib/server/call-briefs';
 import { timingSafeEqualSecret } from '@/lib/server/webhook-secret';
 import { sendPushToBusinessOwner } from '@/lib/server/push';
+import {
+  processPbxVoicemail,
+  type PbxVoicemailInput,
+} from '@/server/modules/webhooks-voice/webhooks-voice.service';
 
 export const runtime = 'nodejs';
 export const maxDuration = 120;
@@ -79,78 +83,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: false, error: 'missing_supabase_config' }, { status: 503 });
   }
 
-  // Transcribe + brief (RAM-only). Falls back to a plain label on failure.
-  const result = await transcribeAndBriefCallAudio({
-    audioFile,
-    callerNumber: caller,
-    dialStatus: 'VOICEMAIL',
-    uniqueId: uniqueid,
-    communicationSummary: null,
+  const input: PbxVoicemailInput = { audioFile, caller, uniqueid };
+
+  return processPbxVoicemail(supabase, businessId, input, {
+    transcribeAndBriefCallAudio,
+    appendCallBrief,
+    sendPushToBusinessOwner,
   });
-
-  const voicemailText = result?.brief ?? null;
-  const summary = voicemailText
-    ? `Φωνητικό μήνυμα:\n${voicemailText}`
-    : 'Φωνητικό μήνυμα (η απομαγνητοφώνηση απέτυχε).';
-
-  // Match the customer by phone (match-only; the missed-call funnel already
-  // created/linked the customer for this caller).
-  let customerId: string | null = null;
-  if (caller) {
-    const { data: cust } = await supabase
-      .from('customers')
-      .select('id')
-      .eq('business_id', businessId)
-      .or(`phone.eq.${caller},mobile_phone.eq.${caller},landline_phone.eq.${caller}`)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-    customerId = (cust as { id: string } | null)?.id ?? null;
-  }
-
-  // Prefer to enrich the existing missed-call row (matched by uniqueid marker),
-  // otherwise create a dedicated voicemail communication.
-  let communicationId: string | null = null;
-  if (uniqueid) {
-    const { data: existing } = await supabase
-      .from('communications')
-      .select('id')
-      .eq('business_id', businessId)
-      .eq('channel', 'call')
-      .like('summary', `%uniqueid=${uniqueid}%`)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const exId = (existing as { id: string } | null)?.id ?? null;
-    if (exId) {
-      await supabase.from('communications').update({ summary }).eq('id', exId).eq('business_id', businessId);
-      communicationId = exId;
-    }
-  }
-  if (!communicationId) {
-    const insert = (status: string) =>
-      supabase.from('communications').insert({
-        business_id: businessId, customer_id: customerId, channel: 'call',
-        direction: 'inbound', status, phone: caller, summary,
-      }).select('id').single();
-    let { data: row, error } = await insert('missed');
-    if (error) ({ data: row, error } = await insert('failed')); // pre-043 fallback
-    communicationId = (row as { id: string } | null)?.id ?? null;
-  }
-
-  // Brief history + push the owner («έχεις φωνητικό μήνυμα»).
-  if (communicationId && voicemailText) {
-    await appendCallBrief(supabase, { businessId, customerId, communicationId, briefKind: 'transcript', briefText: summary });
-  }
-  try {
-    await sendPushToBusinessOwner(businessId, {
-      title: 'Νέο φωνητικό μήνυμα',
-      body: caller ? `Από ${caller}` : 'Άκουσε/διάβασε το μήνυμα',
-      url: customerId ? `/customers/${customerId}` : '/calls',
-    });
-  } catch {
-    // best-effort
-  }
-
-  return NextResponse.json({ ok: true, communication_id: communicationId, transcribed: Boolean(voicemailText) });
 }

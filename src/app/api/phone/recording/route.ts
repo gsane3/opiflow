@@ -11,17 +11,11 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest, requireManager } from '@/lib/api/auth';
+import { readRecording, validateRecording, writeRecording } from '@/server/modules/phone/phone.service';
 
 export const runtime = 'nodejs';
 
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
-
-/** Treat a PostgREST "column missing" error as "migration 059 not applied yet". */
-function isMissingColumn(err: { code?: string; message?: string } | null | undefined): boolean {
-  if (!err) return false;
-  const m = (err.message ?? '').toLowerCase();
-  return err.code === '42703' || err.code === 'PGRST204' || m.includes('record_calls');
-}
 
 export async function GET(request: NextRequest) {
   const auth = await authenticateBusinessRequest(request);
@@ -29,17 +23,12 @@ export async function GET(request: NextRequest) {
   const { supabase, businessId } = auth.ctx;
 
   try {
-    const { data, error } = await supabase
-      .from('businesses')
-      .select('record_calls')
-      .eq('id', businessId)
-      .maybeSingle();
-    if (error) {
+    const result = await readRecording(supabase, businessId);
+    if (result.degraded) {
       // Missing column (pre-059) or any read error → default to recording ON.
       return NextResponse.json({ ok: true, recordCalls: true, degraded: true }, { headers: NO_STORE });
     }
-    const rc = (data as { record_calls?: boolean | null } | null)?.record_calls;
-    return NextResponse.json({ ok: true, recordCalls: rc !== false }, { headers: NO_STORE });
+    return NextResponse.json({ ok: true, recordCalls: result.recordCalls }, { headers: NO_STORE });
   } catch {
     return NextResponse.json({ ok: true, recordCalls: true, degraded: true }, { headers: NO_STORE });
   }
@@ -59,18 +48,16 @@ export async function PUT(request: NextRequest) {
   } catch {
     return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400, headers: NO_STORE });
   }
-  if (typeof body.recordCalls !== 'boolean') {
-    return NextResponse.json({ ok: false, error: 'invalid_record_calls' }, { status: 400, headers: NO_STORE });
+  const validated = validateRecording(body);
+  if (!validated.ok) {
+    return NextResponse.json({ ok: false, error: validated.error }, { status: 400, headers: NO_STORE });
   }
-  const recordCalls = body.recordCalls;
+  const recordCalls = validated.recordCalls;
 
   try {
-    const { error } = await supabase
-      .from('businesses')
-      .update({ record_calls: recordCalls, updated_at: new Date().toISOString() })
-      .eq('id', businessId);
-    if (error) {
-      if (isMissingColumn(error)) {
+    const result = await writeRecording(supabase, businessId, recordCalls);
+    if (!result.ok) {
+      if (result.migrationPending) {
         return NextResponse.json(
           { ok: false, recordCalls, error: 'migration_pending', degraded: true },
           { status: 200, headers: NO_STORE }

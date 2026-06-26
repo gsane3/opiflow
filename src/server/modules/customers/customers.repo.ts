@@ -11,7 +11,7 @@
 import { AppError } from '../../core/errors';
 import { tenantDb, type TenantContext } from '../../core/tenant';
 import type { createServerSupabaseClient } from '../../../lib/supabase/server';
-import { CUSTOMER_COLUMNS, type CustomerRow } from './customers.types';
+import { CUSTOMER_COLUMNS, type CustomerRow, type CustomerDetailRow } from './customers.types';
 import type { ListCustomersQuery } from './customers.schema';
 
 /** A resolved request context carrying the service-role client + tenant. */
@@ -72,6 +72,174 @@ export async function insertCustomerRow(
     .single();
   if (error || !data) throw new AppError('customer_create_failed', 500);
   return data as unknown as CustomerRow;
+}
+
+// --- single-customer reads/writes for /api/customers/[id] (GET/PATCH/DELETE) ---
+
+/** Fetch one customer by id (GET). DB error → customer_query_failed; null when no row. */
+export async function getCustomerDetailRow(ctx: RepoContext, id: string): Promise<CustomerDetailRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').byId(id, CUSTOMER_COLUMNS).maybeSingle();
+  if (error) throw new AppError('customer_query_failed', 500);
+  return (data as unknown as CustomerDetailRow) ?? null;
+}
+
+/** Fetch one customer by id on the no-field-change PATCH path. DB error → customer_update_failed; null when no row. */
+export async function fetchCustomerRowForUpdate(ctx: RepoContext, id: string): Promise<CustomerDetailRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').byId(id, CUSTOMER_COLUMNS).maybeSingle();
+  if (error) throw new AppError('customer_update_failed', 500);
+  return (data as unknown as CustomerDetailRow) ?? null;
+}
+
+/** Apply the core partial update to one customer. DB error → customer_update_failed; null when no row. */
+export async function updateCustomerRow(
+  ctx: RepoContext,
+  id: string,
+  fields: Record<string, unknown>,
+): Promise<CustomerDetailRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('customers')
+    .update(fields)
+    .eq('id', id)
+    .select(CUSTOMER_COLUMNS)
+    .maybeSingle();
+  if (error) throw new AppError('customer_update_failed', 500);
+  return (data as unknown as CustomerDetailRow) ?? null;
+}
+
+/** Tolerant pin read (pre-044 → undefined). Returns the value only when the row resolves. */
+export async function fetchCustomerPinned(ctx: RepoContext, id: string): Promise<boolean | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db.from('customers').byId(id, 'pinned').maybeSingle();
+    if (!error && data) return (data as { pinned?: boolean }).pinned ?? false;
+  } catch {
+    // pre-044 → leave the default
+  }
+  return undefined;
+}
+
+/** Tolerant 053 extras read (postal_code / region / imported_from_phone). */
+export async function fetchCustomerExtras(
+  ctx: RepoContext,
+  id: string,
+): Promise<{ postalCode: string | null; region: string | null; importedFromPhone: boolean } | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db
+      .from('customers')
+      .byId(id, 'postal_code, region, imported_from_phone')
+      .maybeSingle();
+    if (!error && data) {
+      const r = data as unknown as { postal_code: string | null; region: string | null; imported_from_phone: boolean | null };
+      return { postalCode: r.postal_code ?? null, region: r.region ?? null, importedFromPhone: r.imported_from_phone ?? false };
+    }
+  } catch {
+    // pre-053 → leave the defaults
+  }
+  return undefined;
+}
+
+/** Tolerant 058 blocked read. */
+export async function fetchCustomerBlocked(ctx: RepoContext, id: string): Promise<boolean | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db.from('customers').byId(id, 'blocked').maybeSingle();
+    if (!error && data) return (data as unknown as { blocked: boolean | null }).blocked ?? false;
+  } catch {
+    // pre-058 → leave the default
+  }
+  return undefined;
+}
+
+/** Isolated 053 extras write — returns whether the write succeeded (pre-053 column-missing → false). */
+export async function applyCustomerExtras(
+  ctx: RepoContext,
+  id: string,
+  extra: Record<string, unknown>,
+): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('customers').update(extra).eq('id', id);
+  return !error;
+}
+
+/** Isolated 058 blocked write — returns whether the write succeeded (pre-058 → false). */
+export async function applyCustomerBlocked(ctx: RepoContext, id: string, blocked: boolean): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('customers').update({ blocked }).eq('id', id);
+  return !error;
+}
+
+/** Pin/unpin a customer (F6). Returns whether the write succeeded (pre-044 → false). */
+export async function setCustomerPinned(ctx: RepoContext, id: string, pinned: boolean): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('customers').update({ pinned, updated_at: new Date().toISOString() }).eq('id', id);
+  return !error;
+}
+
+/** Offers for the per-customer summary block. DB error → offers_summary_failed. */
+export async function listOffersForCustomerSummary(
+  ctx: RepoContext,
+  customerId: string,
+): Promise<Array<{ id: string; status: string; total: number | null; offer_date: string | null; created_at: string }>> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('offers')
+    .select('id, status, total, offer_date, created_at')
+    .eq('customer_id', customerId)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) throw new AppError('offers_summary_failed', 500);
+  return ((data ?? []) as unknown[]).map(
+    (r) => r as { id: string; status: string; total: number | null; offer_date: string | null; created_at: string },
+  );
+}
+
+/** Hard-delete one customer (any kind). DB error → customer_delete_failed; returns the deleted count. */
+export async function deleteCustomerRow(ctx: RepoContext, id: string): Promise<number> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').delete().eq('id', id).select('id');
+  if (error) throw new AppError('customer_delete_failed', 500);
+  return Array.isArray(data) ? data.length : 0;
+}
+
+/** pre-053 tolerance: a missing `imported_from_phone` column → degrade, don't 500. */
+function isMissingColumnError(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === '42703') return true;
+  const msg = (error.message ?? '').toLowerCase();
+  return msg.includes('imported_from_phone') || (msg.includes('column') && msg.includes('does not exist'));
+}
+
+/** Hard-delete EVERY contact for this tenant (child rows handled by schema FKs). */
+export async function deleteAllCustomerRows(ctx: RepoContext): Promise<{ deleted: number }> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('customers').delete().select('id');
+  if (error) throw new AppError('delete_failed', 500);
+  return { deleted: Array.isArray(data) ? data.length : 0 };
+}
+
+/**
+ * Hard-delete only phone-imported contacts. On a pre-053 schema (no
+ * `imported_from_phone` column) returns `{ columnMissing: true }` so the route can
+ * tell the UI to use «Διαγραφή όλων» instead — rather than 500.
+ */
+export async function deleteImportedCustomerRows(
+  ctx: RepoContext,
+): Promise<{ deleted: number } | { columnMissing: true }> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('customers')
+    .delete()
+    .eq('imported_from_phone', true)
+    .select('id');
+  if (error) {
+    if (isMissingColumnError(error)) return { columnMissing: true };
+    throw new AppError('delete_failed', 500);
+  }
+  return { deleted: Array.isArray(data) ? data.length : 0 };
 }
 
 /** Atomic per-business CRM number (#N), with a legacy scan fallback (pre-043). */

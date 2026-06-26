@@ -1,39 +1,37 @@
 // POST /api/customers/[id]/pin  → { pinned: boolean }
 //
-// Pin/unpin a customer so active jobs float to the top of the list (F6).
-// Tolerant of a not-yet-applied migration 044: returns 503 migration_pending
-// when the column doesn't exist rather than 500.
+// ADOPTED to the modular pattern (src/server/modules/customers): thin adapter. The
+// tenant-scoped pin write lives in the service; the route preserves the exact
+// behaviour, incl. the 503 update_failed + hint:migration_044_pending when the
+// pinned column (migration 044) does not exist yet.
 
 import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, fail, handleApiError } from '@/server/core/errors';
+import { pinCustomer } from '@/server/modules/customers/customers.service';
 
 export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   const { id } = await params;
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
+    return fail('invalid_json', 400);
   }
   const pinned = (body as { pinned?: unknown }).pinned === true;
 
-  const { error } = await supabase
-    .from('customers')
-    .update({ pinned, updated_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('business_id', businessId);
-
-  if (error) {
-    return NextResponse.json(
-      { ok: false, error: 'update_failed', hint: 'migration_044_pending' },
-      { status: 503 }
-    );
+  const succeeded = await pinCustomer(ctx, id, pinned);
+  if (!succeeded) {
+    return NextResponse.json({ ok: false, error: 'update_failed', hint: 'migration_044_pending' }, { status: 503 });
   }
-  return NextResponse.json({ ok: true, pinned });
+  return ok({ pinned });
 }

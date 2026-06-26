@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { resolveBusinessContext } from '@/lib/api/auth';
-import { isEntitled } from '@/lib/billing/entitlement';
-import { isStripeConfigured } from '@/lib/billing/stripe';
-
-const PATCH_VALID_TYPES = ['technical_services', 'sales_services', 'projects_construction', 'other'] as const;
-const PATCH_VALID_CONTACT_METHODS = ['phone', 'email', 'viber'] as const;
-
-function patchStr(val: unknown): string | null {
-  if (typeof val !== 'string') return null;
-  const trimmed = val.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
+import { AppError, handleApiError } from '@/server/core/errors';
+import { getBusinessMe, updateBusinessMe } from '@/server/modules/businesses/businesses.service';
 
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
@@ -43,103 +34,21 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
     }
 
-    const { data: business, error: queryError } = await supabase
-      .from('businesses')
-      .select(
-        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, facebook_url, instagram_url, created_at, updated_at'
-      )
-      .eq('id', resolved.businessId)
-      .maybeSingle();
-
-    if (queryError) {
-      return NextResponse.json({ ok: false, error: 'business_query_failed' }, { status: 500 });
-    }
-
-    if (!business) {
-      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
-    const biz = business as Record<string, unknown>;
-    const bizId = biz.id as string;
-
-    const { data: subRow, error: subError } = await supabase
-      .from('business_subscriptions')
-      .select('plan_key, status, trial_ends_at')
-      .eq('business_id', bizId)
-      .maybeSingle();
-
-    if (subError) {
-      console.error('[api/businesses/me] subscription query failed', {
-        code:        subError.code,
-        message:     subError.message,
-        bizIdPrefix: bizId.slice(0, 8),
+    try {
+      const result = await getBusinessMe(supabase, resolved.businessId);
+      return NextResponse.json({
+        ok: true,
+        business: result.business,
+        phoneAssigned: result.phoneAssigned,
+        activationAllowed: result.activationAllowed,
+        billingConfigured: result.billingConfigured,
+        subscription: result.subscription,
+        numberRequest: result.numberRequest,
       });
-      return NextResponse.json(
-        { ok: false, error: 'subscription_query_failed' },
-        { status: 500 }
-      );
+    } catch (err) {
+      if (err instanceof AppError) return handleApiError(err);
+      throw err;
     }
-
-    const sub = subRow as {
-      plan_key: string;
-      status: string;
-      trial_ends_at: string | null;
-    } | null;
-    const activationAllowed = isEntitled(sub?.status);
-
-    const subscription = sub
-      ? {
-          plan_key:      sub.plan_key,
-          status:        sub.status,
-          trial_ends_at: sub.trial_ends_at ?? null,
-        }
-      : null;
-
-    // Query the latest pending phone number request for this business.
-    const { data: reqRow, error: requestError } = await supabase
-      .from('phone_number_requests')
-      .select('status, requested_city, created_at')
-      .eq('business_id', bizId)
-      .eq('status', 'pending')
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (requestError) {
-      console.error('[api/businesses/me] number request query failed', {
-        code:        requestError.code,
-        message:     requestError.message,
-        bizIdPrefix: bizId.slice(0, 8),
-      });
-      return NextResponse.json(
-        { ok: false, error: 'number_request_query_failed' },
-        { status: 500 }
-      );
-    }
-
-    const req = reqRow as {
-      status:         string;
-      requested_city: string | null;
-      created_at:     string;
-    } | null;
-    const numberRequest = req
-      ? {
-          status:        req.status,
-          requestedCity: req.requested_city ?? null,
-          createdAt:     req.created_at,
-        }
-      : null;
-
-    return NextResponse.json({
-      ok: true,
-      business,
-      phoneAssigned:
-        typeof biz.business_phone_number === 'string' && biz.business_phone_number.length > 0,
-      activationAllowed,
-      billingConfigured: isStripeConfigured(),
-      subscription,
-      numberRequest,
-    });
   } catch {
     return NextResponse.json({ ok: false, error: 'business_route_failed' }, { status: 500 });
   }
@@ -179,131 +88,13 @@ export async function PATCH(request: NextRequest) {
     }
     const raw = body as Record<string, unknown>;
 
-    // name is required and must not be blank.
-    const name = patchStr(raw.name);
-    if (!name) {
-      return NextResponse.json({ ok: false, error: 'invalid_name' }, { status: 400 });
+    try {
+      const updatedBusiness = await updateBusinessMe(supabase, user.id, raw);
+      return NextResponse.json({ ok: true, business: updatedBusiness });
+    } catch (err) {
+      if (err instanceof AppError) return handleApiError(err);
+      throw err;
     }
-
-    // type is required and must be a recognised business type.
-    const type = patchStr(raw.type);
-    if (!type || !(PATCH_VALID_TYPES as readonly string[]).includes(type)) {
-      return NextResponse.json({ ok: false, error: 'invalid_type' }, { status: 400 });
-    }
-
-    // preferred_contact_method is required and must be a recognised method.
-    const preferredContactMethod = patchStr(raw.preferred_contact_method);
-    if (!preferredContactMethod || !(PATCH_VALID_CONTACT_METHODS as readonly string[]).includes(preferredContactMethod)) {
-      return NextResponse.json({ ok: false, error: 'invalid_contact_method' }, { status: 400 });
-    }
-
-    // default_vat_rate must be a finite number in [0, 100].
-    let defaultVatRate: number | undefined;
-    if (raw.default_vat_rate !== undefined && raw.default_vat_rate !== null) {
-      const n = Number(raw.default_vat_rate);
-      if (!isFinite(n) || n < 0 || n > 100) {
-        return NextResponse.json({ ok: false, error: 'invalid_vat_rate' }, { status: 400 });
-      }
-      defaultVatRate = n;
-    }
-
-    // postal_code must be exactly 5 digits if provided.
-    const postalCodeRaw = patchStr(raw.postal_code);
-    if (postalCodeRaw !== null && !/^\d{5}$/.test(postalCodeRaw)) {
-      return NextResponse.json({ ok: false, error: 'invalid_postal_code' }, { status: 400 });
-    }
-
-    // website must start with http:// or https:// if provided.
-    const websiteRaw = patchStr(raw.website);
-    if (websiteRaw !== null && !/^https?:\/\/.+/.test(websiteRaw)) {
-      return NextResponse.json({ ok: false, error: 'invalid_website' }, { status: 400 });
-    }
-
-    // Logo: a small data:image/* URL persisted to logo_url and shown on the public
-    // offer / intake / appointment pages. '' or null clears it. Capped (~225 KB of
-    // base64) so the public-page queries that SELECT logo_url stay light.
-    // undefined = field omitted → leave the existing logo untouched.
-    let logoUpdate: string | null | undefined;
-    if (raw.logoDataUrl !== undefined) {
-      const lv = raw.logoDataUrl;
-      if (lv === null || lv === '') {
-        logoUpdate = null;
-      } else if (typeof lv === 'string' && /^data:image\/(png|jpe?g|webp|svg\+xml);base64,/.test(lv)) {
-        if (lv.length > 300_000) {
-          return NextResponse.json({ ok: false, error: 'logo_too_large' }, { status: 400 });
-        }
-        logoUpdate = lv;
-      } else {
-        return NextResponse.json({ ok: false, error: 'invalid_logo' }, { status: 400 });
-      }
-    }
-
-    // Verify the business exists and belongs to this user.
-    const { data: existing } = await supabase
-      .from('businesses')
-      .select('id')
-      .eq('owner_id', user.id)
-      .maybeSingle();
-
-    if (!existing) {
-      return NextResponse.json({ ok: false, error: 'business_not_found' }, { status: 404 });
-    }
-
-    // Build the update payload. Only editable profile fields are accepted.
-    // Sensitive and system fields (owner_id, business_phone_number, subscription
-    // fields, etc.) are never included.
-    //
-    // CRITICAL (partial-update safety): optional fields are written ONLY when the
-    // caller actually sent the key. A partial PATCH — e.g. the native settings
-    // form, which omits website/social/legal-name/address/acceptance-text — must
-    // never null out fields it didn't touch (those render on the public portal +
-    // offer PDF). The three required fields are always validated + present.
-    const updates: Record<string, unknown> = {
-      name,
-      type,
-      preferred_contact_method: preferredContactMethod,
-      updated_at:               new Date().toISOString(),
-    };
-
-    // Plain string fields (body key === column name); '' → null clears, omitted → untouched.
-    const OPTIONAL_STR_FIELDS = [
-      'phone', 'email', 'address', 'city', 'vat_number', 'tax_office',
-      'default_offer_terms', 'default_acceptance_text', 'legal_name', 'trade_name',
-      'owner_first_name', 'owner_last_name', 'address_line1', 'address_line2',
-      'region', 'facebook_url', 'instagram_url',
-    ] as const;
-    for (const f of OPTIONAL_STR_FIELDS) {
-      if (f in raw) updates[f] = patchStr(raw[f]);
-    }
-    // Validated optional fields (validation above already ran on these).
-    if ('postal_code' in raw) updates.postal_code = postalCodeRaw;
-    if ('website' in raw) updates.website = websiteRaw;
-    if (defaultVatRate !== undefined) {
-      updates.default_vat_rate = defaultVatRate;
-    }
-    if (logoUpdate !== undefined) {
-      updates.logo_url = logoUpdate;
-    }
-
-    const { data: updatedBusiness, error: updateError } = await supabase
-      .from('businesses')
-      .update(updates)
-      .eq('owner_id', user.id)
-      .select(
-        'id, owner_id, name, type, phone, email, address, city, vat_number, tax_office, logo_url, default_vat_rate, default_offer_terms, default_acceptance_text, preferred_contact_method, business_phone_number, legal_name, trade_name, owner_first_name, owner_last_name, address_line1, address_line2, postal_code, region, website, facebook_url, instagram_url, created_at, updated_at'
-      )
-      .single();
-
-    if (updateError || !updatedBusiness) {
-      console.error('[api/businesses/me PATCH] update failed', {
-        code:         updateError?.code,
-        message:      updateError?.message,
-        userIdPrefix: user.id.slice(0, 8),
-      });
-      return NextResponse.json({ ok: false, error: 'business_update_failed' }, { status: 500 });
-    }
-
-    return NextResponse.json({ ok: true, business: updatedBusiness });
   } catch {
     return NextResponse.json({ ok: false, error: 'business_route_failed' }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authenticateBusinessRequest, requireOwner } from '@/lib/api/auth';
-import { createCheckoutSession, isStripeConfigured } from '@/lib/billing/stripe';
+import { isStripeConfigured } from '@/lib/billing/stripe';
+import { startCheckout } from '@/server/modules/billing/billing.service';
 
 export const runtime = 'nodejs';
 
@@ -17,14 +18,13 @@ export async function POST(request: NextRequest) {
   const { businessId } = auth.ctx;
 
   const origin = request.headers.get('origin') ?? 'https://opiflow.ai';
-  const result = await createCheckoutSession({
+  const result = await startCheckout({
     priceId: process.env.STRIPE_PRICE_ID,
     businessId,
-    successUrl: `${origin}/settings?billing=success`,
-    cancelUrl: `${origin}/settings?billing=cancelled`,
+    origin,
   });
-  if (!result.ok || typeof result.data.url !== 'string') {
+  if (result.kind !== 'ok') {
     return NextResponse.json({ ok: false, error: 'checkout_failed' }, { status: 502 });
   }
-  return NextResponse.json({ ok: true, url: result.data.url });
+  return NextResponse.json({ ok: true, url: result.url });
 }

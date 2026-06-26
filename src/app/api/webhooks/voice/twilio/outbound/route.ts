@@ -33,6 +33,10 @@
 import { NextRequest } from 'next/server';
 import twilio from 'twilio';
 import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
+import {
+  finalizeOutboundDialLeg,
+  resolveOutboundDialPlan,
+} from '@/server/modules/webhooks-voice/webhooks-voice.service';
 
 export const runtime = 'nodejs';
 
@@ -128,12 +132,7 @@ export async function POST(request: NextRequest) {
     if (callSid) {
       try {
         const supabase = createServiceSupabaseClient();
-        await supabase
-          .from('communications')
-          .update({ status: dialStatus === 'completed' ? 'completed' : 'failed' })
-          .eq('channel', 'call')
-          .eq('provider_call_id', callSid)
-          .eq('status', 'started');
+        await finalizeOutboundDialLeg(supabase, callSid, dialStatus);
       } catch {
         // best-effort — the client's /api/calls/log also finalises
       }
@@ -179,88 +178,25 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createServiceSupabaseClient();
 
-    // Try to read record_calls alongside the DID. If the column is missing
-    // (migration 059 not applied yet) the select errors — retry WITHOUT it so DID
-    // resolution and the call itself never break, leaving recording at the default.
-    let did: string | undefined;
-    const { data, error: bizError } = await supabase
-      .from('businesses')
-      .select('business_phone_number, record_calls')
-      .eq('id', businessId)
-      .maybeSingle();
-    if (bizError) {
-      const { data: legacy } = await supabase
-        .from('businesses')
-        .select('business_phone_number')
-        .eq('id', businessId)
-        .maybeSingle();
-      did = (legacy as { business_phone_number?: string | null } | null)?.business_phone_number?.trim();
-    } else {
-      const row = data as { business_phone_number?: string | null; record_calls?: boolean | null } | null;
-      did = row?.business_phone_number?.trim();
-      if (row?.record_calls === false) recordCalls = false;
-    }
-    if (!did) {
+    const cap = Number(process.env.OUTBOUND_DAILY_CALL_CAP?.trim() || DAILY_CALL_CAP_DEFAULT);
+    const resolution = await resolveOutboundDialPlan(supabase, {
+      businessId,
+      digits,
+      callSid,
+      dailyCallCap: cap,
+      normalizePhone,
+    });
+    if (resolution.kind === 'not_activated') {
       // No DID = not an activated line; refuse rather than dialing anonymously.
       tw.say({ language: 'el-GR' }, 'Η γραμμή δεν είναι ενεργοποιημένη.');
       return xml(tw.toString());
     }
-    // Match the browser path's OPIFLOW_DID (e.g. 302104400811, no leading +),
-    // which InterTelecom trusts for the asserted identity (PAI/RPID).
-    callerId = did.replace(/^\+/, '');
-
-    const cap = Number(process.env.OUTBOUND_DAILY_CALL_CAP?.trim() || DAILY_CALL_CAP_DEFAULT);
-    const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const { count } = await supabase
-      .from('communications')
-      .select('id', { count: 'exact', head: true })
-      .eq('business_id', businessId)
-      .eq('channel', 'call')
-      .eq('direction', 'outbound')
-      .gte('created_at', since);
-    if ((count ?? 0) >= cap) {
+    if (resolution.kind === 'capped') {
       tw.say({ language: 'el-GR' }, 'Συμπληρώθηκε το ημερήσιο όριο κλήσεων.');
       return xml(tw.toString());
     }
-
-    // Dial-time call log (server-side, so it exists before any webhook races).
-    if (callSid) {
-      const phone = normalizePhone(digits);
-      let customerId: string | null = null;
-      if (phone) {
-        const { data: cust } = await supabase
-          .from('customers')
-          .select('id')
-          .eq('business_id', businessId)
-          .or(`phone.eq.${phone},mobile_phone.eq.${phone},landline_phone.eq.${phone}`)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        customerId = (cust as { id: string } | null)?.id ?? null;
-      }
-      const { error: insertError } = await supabase.from('communications').insert({
-        business_id: businessId,
-        customer_id: customerId,
-        channel: 'call',
-        direction: 'outbound',
-        status: 'started',
-        phone,
-        summary: 'Εξερχόμενη κλήση',
-        provider_call_id: callSid,
-      });
-      if (insertError) {
-        // Pre-038 schema fallback: keep the call working, lose only exact matching.
-        await supabase.from('communications').insert({
-          business_id: businessId,
-          customer_id: customerId,
-          channel: 'call',
-          direction: 'outbound',
-          status: 'started',
-          phone,
-          summary: `Εξερχόμενη κλήση\ntwilio_sid=${callSid}`,
-        });
-      }
-    }
+    callerId = resolution.callerId;
+    recordCalls = resolution.recordCalls;
   } catch {
     // Supabase outage: fail open for the call itself (the owner's line must
     // keep working) — recording/brief matching degrades gracefully.

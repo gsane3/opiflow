@@ -1,119 +1,37 @@
 // GET /api/folders/[id]/attachable — list UNFILED items that can be attached to
-// this folder (WF-4). Returns the folder customer's offers + appointment-tasks
-// whose work_folder_id IS NULL, so the business can pick one to file in.
+// this folder (WF-4). Returns the folder customer's offers + appointment-tasks +
+// communications + intake/upload requests whose work_folder_id IS NULL, so the
+// business can pick one to file in.
+//
+// ADOPTED to the modular pattern (src/server/modules/folders): thin adapter. The
+// five parallel unfiled-pick reads, the per-section row mapping, and the
+// attachable_failed broad-catch live in the service. Byte-identical.
 //
 // Business-scoped + customer-scoped (a folder from another business resolves as
 // 404). Requires migration 046. Raw DB errors are never returned to the caller.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
-import { APPOINTMENT_TASK_TYPES } from '@/lib/server/work-folders';
+import { NextRequest } from 'next/server';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, handleApiError } from '@/server/core/errors';
+import { listAttachable } from '@/server/modules/folders/folders.service';
 
 export const runtime = 'nodejs';
-
-const PICK_LIMIT = 50;
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   try {
     const { id: folderId } = await params;
-
-    // Folder must exist AND belong to the authenticated business.
-    const { data: folder, error: folderErr } = await supabase
-      .from('work_folders')
-      .select('customer_id')
-      .eq('id', folderId)
-      .eq('business_id', businessId)
-      .maybeSingle();
-    if (folderErr) {
-      return NextResponse.json({ ok: false, error: 'attachable_failed' }, { status: 500 });
-    }
-    if (!folder) {
-      return NextResponse.json({ ok: false, error: 'folder_not_found' }, { status: 404 });
-    }
-    const customerId = (folder as { customer_id: string }).customer_id;
-
-    // Communications/intake/upload pickers are noisier, so cap them tighter.
-    const REQ_LIMIT = 20;
-
-    const [offersRes, apptRes, msgRes, intakeRes, uploadRes] = await Promise.all([
-      supabase
-        .from('offers')
-        .select('id, offer_number, status, total, created_at')
-        .eq('business_id', businessId)
-        .eq('customer_id', customerId)
-        .is('work_folder_id', null)
-        .order('created_at', { ascending: false })
-        .limit(PICK_LIMIT),
-      supabase
-        .from('tasks')
-        .select('id, title, type, status, due_date, due_time')
-        .eq('business_id', businessId)
-        .eq('customer_id', customerId)
-        .is('work_folder_id', null)
-        .in('type', APPOINTMENT_TASK_TYPES as unknown as string[])
-        .order('due_date', { ascending: false })
-        .limit(PICK_LIMIT),
-      supabase
-        .from('communications')
-        .select('id, direction, channel, summary, created_at')
-        .eq('business_id', businessId)
-        .eq('customer_id', customerId)
-        .is('work_folder_id', null)
-        .order('created_at', { ascending: false })
-        .limit(REQ_LIMIT),
-      supabase
-        .from('customer_intake_tokens')
-        .select('id, status, sent_channel, created_at')
-        .eq('business_id', businessId)
-        .eq('customer_id', customerId)
-        .is('work_folder_id', null)
-        .order('created_at', { ascending: false })
-        .limit(REQ_LIMIT),
-      supabase
-        .from('customer_upload_tokens')
-        .select('id, status, sent_channel, created_at')
-        .eq('business_id', businessId)
-        .eq('customer_id', customerId)
-        .is('work_folder_id', null)
-        .order('created_at', { ascending: false })
-        .limit(REQ_LIMIT),
-    ]);
-
-    if (offersRes.error || apptRes.error || msgRes.error || intakeRes.error || uploadRes.error) {
-      return NextResponse.json({ ok: false, error: 'attachable_failed' }, { status: 500 });
-    }
-
-    const offers = ((offersRes.data ?? []) as unknown[]).map((r) => {
-      const o = r as { id: string; offer_number: string | null; status: string; total: number | null };
-      return { id: o.id, offerNumber: o.offer_number, status: o.status, total: o.total };
-    });
-    const appointments = ((apptRes.data ?? []) as unknown[]).map((r) => {
-      const t = r as { id: string; title: string; type: string; status: string; due_date: string | null; due_time: string | null };
-      return { id: t.id, title: t.title, type: t.type, status: t.status, dueDate: t.due_date, dueTime: t.due_time };
-    });
-    const messages = ((msgRes.data ?? []) as unknown[]).map((r) => {
-      const m = r as { id: string; direction: string; channel: string; summary: string | null; created_at: string };
-      return { id: m.id, direction: m.direction, channel: m.channel, summary: m.summary, createdAt: m.created_at };
-    });
-    // token_hash is never selected → never exposed.
-    const intake = ((intakeRes.data ?? []) as unknown[]).map((r) => {
-      const i = r as { id: string; status: string; sent_channel: string | null; created_at: string };
-      return { id: i.id, status: i.status, sentChannel: i.sent_channel, createdAt: i.created_at };
-    });
-    const upload = ((uploadRes.data ?? []) as unknown[]).map((r) => {
-      const u = r as { id: string; status: string; sent_channel: string | null; created_at: string };
-      return { id: u.id, status: u.status, sentChannel: u.sent_channel, createdAt: u.created_at };
-    });
-
-    return NextResponse.json({ ok: true, offers, appointments, messages, intake, upload });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'attachable_failed' }, { status: 500 });
+    const result = await listAttachable(ctx, folderId);
+    return ok({ ...result });
+  } catch (err) {
+    return handleApiError(err);
   }
 }

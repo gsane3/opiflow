@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
 import { authenticateBusinessRequest } from '@/lib/api/auth';
-import { buildCmdPrompt } from '@/lib/ai/cmd-prompt';
-import { parseCmdResponse, type CmdReviewResult } from '@/lib/ai/cmd-schema';
+import type { CmdReviewResult } from '@/lib/ai/cmd-schema';
+import { fetchCatalogPriceRows } from '@/server/modules/ai/ai.repo';
+import { runCmd } from '@/server/modules/ai/ai.service';
 
 export const runtime = 'nodejs';
 
@@ -19,13 +20,7 @@ async function enrichOfferPricesFromCatalog(result: CmdReviewResult, req: NextRe
     const auth = await authenticateBusinessRequest(req);
     if ('error' in auth) return result;
     const { supabase, businessId } = auth.ctx;
-    const { data } = await supabase
-      .from('service_catalog_items')
-      .select('name, unit_price')
-      .eq('business_id', businessId)
-      .eq('active', true)
-      .limit(500);
-    const rows = (data ?? []) as Array<{ name: string | null; unit_price: number | null }>;
+    const rows = await fetchCatalogPriceRows(supabase, businessId);
     if (rows.length === 0) return result;
     const norm = (s: string) => s.toLowerCase().replace(/×/g, 'x').replace(/[\s\-_.]/g, '');
     const byName = new Map<string, number>();
@@ -45,7 +40,6 @@ async function enrichOfferPricesFromCatalog(result: CmdReviewResult, req: NextRe
 
 const CMD_MAX_BODY_BYTES = 16_000;
 const CMD_MAX_INPUT_CHARS = 500;
-const AI_TIMEOUT_MS = 20_000;
 
 const CMD_RATE_LIMIT_MAX = 10;
 const CMD_RATE_LIMIT_WINDOW_MS = 60_000;
@@ -143,47 +137,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: 'input_too_long' }, { status: 400 });
   }
 
-  const prompt = buildCmdPrompt({
+  const outcome = await runCmd(apiKey, {
     inputText: text,
     businessType: typeof businessType === 'string' ? businessType : undefined,
     businessName: typeof businessName === 'string' ? businessName : undefined,
   });
-
-  let rawText: string;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), AI_TIMEOUT_MS);
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 512,
-        temperature: 0.1,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    });
-
-    if (!res.ok) {
-      return NextResponse.json({ ok: false, error: 'ai_failed' }, { status: 502 });
-    }
-
-    const data = (await res.json()) as { content?: Array<{ text?: string }> };
-    rawText = data?.content?.[0]?.text ?? '';
-  } catch (err) {
-    if (err instanceof Error && err.name === 'AbortError') {
-      return NextResponse.json({ ok: false, error: 'ai_timeout' }, { status: 504 });
-    }
-    return NextResponse.json({ ok: false, error: 'ai_failed' }, { status: 502 });
-  } finally {
-    clearTimeout(timeoutId);
+  if (!outcome.ok) {
+    return NextResponse.json({ ok: false, error: outcome.code }, { status: outcome.status });
   }
 
-  const result = await enrichOfferPricesFromCatalog(parseCmdResponse(rawText), req);
+  const result = await enrichOfferPricesFromCatalog(outcome.result, req);
   return NextResponse.json({ ok: true, result });
 }

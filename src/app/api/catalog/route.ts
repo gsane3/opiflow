@@ -1,134 +1,65 @@
 // Service catalog — list + create (redesign P4). Backs Settings → Κατάλογος and
 // the offer composer's auto-suggest. Table: public.service_catalog_items (040).
-// Business isolation: authenticated member RLS + explicit business_id scope.
+//
+// ADOPTED to the modular pattern (src/server/modules/catalog): this handler is now a
+// thin HTTP adapter — auth + parse + delegate to the service + map errors. Behaviour
+// and every response are IDENTICAL to the previous inline implementation (verified by
+// the module's parity tests); the business logic + tenant-safe DB access moved to the
+// service/repo so it can't drift and is unit-tested.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { NextRequest } from 'next/server';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, fail, handleApiError, AppError } from '@/server/core/errors';
+import { listCatalog, createCatalogItem } from '@/server/modules/catalog/catalog.service';
 
 export const runtime = 'nodejs';
 
-function str(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const t = v.trim();
-  return t.length > 0 ? t : null;
-}
-
-function nonNegNumber(v: unknown, fallback: number): number {
-  const n = typeof v === 'number' ? v : Number(v);
-  return isFinite(n) && n >= 0 ? n : fallback;
-}
-
-interface CatalogRow {
-  id: string;
-  code: string | null;
-  name: string;
-  description: string | null;
-  category: string | null;
-  unit: string | null;
-  unit_price: number;
-  vat_rate: number;
-  active: boolean;
-  source: string;
-  created_at: string;
-}
-
-function dbToItem(r: CatalogRow) {
-  return {
-    id: r.id,
-    code: r.code,
-    name: r.name,
-    description: r.description,
-    category: r.category,
-    unit: r.unit,
-    unitPrice: r.unit_price,
-    vatRate: r.vat_rate,
-    active: r.active,
-    source: r.source,
-    createdAt: r.created_at,
-  };
-}
-
-const COLUMNS = 'id, code, name, description, category, unit, unit_price, vat_rate, active, source, created_at';
-
 export async function GET(request: NextRequest) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) {
-    if (auth.error.status === 404) return NextResponse.json({ ok: true, items: [] });
-    return auth.error;
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    // Parity quirk: a signed-in user with no business yet sees an empty catalog, not a 404.
+    if (err instanceof AppError && err.status === 404) return ok({ items: [] });
+    return handleApiError(err);
   }
-  const { supabase, businessId } = auth.ctx;
 
-  const { searchParams } = request.nextUrl;
-  const q = (searchParams.get('q') ?? '').trim().replace(/[%,()]/g, '');
-  const category = str(searchParams.get('category'));
-  const includeInactive = searchParams.get('all') === '1';
-
-  let query = supabase
-    .from('service_catalog_items')
-    .select(COLUMNS)
-    .eq('business_id', businessId)
-    .order('name', { ascending: true })
-    .limit(500);
-
-  if (!includeInactive) query = query.eq('active', true);
-  if (category) query = query.eq('category', category);
-  if (q) query = query.or(`name.ilike.%${q}%,code.ilike.%${q}%`);
-
-  const { data, error } = await query;
-  if (error) {
-    return NextResponse.json({ ok: false, error: 'catalog_query_failed' }, { status: 500 });
+  try {
+    const { searchParams } = request.nextUrl;
+    const q = (searchParams.get('q') ?? '').trim().replace(/[%,()]/g, '');
+    const categoryRaw = (searchParams.get('category') ?? '').trim();
+    const includeInactive = searchParams.get('all') === '1';
+    const items = await listCatalog(ctx, {
+      q: q.length > 0 ? q : undefined,
+      category: categoryRaw.length > 0 ? categoryRaw : null,
+      includeInactive,
+    });
+    return ok({ items });
+  } catch (err) {
+    return handleApiError(err);
   }
-  const items = ((data ?? []) as unknown[]).map((r) => dbToItem(r as CatalogRow));
-  return NextResponse.json({ ok: true, items });
 }
 
 export async function POST(request: NextRequest) {
   const contentType = request.headers.get('content-type') ?? '';
-  if (!contentType.includes('application/json')) {
-    return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });
+  if (!contentType.includes('application/json')) return fail('unsupported_content_type', 415);
+
+  try {
+    const ctx = await requireBusinessUser(request);
+
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return fail('invalid_json', 400);
+    }
+    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+      return fail('invalid_json', 400);
+    }
+
+    const item = await createCatalogItem(ctx, body as Record<string, unknown>, ctx.userId);
+    return ok({ item }, 201);
+  } catch (err) {
+    return handleApiError(err);
   }
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId, userId } = auth.ctx;
-
-  let body: unknown;
-  try { body = await request.json(); } catch {
-    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
-  }
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
-  }
-  const raw = body as Record<string, unknown>;
-
-  const name = str(raw.name);
-  if (!name) return NextResponse.json({ ok: false, error: 'invalid_name' }, { status: 400 });
-
-  const sourceRaw = str(raw.source);
-  const source = sourceRaw && ['manual', 'ai_chat', 'file_import'].includes(sourceRaw) ? sourceRaw : 'manual';
-
-  const { data, error } = await supabase
-    .from('service_catalog_items')
-    .insert({
-      business_id: businessId,
-      code: str(raw.code),
-      name,
-      description: str(raw.description),
-      category: str(raw.category),
-      unit: str(raw.unit),
-      unit_price: nonNegNumber(raw.unitPrice, 0),
-      vat_rate: nonNegNumber(raw.vatRate, 24),
-      active: raw.active === false ? false : true,
-      source,
-      created_by: userId,
-      updated_at: new Date().toISOString(),
-    })
-    .select(COLUMNS)
-    .single();
-
-  if (error || !data) {
-    // Unique (business_id, lower(code)) violation → friendly message.
-    const dup = typeof error?.code === 'string' && error.code === '23505';
-    return NextResponse.json({ ok: false, error: dup ? 'duplicate_code' : 'catalog_create_failed' }, { status: dup ? 409 : 500 });
-  }
-  return NextResponse.json({ ok: true, item: dbToItem(data as unknown as CatalogRow) }, { status: 201 });
 }

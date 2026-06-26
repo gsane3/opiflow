@@ -1,15 +1,15 @@
 // POST /api/team/accept  { token }
 //
-// Called by an authenticated user opening a /join/<token> link. Unlike the other
-// team routes it does NOT require the caller to already belong to a business
-// (an invited person may have just signed up), so it authenticates the bearer
-// directly instead of via authenticateBusinessRequest. It matches the caller's
-// email to a pending invite and creates the business_users membership.
+// ADOPTED to the modular pattern (src/server/modules/team): thin adapter. Unlike the
+// other team routes it does NOT require the caller to already belong to a business, so
+// it authenticates the bearer DIRECTLY (kept verbatim here — that custom auth must not
+// change). The invite lookup/expiry/email-match/membership-upsert lives in the service.
+// Responses byte-identical (incl. Cache-Control: no-store on every response).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { getBearerToken } from '@/lib/api/auth';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
-import { hashInviteToken } from '@/lib/server/team-invites';
+import { acceptInvite } from '@/server/modules/team/team.service';
 
 export const runtime = 'nodejs';
 const NO_STORE = { 'Cache-Control': 'no-store' } as const;
@@ -53,49 +53,17 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const nowIso = new Date().toISOString();
-    const { data: inviteData } = await supabase
-      .from('business_invites')
-      .select('id, business_id, email, role, status, expires_at')
-      .eq('token_hash', hashInviteToken(rawToken))
-      .maybeSingle();
-    const invite = inviteData as
-      | { id: string; business_id: string; email: string; role: string; status: string; expires_at: string }
-      | null;
-
-    if (!invite || invite.status !== 'pending') {
-      return NextResponse.json({ ok: false, error: 'invite_invalid' }, { status: 404, headers: NO_STORE });
+    const result = await acceptInvite(supabase, userId, email, rawToken);
+    if (result.ok) {
+      return NextResponse.json({ ok: true, businessId: result.businessId, role: result.role }, { headers: NO_STORE });
     }
-    if (invite.expires_at <= nowIso) {
-      return NextResponse.json({ ok: false, error: 'invite_expired' }, { status: 410, headers: NO_STORE });
-    }
-    if (!email || email !== invite.email.toLowerCase()) {
-      // The link is bound to the invited email; a different account cannot accept.
-      return NextResponse.json({ ok: false, error: 'wrong_account', invitedEmail: invite.email }, { status: 403, headers: NO_STORE });
-    }
-
-    // Create the membership (idempotent on the PK).
-    const { error: memberError } = await supabase
-      .from('business_users')
-      .upsert(
-        {
-          business_id: invite.business_id,
-          user_id: userId,
-          role: invite.role,
-          accepted_at: nowIso,
-        },
-        { onConflict: 'business_id,user_id' }
+    if (result.error === 'wrong_account') {
+      return NextResponse.json(
+        { ok: false, error: 'wrong_account', invitedEmail: result.invitedEmail },
+        { status: 403, headers: NO_STORE },
       );
-    if (memberError) {
-      return NextResponse.json({ ok: false, error: 'accept_failed' }, { status: 500, headers: NO_STORE });
     }
-
-    await supabase
-      .from('business_invites')
-      .update({ status: 'accepted', accepted_at: nowIso })
-      .eq('id', invite.id);
-
-    return NextResponse.json({ ok: true, businessId: invite.business_id, role: invite.role }, { headers: NO_STORE });
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.status, headers: NO_STORE });
   } catch {
     return NextResponse.json({ ok: false, error: 'accept_failed' }, { status: 500, headers: NO_STORE });
   }

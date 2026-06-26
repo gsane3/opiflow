@@ -6,11 +6,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   createServiceSupabaseClient,
   findValidUploadToken,
-  buildStoragePath,
-  ensureValidUploadFile,
-  UPLOAD_BUCKET,
 } from '@/lib/server/upload-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
+import { AppError } from '@/server/core/errors';
+import { mintSignedUploadUrl } from '@/server/modules/public-upload/public-upload.service';
 
 export const runtime = 'nodejs';
 
@@ -19,12 +18,6 @@ export const runtime = 'nodejs';
 const publicLimiter = makePublicLimiter(60, 60_000, {
   message: 'Πολλά αιτήματα. Δοκιμάστε ξανά σε λίγο.',
 });
-
-function str(val: unknown): string | null {
-  if (typeof val !== 'string') return null;
-  const trimmed = val.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
 
 export async function POST(
   request: NextRequest,
@@ -51,47 +44,20 @@ export async function POST(
     } catch {
       return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
     }
-    if (typeof body !== 'object' || body === null || Array.isArray(body)) {
-      return NextResponse.json({ ok: false, error: 'invalid_body' }, { status: 400 });
-    }
-    const raw = body as Record<string, unknown>;
-
-    const filename = str(raw.filename);
-    const mimeType = str(raw.mimeType);
-    const sizeBytes = typeof raw.sizeBytes === 'number' ? raw.sizeBytes : null;
-
-    if (!filename || !mimeType || sizeBytes === null) {
-      return NextResponse.json({ ok: false, error: 'missing_fields' }, { status: 400 });
-    }
-
-    const validation = ensureValidUploadFile({ filename, mimeType, sizeBytes });
-    if (!validation.valid) {
-      return NextResponse.json({ ok: false, error: validation.error }, { status: 422 });
-    }
-
-    const storagePath = buildStoragePath({
-      businessId: tokenRow.business_id,
-      customerId: tokenRow.customer_id,
-      uploadTokenId: tokenRow.id,
-      filename,
-    });
 
     const supabase = createServiceSupabaseClient();
-    const { data, error } = await supabase.storage
-      .from(UPLOAD_BUCKET)
-      .createSignedUploadUrl(storagePath);
-
-    if (error || !data) {
-      return NextResponse.json({ ok: false, error: 'storage_unavailable' }, { status: 503 });
-    }
+    const result = await mintSignedUploadUrl({ supabase }, tokenRow, body);
 
     return NextResponse.json({
       ok: true,
-      uploadUrl: data.signedUrl,
-      uploadPath: data.path,
-      token: data.token,
+      uploadUrl: result.uploadUrl,
+      uploadPath: result.uploadPath,
+      token: result.token,
     });
-  } catch {
+  } catch (err) {
+    if (err instanceof AppError) {
+      return NextResponse.json({ ok: false, error: err.code }, { status: err.status });
+    }
     return NextResponse.json({ ok: false, error: 'server_error' }, { status: 500 });
   }
 }

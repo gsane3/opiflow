@@ -1,72 +1,55 @@
-// GET/POST /api/businesses/me/bank-accounts — the business's bank accounts
-// (Settings → Τραπεζικά, multiple). Authenticated + business_id-scoped (the lib
-// uses the service role and scopes every query by businessId). The PRIMARY
-// account is mirrored into businesses.bank_* so the customer-facing read paths
-// (payment card / offer PDF) stay unchanged. Tolerant of pre-051 (table absent):
-// GET returns an empty list, POST returns 503 so Settings never hard-breaks.
+// GET/POST /api/businesses/me/bank-accounts — the business's bank accounts.
+//
+// ADOPTED to the modular pattern (src/server/modules/bank-accounts): thin adapter.
+// Manager-gated (owner/admin only — IBANs must not leak to invited members). The IBAN
+// validation + the tolerant lib calls (GET degrades to an empty list pre-051; writes
+// surface bank_unavailable 503) live in the service. Responses byte-identical.
 
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest, requireManager } from '@/lib/api/auth';
-import { listBankAccounts, createBankAccount } from '@/lib/server/bank-accounts';
+import { NextRequest } from 'next/server';
+import { requireBusinessUser, assertManager } from '@/server/core/http';
+import { ok, fail, handleApiError } from '@/server/core/errors';
+import { listAccounts, createAccount } from '@/server/modules/bank-accounts/bank-accounts.service';
 
 export const runtime = 'nodejs';
 
-const MAX_LEN = 200;
-function cleanText(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const t = v.trim();
-  return t.length === 0 ? null : t.length > MAX_LEN ? t.slice(0, MAX_LEN) : t;
-}
-function normalizeIban(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const s = v.replace(/\s+/g, '').toUpperCase();
-  return s.length > 0 ? s : null;
-}
-function isValidIban(s: string): boolean {
-  return /^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(s);
-}
-
 export async function GET(request: NextRequest) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  // Bank IBANs are owner/admin-only (a 'member' must not read or exfiltrate them).
-  const denied = requireManager(auth.ctx);
-  if (denied) return denied;
+  let ctx;
   try {
-    const accounts = await listBankAccounts(auth.ctx.businessId);
-    return NextResponse.json({ ok: true, accounts });
-  } catch {
-    // Pre-051 (table absent) — keep Settings rendering with an empty list.
-    return NextResponse.json({ ok: true, accounts: [] });
+    ctx = await requireBusinessUser(request);
+    assertManager(ctx);
+  } catch (err) {
+    return handleApiError(err);
   }
+  const accounts = await listAccounts(ctx.businessId);
+  return ok({ accounts });
 }
 
 export async function POST(request: NextRequest) {
   const contentType = request.headers.get('content-type') ?? '';
-  if (!contentType.includes('application/json')) {
-    return NextResponse.json({ ok: false, error: 'unsupported_content_type' }, { status: 415 });
+  if (!contentType.includes('application/json')) return fail('unsupported_content_type', 415);
+
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+    assertManager(ctx);
+  } catch (err) {
+    return handleApiError(err);
   }
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const denied = requireManager(auth.ctx);
-  if (denied) return denied;
 
   let body: unknown;
-  try { body = await request.json(); } catch { return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 }); }
-  if (typeof body !== 'object' || body === null || Array.isArray(body)) return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
-  const raw = body as Record<string, unknown>;
-
-  const iban = normalizeIban(raw.iban);
-  if (!iban || !isValidIban(iban)) return NextResponse.json({ ok: false, error: 'invalid_iban' }, { status: 400 });
+  try {
+    body = await request.json();
+  } catch {
+    return fail('invalid_json', 400);
+  }
+  if (typeof body !== 'object' || body === null || Array.isArray(body)) {
+    return fail('invalid_json', 400);
+  }
 
   try {
-    const account = await createBankAccount(auth.ctx.businessId, {
-      beneficiary: cleanText(raw.beneficiary),
-      bankName: cleanText(raw.bank),
-      iban,
-    });
-    return NextResponse.json({ ok: true, account }, { status: 201 });
-  } catch {
-    return NextResponse.json({ ok: false, error: 'bank_unavailable' }, { status: 503 });
+    const account = await createAccount(ctx.businessId, body as Record<string, unknown>);
+    return ok({ account }, 201);
+  } catch (err) {
+    return handleApiError(err);
   }
 }

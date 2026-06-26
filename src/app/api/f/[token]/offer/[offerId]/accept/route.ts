@@ -7,19 +7,23 @@
 // offer-response token route (applyOfferResponse), with tokenId omitted (no
 // offer-response token here) and work_folder_id stamped so it shows on the
 // folder timeline. Service-role only; raw DB errors never leak.
+//
+// Adopted to the public-folder module: the route keeps the token VERIFY +
+// content-type/JSON/response/comment validation verbatim; the offer fetch +
+// applyOfferResponse dispatch move to respondToFolderOffer (service-role,
+// business+folder scoped).
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceSupabaseClient } from '@/lib/server/intake-tokens';
 import { findValidFolderToken } from '@/lib/server/folder-tokens';
 import { makePublicLimiter } from '@/lib/api/rate-limit-guard';
-import { applyOfferResponse, type OfferForResponse } from '@/lib/server/offer-accept';
+import { applyOfferResponse } from '@/lib/server/offer-accept';
+import { respondToFolderOffer } from '@/server/modules/public-folder/public-folder.service';
 
 export const runtime = 'nodejs';
 
 // Writes a row — tighter limit, matching the folder-question route.
 const publicLimiter = makePublicLimiter(10, 60_000);
-
-const OFFER_COLUMNS = 'id, customer_id, offer_number, status, valid_until, notes, total';
 
 export async function POST(
   request: NextRequest,
@@ -76,42 +80,24 @@ export async function POST(
     return NextResponse.json({ ok: false, error: 'offer_response_failed' }, { status: 500 });
   }
 
-  // IDOR-critical: fetch the offer scoped to BOTH the token's business_id AND its
-  // work_folder_id. A wrong/foreign offerId simply yields no row → 404 (no oracle).
-  let offer: OfferForResponse;
-  try {
-    const { data, error } = await supabase
-      .from('offers')
-      .select(OFFER_COLUMNS)
-      .eq('id', offerId)
-      .eq('business_id', tokenRow.business_id)
-      .eq('work_folder_id', tokenRow.work_folder_id)
-      .maybeSingle();
-    if (error) {
-      return NextResponse.json({ ok: false, error: 'offer_response_failed' }, { status: 500 });
-    }
-    if (!data) {
-      return NextResponse.json({ ok: false, error: 'offer_not_found' }, { status: 404 });
-    }
-    offer = data as unknown as OfferForResponse;
-  } catch {
-    return NextResponse.json({ ok: false, error: 'offer_response_failed' }, { status: 500 });
-  }
-
-  // Same shared path as the token route — tokenId omitted (no offer-response
-  // token); stamp work_folder_id so the response lands on the folder timeline.
-  const result = await applyOfferResponse({
-    supabase,
-    businessId: tokenRow.business_id,
-    offer,
+  // IDOR-critical: the service fetches the offer scoped to BOTH the token's
+  // business_id AND its work_folder_id, then runs the SAME shared accept/reject
+  // path as the token route (tokenId omitted; work_folder_id stamped).
+  const result = await respondToFolderOffer(
+    {
+      supabase,
+      businessId: tokenRow.business_id,
+      workFolderId: tokenRow.work_folder_id,
+      tokenId: tokenRow.id,
+      sentChannel: tokenRow.sent_channel,
+    },
+    offerId,
     response,
     comment,
-    sentChannel: tokenRow.sent_channel,
-    tokenId: undefined,
-    workFolderId: tokenRow.work_folder_id,
-  });
+    { applyOfferResponse },
+  );
   if (!result.ok) {
-    return NextResponse.json({ ok: false, error: result.error }, { status: result.httpStatus });
+    return NextResponse.json({ ok: false, error: result.error }, { status: result.status });
   }
 
   return NextResponse.json({

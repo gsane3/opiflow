@@ -1,67 +1,51 @@
-// GET  /api/snippets        → list this business's message snippets (seeds defaults if empty)
-// POST /api/snippets         → create a snippet { title, body }
+// GET  /api/snippets  → list this business's message snippets (seeds defaults if empty)
+// POST /api/snippets  → create a snippet { title, body }
 //
-// Snippets are reusable Greek text templates inserted into the customer chat
-// composer with one tap. See src/lib/server/snippets.ts.
+// ADOPTED to the modular pattern: thin adapter. GET delegates to the existing
+// src/lib/server/snippets seeder; POST validation + insert moved to
+// src/server/modules/snippets. Responses are identical (incl. GET-no-business → []).
 
-import { NextRequest, NextResponse } from 'next/server';
-import { authenticateBusinessRequest } from '@/lib/api/auth';
+import { NextRequest } from 'next/server';
+import { requireBusinessUser } from '@/server/core/http';
+import { ok, fail, handleApiError, AppError } from '@/server/core/errors';
 import { listSnippets } from '@/lib/server/snippets';
+import { createSnippet } from '@/server/modules/snippets/snippets.service';
 
 export const runtime = 'nodejs';
 
-function str(v: unknown): string | null {
-  if (typeof v !== 'string') return null;
-  const t = v.trim();
-  return t.length > 0 ? t : null;
-}
-
 export async function GET(request: NextRequest) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) {
-    if (auth.error.status === 404) return NextResponse.json({ ok: true, snippets: [] });
-    return auth.error;
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    if (err instanceof AppError && err.status === 404) return ok({ snippets: [] });
+    return handleApiError(err);
   }
-  const snippets = await listSnippets(auth.ctx.businessId);
-  return NextResponse.json({ ok: true, snippets });
+  try {
+    const snippets = await listSnippets(ctx.businessId);
+    return ok({ snippets });
+  } catch (err) {
+    return handleApiError(err);
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await authenticateBusinessRequest(request);
-  if ('error' in auth) return auth.error;
-  const { supabase, businessId } = auth.ctx;
-
+  let ctx;
+  try {
+    ctx = await requireBusinessUser(request);
+  } catch (err) {
+    return handleApiError(err);
+  }
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ ok: false, error: 'invalid_json' }, { status: 400 });
+    return fail('invalid_json', 400);
   }
-  const raw = body as Record<string, unknown>;
-  const title = str(raw.title);
-  const text = str(raw.body);
-  if (!title || !text) {
-    return NextResponse.json({ ok: false, error: 'title_and_body_required' }, { status: 400 });
+  try {
+    const snippet = await createSnippet(ctx, body as Record<string, unknown>);
+    return ok({ snippet });
+  } catch (err) {
+    return handleApiError(err);
   }
-  if (title.length > 80 || text.length > 1000) {
-    return NextResponse.json({ ok: false, error: 'too_long' }, { status: 400 });
-  }
-
-  // Append at the end of the list.
-  const { count } = await supabase
-    .from('message_snippets')
-    .select('id', { count: 'exact', head: true })
-    .eq('business_id', businessId);
-
-  const { data, error } = await supabase
-    .from('message_snippets')
-    .insert({ business_id: businessId, title, body: text, sort_order: count ?? 0 })
-    .select('id, title, body, sort_order')
-    .single();
-
-  if (error || !data) {
-    return NextResponse.json({ ok: false, error: 'create_failed' }, { status: 500 });
-  }
-  const r = data as { id: string; title: string; body: string; sort_order: number };
-  return NextResponse.json({ ok: true, snippet: { id: r.id, title: r.title, body: r.body, sortOrder: r.sort_order } });
 }

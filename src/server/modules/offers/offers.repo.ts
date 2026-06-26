@@ -4,19 +4,25 @@ import { AppError } from '../../core/errors';
 import { tenantDb, type TenantContext } from '../../core/tenant';
 import type { createServerSupabaseClient } from '../../../lib/supabase/server';
 import { buildOfferCode } from '../../../lib/offer-code';
+import { createServiceSupabaseClient } from '../../../lib/server/offer-response-tokens';
 import {
   ITEM_COLUMNS,
   OFFER_COLUMNS,
   type OfferItemRow,
   type OfferRow,
 } from './offers.types';
-import type { ListOffersQuery } from './offers.schema';
-
 export type RepoContext = TenantContext & {
   supabase: ReturnType<typeof createServerSupabaseClient>;
 };
 
-export async function listOfferRows(ctx: RepoContext, query: ListOffersQuery): Promise<OfferRow[]> {
+export interface ListOfferRowsParams {
+  status?: string;
+  customerId?: string;
+  limit: number;
+  offset: number;
+}
+
+export async function listOfferRows(ctx: RepoContext, query: ListOfferRowsParams): Promise<OfferRow[]> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   let qb = db.from('offers').select(OFFER_COLUMNS);
   if (query.status) qb = qb.eq('status', query.status);
@@ -69,6 +75,123 @@ export async function insertOfferItems(
 export async function deleteOfferById(ctx: RepoContext, id: string): Promise<void> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   await db.from('offers').delete().eq('id', id);
+}
+
+// --- single-offer reads/writes for /api/offers/[id] (GET/PATCH/DELETE) -------
+
+/** Fetch one offer by id (GET). DB error → offer_query_failed; null when no row. */
+export async function getOfferRowById(ctx: RepoContext, id: string): Promise<OfferRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('offers').byId(id, OFFER_COLUMNS).maybeSingle();
+  if (error) throw new AppError('offer_query_failed', 500);
+  return (data as unknown as OfferRow) ?? null;
+}
+
+/** Fetch one offer by id for the PATCH ownership/vat-rate read. DB error → offer_update_failed; null when no row. */
+export async function fetchOfferRowForUpdate(ctx: RepoContext, id: string): Promise<OfferRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('offers').byId(id, OFFER_COLUMNS).maybeSingle();
+  if (error) throw new AppError('offer_update_failed', 500);
+  return (data as unknown as OfferRow) ?? null;
+}
+
+/** Items for a single offer, ordered by sort_order (tenant-scoped). */
+export async function fetchItemsForOffer(ctx: RepoContext, offerId: string): Promise<OfferItemRow[]> {
+  const map = await fetchItemsForOffers(ctx, [offerId]);
+  return map[offerId] ?? [];
+}
+
+/** Full-replace an offer's items (delete-all + insert). DB error → offer_update_failed. */
+export async function replaceOfferItems(
+  ctx: RepoContext,
+  offerId: string,
+  rows: Record<string, unknown>[],
+): Promise<OfferItemRow[]> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error: deleteError } = await db.from('offer_items').delete().eq('offer_id', offerId);
+  if (deleteError) throw new AppError('offer_update_failed', 500);
+  const { data, error } = await db.from('offer_items').insert(rows).select(ITEM_COLUMNS);
+  if (error || !data) throw new AppError('offer_update_failed', 500);
+  return (data as unknown[]).map((r) => r as OfferItemRow);
+}
+
+/** Apply a partial update to one offer. DB error → offer_update_failed; null when no row. */
+export async function updateOfferRow(
+  ctx: RepoContext,
+  id: string,
+  fields: Record<string, unknown>,
+): Promise<OfferRow | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db
+    .from('offers')
+    .update(fields)
+    .eq('id', id)
+    .select(OFFER_COLUMNS)
+    .maybeSingle();
+  if (error) throw new AppError('offer_update_failed', 500);
+  return (data as unknown as OfferRow) ?? null;
+}
+
+/** True if the offer exists for this tenant. DB error → offer_delete_failed (the DELETE path). */
+export async function findOfferExists(ctx: RepoContext, id: string): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('offers').byId(id, 'id').maybeSingle();
+  if (error) throw new AppError('offer_delete_failed', 500);
+  return data !== null && data !== undefined;
+}
+
+/** Remove an offer's FK dependents (response tokens) via the service client. Best-effort (caller swallows). */
+export async function deleteOfferResponseTokens(businessId: string, offerId: string): Promise<void> {
+  const service = createServiceSupabaseClient();
+  await service.from('offer_response_tokens').delete().eq('offer_id', offerId).eq('business_id', businessId);
+}
+
+/** Detach any tasks pointing at this offer (FK SET NULL), tenant-scoped. Best-effort. */
+export async function detachTasksFromOffer(ctx: RepoContext, offerId: string): Promise<void> {
+  await ctx.supabase
+    .from('tasks')
+    .update({ offer_id: null })
+    .eq('offer_id', offerId)
+    .eq('business_id', ctx.businessId);
+}
+
+/** Hard-delete one offer (after dependents cleared). DB error → offer_delete_failed. */
+export async function deleteOfferRowChecked(ctx: RepoContext, id: string): Promise<void> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('offers').delete().eq('id', id);
+  if (error) throw new AppError('offer_delete_failed', 500);
+}
+
+// --- response-link (POST /api/offers/[id]/response-link) ---------------------
+
+/** True if the offer exists for this tenant. DB error → response_link_failed (the link path). */
+export async function offerExistsForLink(ctx: RepoContext, id: string): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data, error } = await db.from('offers').byId(id, 'id').maybeSingle();
+  if (error) throw new AppError('response_link_failed', 500);
+  return data !== null && data !== undefined;
+}
+
+/**
+ * Revoke any existing pending/sent response tokens for an offer (service client, since
+ * offer_response_tokens is RLS-protected). Any failure → response_link_failed.
+ */
+export async function revokeOfferTokensForLink(businessId: string, offerId: string): Promise<void> {
+  try {
+    const service = createServiceSupabaseClient();
+    const now = new Date().toISOString();
+    const { error } = await service
+      .from('offer_response_tokens')
+      .update({ status: 'revoked', revoked_at: now, updated_at: now })
+      .eq('business_id', businessId)
+      .eq('offer_id', offerId)
+      .in('status', ['pending', 'sent'])
+      .is('revoked_at', null);
+    if (error) throw new AppError('response_link_failed', 500);
+  } catch (err) {
+    if (err instanceof AppError) throw err;
+    throw new AppError('response_link_failed', 500);
+  }
 }
 
 export async function customerExists(ctx: RepoContext, id: string): Promise<boolean> {
