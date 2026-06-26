@@ -19,7 +19,7 @@ import {
   createPortalSession,
   findCustomerIdByEmail,
 } from '../../../lib/billing/stripe';
-import { getUserEmail, type SupabaseServer } from './billing.repo';
+import { getStripeCustomerId, getUserEmail, type SupabaseServer } from './billing.repo';
 
 export type CheckoutResult =
   | { kind: 'ok'; url: string }
@@ -54,21 +54,27 @@ export type PortalResult =
   | { kind: 'portal_failed' };
 
 /**
- * Open the Stripe customer billing portal for the caller. Mirrors the route's
- * exact branch order: resolve email (→ no_email 400) → find customer by email
- * (→ no_customer 404) → create portal session (→ portal_failed 502 unless a
- * string `url`).
+ * Open the Stripe customer billing portal for the caller. Resolution order:
+ *   1. The stripe_customer_id stored on the business's subscription (RELIABLE —
+ *      persisted by the webhook; immune to email drift).
+ *   2. Fallback for legacy subscriptions whose id wasn't persisted: the user's
+ *      email → Stripe customer lookup (→ no_email 400 / no_customer 404).
+ * Then create the portal session (→ portal_failed 502 unless a string `url`).
  */
 export async function startPortal(opts: {
   supabase: SupabaseServer;
   userId: string;
+  businessId: string;
   origin: string;
 }): Promise<PortalResult> {
-  const email = await getUserEmail(opts.supabase, opts.userId);
-  if (!email) return { kind: 'no_email' };
+  let customerId = await getStripeCustomerId(opts.supabase, opts.businessId);
 
-  const customerId = await findCustomerIdByEmail(email);
-  if (!customerId) return { kind: 'no_customer' };
+  if (!customerId) {
+    const email = await getUserEmail(opts.supabase, opts.userId);
+    if (!email) return { kind: 'no_email' };
+    customerId = await findCustomerIdByEmail(email);
+    if (!customerId) return { kind: 'no_customer' };
+  }
 
   const result = await createPortalSession({
     customerId,

@@ -20,10 +20,20 @@ const mockCheckout = createCheckoutSession as unknown as ReturnType<typeof vi.fn
 const mockPortal = createPortalSession as unknown as ReturnType<typeof vi.fn>;
 const mockFind = findCustomerIdByEmail as unknown as ReturnType<typeof vi.fn>;
 
-// Fake supabase service client exposing only auth.admin.getUserById.
-function fakeSupabase(getUserById: () => unknown): SupabaseServer {
+// Fake supabase service client: auth.admin.getUserById + a from() that returns the
+// (configurable) stored stripe_customer_id for the billing_subscriptions lookup.
+function fakeSupabase(getUserById: () => unknown, storedCustomerId: string | null = null): SupabaseServer {
   return {
     auth: { admin: { getUserById: vi.fn(async () => getUserById()) } },
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({
+            data: storedCustomerId ? { stripe_customer_id: storedCustomerId } : null,
+          }),
+        }),
+      }),
+    }),
   } as unknown as SupabaseServer;
 }
 
@@ -59,34 +69,44 @@ describe('startCheckout (parity)', () => {
   });
 });
 
-describe('startPortal (parity)', () => {
+describe('startPortal (parity + stored customer id)', () => {
+  // No stored stripe_customer_id → falls back to the email path (legacy behaviour).
   const supabase = fakeSupabase(() => ({ data: { user: { email: 'owner@test.gr' } } }));
 
-  it('returns ok with the portal url on the happy path', async () => {
+  it('PREFERS the stored stripe_customer_id and skips the email lookup', async () => {
+    const withStored = fakeSupabase(() => ({ data: { user: { email: 'owner@test.gr' } } }), 'cus_stored');
+    mockPortal.mockResolvedValue({ ok: true, status: 200, data: { url: 'https://stripe/portal' } });
+    const res = await startPortal({ supabase: withStored, userId: 'u1', businessId: 'b1', origin: 'https://app.test' });
+    expect(res).toEqual({ kind: 'ok', url: 'https://stripe/portal' });
+    expect(mockFind).not.toHaveBeenCalled(); // email lookup bypassed
+    expect(mockPortal).toHaveBeenCalledWith({ customerId: 'cus_stored', returnUrl: 'https://app.test/settings' });
+  });
+
+  it('falls back to the email lookup when no stripe_customer_id is stored', async () => {
     mockFind.mockResolvedValue('cus_123');
     mockPortal.mockResolvedValue({ ok: true, status: 200, data: { url: 'https://stripe/portal' } });
-    const res = await startPortal({ supabase, userId: 'u1', origin: 'https://app.test' });
+    const res = await startPortal({ supabase, userId: 'u1', businessId: 'b1', origin: 'https://app.test' });
     expect(res).toEqual({ kind: 'ok', url: 'https://stripe/portal' });
     expect(mockFind).toHaveBeenCalledWith('owner@test.gr');
     expect(mockPortal).toHaveBeenCalledWith({ customerId: 'cus_123', returnUrl: 'https://app.test/settings' });
   });
 
-  it('returns no_email when the user has no email', async () => {
+  it('returns no_email when there is no stored id AND the user has no email', async () => {
     const noEmail = fakeSupabase(() => ({ data: { user: { email: null } } }));
-    const res = await startPortal({ supabase: noEmail, userId: 'u1', origin: 'https://app.test' });
+    const res = await startPortal({ supabase: noEmail, userId: 'u1', businessId: 'b1', origin: 'https://app.test' });
     expect(res).toEqual({ kind: 'no_email' });
     expect(mockFind).not.toHaveBeenCalled();
   });
 
   it('returns no_email when the admin lookup throws (swallowed → null)', async () => {
     const boom = fakeSupabase(() => { throw new Error('boom'); });
-    const res = await startPortal({ supabase: boom, userId: 'u1', origin: 'https://app.test' });
+    const res = await startPortal({ supabase: boom, userId: 'u1', businessId: 'b1', origin: 'https://app.test' });
     expect(res).toEqual({ kind: 'no_email' });
   });
 
-  it('returns no_customer when no Stripe customer matches the email', async () => {
+  it('returns no_customer when no stored id and no Stripe customer matches the email', async () => {
     mockFind.mockResolvedValue(null);
-    const res = await startPortal({ supabase, userId: 'u1', origin: 'https://app.test' });
+    const res = await startPortal({ supabase, userId: 'u1', businessId: 'b1', origin: 'https://app.test' });
     expect(res).toEqual({ kind: 'no_customer' });
     expect(mockPortal).not.toHaveBeenCalled();
   });
@@ -94,7 +114,7 @@ describe('startPortal (parity)', () => {
   it('returns portal_failed when the portal session url is not a string', async () => {
     mockFind.mockResolvedValue('cus_123');
     mockPortal.mockResolvedValue({ ok: true, status: 200, data: { url: null } });
-    const res = await startPortal({ supabase, userId: 'u1', origin: 'https://app.test' });
+    const res = await startPortal({ supabase, userId: 'u1', businessId: 'b1', origin: 'https://app.test' });
     expect(res).toEqual({ kind: 'portal_failed' });
   });
 });
