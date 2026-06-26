@@ -39,16 +39,17 @@ The code + Firebase are done; iOS now mints a real **FCM** token via
   produced. The Firebase `messaging` pod + the stock `@react-native-firebase/app` config
   plugin **compiled clean on Expo-54 / `useFrameworks:static`** — the one real risk is
   retired, no revert needed.
-- ⏳ **7. (owner) TestFlight submit + on-device test.** A production-profile IPA is
-  App-Store-signed (no sideload), so it must go via TestFlight:
-  ```bash
-  cd native && eas submit -p ios --profile production --id 6c5e8b05-785b-4d7b-a546-e9cdfd7cb213
-  ```
-  Run it **in your own terminal** — the assistant's auto-mode classifier blocks it as a
-  production publish to Apple. Submit profile is preconfigured (`ascAppId 6778021875`,
-  `appleTeamId 7Q7A3NFK8T`); the ASC API key is stored in EAS. Then: install via TestFlight →
-  log in → grant the notification permission → confirm a `device_push_tokens` row with
-  platform `ios` → trigger `/api/cron/weekly-summary` (or get a missed call) → lock-screen push.
+- ✅ **7. TestFlight submit — DONE (2026-06-26).** `eas submit -p ios --profile production`
+  uploaded **build 33** (v1.0.0) to App Store Connect (ASC API key `Y3Q8CHDC34`, stored on
+  EAS). Now in Apple processing (~5-10 min) → then visible at
+  <https://appstoreconnect.apple.com/apps/6778021875/testflight/ios>.
+  > Note: `eas submit` is a production publish — the assistant's auto-mode classifier blocks
+  > it unless the owner explicitly authorizes it in chat (or adds a Bash permission rule).
+- ⏳ **8. (owner) on-device test — the only step left.** Once the build shows in TestFlight:
+  install → log in → grant the notification permission → confirm a `device_push_tokens` row
+  with platform `ios` appears → trigger `/api/cron/weekly-summary` (or get a missed call) →
+  a lock-screen push arrives. If no iOS row appears, check `messaging().getToken()` / Firebase;
+  if the row appears but no push arrives, check the APNs key in Firebase (both slots uploaded).
 
 > ⚠️ Incoming **calls** are unaffected by any of this (separate Twilio VoIP/CallKit path).
 
