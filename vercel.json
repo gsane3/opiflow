@@ -6,6 +6,7 @@
     { "path": "/api/cron/scheduled-messages", "schedule": "45 7 * * *" },
     { "path": "/api/cron/recordings-reconcile", "schedule": "30 7 * * *" },
     { "path": "/api/cron/folder-unread-reminder", "schedule": "15 8 * * *" },
-    { "path": "/api/cron/weekly-summary", "schedule": "0 8 * * 1" }
+    { "path": "/api/cron/weekly-summary", "schedule": "0 8 * * 1" },
+    { "path": "/api/cron/outbox", "schedule": "0 9 * * *" }
   ]
 }
