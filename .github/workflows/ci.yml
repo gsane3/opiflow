@@ -1,0 +1,59 @@
+name: CI
+
+# Local gates, now automated. Runs on every PR to master and on master itself.
+# Web job: typecheck + unit tests + production build. Native job: typecheck.
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+# A newer push to the same branch/PR cancels the in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web — tsc · vitest · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npx vitest run
+      - name: Production build
+        run: npx next build
+        env:
+          # Placeholders so `next build` static analysis never fails on a missing
+          # public env var. The build does NOT connect anywhere — these only need
+          # to be present. If a future build step needs a real value, add it as a
+          # GitHub Secret and reference it here.
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: placeholder-service-role-key
+          NEXT_TELEMETRY_DISABLED: '1'
+
+  native:
+    name: Native — tsc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: native/package-lock.json
+      - name: Install (native)
+        working-directory: native
+        run: npm ci
+      - name: Typecheck (native)
+        working-directory: native
+        run: npx tsc --noEmit
