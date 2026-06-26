@@ -5,7 +5,7 @@
 > να καταλάβει το σύστημα μέσα σε μισή ώρα. Είναι θεμελιωμένο στον πραγματικό κώδικα
 > (όχι θεωρητικό). Η «ζωντανή» κατάσταση του project κρατιέται στο `PROJECT_STATE.md`.
 >
-> **Τελευταία ενημέρωση:** 2026-06-25
+> **Τελευταία ενημέρωση:** 2026-06-26
 
 ---
 
@@ -83,18 +83,26 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
   Είναι **R&D / αρχείο**, **όχι** η εφαρμογή που κυκλοφορεί. Η ζωντανή native app είναι το Expo.
 
 ### 3.3 Backend API — ~100 Next.js Route Handlers (`src/app/api/**`)
-- Δεν υπάρχει ξεχωριστός server ούτε ORM. Κάθε endpoint είναι ένα αρχείο `route.ts`
-  (runtime = Node.js) που μιλάει στο Supabase.
+- Δεν υπάρχει ξεχωριστός server ούτε ORM. Κάθε endpoint είναι ένα **«λεπτό» (thin)** `route.ts`
+  (runtime = Node.js) με σταθερό σχήμα: **auth → parse → κλήση service → χαρτογράφηση σφάλματος**.
+  Η επιχειρηματική λογική και τα DB queries ζουν σε **modules** (`src/server/modules/<domain>/`,
+  χωρισμένα σε `service` + `repo`), πάνω σε κοινά θεμέλια στο `src/server/core/` (`errors.ts` =
+  `AppError`/`handleApiError`/`ok`/`fail`, `http.ts` = `requireBusinessUser`, `tenant.ts` =
+  `tenantDb`). *(Modular-monolith refactor — **live από 26/6/2026**· **byte-identical** συμπεριφορά,
+  μόνο αναδιοργάνωση του κώδικα — όχι αλλαγή λειτουργίας.)*
 - **Πολύ σημαντικό:** ο backend συνδέεται στη βάση με το **service-role key** του Supabase,
   που **παρακάμπτει** το Row Level Security. Άρα η **απομόνωση μεταξύ επιχειρήσεων (multi-tenant)
-  γίνεται μέσα στον κώδικα**: κάθε query φιλτράρει ρητά με `business_id`. (Το RLS υπάρχει σαν
-  δεύτερη γραμμή άμυνας, αλλά στην πράξη η ασφάλεια στηρίζεται στο φίλτρο του κώδικα.)
+  γίνεται μέσα στον κώδικα**: κάθε query φιλτράρει με `business_id`. Μετά το refactor αυτό γίνεται
+  **δομικά** μέσω του **`tenantDb`** (αυτόματο `.eq('business_id')` σε κάθε select/insert/update/
+  delete), που μειώνει το ρίσκο να ξεχαστεί ένα φίλτρο. (Το RLS υπάρχει σαν δεύτερη γραμμή άμυνας,
+  αλλά στην πράξη η ασφάλεια στηρίζεται στο φίλτρο του κώδικα.)
 - Τρεις «πόρτες» εισόδου: (1) **authenticated** endpoints (Supabase JWT → χρήστης → επιχείρηση
   → ρόλος), (2) **δημόσια** endpoints πελάτη με **μυστικό token στο URL** (χωρίς login),
   (3) **webhooks** μηχανών (Stripe/Twilio/PBX/Apifon) που επαληθεύονται με υπογραφή/secret.
 
 ### 3.4 Βάση — Supabase (PostgreSQL) + Auth + Storage
-- Μία βάση, ~**38 πίνακες**, σε **62 χειρόγραφα SQL migrations** (`supabase/migrations/001..062`).
+- Μία βάση, ~**39 πίνακες**, σε **63 χειρόγραφα SQL migrations** (`supabase/migrations/001..063`).
+  (Το `063_outbox_events` εφαρμόστηκε 26/6/2026 — υποστηρίζει το dormant jobs/outbox.)
 - ⚠️ Τα migrations εφαρμόζονται **με το χέρι** στον Supabase SQL editor (όχι `supabase db push`).
   Γι' αυτό ο κώδικας είναι γραμμένος «ανθεκτικά»: αν λείπει μια καινούρια στήλη/πίνακας, η
   εφαρμογή **υποβαθμίζεται** αντί να σκάσει.
@@ -196,7 +204,7 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
 |---|---|---|
 | Web frontend | **Next.js 16 (App Router), React 19, TypeScript** | Owner app + δημόσιο portal |
 | Styling | **Tailwind CSS v4** + custom `opiflow-proto.css` | UI / brand |
-| Backend | **Next.js Route Handlers** (Node runtime) | ~100 REST endpoints, όλη η λογική |
+| Backend | **Next.js Route Handlers** (Node runtime) | ~100 thin REST endpoints· λογική στα `src/server/modules` |
 | Βάση | **Supabase / PostgreSQL** | Δεδομένα, Auth, Storage |
 | Auth | **Supabase Auth** (+ Google/Apple OAuth) | Ταυτότητα χρήστη |
 | Πληρωμές | **Stripe** (hosted Checkout, REST χωρίς SDK) | Συνδρομές |
@@ -214,7 +222,7 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
 | Παρακολούθηση | **Sentry** | Error monitoring |
 | Rate-limit | **Upstash Redis** (προαιρετικό) | Όρια ρυθμού API |
 | Builds/Stores | **EAS/Expo**, **Codemagic**, App Store Connect, Google Play | Διανομή native |
-| Έλεγχος ποιότητας | **Vitest** (291 tests), `tsc`, `next build` | Local gates (χωρίς CI) |
+| Έλεγχος ποιότητας | **Vitest** (912 tests), `tsc`, `next build` | Local gates (χωρίς CI) |
 | Source control | **GitHub** (`gsane3/opiflow`) | Κώδικας / PR-based deploy |
 
 ---
@@ -247,7 +255,6 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
 | **Codemagic** | CI/CD για το (legacy) Capacitor | `codemagic.yaml` |
 | **App Store Connect / Google Play** | Διανομή iOS/Android | `eas.json` submit · bundle `ai.opiflow.app` |
 | **Google Maps** | Άνοιγμα διεύθυνσης πελάτη (μόνο deep-link, χωρίς API key) | — |
-| **Telnyx** | *Αδρανές* εφεδρικό webhook παρόχου (δεν χρησιμοποιείται) | `TELNYX_WEBHOOK_*` |
 | **GitHub** | Source control + PR-based deploy | repo `gsane3/opiflow` |
 
 ---
@@ -273,7 +280,10 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
 1. **Η απομόνωση μεταξύ επιχειρήσεων στηρίζεται στον κώδικα.** Ο backend χρησιμοποιεί το
    service-role key (παρακάμπτει το RLS). Αν ξεχαστεί **ένα** φίλτρο `business_id` σε ένα query,
    θα μπορούσαν να διαρρεύσουν δεδομένα άλλου πελάτη. Μετριασμός: κεντρικά helpers
-   (`authenticateBusinessRequest`, token helpers) + composite foreign keys στη βάση.
+   (`authenticateBusinessRequest`, token helpers) + composite foreign keys στη βάση + — μετά το
+   refactor (6/2026) — ο **`tenantDb`** wrapper (`src/server/core/tenant.ts`) που εφαρμόζει το
+   φίλτρο `business_id` **δομικά** σε κάθε query των adopted routes. Μειώνει σημαντικά, αλλά δεν
+   εξαλείφει, το ρίσκο (εξαίρεση: ο πίνακας `businesses` που έχει PK = `id`, χρησιμοποιεί raw client).
 2. **Το `SUPABASE_SERVICE_ROLE_KEY` είναι το «κύριο κλειδί»** όλου του συστήματος (βάση +
    storage + admin auth). Δεν πρέπει ποτέ να φτάσει στον client.
 3. **Η ρύθμιση του PBX ζει μόνο στο μηχάνημα Hetzner — όχι στο git.** Αν χαθεί ο server,
@@ -281,8 +291,8 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
    τεκμηρίωση + backup + (ιδανικά) infrastructure-as-code.
 4. **Τα DB migrations εφαρμόζονται με το χέρι.** Δεν υπάρχει αυτόματο ιστορικό «τι είναι live».
    Πιθανό drift μεταξύ git και πραγματικής βάσης (ο κώδικας το αντέχει, αλλά είναι ρίσκο).
-5. **Δεν υπάρχει αυτόματο CI** — τα gates (`tsc` + 291 Vitest + `next build`) τρέχουν τοπικά
-   πριν το PR. Καλό πρώτο έργο για έναν νέο μηχανικό: να μπει CI.
+5. **Δεν υπάρχει αυτόματο CI** — τα gates (`tsc` + 912 Vitest + `next build`) τρέχουν τοπικά
+   πριν το PR. Καλό πρώτο έργο για έναν νέο μηχανικό: να μπει CI (`.github/workflows/ci.yml`).
 6. **Rate-limiting** είναι per-instance (in-memory) εκτός αν ρυθμιστεί το Upstash.
 7. **iOS killed-app calls = δουλεύουν** (επιβεβαιωμένο σε production). Το ξεχωριστό εκκρεμές
    είναι το **non-call push notifications** στο iOS (expo-notifications/FCM) — θέλει ρύθμιση
@@ -310,12 +320,16 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
 
 1. **`PROJECT_STATE.md`** — η ζωντανή «αλήθεια» του project (changelog, IDs, ανοιχτά θέματα).
 2. **`AGENTS.md`** — οι βασικοί κανόνες/περιορισμοί.
-3. **`src/lib/api/auth.ts`** — πώς γίνεται authentication & tenant isolation.
-4. **`src/app/api/**`** — όλα τα endpoints.
+3. **`src/lib/api/auth.ts`** — authentication & tenant isolation (το θεμέλιο)· **και** το νέο
+   layer που καλούν τα routes: **`src/server/core/`** (`http.ts` = `requireBusinessUser`,
+   `tenant.ts` = `tenantDb`, `errors.ts` = `AppError`/`handleApiError`).
+4. **`src/app/api/**`** — όλα τα endpoints (πλέον **thin**)· η **λογική** ζει στα
+   **`src/server/modules/<domain>/`** (`service` + `repo`).
 5. **`supabase/migrations/*.sql`** — το data model (η μόνη πηγή για το schema).
 6. **`docs/PBX_SETUP_FOR_INTERTELECOM.md`**, **`docs/CALL_RECORDING_DISCLOSURE.md`**,
    **`docs/INCOMING_CALLS_BACKGROUND.md`** — η τηλεφωνία.
-7. **`docs/MVP_READINESS_AUDIT.md`** — ο τελευταίος έλεγχος ετοιμότητας.
+7. **`docs/MVP_READINESS_AUDIT.md`** — έλεγχος ετοιμότητας (⚠️ **snapshot 2026-06-24**· αρκετά
+   από τα P0 του διορθώθηκαν έκτοτε στα PRs A–E — δες το `PROJECT_STATE.md` για το σημερινό state).
 
 ---
 
@@ -387,7 +401,6 @@ backend. Η **τηλεφωνία** είναι ένα ξεχωριστό, πιο 
 - **Google Maps** (μόνο deep-links, χωρίς API key) — δωρεάν.
 - **GitHub** — δωρεάν στην τρέχουσα χρήση.
 - **Codemagic** — free tier 500 λεπτά build/μήνα (μόνο για το legacy Capacitor).
-- **Telnyx** — αδρανές, $0.
 
 ### 11.4 Σημαντικές σημειώσεις
 
