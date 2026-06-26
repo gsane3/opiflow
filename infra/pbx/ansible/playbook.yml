@@ -1,0 +1,78 @@
+---
+# Opiflow PBX provisioning (scaffold).
+# Brings a fresh Ubuntu host to a working Asterisk PBX that runs the per-business
+# config generator on a per-minute cron. Secrets come from Ansible Vault — never
+# commit them in plaintext. Run: ansible-playbook -i inventory.ini playbook.yml --ask-vault-pass
+#
+# TODO(extract): the base /etc/asterisk config (trunk registration + the
+# from-intertelecom / from-twilio / from-webrtc base contexts) is hand-applied on
+# the current box and not yet in git. Do the read-only dump in RESTORE_RUNBOOK.md,
+# drop the files under infra/pbx/asterisk/, then enable the "Deploy base Asterisk
+# config" task below.
+
+- name: Provision Opiflow Asterisk PBX
+  hosts: pbx
+  become: true
+  vars:
+    opiflow_dir: /opt/opiflow
+    sip_env_path: /etc/opiflow/sip.env
+    # Provide these via Ansible Vault (group_vars/pbx/vault.yml), NOT here:
+    #   vault_sip_cred_enc_key, vault_pbx_webhook_secret, vault_intertelecom_trunk_password
+  tasks:
+    - name: Install Asterisk + tooling
+      ansible.builtin.apt:
+        name: [asterisk, python3, python3-pip, ffmpeg, flock]
+        state: present
+        update_cache: true
+
+    - name: Ensure Opiflow dirs exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0750"
+      loop:
+        - "{{ opiflow_dir }}"
+        - /etc/opiflow
+
+    - name: Deploy the per-business config generator
+      ansible.builtin.copy:
+        src: ../../../scripts/provision-asterisk.py
+        dest: "{{ opiflow_dir }}/provision-asterisk.py"
+        mode: "0750"
+
+    - name: Write sip.env from Vault (secrets)
+      ansible.builtin.copy:
+        dest: "{{ sip_env_path }}"
+        mode: "0600"
+        content: |
+          SIP_CRED_ENC_KEY={{ vault_sip_cred_enc_key }}
+          PBX_WEBHOOK_SECRET={{ vault_pbx_webhook_secret }}
+          # SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY for the provisioner's DB reads:
+          SUPABASE_URL={{ vault_supabase_url | default('') }}
+          SUPABASE_SERVICE_ROLE_KEY={{ vault_supabase_service_role_key | default('') }}
+
+    # - name: Deploy base Asterisk config (enable after TODO(extract))
+    #   ansible.builtin.copy:
+    #     src: ../asterisk/
+    #     dest: /etc/asterisk/
+    #     mode: "0640"
+    #   notify: reload asterisk
+
+    - name: Install the per-minute provisioning cron (flock-guarded)
+      ansible.builtin.cron:
+        name: opiflow-provision
+        minute: "*"
+        job: >-
+          flock -n /tmp/opiflow-provision.lock
+          /usr/bin/python3 {{ opiflow_dir }}/provision-asterisk.py
+          >> /var/log/opiflow-provision.log 2>&1
+
+    - name: Enable + start Asterisk
+      ansible.builtin.service:
+        name: asterisk
+        enabled: true
+        state: started
+
+  handlers:
+    - name: reload asterisk
+      ansible.builtin.command: asterisk -rx "core reload"

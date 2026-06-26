@@ -8,6 +8,9 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
+    "db:types": "supabase gen types typescript --project-id oluhmztfimmgmbxoioea --schema public > src/server/db/database.types.ts",
+    "db:schema": "node scripts/build-schema.mjs",
+    "db:schema:check": "node scripts/build-schema.mjs --check",
     "cap:sync": "cap sync",
     "cap:assets": "capacitor-assets generate",
     "cap:android": "cap open android",
@@ -29,7 +32,8 @@
     "next": "16.2.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "twilio": "^6.0.2"
+    "twilio": "^6.0.2",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",
