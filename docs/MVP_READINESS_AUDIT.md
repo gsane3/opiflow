@@ -1,5 +1,12 @@
 # Opiflow — MVP Market-Readiness Audit
 
+> ⚠️ **SNAPSHOT — 2026-06-24· μερικώς ξεπερασμένο.** Έκτοτε: (α) αρκετά από τα P0 παρακάτω
+> **διορθώθηκαν** στα PRs A–E — P0-1/P0-2 (pricing + monetization), P0-3 (store badges), P0-4
+> (observability/Sentry), P0-6 (role enforcement), P0-7 (Stripe webhook), P0-8 (GDPR delete)·
+> (β) έγινε το modular-monolith refactor (**live 26/6/2026**, byte-identical)· το test baseline
+> είναι πλέον **912 / 91 files** (όχι 291/28). Χρησιμοποίησέ το ως **ιστορικό checklist** — για
+> το σημερινό state δες πάντα το `PROJECT_STATE.md`.
+
 **Date:** 2026-06-24 · **Method:** 11-dimension multi-agent audit (each auditor read the real
 codebase) + adversarial verification of every critical/high finding. 6 dimensions completed with
 full agency-grade depth (security, API/data, public surface, features, reliability, market); 5 hit

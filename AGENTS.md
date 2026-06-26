@@ -16,4 +16,4 @@ updated before every `/compact`** and after any significant change.
 ## Working rules
 - Ship via PR → merge to `master` (direct push to master is blocked); `next build` must be green.
 - The assistant **cannot read `.env.local` or handle raw secrets** — the user places them.
-- Brand accent = emerald `#00C499` (mapped onto the `indigo-*` Tailwind scale in `globals.css`).
+- Brand accent = water-blue `#2A86C5` (mapped onto the `indigo-*` Tailwind scale in `globals.css`).
