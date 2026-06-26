@@ -6,6 +6,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-firebase/app": "^24.1.1",
+    "@react-native-firebase/messaging": "^24.1.1",
     "@supabase/supabase-js": "^2.108.1",
     "@twilio/voice-react-native-sdk": "2.0.0-preview.2",
     "base64-arraybuffer": "^1.0.2",
