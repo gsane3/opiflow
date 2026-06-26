@@ -21,11 +21,28 @@ always rang via Twilio VoIP/CallKit — this is the *other* notifications.
 2. Confirm a row appears in `device_push_tokens` (platform `android`).
 3. Trigger `/api/cron/weekly-summary` (or get a missed call) → a lock-screen push.
 
-## iOS — enablement runbook (currently skipped on purpose)
-`registerPushToken()` **no-ops on iOS** because `getDevicePushTokenAsync()` returns a
-raw **APNs** token there, which the FCM-v1 backend cannot target. iOS needs a real
-**FCM** token, which means Firebase-iOS + `@react-native-firebase/messaging`. Follow
-these in order — steps 1–2 + 6 are yours (credentials/build); 3–5 are code.
+## iOS — wired (2026-06-26); only an EAS build remains
+The code + Firebase are done; iOS now mints a real **FCM** token via
+`@react-native-firebase/messaging` (`messaging().getToken()`). Status of each step:
+
+- ✅ **1. Firebase iOS app** «Opiflow iOS» (`ai.opiflow.app`) + `GoogleService-Info.plist`
+  committed at `native/GoogleService-Info.plist`.
+- ✅ **2. APNs Auth Key** (`2Q2FHTPV4U` / Team `7Q7A3NFK8T`) uploaded to Firebase →
+  Cloud Messaging, **both** Development and Production slots.
+- ✅ **3. `@react-native-firebase/messaging@24.1.1`** added (matches `app`).
+- ✅ **4. Config plugin** switched from android-only to the stock
+  `"@react-native-firebase/app"`; `expo.ios.googleServicesFile` set.
+- ✅ **5. `native/src/lib/push.ts`** registers the iOS FCM token (Android path
+  unchanged; failure is swallowed so a not-yet-ready build never crashes).
+- ⏳ **6. (owner) `eas build -p ios`** → install on a device → log in → grant the
+  permission → confirm a `device_push_tokens` row with platform `ios` → trigger
+  `/api/cron/weekly-summary` (or get a missed call) → lock-screen push.
+
+> ⚠️ The EAS iOS build can't be verified from CI — build + test on a device. If the
+> Firebase pod has an Expo-54 hiccup, revert is one commit (the app.json plugin line +
+> the messaging dep). Incoming **calls** are unaffected (separate Twilio VoIP/CallKit path).
+
+### (historical) what enabling iOS required
 
 **1. Firebase console (owner)**
    - Add an **iOS app** to the existing Firebase project (bundle `ai.opiflow.app`).

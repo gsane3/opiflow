@@ -10,6 +10,7 @@
     "newArchEnabled": false,
     "ios": {
       "bundleIdentifier": "ai.opiflow.app",
+      "googleServicesFile": "./GoogleService-Info.plist",
       "supportsTablet": false,
       "entitlements": {
         "aps-environment": "production"
@@ -71,7 +72,7 @@
           "cameraPermission": "Η Opiflow χρειάζεται πρόσβαση στην κάμερα για να τραβάς φωτογραφίες της εργασίας."
         }
       ],
-      "./plugins/withFirebaseAndroidOnly",
+      "@react-native-firebase/app",
       [
         "expo-build-properties",
         {
