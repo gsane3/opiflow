@@ -34,13 +34,23 @@ The code + Firebase are done; iOS now mints a real **FCM** token via
   `"@react-native-firebase/app"`; `expo.ios.googleServicesFile` set.
 - ✅ **5. `native/src/lib/push.ts`** registers the iOS FCM token (Android path
   unchanged; failure is swallowed so a not-yet-ready build never crashes).
-- ⏳ **6. (owner) `eas build -p ios`** → install on a device → log in → grant the
-  permission → confirm a `device_push_tokens` row with platform `ios` → trigger
-  `/api/cron/weekly-summary` (or get a missed call) → lock-screen push.
+- ✅ **6. EAS iOS build — DONE & VERIFIED (2026-06-26).** `eas build -p ios --profile
+  production` (build `6c5e8b05-785b-4d7b-a546-e9cdfd7cb213`) finished **FINISHED** → IPA
+  produced. The Firebase `messaging` pod + the stock `@react-native-firebase/app` config
+  plugin **compiled clean on Expo-54 / `useFrameworks:static`** — the one real risk is
+  retired, no revert needed.
+- ⏳ **7. (owner) TestFlight submit + on-device test.** A production-profile IPA is
+  App-Store-signed (no sideload), so it must go via TestFlight:
+  ```bash
+  cd native && eas submit -p ios --profile production --id 6c5e8b05-785b-4d7b-a546-e9cdfd7cb213
+  ```
+  Run it **in your own terminal** — the assistant's auto-mode classifier blocks it as a
+  production publish to Apple. Submit profile is preconfigured (`ascAppId 6778021875`,
+  `appleTeamId 7Q7A3NFK8T`); the ASC API key is stored in EAS. Then: install via TestFlight →
+  log in → grant the notification permission → confirm a `device_push_tokens` row with
+  platform `ios` → trigger `/api/cron/weekly-summary` (or get a missed call) → lock-screen push.
 
-> ⚠️ The EAS iOS build can't be verified from CI — build + test on a device. If the
-> Firebase pod has an Expo-54 hiccup, revert is one commit (the app.json plugin line +
-> the messaging dep). Incoming **calls** are unaffected (separate Twilio VoIP/CallKit path).
+> ⚠️ Incoming **calls** are unaffected by any of this (separate Twilio VoIP/CallKit path).
 
 ### (historical) what enabling iOS required
 
