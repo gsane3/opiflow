@@ -34,6 +34,22 @@ export async function applySubscription(
   return !insErr;
 }
 
+// Isolated, TOLERANT update of the migration-064 detail columns (stripe_price_id /
+// current_period_end / cancel_at_period_end). Pre-064 the columns don't exist, so the
+// UPDATE returns an error and writes nothing — we intentionally ignore it. NEVER affects
+// the webhook's success/retry decision: the core subscription write already committed.
+export async function applySubscriptionExtras(
+  supabase: SupabaseServer,
+  businessId: string,
+  extras: Record<string, unknown>
+): Promise<void> {
+  try {
+    await supabase.from('business_subscriptions').update(extras).eq('business_id', businessId);
+  } catch {
+    // pre-064 column-missing or a transient error — non-fatal by design.
+  }
+}
+
 // --- Apifon -----------------------------------------------------------------
 
 export interface ViberMessageMatch {

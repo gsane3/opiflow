@@ -11,6 +11,7 @@
 import type { createServerSupabaseClient } from '../../../lib/supabase/server';
 import {
   applySubscription,
+  applySubscriptionExtras,
   findProviderEventId,
   findViberMessageRow,
   insertProviderEvent,
@@ -41,18 +42,29 @@ export async function applyStripeEvent(
 ): Promise<boolean> {
   const obj = event.data?.object ?? {};
   // On a checkout session `subscription` holds the sub id; on a subscription
-  // object the id IS `obj.id`.
+  // object the id IS `obj.id`. `customer` is the Stripe customer id on both.
   const subscriptionId =
     typeof obj.subscription === 'string' ? obj.subscription : typeof obj.id === 'string' ? obj.id : null;
+  const customerId = typeof obj.customer === 'string' ? obj.customer : null;
 
   const now = new Date().toISOString();
   let ok = true;
 
+  // The reliable Stripe linkage, written on every activate event. stripe_customer_id
+  // is what the billing portal uses to resolve the account (far more reliable than the
+  // user's email); both columns exist since migration 061. Only set when present so a
+  // stray event never nulls a stored id.
+  const linkFields = (): Record<string, unknown> => {
+    const f: Record<string, unknown> = { billing_provider: 'stripe', billing_ref: subscriptionId };
+    if (customerId) f.stripe_customer_id = customerId;
+    if (subscriptionId) f.stripe_subscription_id = subscriptionId;
+    return f;
+  };
+
   if (event.type === 'checkout.session.completed') {
     ok = await applySubscription(supabase, businessId, planKey, {
       status: 'active',
-      billing_provider: 'stripe',
-      billing_ref: subscriptionId,
+      ...linkFields(),
       updated_at: now,
     });
   } else if (event.type === 'customer.subscription.updated') {
@@ -60,8 +72,7 @@ export async function applyStripeEvent(
     if (s === 'active' || s === 'trialing') {
       ok = await applySubscription(supabase, businessId, planKey, {
         status: 'active',
-        billing_provider: 'stripe',
-        billing_ref: subscriptionId,
+        ...linkFields(),
         updated_at: now,
       });
     } else if (s === 'canceled' || s === 'unpaid' || s === 'incomplete_expired') {
@@ -80,7 +91,31 @@ export async function applyStripeEvent(
     });
   }
 
+  // Best-effort: the richer fields from migration 064 (stripe_price_id /
+  // current_period_end / cancel_at_period_end). Written in an ISOLATED, tolerant
+  // update so a pre-064 schema — or a checkout.session payload that lacks them —
+  // never fails the webhook (the core write above already succeeded).
+  if (ok) {
+    const extras = extractSubscriptionExtras(obj);
+    if (extras) await applySubscriptionExtras(supabase, businessId, extras);
+  }
+
   return ok;
+}
+
+/** Pull the migration-064 detail fields off a Stripe subscription object (nulls when absent). */
+function extractSubscriptionExtras(obj: Record<string, unknown>): Record<string, unknown> | null {
+  const extras: Record<string, unknown> = {};
+  const items = obj.items as { data?: Array<{ price?: { id?: unknown } }> } | undefined;
+  const priceId = items?.data?.[0]?.price?.id;
+  if (typeof priceId === 'string') extras.stripe_price_id = priceId;
+  if (typeof obj.current_period_end === 'number') {
+    extras.current_period_end = new Date(obj.current_period_end * 1000).toISOString();
+  }
+  if (typeof obj.cancel_at_period_end === 'boolean') {
+    extras.cancel_at_period_end = obj.cancel_at_period_end;
+  }
+  return Object.keys(extras).length > 0 ? extras : null;
 }
 
 // =============================================================================

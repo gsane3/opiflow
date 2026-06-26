@@ -15,10 +15,10 @@ export async function POST(request: NextRequest) {
   // Billing is owner-only (manage/cancel the subscription).
   const denied = requireOwner(auth.ctx);
   if (denied) return denied;
-  const { supabase, userId } = auth.ctx;
+  const { supabase, userId, businessId } = auth.ctx;
 
   const origin = request.headers.get('origin') ?? 'https://opiflow.ai';
-  const result = await startPortal({ supabase, userId, origin });
+  const result = await startPortal({ supabase, userId, businessId, origin });
   if (result.kind === 'no_email') {
     return NextResponse.json({ ok: false, error: 'no_email' }, { status: 400 });
   }

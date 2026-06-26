@@ -28,3 +28,26 @@ export async function getUserEmail(
     return null;
   }
 }
+
+/**
+ * The Stripe customer id stored on the business's subscription (persisted by the
+ * webhook). This is the RELIABLE key for the billing portal — unlike the user's
+ * email, it can't drift from what Stripe has. Tolerant: returns null on any error
+ * (pre-061 schema, no row, DB hiccup) so the caller falls back to the email lookup.
+ */
+export async function getStripeCustomerId(
+  supabase: SupabaseServer,
+  businessId: string,
+): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('business_subscriptions')
+      .select('stripe_customer_id')
+      .eq('business_id', businessId)
+      .maybeSingle();
+    const id = (data as { stripe_customer_id?: string | null } | null)?.stripe_customer_id;
+    return typeof id === 'string' && id.length > 0 ? id : null;
+  } catch {
+    return null;
+  }
+}
