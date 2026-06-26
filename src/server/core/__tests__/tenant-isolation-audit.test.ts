@@ -31,6 +31,7 @@ const RAW_FROM_ALLOWLIST: Record<string, string> = {
   // Service-role / machine-auth: there is no authenticated user; the tenant is
   // resolved from the provider payload or processed across all tenants by design.
   'webhooks-voice': 'service-role; tenant resolved from provider payload, explicit .eq(business_id)/by-id',
+  'webhooks-other': 'service-role; Stripe/Apifon webhooks — tenant from payload, explicit .eq(business_id)',
   cron: 'machine-auth; cross-tenant batch processing by design',
   // Public portal token-auth boundary — NOT requireBusinessUser; scoped by token hash.
   'public-intake': 'public token-auth boundary; scoped by token hash',
