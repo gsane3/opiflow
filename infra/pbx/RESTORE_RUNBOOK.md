@@ -26,8 +26,9 @@ writes `/etc/opiflow/sip.env` from Vault, and installs the per-minute flock cron
 
 ## 3. Apply the base config
 Restore `/etc/asterisk/*.conf` (trunk registration + `from-intertelecom`/`from-twilio`/
-`from-webrtc` base contexts) from your backup (`infra/pbx/asterisk/` once extracted),
-then:
+`from-webrtc` base contexts) from the templates in [`asterisk/`](asterisk/) (or, better,
+the authoritative `asterisk/captured/` produced by `capture-base-config.sh`), fill the
+trunk password from Vault, then:
 ```bash
 asterisk -rx "core reload"
 asterisk -rx "pjsip show registrations"   # trunk should be Registered
@@ -49,13 +50,18 @@ asterisk -rx "dialplan show from-intertelecom"
 - Confirm `/api/webhooks/voice/pbx` receives the call-completed event (Vercel logs).
 
 ## Keep a backup (do this now, while the box is healthy)
-A read-only dump of the base config — run from your machine, does NOT modify the box:
+
+**One-time — capture the live base config into git** (read-only, does NOT modify the box):
 ```bash
-mkdir -p infra/pbx/asterisk
-scp -i ~/.ssh/yorgos_pbx_vps_600 \
-  'root@46.224.138.115:/etc/asterisk/{pjsip.conf,extensions.conf,pjsip_*.conf,extensions_*.conf}' \
-  infra/pbx/asterisk/
-# redact the trunk password before committing; keep secrets in Vault only.
+./infra/pbx/capture-base-config.sh        # scp /etc/asterisk/*.conf + auto-redact secrets
+grep -riE 'password|secret|token' infra/pbx/asterisk/captured/   # confirm nothing leaked
+git add infra/pbx/asterisk/captured && git commit -m "infra(pbx): capture live base config"
 ```
-Commit the redacted result and delete the `TODO(extract)` markers. After this, the PBX
-is fully reproducible from git.
+After this the PBX is fully reproducible from git.
+
+**Ongoing — daily backup on the box** (install once):
+```bash
+install -m700 infra/pbx/backup-pbx.sh /opt/opiflow/backup-pbx.sh   # copy up first
+( crontab -l 2>/dev/null; echo '17 3 * * * /opt/opiflow/backup-pbx.sh >> /var/log/opiflow-backup.log 2>&1' ) | crontab -
+# set BACKUP_RSYNC_DEST in the script's env for an OFF-box copy (host loss ≠ backup loss).
+```
