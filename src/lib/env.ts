@@ -31,6 +31,11 @@ export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   // Twilio Programmable Voice — native in-app calling (the /api/phone/twilio-token
   // endpoint mints Voice access tokens). Inert until all four are set.
   twilioVoice: ['TWILIO_ACCOUNT_SID', 'TWILIO_API_KEY', 'TWILIO_API_SECRET', 'TWILIO_TWIML_APP_SID'],
+  // AADE / myDATA e-invoicing via the accredited provider (SBZ). ONE partner
+  // credential pair issues for many tenant ΑΦΜ (per-doc issuer set via issuervat).
+  // When unset, the invoicing UI/routes stay dormant (503 invoicing_not_configured)
+  // and health reports invoicing:false. Per-tenant activation is a separate DB flag.
+  invoicing: ['SBZ_API_USER_ID', 'SBZ_API_SUBSCRIPTION_KEY', 'SBZ_API_BASE_URL'],
 };
 
 /** Throws if a required env var is missing. Use at the top of code paths that need it. */
