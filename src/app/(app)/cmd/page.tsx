@@ -338,6 +338,9 @@ export default function CmdPage() {
 
   const [isSavingOffer, setIsSavingOffer] = useState(false);
   const [offerSaveError, setOfferSaveError] = useState<string | null>(null);
+  const [isSavingInvoice, setIsSavingInvoice] = useState(false);
+  const [invoiceSaveError, setInvoiceSaveError] = useState<string | null>(null);
+  const [issuedInvoiceMark, setIssuedInvoiceMark] = useState<string | null>(null);
   const [offerSaveWarning, setOfferSaveWarning] = useState<string | null>(null);
 
   // create_project + the «πώς να ονομάσω το έργο;» popup for appointments/offers.
@@ -619,7 +622,7 @@ export default function CmdPage() {
 
       let localMatchedCustomer: Customer | null = null;
       let localCustomerResolved = false;
-      if (r.intent === 'create_task' || r.intent === 'create_project' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'cancel_appointment') {
+      if (r.intent === 'create_task' || r.intent === 'create_project' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'create_invoice' || r.intent === 'cancel_appointment') {
         const hasName = !!r.params.customerName?.trim();
         const candidates = findCustomerCandidates(r.params.customerName, customers);
         if (!hasName) {
@@ -873,6 +876,63 @@ export default function CmdPage() {
       return false;
     } finally {
       setIsSavingOffer(false);
+    }
+  }
+
+  // create_invoice: issue an official myDATA document via /api/invoicing/issue.
+  // Fully gated server-side (503 when the provider isn't configured / 409 when the
+  // tenant hasn't activated). Customer is optional (no ΑΦΜ → B2C retail receipt).
+  async function handleSaveInvoice() {
+    if (!result) return;
+    if (customerCandidates.length > 1 && !customerMatchResolved) return;
+    const amount = result.params.invoiceAmount;
+    if (!amount || amount <= 0) {
+      setInvoiceSaveError('Δεν αναγνωρίστηκε ποσό για το τιμολόγιο.');
+      return;
+    }
+    setIsSavingInvoice(true);
+    setInvoiceSaveError(null);
+    try {
+      const supabase = createBrowserSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setInvoiceSaveError('Δεν υπάρχει ενεργή σύνδεση. Δοκίμασε ξανά.');
+        return;
+      }
+      const res = await fetch('/api/invoicing/issue', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({
+          amount,
+          description: result.params.invoiceDescription?.trim() || 'Παροχή υπηρεσιών',
+          vatRate: result.params.invoiceVatRate ?? (businessProfile?.defaultVatRate ?? 24),
+          ...(matchedCustomer?.id ? { customerId: matchedCustomer.id } : {}),
+        }),
+      });
+      if (res.status === 503) {
+        setInvoiceSaveError('Η τιμολόγηση μέσω εφαρμογής δεν είναι ενεργοποιημένη ακόμη.');
+        return;
+      }
+      const json = await res.json() as { ok?: boolean; invoice?: { status?: string; mark?: string | null; error?: string | null }; error?: string };
+      if (res.ok && json.ok && json.invoice) {
+        if (json.invoice.status === 'issued' && json.invoice.mark) {
+          setIssuedInvoiceMark(json.invoice.mark);
+          setSavedResult(true);
+        } else {
+          setInvoiceSaveError(json.invoice.error || 'Το τιμολόγιο δεν εκδόθηκε. Δοκίμασε ξανά.');
+        }
+      } else {
+        const code = json.error;
+        setInvoiceSaveError(
+          code === 'invoicing_not_enabled' ? 'Ενεργοποίησε πρώτα την τιμολόγηση από τις Ρυθμίσεις.'
+            : code === 'issuer_vat_missing' ? 'Συμπλήρωσε το ΑΦΜ έκδοσης στις Ρυθμίσεις τιμολόγησης.'
+              : 'Το τιμολόγιο δεν εκδόθηκε. Δοκίμασε ξανά.',
+        );
+      }
+    } catch {
+      setInvoiceSaveError('Το τιμολόγιο δεν εκδόθηκε. Δοκίμασε ξανά.');
+    } finally {
+      setIsSavingInvoice(false);
     }
   }
 
@@ -1711,6 +1771,49 @@ export default function CmdPage() {
               <button type="button" onClick={() => window.location.assign('/offers')} className="inline-block text-left text-xs text-indigo-600 hover:text-indigo-700">
                 Δες τις προσφορές →
               </button>
+            </div>
+          )}
+
+          {/* create_invoice */}
+          {result.intent === 'create_invoice' && !savedResult && (
+            <div className="rounded-[28px] bg-white p-4 shadow-sm ring-1 ring-zinc-200/60 space-y-4 dark:bg-[#17232f] dark:ring-white/10">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 dark:text-zinc-500">
+                Έκδοση τιμολογίου
+              </p>
+              {customerCandidates.length > 1 && !customerMatchResolved && (
+                <CustomerCandidatePicker
+                  candidates={customerCandidates}
+                  selectedId={matchedCustomer?.id}
+                  onSelect={(c) => { setMatchedCustomer(c); setCustomerMatchResolved(true); }}
+                  onContinueWithout={() => { setMatchedCustomer(null); setCustomerMatchResolved(true); }}
+                />
+              )}
+              {customerMatchResolved && (
+                <>
+                  <div className="space-y-1 text-sm text-zinc-700 dark:text-zinc-200">
+                    <p><span className="text-zinc-400">Πελάτης:</span> {matchedCustomer?.name ?? (result.params.customerName || '— (απόδειξη λιανικής)')}</p>
+                    <p><span className="text-zinc-400">Ποσό (με ΦΠΑ):</span> {result.params.invoiceAmount ? `${result.params.invoiceAmount}€` : '—'}</p>
+                    <p><span className="text-zinc-400">Περιγραφή:</span> {result.params.invoiceDescription || 'Παροχή υπηρεσιών'}</p>
+                  </div>
+                  {invoiceSaveError && <p className="text-xs text-red-600">{invoiceSaveError}</p>}
+                  <button
+                    type="button"
+                    disabled={isSavingInvoice || !result.params.invoiceAmount}
+                    onClick={() => { void handleSaveInvoice(); }}
+                    className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-60"
+                  >
+                    {isSavingInvoice ? 'Έκδοση...' : 'Έκδοση τιμολογίου'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+          {result.intent === 'create_invoice' && savedResult && (
+            <div className="rounded-xl bg-green-50 px-4 py-3 ring-1 ring-green-200 space-y-1.5">
+              <p className="text-sm font-medium text-green-700">Το τιμολόγιο εκδόθηκε.</p>
+              {issuedInvoiceMark && (
+                <p className="text-xs text-zinc-600 dark:text-zinc-300">ΜΑΡΚ: {issuedInvoiceMark}</p>
+              )}
             </div>
           )}
 
