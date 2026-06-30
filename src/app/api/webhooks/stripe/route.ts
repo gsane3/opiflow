@@ -4,6 +4,7 @@ import { verifyStripeSignature } from '@/lib/billing/stripe';
 import { PLAN } from '@/lib/billing/plans';
 import { log } from '@/lib/observability';
 import { applyStripeEvent } from '@/server/modules/webhooks-other/webhooks-other.service';
+import { ADDON_KIND, applyAddonSubscriptionEvent } from '@/server/modules/invoicing/invoicing-addon.service';
 
 export const runtime = 'nodejs';
 
@@ -36,6 +37,9 @@ export async function POST(request: NextRequest) {
   const obj = event.data?.object ?? {};
   const metadata = (obj.metadata as Record<string, unknown> | undefined) ?? {};
   const businessId = typeof metadata.businessId === 'string' ? metadata.businessId : null;
+  // Discriminates the invoicing add-on subscription from the main plan. Unset (or
+  // any other value) → the main-plan path below, byte-identical to before.
+  const kind = typeof metadata.kind === 'string' ? metadata.kind : null;
 
   const HANDLED = new Set([
     'checkout.session.completed',
@@ -65,6 +69,17 @@ export async function POST(request: NextRequest) {
     supabase = createServerSupabaseClient();
   } catch {
     return NextResponse.json({ ok: false, error: 'config' }, { status: 503 });
+  }
+
+  // Invoicing add-on subscription → its own entitlement on business_invoicing_settings.
+  // Kept fully separate from the main plan's business_subscriptions (no collision).
+  if (kind === ADDON_KIND) {
+    const addonOk = await applyAddonSubscriptionEvent(supabase, event, businessId);
+    if (!addonOk) {
+      log.error('stripe_invoicing_addon_write_failed', { type: event.type, businessId });
+      return NextResponse.json({ ok: false, error: 'db_write_failed' }, { status: 500 });
+    }
+    return NextResponse.json({ received: true });
   }
 
   const ok = await applyStripeEvent(supabase, event, businessId, PLAN.key);
