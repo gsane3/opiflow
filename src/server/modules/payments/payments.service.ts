@@ -17,8 +17,16 @@ import { AppError } from '../../core/errors';
 import {
   mapBusinessPayment,
   type BusinessPayment,
+  type PaymentRequestRow,
 } from '../../../lib/server/payments';
 import { settlePaymentRequest, type RepoContext } from './payments.repo';
+
+/** Optional post-confirm side-effect hook (e.g. auto-issue a myDATA invoice). */
+export interface UpdatePaymentDeps {
+  /** Called AFTER a successful 'confirmed' transition, with the raw settled row.
+   *  Must be fire-and-forget at the call site — it can never affect the response. */
+  onConfirmed?: (row: PaymentRequestRow) => void;
+}
 
 /**
  * Confirm (or cancel) a payment request. `raw` is the parsed JSON body.
@@ -30,6 +38,7 @@ export async function updatePaymentRequest(
   ctx: RepoContext,
   id: string,
   raw: Record<string, unknown>,
+  deps: UpdatePaymentDeps = {},
 ): Promise<BusinessPayment> {
   // status validation runs OUTSIDE the broad-catch semantics (it's a known code).
   if (raw.status !== 'confirmed' && raw.status !== 'cancelled') {
@@ -47,6 +56,16 @@ export async function updatePaymentRequest(
     });
 
     if (!row) throw new AppError('payment_not_actionable', 409);
+
+    // Post-confirm side-effect (best-effort): guarded so it can NEVER throw into
+    // the broad-catch below (which would wrongly collapse to payment_update_failed).
+    if (status === 'confirmed') {
+      try {
+        deps.onConfirmed?.(row);
+      } catch {
+        /* side-effect must never affect the confirm response */
+      }
+    }
 
     return mapBusinessPayment(row);
   } catch (err) {

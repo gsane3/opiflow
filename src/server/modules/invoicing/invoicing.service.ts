@@ -257,6 +257,39 @@ export async function issueForOffer(ctx: RepoContext, offerId: string, deps: Iss
   return issueInvoiceDocument(ctx, plan, deps);
 }
 
+/**
+ * Auto-issue an invoice when a payment is CONFIRMED. Best-effort + fully gated:
+ * no-op unless the provider env is set AND the tenant enabled both invoicing and
+ * auto_issue_on_payment. Idempotent per payment (dedup_key 'pay:<id>'). Swallows
+ * all errors — must NEVER affect the payment-confirm flow (called fire-and-forget).
+ * `row` is the raw PaymentRequestRow (has amount [GROSS], customer_id, offer_id, kind).
+ */
+export async function autoIssueInvoiceForPayment(
+  ctx: RepoContext,
+  row: { id: string; amount: number; customer_id: string | null; offer_id: string | null; kind: string },
+  deps: IssueDeps = {}
+): Promise<InvoiceRow | null> {
+  try {
+    if (!(deps.getConfig ?? getSbzConfig)()) return null;
+    const settings = await repo.getInvoicingSettings(ctx);
+    if (!settings || !settings.enabled || !settings.auto_issue_on_payment) return null;
+
+    let vatRate = 24;
+    if (row.offer_id) {
+      const offer = await getOfferRowById(ctx, row.offer_id);
+      if (offer?.vat_rate != null) vatRate = offer.vat_rate;
+    }
+    const description = row.kind === 'deposit' ? 'Προκαταβολή' : 'Εξόφληση';
+    return await issueManualGross(
+      ctx,
+      { gross: row.amount, vatRate, description, customerId: row.customer_id, dedupKey: `pay:${row.id}` },
+      deps
+    );
+  } catch {
+    return null; // best-effort; never throws into the payment-confirm path
+  }
+}
+
 /** Issue an ad-hoc invoice from a GROSS amount (e.g. a confirmed payment or manual entry). */
 export async function issueManualGross(
   ctx: RepoContext,
