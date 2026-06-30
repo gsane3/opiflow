@@ -15,6 +15,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireBusinessUser } from '@/server/core/http';
 import { handleApiError, ok } from '@/server/core/errors';
 import { updatePaymentRequest } from '@/server/modules/payments/payments.service';
+import { autoIssueInvoiceForPayment } from '@/server/modules/invoicing/invoicing.service';
 
 export const runtime = 'nodejs';
 
@@ -42,7 +43,14 @@ export async function PATCH(
     }
     const raw = body as Record<string, unknown>;
 
-    const payment = await updatePaymentRequest(ctx, id, raw);
+    // On a successful CONFIRM, optionally auto-issue a myDATA invoice — fully gated
+    // (env + per-tenant auto_issue_on_payment), idempotent, and fire-and-forget so
+    // it can never delay or fail the confirm response.
+    const payment = await updatePaymentRequest(ctx, id, raw, {
+      onConfirmed: (row) => {
+        void autoIssueInvoiceForPayment(ctx, row).catch(() => {});
+      },
+    });
     return ok({ payment });
   } catch (err) {
     return handleApiError(err);
