@@ -240,7 +240,9 @@ async function loadCounterparty(
 ): Promise<CounterpartyInfo> {
   if (!customerId) return { vat: vatOverride, name: null };
   const c = await repo.getCustomerForInvoice(ctx, customerId);
-  return { vat: vatOverride, name: c?.companyName || c?.name || null };
+  // Explicit override wins; otherwise use the customer's stored ΑΦΜ (migration 067).
+  // A valid ΑΦΜ → B2B service invoice (2.1); none → B2C retail receipt (11.2).
+  return { vat: vatOverride ?? c?.vatNumber ?? null, name: c?.companyName || c?.name || null };
 }
 
 /** Issue an invoice for an existing offer (items NET; one offer vat_rate). Idempotent per offer. */

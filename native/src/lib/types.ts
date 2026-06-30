@@ -5,6 +5,8 @@ export interface Customer {
   crmNumber?: string | null;
   name: string | null;
   companyName?: string | null;
+  /** End-customer ΑΦΜ (migration 067) — enables B2B 2.1 invoicing. */
+  vatNumber?: string | null;
   phone?: string | null;
   mobilePhone?: string | null;
   landlinePhone?: string | null;

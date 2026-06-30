@@ -114,15 +114,21 @@ export async function listInvoices(ctx: RepoContext, query: ListInvoicesParams):
   return ((data ?? []) as unknown[]).map((r) => r as InvoiceRow);
 }
 
-/** Counterparty (end-customer) name for the invoice. ΑΦΜ is not yet captured on
- *  customers (added in a later migration) → vat resolved by the caller. */
+/** Counterparty (end-customer) name + ΑΦΜ for the invoice. The ΑΦΜ (vat_number) is
+ *  migration 067, applied MANUALLY — so the select is tolerant: it tries with
+ *  vat_number first and falls back to the leaner select if the column is missing
+ *  (pre-067 → vatNumber resolves to null, i.e. B2C). */
 export async function getCustomerForInvoice(
   ctx: RepoContext,
   customerId: string
-): Promise<{ name: string | null; companyName: string | null } | null> {
+): Promise<{ name: string | null; companyName: string | null; vatNumber: string | null } | null> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
-  const { data } = await db.from('customers').byId(customerId, 'name, company_name').maybeSingle();
-  if (!data) return null;
-  const c = data as unknown as { name: string | null; company_name: string | null };
-  return { name: c.name, companyName: c.company_name };
+  for (const cols of ['name, company_name, vat_number', 'name, company_name']) {
+    const { data, error } = await db.from('customers').byId(customerId, cols).maybeSingle();
+    if (error) continue; // column missing (pre-067) or transient → try the leaner select
+    if (!data) return null;
+    const c = data as unknown as { name: string | null; company_name: string | null; vat_number?: string | null };
+    return { name: c.name, companyName: c.company_name, vatNumber: c.vat_number ?? null };
+  }
+  return null;
 }

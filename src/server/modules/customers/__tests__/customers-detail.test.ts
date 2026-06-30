@@ -48,7 +48,7 @@ describe('getCustomer (parity)', () => {
       const c = cols(ops);
       if (c.includes('crm_number')) return { data: customerRow };  // core fetch
       if (c === 'pinned') return { data: { pinned: true } };        // 044 read
-      return { data: null };                                       // 053/058 → defaults
+      return { data: null };                                       // 053/058/067 → defaults
     });
     const customer = await getCustomer(ctx, 'c1');
     expect(customer.id).toBe('c1');
@@ -56,7 +56,33 @@ describe('getCustomer (parity)', () => {
     expect(customer.pinned).toBe(true);
     expect(customer.postalCode).toBeNull();
     expect(customer.blocked).toBe(false);
+    expect(customer.vatNumber).toBeNull();
     expect(customer.nextTaskId).toBeNull();
+  });
+
+  it('folds in the tolerant 067 vat_number read', async () => {
+    const ctx = fakeCtx((t, ops) => {
+      if (t !== 'customers') return { data: null };
+      const c = cols(ops);
+      if (c.includes('crm_number')) return { data: customerRow };       // core fetch
+      if (c === 'vat_number') return { data: { vat_number: '803311450' } }; // 067 read
+      return { data: null };
+    });
+    const customer = await getCustomer(ctx, 'c1');
+    expect(customer.vatNumber).toBe('803311450');
+  });
+
+  it('a missing vat_number column (pre-067) keeps vatNumber null without breaking the detail', async () => {
+    const ctx = fakeCtx((t, ops) => {
+      if (t !== 'customers') return { data: null };
+      const c = cols(ops);
+      if (c.includes('crm_number')) return { data: customerRow };
+      if (c === 'vat_number') return { error: { code: '42703', message: 'column "vat_number" does not exist' } };
+      return { data: null };
+    });
+    const customer = await getCustomer(ctx, 'c1');
+    expect(customer.id).toBe('c1');
+    expect(customer.vatNumber).toBeNull();
   });
 });
 
@@ -85,6 +111,19 @@ describe('updateCustomer (parity behaviour)', () => {
   it('customer_not_found when the update matches no row', async () => {
     const ctx = fakeCtx((t, ops) => (t === 'customers' && ops.some((o) => o.m === 'update') ? { data: null } : { data: customerRow }));
     await expect(updateCustomer(ctx, 'c1', { name: 'Νέο' })).rejects.toMatchObject({ code: 'customer_not_found', status: 404 });
+  });
+
+  it('writes vatNumber via the isolated 067 update and reflects it in the response', async () => {
+    let vatWrite: unknown;
+    const ctx = fakeCtx((t, ops) => {
+      if (t !== 'customers') return { data: null };
+      const upd = ops.find((o) => o.m === 'update')?.args[0] as Record<string, unknown> | undefined;
+      if (upd && 'vat_number' in upd) { vatWrite = upd.vat_number; return { data: { id: 'c1' } }; } // isolated 067 write
+      return { data: customerRow }; // core update (updated_at only) + reads
+    });
+    const customer = await updateCustomer(ctx, 'c1', { vatNumber: '803311450' });
+    expect(vatWrite).toBe('803311450');
+    expect(customer.vatNumber).toBe('803311450');
   });
 });
 

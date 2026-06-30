@@ -11,12 +11,14 @@ import { type Customer, type CustomerRow, type CustomerDetail, type CustomerDeta
 import {
   applyCustomerBlocked,
   applyCustomerExtras,
+  applyCustomerVatNumber,
   deleteAllCustomerRows,
   deleteCustomerRow,
   deleteImportedCustomerRows,
   fetchCustomerBlocked,
   fetchCustomerExtras,
   fetchCustomerPinned,
+  fetchCustomerVatNumber,
   fetchCustomerRowForUpdate,
   getCustomerDetailRow,
   insertCustomerRow,
@@ -179,6 +181,7 @@ export function dbToCustomerDetail(row: CustomerDetailRow): CustomerDetail {
     region: row.region ?? null,
     importedFromPhone: row.imported_from_phone ?? false,
     blocked: row.blocked ?? false,
+    vatNumber: row.vat_number ?? null,
     source: row.source,
     status: row.status,
     opportunityValue: row.opportunity_value,
@@ -221,6 +224,9 @@ export async function getCustomer(ctx: RepoContext, id: string): Promise<Custome
 
   const blocked = await fetchCustomerBlocked(ctx, id);
   if (blocked !== undefined) customer.blocked = blocked;
+
+  const vatNumber = await fetchCustomerVatNumber(ctx, id);
+  if (vatNumber !== undefined) customer.vatNumber = vatNumber;
 
   return customer;
 }
@@ -284,6 +290,10 @@ export async function updateCustomer(
   const extraBlocked = 'blocked' in raw ? raw.blocked === true : undefined;
   if (extraBlocked !== undefined) hasUpdate = true;
 
+  // 067 vat_number — isolated write (pre-067 column-missing safe), like blocked.
+  const extraVat = 'vatNumber' in raw ? str(raw.vatNumber) : undefined;
+  if (extraVat !== undefined) hasUpdate = true;
+
   let hasMemoryFieldUpdate = false;
   if ('statusSummary' in raw) { updateFields.status_summary = str(raw.statusSummary); hasUpdate = true; hasMemoryFieldUpdate = true; }
   if ('businessNotes' in raw) { updateFields.business_notes = str(raw.businessNotes); hasUpdate = true; hasMemoryFieldUpdate = true; }
@@ -316,6 +326,11 @@ export async function updateCustomer(
   if (extraBlocked !== undefined) {
     const ok = await applyCustomerBlocked(ctx, id, extraBlocked);
     if (ok) patched.blocked = extraBlocked;
+  }
+
+  if (extraVat !== undefined) {
+    const ok = await applyCustomerVatNumber(ctx, id, extraVat);
+    if (ok) patched.vatNumber = extraVat;
   }
 
   return patched;

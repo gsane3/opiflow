@@ -156,6 +156,7 @@ export default function CustomerProfileScreen() {
           firstName,
           lastName,
           companyName: cu.companyName ?? '',
+          vatNumber: cu.vatNumber ?? '',
           mobilePhone: cu.mobilePhone ?? '',
           landlinePhone: cu.landlinePhone ?? '',
           email: cu.email ?? '',
@@ -304,6 +305,7 @@ export default function CustomerProfileScreen() {
       const res = await apiPatch<{ ok?: boolean }>(`/api/customers/${customerId}`, {
         name: composedName || null,
         companyName: form.companyName || null,
+        vatNumber: form.vatNumber?.trim() || null,
         mobilePhone: form.mobilePhone || null,
         landlinePhone: form.landlinePhone || null,
         email: form.email || null,
@@ -769,7 +771,14 @@ export default function CustomerProfileScreen() {
             <Input label="Επώνυμο" value={form.lastName ?? ''} onChangeText={set('lastName')} />
           </View>
         </View>
-        <Input label="Εταιρεία" value={form.companyName ?? ''} onChangeText={set('companyName')} />
+        <View style={styles.twoCol}>
+          <View style={{ flex: 1 }}>
+            <Input label="Εταιρεία" value={form.companyName ?? ''} onChangeText={set('companyName')} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Input label="ΑΦΜ" value={form.vatNumber ?? ''} onChangeText={set('vatNumber')} keyboardType="numeric" />
+          </View>
+        </View>
         <Input label="Κινητό" value={form.mobilePhone ?? ''} onChangeText={set('mobilePhone')} keyboardType="phone-pad" />
         <Input label="Σταθερό" value={form.landlinePhone ?? ''} onChangeText={set('landlinePhone')} keyboardType="phone-pad" />
         <Input label="Email" value={form.email ?? ''} onChangeText={set('email')} keyboardType="email-address" />

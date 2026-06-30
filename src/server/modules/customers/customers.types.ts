@@ -50,6 +50,7 @@ export interface CustomerDetailRow extends CustomerRow {
   region?: string | null;
   imported_from_phone?: boolean | null;
   blocked?: boolean | null;
+  vat_number?: string | null;
 }
 
 /** The camelCase DTO returned to web/native clients. */
@@ -99,6 +100,8 @@ export interface CustomerDetail {
   region: string | null;
   importedFromPhone: boolean;
   blocked: boolean;
+  /** End-customer ΑΦΜ (migration 067) — drives B2B 2.1 vs B2C 11.2 invoicing. */
+  vatNumber: string | null;
   source: string | null;
   status: string;
   opportunityValue: number | null;
