@@ -22,7 +22,11 @@ interface CustomerFull {
   email: string | null; address: string | null; notes: string | null; status: string | null;
   blocked?: boolean;
 }
-interface TimelineItem { id: string; type: string; title: string; body: string | null; occurredAt: string; side: 'us' | 'customer' }
+interface TimelineItem {
+  id: string; type: string; title: string; body: string | null; occurredAt: string; side: 'us' | 'customer';
+  status?: string | null;
+  payload?: { mark?: string | null; qrUrl?: string | null; totalAmount?: number | null; invoiceType?: string | null } | null;
+}
 
 function fmtCallTime(s: string): string {
   if (!s) return '';
@@ -50,6 +54,9 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
   const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [cust, setCust] = useState<CustomerFull | null>(null);
   const [calls, setCalls] = useState<TimelineItem[]>([]);
+  // Official invoices (AADE/myDATA add-on) — derived from the same timeline feed.
+  // Stays empty (section hidden) for tenants without the optional invoicing feature.
+  const [invoices, setInvoices] = useState<TimelineItem[]>([]);
   const [expandedCall, setExpandedCall] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(false);
@@ -83,6 +90,8 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
       const items = t.items ?? t.timeline ?? [];
       // Call history — newest first; tap a call to reveal its brief/content.
       setCalls(items.filter((i) => i.type === 'call').reverse());
+      // Issued official invoices — newest first.
+      setInvoices(items.filter((i) => i.type === 'invoice').reverse());
       setNaKey((n) => n + 1); // re-evaluate the Next Best Action after a reload
     } catch { if (!loadedRef.current) setLoadErr(true); } finally { setLoading(false); }
   }, [customerId]);
@@ -279,6 +288,45 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
               </button>
             );
           })
+        )}
+
+        {/* Τιμολόγια — issued official invoices/receipts (AADE/myDATA). Hidden
+            entirely unless the optional invoicing add-on has produced documents. */}
+        {invoices.length > 0 && (
+          <>
+            <div className="opf-sec-title"><div className="opf-sec-title-l"><OpfIcon name="file" size={19} color="var(--brand)" /> <span>Τιμολόγια</span></div></div>
+            {invoices.map((inv) => {
+              const mark = inv.payload?.mark ?? null;
+              const qrUrl = inv.payload?.qrUrl ?? null;
+              const total = typeof inv.payload?.totalAmount === 'number'
+                ? `€${inv.payload.totalAmount.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                : (inv.body ?? null);
+              return (
+                <div key={inv.id} className="opf-card" style={{ padding: 14 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'var(--tint)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <OpfIcon name="file" size={20} color="var(--brand)" stroke={2} />
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{inv.title}</div>
+                      <div style={{ fontSize: 13, color: 'var(--muted)' }}>{fmtCallTime(inv.occurredAt)}</div>
+                    </div>
+                    {total ? <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--ink)' }}>{total}</div> : null}
+                  </div>
+                  {mark ? (
+                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--line)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>ΜΑΡΚ: {mark}</div>
+                      {qrUrl ? (
+                        <a href={qrUrl} target="_blank" rel="noopener noreferrer" className="opf-press" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: 'var(--brand)', flexShrink: 0 }}>
+                          <OpfIcon name="link" size={15} color="var(--brand)" stroke={2} /> myDATA
+                        </a>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </>
         )}
 
         {/* Internal note */}

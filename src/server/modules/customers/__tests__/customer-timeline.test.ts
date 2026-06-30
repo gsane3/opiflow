@@ -61,4 +61,32 @@ describe('buildCustomerTimeline (parity)', () => {
     const ctx = fakeCtx((t) => (t === 'customers' ? { data: custRow } : { data: [] }), ['communications']);
     await expect(buildCustomerTimeline(ctx, 'c1')).rejects.toMatchObject({ code: 'timeline_query_failed', status: 500 });
   });
+
+  it('surfaces an issued invoice (ΜΑΡΚ + total in the payload)', async () => {
+    const ctx = fakeCtx((t) => {
+      if (t === 'customers') return { data: custRow };
+      if (t === 'invoices') return { data: [
+        { id: 'inv1', invoice_type: '2.1', series: 'A', aa: '14', total_amount: 124, status: 'issued',
+          mark: '400001234567890', qr_url: 'https://mydata.aade.gr/q/abc', issued_at: '2026-06-10T09:00:00Z', created_at: '2026-06-10T09:00:00Z' },
+      ] };
+      return { data: [] };
+    });
+    const result = await buildCustomerTimeline(ctx, 'c1');
+    const inv = result.items.find((i) => i.id === 'invoice:inv1');
+    expect(inv).toBeTruthy();
+    expect(inv!.type).toBe('invoice');
+    expect(inv!.title).toBe('Τιμολόγιο A14');
+    expect(inv!.side).toBe('us');
+    expect(inv!.payload?.mark).toBe('400001234567890');
+    expect(inv!.payload?.qrUrl).toBe('https://mydata.aade.gr/q/abc');
+  });
+
+  it('a missing invoices table (migration 066 not applied) NEVER breaks the timeline', async () => {
+    // The invoices block is isolated + fault-tolerant: a throwing `invoices`
+    // query degrades to "no invoice items" while the rest of the feed succeeds.
+    const ctx = fakeCtx((t) => (t === 'customers' ? { data: custRow } : { data: [] }), ['invoices']);
+    const result = await buildCustomerTimeline(ctx, 'c1');
+    expect(result.customer).toEqual({ id: 'c1', name: 'Γιώργος' });
+    expect(result.items.some((i) => i.type === 'invoice')).toBe(false);
+  });
 });
