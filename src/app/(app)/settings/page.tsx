@@ -10,6 +10,7 @@ import ImportExportPanel from '@/components/settings/ImportExportPanel';
 import SnippetsPanel from '@/components/settings/SnippetsPanel';
 import AutomationsPanel from '@/components/settings/AutomationsPanel';
 import AccountPanel from '@/components/settings/AccountPanel';
+import InvoicingPanel from '@/components/settings/InvoicingPanel';
 import TelephonyPanel from '@/components/settings/TelephonyPanel';
 import NotificationsPanel from '@/components/settings/NotificationsPanel';
 import NativeCallTestPanel from '@/components/settings/NativeCallTestPanel';
@@ -459,6 +460,7 @@ export default function SettingsPage() {
           )}
         </div>
         <AccountPanel />
+        <InvoicingPanel />
         <TeamPanel />
         <SystemStatusCard />
         <button
