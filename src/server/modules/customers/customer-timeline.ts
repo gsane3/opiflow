@@ -21,7 +21,7 @@ type ItemType =
   | 'offer' | 'offer_response'
   | 'appointment' | 'appointment_response'
   | 'intake_request' | 'intake_submitted'
-  | 'upload';
+  | 'upload' | 'invoice';
 
 export interface TimelineItem {
   id: string;
@@ -285,6 +285,55 @@ export async function buildCustomerTimeline(
     }
   } catch {
     throw new AppError('timeline_query_failed', 500);
+  }
+
+  // -- invoices (our side) — ISOLATED + fault-tolerant -----------------------
+  // The official-invoice add-on (AADE/myDATA) is optional and its `invoices`
+  // table is created by migration 066, which is applied MANUALLY per tenant and
+  // may not exist on a given environment. A missing table (or any provider error)
+  // must NEVER break the rest of the timeline, so this lives outside the main
+  // try/catch above and degrades to "no invoice items". Only `issued` invoices
+  // (those with a real ΜΑΡΚ) are surfaced; drafts/failures stay internal.
+  try {
+    const { data } = await db
+      .from('invoices')
+      .select('id, invoice_type, series, aa, total_amount, status, mark, qr_url, issued_at, created_at')
+      .eq('customer_id', customerId)
+      .eq('status', 'issued')
+      .order('created_at', { ascending: true })
+      .limit(ITEM_LIMIT);
+    for (const inv of ((data ?? []) as unknown[]) as Array<{
+      id: string; invoice_type: string | null; series: string | null; aa: string | null;
+      total_amount: number | null; status: string; mark: string | null; qr_url: string | null;
+      issued_at: string | null; created_at: string;
+    }>) {
+      // 11.x = retail receipt (ΑΠΥ/ΑΛΠ, B2C); everything else is an invoice (B2B).
+      const label = (inv.invoice_type ?? '').startsWith('11') ? 'Απόδειξη' : 'Τιμολόγιο';
+      const num = [inv.series, inv.aa].filter(Boolean).join('');
+      const total = typeof inv.total_amount === 'number'
+        ? `€${inv.total_amount.toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : null;
+      items.push({
+        id: `invoice:${inv.id}`,
+        type: 'invoice',
+        side: 'us',
+        interactive: false,
+        title: num ? `${label} ${num}` : label,
+        body: total,
+        status: inv.status,
+        occurredAt: inv.issued_at ?? inv.created_at,
+        refTable: 'invoices',
+        refId: inv.id,
+        payload: {
+          mark: inv.mark,
+          qrUrl: inv.qr_url,
+          totalAmount: inv.total_amount,
+          invoiceType: inv.invoice_type,
+        },
+      });
+    }
+  } catch {
+    // invoicing not provisioned (table missing) or transient error → no invoice items
   }
 
   // Sort oldest → newest (chat order); cap.

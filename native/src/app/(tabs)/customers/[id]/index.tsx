@@ -91,7 +91,7 @@ const OFFER_STATUS_GR: Record<string, string> = {
   expired: 'Έληξε',
 };
 
-type Expanded = 'offers' | 'appointments' | 'files' | 'calls' | null;
+type Expanded = 'offers' | 'appointments' | 'files' | 'calls' | 'invoices' | null;
 
 export default function CustomerProfileScreen() {
   const c = useTheme();
@@ -105,6 +105,9 @@ export default function CustomerProfileScreen() {
   const [appts, setAppts] = useState<Task[]>([]);
   const [sessions, setSessions] = useState<UploadSession[]>([]);
   const [briefs, setBriefs] = useState<TimelineItem[]>([]);
+  // Issued official invoices (AADE/myDATA add-on) — derived from the timeline feed.
+  // Empty (row hidden) for tenants without the optional invoicing feature.
+  const [invoices, setInvoices] = useState<TimelineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [pinned, setPinned] = useState(false);
@@ -168,6 +171,7 @@ export default function CustomerProfileScreen() {
       setOffers(oRes?.offers ?? []);
       setAppts((tRes?.tasks ?? []).filter((t) => APPT_TYPES.has(t.type)));
       setBriefs((feed?.items ?? []).filter((it) => it.type === 'call' && it.body).reverse());
+      setInvoices((feed?.items ?? []).filter((it) => it.type === 'invoice').reverse());
       if (!sRes.error && Array.isArray(sRes.data)) setSessions(sRes.data as unknown as UploadSession[]);
       setLoadError(false);
       setNaKey((n) => n + 1); // re-evaluate the Next Best Action after a reload
@@ -626,6 +630,40 @@ export default function CustomerProfileScreen() {
                   />
                 ))
               )
+            ) : null}
+
+            {/* Τιμολόγια — only when the optional invoicing add-on has issued docs */}
+            {invoices.length > 0 ? (
+              <>
+                <NavRow
+                  icon="document-text"
+                  label="Τιμολόγια"
+                  count={invoices.length}
+                  open={expanded === 'invoices'}
+                  onPress={() => toggle('invoices')}
+                />
+                {expanded === 'invoices'
+                  ? invoices.map((inv) => {
+                      const mark = inv.payload?.mark ?? null;
+                      const qrUrl = inv.payload?.qrUrl ?? null;
+                      const total =
+                        typeof inv.payload?.totalAmount === 'number' ? formatEuro(inv.payload.totalAmount) : (inv.body ?? '');
+                      const subtitle = [formatDate(inv.occurredAt), mark ? `ΜΑΡΚ ${mark}` : null].filter(Boolean).join(' · ');
+                      return (
+                        <ListRow
+                          key={inv.id}
+                          title={inv.title}
+                          subtitle={subtitle}
+                          right={total}
+                          onPress={() => {
+                            if (qrUrl) void Linking.openURL(qrUrl).catch(() => Alert.alert('Σφάλμα', 'Δεν άνοιξε ο σύνδεσμος.'));
+                            else if (mark) Alert.alert('Τιμολόγιο', `ΜΑΡΚ: ${mark}`);
+                          }}
+                        />
+                      );
+                    })
+                  : null}
+              </>
             ) : null}
 
             <NavRow

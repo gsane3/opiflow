@@ -94,7 +94,8 @@ export interface TimelineItem {
     | 'appointment_response'
     | 'intake_request'
     | 'intake_submitted'
-    | 'upload';
+    | 'upload'
+    | 'invoice';
   side: 'us' | 'customer';
   interactive?: boolean;
   title: string;
@@ -108,6 +109,11 @@ export interface TimelineItem {
     endAt?: string | null;
     dueDate?: string | null;
     dueTime?: string | null;
+    // invoice items (AADE/myDATA add-on)
+    mark?: string | null;
+    qrUrl?: string | null;
+    totalAmount?: number | null;
+    invoiceType?: string | null;
   } | null;
 }
 
