@@ -187,7 +187,7 @@ export async function issueInvoiceDocument(ctx: RepoContext, plan: InvoicePlan, 
 
   const submit = deps.submit ?? submitInvoiceToSbz;
   const fetchImpl = deps.fetchImpl ?? ((globalThis as { fetch?: FetchLike }).fetch as FetchLike);
-  const result = await submit(xml, config, { issuerVat: plan.input.issuerVat }, fetchImpl);
+  const result = await submit(xml, config, fetchImpl);
 
   const providerResponse = {
     statusCode: result.statusCode,

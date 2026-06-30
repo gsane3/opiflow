@@ -80,7 +80,7 @@ describe('invoicing.logic — line item from gross', () => {
 });
 
 describe('invoicing.config — env gating', () => {
-  const KEYS = ['SBZ_API_USER_ID', 'SBZ_API_SUBSCRIPTION_KEY', 'SBZ_API_BASE_URL'];
+  const KEYS = ['SBZ_API_KEY', 'SBZ_API_BASE_URL'];
   const saved = Object.fromEntries(KEYS.map((k) => [k, process.env[k]]));
   afterEach(() => {
     for (const k of KEYS) {
@@ -95,11 +95,10 @@ describe('invoicing.config — env gating', () => {
     expect(getSbzConfig()).toBeNull();
   });
   it('is true and exposes a trimmed baseUrl when all are set', () => {
-    process.env.SBZ_API_USER_ID = 'u';
-    process.env.SBZ_API_SUBSCRIPTION_KEY = 'k';
+    process.env.SBZ_API_KEY = 'k';
     process.env.SBZ_API_BASE_URL = 'https://sandbox.example/api/';
     expect(isInvoicingConfigured()).toBe(true);
-    expect(getSbzConfig()).toEqual({ userId: 'u', subscriptionKey: 'k', baseUrl: 'https://sandbox.example/api' });
+    expect(getSbzConfig()).toEqual({ apiKey: 'k', baseUrl: 'https://sandbox.example/api', mode: 'production' });
   });
 });
 
