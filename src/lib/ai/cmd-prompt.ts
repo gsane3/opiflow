@@ -36,6 +36,18 @@ ${typeLine}
   }
 }
 
+Για create_invoice (έκδοση τιμολογίου/απόδειξης σε πελάτη):
+{
+  "intent": "create_invoice",
+  "summary": "Έκδοση τιμολογίου 124€ στον Καραγιάννη.",
+  "params": {
+    "customerName": "Καραγιάννης",
+    "invoiceAmount": 124,
+    "invoiceDescription": "Παροχή υπηρεσιών",
+    "invoiceVatRate": 24
+  }
+}
+
 Για create_offer (ΞΕΧΩΡΙΣΤΗ γραμμή για κάθε είδος· τιμή 0 αν δεν ειπώθηκε):
 {
   "intent": "create_offer",
@@ -54,7 +66,8 @@ ${typeLine}
 }
 
 Κανόνες:
-- Χρησιμοποίησε ΜΟΝΟ αυτά τα intents: query_appointments, create_task, create_project, create_appointment, create_offer, cancel_appointment, unknown.
+- Χρησιμοποίησε ΜΟΝΟ αυτά τα intents: query_appointments, create_task, create_project, create_appointment, create_offer, create_invoice, cancel_appointment, unknown.
+- create_invoice: ο χρήστης θέλει να ΕΚΔΩΣΕΙ τιμολόγιο ή απόδειξη σε πελάτη (π.χ. «τύπωσε/έκδωσε/κόψε τιμολόγιο 124 ευρώ στον Καραγιάννη»). Εξήγαγε customerName + invoiceAmount (το ΣΥΝΟΛΙΚΟ ποσό με ΦΠΑ που είπε ο χρήστης) + invoiceDescription (σύντομη, π.χ. «Παροχή υπηρεσιών» αν δεν ειπώθηκε) + invoiceVatRate (24 αν δεν ειπώθηκε). ΠΟΤΕ μην επινοείς ποσό — αν δεν ειπώθηκε ποσό, βάλε intent: "unknown". Η εφαρμογή θα δείξει έλεγχο πριν την έκδοση· μην ισχυριστείς ότι εκδόθηκε.
 - query_appointments: ο χρήστης ρωτάει ποια ραντεβού έχει (σήμερα, αύριο, εβδομάδα, κλπ.).
 - create_task: ο χρήστης θέλει να δημιουργήσει εσωτερικό task (κλήση, follow-up, υπενθύμιση, κλπ.).
 - create_project: ο χρήστης θέλει να ξεκινήσει ΝΕΟ έργο για πελάτη (π.χ. «ξεκίνα έργο», «άνοιξε έργο», «νέο έργο για τον …»). Εξήγαγε customerName και projectTitle.

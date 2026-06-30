@@ -4,6 +4,7 @@ export type CmdIntent =
   | 'create_project'
   | 'create_appointment'
   | 'create_offer'
+  | 'create_invoice'
   | 'cancel_appointment'
   | 'unknown';
 
@@ -24,6 +25,10 @@ export interface CmdReviewResult {
     offerItems?: Array<{ description: string; quantity: number; unitPrice: number }>;
     offerNotes?: string;
     offerTerms?: string;
+    /** create_invoice — GROSS (VAT-inclusive) amount to invoice. */
+    invoiceAmount?: number;
+    invoiceDescription?: string;
+    invoiceVatRate?: number;
   };
 }
 
@@ -33,6 +38,7 @@ const SUPPORTED_INTENTS: CmdIntent[] = [
   'create_project',
   'create_appointment',
   'create_offer',
+  'create_invoice',
   'cancel_appointment',
   'unknown',
 ];
@@ -162,6 +168,17 @@ export function parseCmdResponse(raw: string): CmdReviewResult {
     if (offerNotes) params.offerNotes = offerNotes;
     const offerTerms = safeStr(rawParams.offerTerms, 500);
     if (offerTerms) params.offerTerms = offerTerms;
+  }
+
+  if (intent === 'create_invoice') {
+    if (typeof rawParams.invoiceAmount === 'number' && isFinite(rawParams.invoiceAmount) && rawParams.invoiceAmount > 0) {
+      params.invoiceAmount = rawParams.invoiceAmount;
+    }
+    const invoiceDescription = safeStr(rawParams.invoiceDescription, 300);
+    if (invoiceDescription) params.invoiceDescription = invoiceDescription;
+    if (typeof rawParams.invoiceVatRate === 'number' && isFinite(rawParams.invoiceVatRate) && rawParams.invoiceVatRate >= 0 && rawParams.invoiceVatRate <= 100) {
+      params.invoiceVatRate = rawParams.invoiceVatRate;
+    }
   }
 
   return { intent, summary, params };
