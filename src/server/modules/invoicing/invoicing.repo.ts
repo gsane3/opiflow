@@ -113,3 +113,16 @@ export async function listInvoices(ctx: RepoContext, query: ListInvoicesParams):
   if (error) throw new AppError('invoice_query_failed', 500);
   return ((data ?? []) as unknown[]).map((r) => r as InvoiceRow);
 }
+
+/** Counterparty (end-customer) name for the invoice. ΑΦΜ is not yet captured on
+ *  customers (added in a later migration) → vat resolved by the caller. */
+export async function getCustomerForInvoice(
+  ctx: RepoContext,
+  customerId: string
+): Promise<{ name: string | null; companyName: string | null } | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data } = await db.from('customers').byId(customerId, 'name, company_name').maybeSingle();
+  if (!data) return null;
+  const c = data as unknown as { name: string | null; company_name: string | null };
+  return { name: c.name, companyName: c.company_name };
+}

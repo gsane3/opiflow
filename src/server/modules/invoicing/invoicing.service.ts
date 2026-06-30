@@ -10,8 +10,9 @@ import { submitInvoiceToSbz, type FetchLike } from './providers/sbz';
 import * as repo from './invoicing.repo';
 import type { RepoContext } from './invoicing.repo';
 import { splitGrossToNetVat, vatCategoryForRate, pickServiceInvoiceType } from './invoicing.logic';
-import type { InvoiceLineItem, InvoiceRow } from './types';
+import type { InvoiceLineItem, InvoiceRow, InvoicingSettingsRow } from './types';
 import type { OfferRow, OfferItemRow } from '../offers/offers.types';
+import { getOfferRowById, fetchItemsForOffer } from '../offers/offers.repo';
 
 const round2 = (n: number): number => Math.round((n + Number.EPSILON) * 100) / 100;
 const today = (): string => new Date().toISOString().slice(0, 10);
@@ -216,4 +217,62 @@ export async function issueInvoiceDocument(ctx: RepoContext, plan: InvoicePlan, 
     error: errMsg,
   });
   return updated ?? draft;
+}
+
+// ── Route-facing orchestration ───────────────────────────────────────────────
+
+/** Build the issuer from the per-tenant settings. Throws if the issuer ΑΦΜ is not
+ *  set yet (snapshotted at activation; settable via PUT /settings). */
+function issuerFromSettings(settings: InvoicingSettingsRow): IssuerInfo {
+  if (!settings.issuer_vat) throw new AppError('issuer_vat_missing', 400);
+  return {
+    vat: settings.issuer_vat,
+    branch: settings.issuer_branch,
+    series: settings.invoice_series,
+    defaultClassification: settings.default_income_classification,
+  };
+}
+
+async function loadCounterparty(
+  ctx: RepoContext,
+  customerId: string | null,
+  vatOverride: string | null
+): Promise<CounterpartyInfo> {
+  if (!customerId) return { vat: vatOverride, name: null };
+  const c = await repo.getCustomerForInvoice(ctx, customerId);
+  return { vat: vatOverride, name: c?.companyName || c?.name || null };
+}
+
+/** Issue an invoice for an existing offer (items NET; one offer vat_rate). Idempotent per offer. */
+export async function issueForOffer(ctx: RepoContext, offerId: string, deps: IssueDeps = {}): Promise<InvoiceRow> {
+  const settings = await repo.getInvoicingSettings(ctx);
+  if (!settings || !settings.enabled) throw new AppError('invoicing_not_enabled', 409);
+  const issuer = issuerFromSettings(settings);
+  const offer = await getOfferRowById(ctx, offerId);
+  if (!offer) throw new AppError('offer_not_found', 404);
+  const items = await fetchItemsForOffer(ctx, offerId);
+  const counterparty = await loadCounterparty(ctx, offer.customer_id, null);
+  const plan = planFromOffer(offer, items, issuer, counterparty, { customerId: offer.customer_id, offerId });
+  plan.dedupKey = `offer:${offerId}`;
+  return issueInvoiceDocument(ctx, plan, deps);
+}
+
+/** Issue an ad-hoc invoice from a GROSS amount (e.g. a confirmed payment or manual entry). */
+export async function issueManualGross(
+  ctx: RepoContext,
+  args: { gross: number; vatRate: number; description: string; customerId?: string | null; counterpartyVat?: string | null; dedupKey?: string },
+  deps: IssueDeps = {}
+): Promise<InvoiceRow> {
+  const settings = await repo.getInvoicingSettings(ctx);
+  if (!settings || !settings.enabled) throw new AppError('invoicing_not_enabled', 409);
+  const issuer = issuerFromSettings(settings);
+  const counterparty = await loadCounterparty(ctx, args.customerId ?? null, args.counterpartyVat ?? null);
+  const plan = planFromGross(
+    { gross: args.gross, description: args.description, vatRate: args.vatRate },
+    issuer,
+    counterparty,
+    { customerId: args.customerId ?? null },
+    args.dedupKey
+  );
+  return issueInvoiceDocument(ctx, plan, deps);
 }
