@@ -1,8 +1,8 @@
 // AI εντολές — native parity with the web /cmd assistant. Type (or dictate via
 // the keyboard mic) a natural-language command; it's parsed by /api/ai/cmd into
-// one of 5 intents, shown as a review, and only committed on confirm:
-//   query_appointments · create_task · create_appointment · create_offer ·
-//   cancel_appointment.
+// one intent, shown as a review, and only committed on confirm:
+//   query_appointments · create_task · create_project · create_appointment ·
+//   create_offer · create_invoice · cancel_appointment.
 // Customer matching is resolved against /api/customers?q=… (pick when ambiguous).
 
 import { Ionicons } from '@expo/vector-icons';
@@ -17,7 +17,7 @@ import { PrimaryButton } from '@/components/ui';
 import VoiceCommandRecorder from '@/components/voice-command-recorder';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
-import { apiGet, apiPatch, apiPost } from '@/lib/api';
+import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { formatEuro, todayYMD } from '@/lib/format';
 import type { Business, Customer, Task } from '@/lib/types';
 
@@ -27,6 +27,7 @@ type CmdIntent =
   | 'create_project'
   | 'create_appointment'
   | 'create_offer'
+  | 'create_invoice'
   | 'cancel_appointment'
   | 'unknown';
 
@@ -46,6 +47,10 @@ interface CmdResult {
     offerItems?: Array<{ description: string; quantity: number; unitPrice: number }>;
     offerNotes?: string;
     offerTerms?: string;
+    // create_invoice (AADE/myDATA add-on)
+    invoiceAmount?: number;
+    invoiceDescription?: string;
+    invoiceVatRate?: number;
   };
 }
 
@@ -55,6 +60,7 @@ const EXAMPLES = [
   'Κλείσε ραντεβού με τον Καραγιάννη αύριο στις 10',
   'Στείλε προσφορά στον Αλεξάνδρου: υλικά 3500, εργατικά 500',
   'Φτιάξε task να καλέσω τον Δημητρίου αύριο',
+  'Κόψε τιμολόγιο 124€ στον Παπαδόπουλο',
   'Ακύρωσε το ραντεβού με τον Καραγιάννη αύριο',
 ];
 
@@ -105,6 +111,9 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   const [loadingFolders, setLoadingFolders] = useState(false);
   // (#2) Voice dictation recorder modal.
   const [voiceOpen, setVoiceOpen] = useState(false);
+  // create_invoice — issued ΜΑΡΚ + a gated error message (parity with web).
+  const [invoiceMark, setInvoiceMark] = useState<string | null>(null);
+  const [invoiceError, setInvoiceError] = useState('');
 
   useEffect(() => {
     apiGet<{ business?: Business }>('/api/businesses/me')
@@ -129,6 +138,8 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     setProjectError('');
     setIntoProject(false);
     setCreatingCustomer(false);
+    setInvoiceMark(null);
+    setInvoiceError('');
   }, []);
 
   async function resolveCustomer(name: string | undefined): Promise<{ matched: Customer | null; candidates: Customer[] }> {
@@ -197,7 +208,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
         setResolved(true);
         return;
       }
-      if (r.intent === 'create_task' || r.intent === 'create_project' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'cancel_appointment') {
+      if (r.intent === 'create_task' || r.intent === 'create_project' || r.intent === 'create_appointment' || r.intent === 'create_offer' || r.intent === 'create_invoice' || r.intent === 'cancel_appointment') {
         const cust = await resolveCustomer(r.params.customerName);
         setMatched(cust.matched);
         setCandidates(cust.candidates);
@@ -304,6 +315,50 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     } catch {
       Alert.alert('Σφάλμα', 'Δεν αποθηκεύτηκε η προσφορά.');
       return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // create_invoice: issue an official myDATA document via /api/invoicing/issue.
+  // Fully gated server-side (503 when the provider isn't configured, 409 when the
+  // tenant hasn't activated, 400 issuer_vat_missing). Customer optional → B2C
+  // retail receipt. Mirrors the web handleSaveInvoice.
+  async function saveInvoice() {
+    if (!result) return;
+    const amount = result.params.invoiceAmount;
+    if (!amount || amount <= 0) { setInvoiceError('Δεν αναγνωρίστηκε ποσό για το τιμολόγιο.'); return; }
+    setBusy(true);
+    setInvoiceError('');
+    try {
+      const r = await apiPost<{ ok?: boolean; invoice?: { status?: string; mark?: string | null; error?: string | null } }>(
+        '/api/invoicing/issue',
+        {
+          amount,
+          description: result.params.invoiceDescription?.trim() || 'Παροχή υπηρεσιών',
+          vatRate: result.params.invoiceVatRate ?? vatRate,
+          ...(matched?.id ? { customerId: matched.id } : {}),
+        },
+      );
+      if (r?.ok && r.invoice) {
+        if (r.invoice.status === 'issued' && r.invoice.mark) {
+          setInvoiceMark(r.invoice.mark);
+          setSaved(true);
+        } else {
+          setInvoiceError(r.invoice.error || 'Το τιμολόγιο δεν εκδόθηκε. Δοκίμασε ξανά.');
+        }
+      } else {
+        setInvoiceError('Το τιμολόγιο δεν εκδόθηκε. Δοκίμασε ξανά.');
+      }
+    } catch (e) {
+      const status = e instanceof ApiError ? e.status : 0;
+      const code = e instanceof ApiError ? (e.body as { error?: string } | null)?.error : undefined;
+      setInvoiceError(
+        status === 503 ? 'Η τιμολόγηση μέσω εφαρμογής δεν είναι ενεργοποιημένη ακόμη.'
+          : code === 'invoicing_not_enabled' ? 'Ενεργοποίησε πρώτα την τιμολόγηση από τις Ρυθμίσεις.'
+            : code === 'issuer_vat_missing' ? 'Συμπλήρωσε το ΑΦΜ έκδοσης στις Ρυθμίσεις τιμολόγησης.'
+              : 'Το τιμολόγιο δεν εκδόθηκε. Δοκίμασε ξανά.',
+      );
     } finally {
       setBusy(false);
     }
@@ -530,7 +585,11 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
               <View style={styles.okBox}>
                 <Ionicons name="checkmark-circle" size={20} color="#1B8A4C" />
                 <ThemedText type="smallBold" style={styles.okText}>
-                  {intoProject ? 'Έγινε — μπήκε στο έργο και ειδοποιήθηκε ο πελάτης.' : 'Έγινε.'}
+                  {result.intent === 'create_invoice'
+                    ? 'Το τιμολόγιο εκδόθηκε.'
+                    : intoProject
+                      ? 'Έγινε — μπήκε στο έργο και ειδοποιήθηκε ο πελάτης.'
+                      : 'Έγινε.'}
                 </ThemedText>
               </View>
             ) : null}
@@ -673,6 +732,28 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
                     )}
                   </>
                 )}
+              </View>
+            ) : null}
+
+            {/* create_invoice — official AADE/myDATA document. Customer optional → B2C. */}
+            {result.intent === 'create_invoice' && resolved && !saved ? (
+              <View style={styles.card}>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Έκδοση τιμολογίου</ThemedText>
+                <Row k="Πελάτης" v={matched?.name ?? (result.params.customerName || '— (απόδειξη λιανικής)')} />
+                <Row k="Ποσό (με ΦΠΑ)" v={result.params.invoiceAmount ? formatEuro(result.params.invoiceAmount) : '—'} />
+                <Row k="Περιγραφή" v={result.params.invoiceDescription?.trim() || 'Παροχή υπηρεσιών'} />
+                {invoiceError ? <ThemedText type="small" style={styles.warnText}>{invoiceError}</ThemedText> : null}
+                <PrimaryButton label="Έκδοση τιμολογίου" busy={busy} disabled={!result.params.invoiceAmount} onPress={() => void saveInvoice()} />
+                <ThemedText type="small" themeColor="textSecondary">
+                  Επίσημο παραστατικό μέσω ΑΑΔΕ/myDATA{matched ? '.' : ' (απόδειξη λιανικής, χωρίς πελάτη).'}
+                </ThemedText>
+              </View>
+            ) : null}
+
+            {/* create_invoice — issued ΜΑΡΚ (the okBox above shows «εκδόθηκε»). */}
+            {result.intent === 'create_invoice' && saved && invoiceMark ? (
+              <View style={styles.card}>
+                <Row k="ΜΑΡΚ" v={invoiceMark} />
               </View>
             ) : null}
 
