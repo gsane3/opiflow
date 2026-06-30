@@ -53,21 +53,20 @@ describe('providers/sbz — parseSbzResponse', () => {
 });
 
 describe('providers/sbz — submitInvoiceToSbz', () => {
-  it('POSTs with the right headers (issuervat + subscription key) and parses', async () => {
+  it('POSTs to the SBZ endpoint with the API-KEY header and parses', async () => {
     const calls: { url: string; headers: Record<string, string>; body: string }[] = [];
     const fakeFetch: FetchLike = async (url, init) => {
       calls.push({ url, headers: init.headers, body: init.body });
       return { ok: true, status: 200, text: async () => `<response><statusCode>Success</statusCode><invoiceMark>400002</invoiceMark></response>` };
     };
-    const r = await submitInvoiceToSbz('<xml/>', { userId: 'u', subscriptionKey: 'k', baseUrl: 'https://demo' }, { issuerVat: '094000000' }, fakeFetch);
+    const r = await submitInvoiceToSbz('<xml/>', { apiKey: 'k', baseUrl: 'https://demo', mode: 'production' }, fakeFetch);
     expect(r.ok).toBe(true);
     expect(r.mark).toBe('400002');
-    expect(calls[0].url).toBe('https://demo/SendInvoices');
-    expect(calls[0].headers['ocp-apim-subscription-key']).toBe('k');
-    expect(calls[0].headers['issuervat']).toBe('094000000');
+    expect(calls[0].url).toBe('https://demo/sign/sendinvoice.php?action=production');
+    expect(calls[0].headers['API-KEY']).toBe('k');
   });
   it('returns a network_error result (never throws) on fetch failure', async () => {
-    const r = await submitInvoiceToSbz('<xml/>', { userId: 'u', subscriptionKey: 'k', baseUrl: 'https://x' }, { issuerVat: 'v' }, async () => { throw new Error('boom'); });
+    const r = await submitInvoiceToSbz('<xml/>', { apiKey: 'k', baseUrl: 'https://x', mode: 'sandbox' }, async () => { throw new Error('boom'); });
     expect(r.ok).toBe(false);
     expect(r.errors[0].code).toBe('network_error');
   });
@@ -140,7 +139,7 @@ const SUCCESS = { ok: true, statusCode: 'Success', mark: '400009', uid: 'UID40',
 const mkOkSubmit = () => vi.fn(async () => ({ ...SUCCESS }));
 
 describe('invoicing.service — issueInvoiceDocument', () => {
-  const cfg = () => ({ userId: 'pu', subscriptionKey: 'pk', baseUrl: 'https://demo' });
+  const cfg = () => ({ apiKey: 'pk', baseUrl: 'https://demo', mode: 'production' as const });
 
   it('persists an issued invoice with the ΜΑΡΚ on success', async () => {
     const store = { business_invoicing_settings: [{ id: 's1', business_id: 'biz1', enabled: true }], invoices: [] as Record<string, unknown>[] };

@@ -33,11 +33,7 @@ export interface SbzSubmitResult {
   rawResponse: string;
 }
 
-export interface SbzSubmitOptions {
-  issuerVat: string;
-  /** Override the send path (default '/SendInvoices'); confirm against SBZ docs. */
-  sendPath?: string;
-}
+// (The issuer VAT travels inside the InvoicesDoc XML; no per-call options needed.)
 
 // Namespace-agnostic single-tag extractor: matches <tag ...>value</tag> or <ns:tag>value</ns:tag>.
 function tag(xml: string, name: string): string | null {
@@ -61,8 +57,8 @@ export function parseSbzResponse(rawResponse: string, httpStatus: number): SbzSu
   const mark = tag(rawResponse, 'invoiceMark');
   const uid = tag(rawResponse, 'invoiceUid');
   const authenticationCode = tag(rawResponse, 'authenticationCode');
-  // QR may come back as invoiceUrl, qrUrl, or url.
-  const qrUrl = tag(rawResponse, 'qrUrl') ?? tag(rawResponse, 'invoiceUrl') ?? tag(rawResponse, 'url');
+  // SBZ returns InvoiceUrl + myDATAUrl; the AADE/QR link is the myDATA one.
+  const qrUrl = tag(rawResponse, 'qrUrl') ?? tag(rawResponse, 'myDATAUrl') ?? tag(rawResponse, 'invoiceUrl') ?? tag(rawResponse, 'url');
   const errors = parseErrors(rawResponse);
   const ok =
     httpStatus >= 200 &&
@@ -74,23 +70,23 @@ export function parseSbzResponse(rawResponse: string, httpStatus: number): SbzSu
 }
 
 /** POST an InvoicesDoc XML to SBZ and return the parsed result. Never throws on a
- *  non-2xx HTTP — the caller maps {ok:false, errors} to a failed invoice row. */
+ *  non-2xx HTTP — the caller maps {ok:false, errors} to a failed invoice row.
+ *  Endpoint + headers per the SBZ REST docs:
+ *    POST {baseUrl}/sign/sendinvoice.php?action={production|sandbox}
+ *    headers: API-KEY, Content-Type: application/xml; charset=utf-8 */
 export async function submitInvoiceToSbz(
   xml: string,
   config: SbzConfig,
-  opts: SbzSubmitOptions,
   fetchImpl: FetchLike
 ): Promise<SbzSubmitResult> {
-  const url = `${config.baseUrl}${opts.sendPath ?? '/SendInvoices'}`;
+  const url = `${config.baseUrl}/sign/sendinvoice.php?action=${config.mode}`;
   let res: FetchLikeResponse;
   try {
     res = await fetchImpl(url, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/xml',
-        'aade-user-id': config.userId,
-        'ocp-apim-subscription-key': config.subscriptionKey,
-        issuervat: opts.issuerVat,
+        'Content-Type': 'application/xml; charset=utf-8',
+        'API-KEY': config.apiKey,
       },
       body: xml,
     });

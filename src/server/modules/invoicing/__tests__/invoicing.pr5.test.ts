@@ -29,7 +29,7 @@ function makeFakeSupabase(store: Record<string, Record<string, unknown>[]>) {
   return { from: (t: string) => build(t) } as never;
 }
 
-const cfg = () => ({ userId: 'pu', subscriptionKey: 'pk', baseUrl: 'https://demo' });
+const cfg = () => ({ apiKey: 'pk', baseUrl: 'https://demo', mode: 'production' as const });
 const mkOkSubmit = () => vi.fn(async () => ({ ok: true, statusCode: 'Success', mark: '400077', uid: 'U', authenticationCode: 'A', qrUrl: 'q', errors: [], httpStatus: 200, rawResponse: '<ok/>' }));
 const ROW = { id: 'p1', amount: 124, customer_id: null, offer_id: null, kind: 'balance' };
 
