@@ -9,6 +9,9 @@ const optionalVat = z
   .refine((v) => v === '' || isValidGreekVat(v), 'invalid_vat')
   .optional();
 
+/** The onboarding-wizard steps (mirrors business_invoicing_settings.onboarding_status). */
+export const ONBOARDING_STATUS_VALUES = ['not_started', 'link_sent', 'gsis_authorized', 'active'] as const;
+
 /** PUT /api/invoicing/settings — owner/admin updates the per-tenant config. */
 export const SettingsInputSchema = z
   .object({
@@ -18,6 +21,7 @@ export const SettingsInputSchema = z
     invoiceSeries: z.string().trim().max(20).optional(),
     autoIssueOnPayment: z.boolean().optional(),
     defaultIncomeClassification: z.string().trim().max(40).optional(),
+    onboardingStatus: z.enum(ONBOARDING_STATUS_VALUES).optional(),
   })
   .strict();
 export type SettingsInput = z.infer<typeof SettingsInputSchema>;
@@ -32,6 +36,11 @@ export function settingsInputToDb(input: SettingsInput): Record<string, unknown>
   if (input.autoIssueOnPayment !== undefined) out.auto_issue_on_payment = input.autoIssueOnPayment;
   if (input.defaultIncomeClassification !== undefined)
     out.default_income_classification = input.defaultIncomeClassification || null;
+  if (input.onboardingStatus !== undefined) {
+    out.onboarding_status = input.onboardingStatus;
+    if (input.onboardingStatus === 'gsis_authorized') out.gsis_authorized_at = new Date().toISOString();
+    if (input.onboardingStatus === 'active') out.activated_at = new Date().toISOString();
+  }
   return out;
 }
 

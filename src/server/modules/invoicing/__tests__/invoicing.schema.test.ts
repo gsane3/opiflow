@@ -21,6 +21,17 @@ describe('invoicing.schema — SettingsInput', () => {
     const input = SettingsInputSchema.parse({ issuerVat: '' });
     expect(settingsInputToDb(input)).toEqual({ issuer_vat: null });
   });
+  it('maps onboardingStatus + stamps the matching timestamp', () => {
+    const gsis = settingsInputToDb(SettingsInputSchema.parse({ onboardingStatus: 'gsis_authorized' }));
+    expect(gsis.onboarding_status).toBe('gsis_authorized');
+    expect(typeof gsis.gsis_authorized_at).toBe('string');
+    const act = settingsInputToDb(SettingsInputSchema.parse({ onboardingStatus: 'active' }));
+    expect(act.onboarding_status).toBe('active');
+    expect(typeof act.activated_at).toBe('string');
+  });
+  it('rejects an invalid onboardingStatus (enum)', () => {
+    expect(() => SettingsInputSchema.parse({ onboardingStatus: 'bogus' })).toThrow();
+  });
 });
 
 describe('invoicing.schema — IssueInput', () => {
