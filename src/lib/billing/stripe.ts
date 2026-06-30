@@ -42,6 +42,10 @@ export async function createCheckoutSession(opts: {
   businessId: string;
   successUrl: string;
   cancelUrl: string;
+  /** Optional discriminator stamped on the session AND the subscription metadata
+   *  (e.g. 'invoicing_addon') so the webhook can route a second subscription type
+   *  without touching the main-plan path. Unset → a normal plan checkout. */
+  kind?: string;
 }): Promise<StripeResult> {
   return stripePost(
     '/checkout/sessions',
@@ -54,6 +58,8 @@ export async function createCheckoutSession(opts: {
       customer_email: opts.customerEmail,
       'metadata[businessId]': opts.businessId,
       'subscription_data[metadata][businessId]': opts.businessId,
+      'metadata[kind]': opts.kind,
+      'subscription_data[metadata][kind]': opts.kind,
       allow_promotion_codes: 'true',
     })
   );

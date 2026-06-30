@@ -37,6 +37,11 @@ export const OPTIONAL_INTEGRATIONS: Record<string, readonly string[]> = {
   // reports invoicing:false. Per-tenant activation is a separate DB flag.
   // (Optional SBZ_API_MODE = sandbox|production, default production.)
   invoicing: ['SBZ_API_KEY', 'SBZ_API_BASE_URL'],
+  // Stripe monthly add-on that BILLS the invoicing feature (separate price from the
+  // main plan). When set, Account → invoicing wizard shows the pay step; the
+  // /api/invoicing/checkout route + the webhook's kind:'invoicing_addon' branch go
+  // live. Until then the pay step is hidden and checkout returns 503.
+  invoicing_addon: ['STRIPE_SECRET_KEY', 'STRIPE_INVOICING_PRICE_ID', 'STRIPE_WEBHOOK_SECRET'],
 };
 
 /** Throws if a required env var is missing. Use at the top of code paths that need it. */

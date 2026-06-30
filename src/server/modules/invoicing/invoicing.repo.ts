@@ -55,6 +55,66 @@ export async function upsertInvoicingSettings(
   return data as unknown as InvoicingSettingsRow;
 }
 
+export interface AddonStatus {
+  addon_status: 'none' | 'active' | 'cancelled';
+  addon_subscription_id: string | null;
+  addon_current_period_end: string | null;
+}
+
+/** Tolerant read of the 068 add-on entitlement columns. Returns undefined when the
+ *  migration isn't applied yet (column-missing) — NOT in SETTINGS_COLUMNS, so the
+ *  core settings fetch + issuance gate are never affected. */
+export async function getInvoicingAddonStatus(ctx: RepoContext): Promise<AddonStatus | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db
+      .from('business_invoicing_settings')
+      .select('addon_status, addon_subscription_id, addon_current_period_end')
+      .maybeSingle();
+    if (error) return undefined; // pre-068 column-missing (or transient) → degrade
+    if (!data) return { addon_status: 'none', addon_subscription_id: null, addon_current_period_end: null };
+    const r = data as unknown as Partial<AddonStatus>;
+    return {
+      addon_status: (r.addon_status as AddonStatus['addon_status']) ?? 'none',
+      addon_subscription_id: r.addon_subscription_id ?? null,
+      addon_current_period_end: r.addon_current_period_end ?? null,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function isMissingColumnOrTable(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false;
+  if (error.code === '42703' || error.code === '42P01') return true; // undefined_column / undefined_table
+  const msg = (error.message ?? '').toLowerCase();
+  return (msg.includes('addon_') || msg.includes('business_invoicing_settings')) && msg.includes('does not exist');
+}
+
+/** Isolated, tolerant write of the 068 add-on columns (Stripe-webhook driven).
+ *  Upserts the per-tenant settings row (the tenant may pay before ever opening
+ *  settings). Returns { ok, columnMissing }: columnMissing=true (pre-068) is a
+ *  PERMANENT failure the webhook acknowledges (no point retrying); ok=false with
+ *  columnMissing=false is transient (→ webhook 500 so Stripe retries). */
+export async function applyAddonSubscription(
+  ctx: RepoContext,
+  fields: Record<string, unknown>
+): Promise<{ ok: boolean; columnMissing: boolean }> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const patch = { ...fields, updated_at: new Date().toISOString() };
+  const { data: existing, error: selErr } = await db
+    .from('business_invoicing_settings')
+    .select('id')
+    .maybeSingle();
+  if (selErr) return { ok: false, columnMissing: isMissingColumnOrTable(selErr) };
+  const existingId = (existing as unknown as { id?: string } | null)?.id ?? null;
+  const { error } = existingId
+    ? await db.from('business_invoicing_settings').update(patch).eq('id', existingId)
+    : await db.from('business_invoicing_settings').insert(patch);
+  if (!error) return { ok: true, columnMissing: false };
+  return { ok: false, columnMissing: isMissingColumnOrTable(error as { code?: string; message?: string }) };
+}
+
 export async function findInvoiceByDedup(ctx: RepoContext, dedupKey: string): Promise<InvoiceRow | null> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   const { data, error } = await db
