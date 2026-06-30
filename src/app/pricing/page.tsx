@@ -9,6 +9,11 @@ export const metadata: Metadata = {
   title: 'Τιμές & πακέτα — Opiflow',
   description:
     'Διάλεξε το πακέτο σου. Base για όλη τη δουλειά σου, Premium με επαγγελματικό τηλέφωνο & AI. Πρόσθετα: τιμολόγηση ΑΑΔΕ και εργαλεία αλουμινίου/ξυλουργικής. Όλες οι τιμές + ΦΠΑ.',
+  // Link-only page: reachable by direct URL, but kept OUT of search engines.
+  // noindex is the authoritative "don't index" signal (the page stays crawlable so
+  // engines can actually SEE the noindex); it's also absent from the sitemap and has
+  // no internal links pointing to it.
+  robots: { index: false, follow: false, googleBot: { index: false, follow: false } },
   openGraph: { title: 'Τιμές & πακέτα — Opiflow', type: 'website', locale: 'el_GR' },
 };
 

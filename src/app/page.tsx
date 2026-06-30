@@ -91,12 +91,6 @@ export default function LandingPage() {
           <Logo />
           <div className="flex items-center gap-2">
             <Link
-              href="/pricing"
-              className="hidden rounded-full px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100 sm:inline-block"
-            >
-              Τιμές
-            </Link>
-            <Link
               href="/login"
               className="rounded-full px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
             >
@@ -288,7 +282,6 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-5 py-8 sm:flex-row">
           <Logo />
           <div className="flex flex-wrap items-center justify-center gap-5 text-sm text-zinc-500">
-            <Link href="/pricing" className="transition hover:text-zinc-800">Τιμές</Link>
             <Link href="/login" className="transition hover:text-zinc-800">Σύνδεση</Link>
             <Link href="/register" className="transition hover:text-zinc-800">Εγγραφή</Link>
             <Link href="/privacy" className="transition hover:text-zinc-800">Απόρρητο</Link>
