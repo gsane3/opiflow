@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { autoIssueInvoiceForPayment } from '../invoicing.service';
+import { autoIssueInvoiceForPayment, issueManualGross } from '../invoicing.service';
 
 // Minimal in-memory fake supabase (settings + invoices reads/writes only).
 function makeFakeSupabase(store: Record<string, Record<string, unknown>[]>) {
@@ -69,5 +69,57 @@ describe('invoicing — autoIssueInvoiceForPayment', () => {
     const ctx = { businessId: 'biz1', userId: 'u', role: 'owner', supabase: makeFakeSupabase(store) };
     const inv = await autoIssueInvoiceForPayment(ctx as never, ROW, { getConfig: cfg, submit: mkOkSubmit() as never });
     expect(inv).toBeNull();
+  });
+});
+
+describe('invoicing — counterparty ΑΦΜ drives B2B 2.1 vs B2C 11.2 (migration 067)', () => {
+  const settings = { id: 's1', business_id: 'biz1', enabled: true, issuer_vat: '094000000', issuer_branch: 0 };
+
+  it('picks 2.1 + sets counterparty_vat when the customer has a stored ΑΦΜ', async () => {
+    const store = {
+      business_invoicing_settings: [{ ...settings }],
+      customers: [{ id: 'cust9', business_id: 'biz1', name: 'ΑΕ Πελάτης', company_name: 'ΑΕ Πελάτης', vat_number: '803311450' }],
+      invoices: [] as Record<string, unknown>[],
+    };
+    const ctx = { businessId: 'biz1', userId: 'u', role: 'owner', supabase: makeFakeSupabase(store) };
+    const inv = await issueManualGross(
+      ctx as never,
+      { gross: 124, vatRate: 24, description: 'Υπηρεσία', customerId: 'cust9' },
+      { getConfig: cfg, submit: mkOkSubmit() as never },
+    );
+    expect(inv.status).toBe('issued');
+    expect(inv.invoice_type).toBe('2.1');
+    expect(inv.counterparty_vat).toBe('803311450');
+  });
+
+  it('falls back to 11.2 (B2C) when the customer has no ΑΦΜ', async () => {
+    const store = {
+      business_invoicing_settings: [{ ...settings }],
+      customers: [{ id: 'cust8', business_id: 'biz1', name: 'Ιδιώτης', company_name: null, vat_number: null }],
+      invoices: [] as Record<string, unknown>[],
+    };
+    const ctx = { businessId: 'biz1', userId: 'u', role: 'owner', supabase: makeFakeSupabase(store) };
+    const inv = await issueManualGross(
+      ctx as never,
+      { gross: 124, vatRate: 24, description: 'Υπηρεσία', customerId: 'cust8' },
+      { getConfig: cfg, submit: mkOkSubmit() as never },
+    );
+    expect(inv.invoice_type).toBe('11.2');
+    expect(inv.counterparty_vat).toBeNull();
+  });
+
+  it('an explicit counterpartyVat override beats the stored customer ΑΦΜ', async () => {
+    const store = {
+      business_invoicing_settings: [{ ...settings }],
+      customers: [{ id: 'cust9', business_id: 'biz1', name: 'ΑΕ', company_name: 'ΑΕ', vat_number: '803311450' }],
+      invoices: [] as Record<string, unknown>[],
+    };
+    const ctx = { businessId: 'biz1', userId: 'u', role: 'owner', supabase: makeFakeSupabase(store) };
+    const inv = await issueManualGross(
+      ctx as never,
+      { gross: 124, vatRate: 24, description: 'Υπηρεσία', customerId: 'cust9', counterpartyVat: '090000045' },
+      { getConfig: cfg, submit: mkOkSubmit() as never },
+    );
+    expect(inv.counterparty_vat).toBe('090000045');
   });
 });

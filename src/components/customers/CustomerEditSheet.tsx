@@ -21,7 +21,7 @@ const SOURCES: Array<{ value: string; label: string }> = [
 ];
 
 interface CustomerFull {
-  name: string | null; companyName: string | null;
+  name: string | null; companyName: string | null; vatNumber: string | null;
   mobilePhone: string | null; landlinePhone: string | null;
   email: string | null; address: string | null;
   postalCode: string | null; region: string | null;
@@ -29,7 +29,7 @@ interface CustomerFull {
 }
 
 const EMPTY = {
-  firstName: '', lastName: '', companyName: '', mobilePhone: '', landlinePhone: '',
+  firstName: '', lastName: '', companyName: '', vatNumber: '', mobilePhone: '', landlinePhone: '',
   email: '', address: '', postalCode: '', region: '', preferredContactMethod: 'phone', source: '', needsSummary: '',
 };
 
@@ -64,7 +64,7 @@ export default function CustomerEditSheet({
         const parts = (c.name ?? '').trim().split(/\s+/).filter(Boolean);
         setForm({
           firstName: parts[0] ?? '', lastName: parts.slice(1).join(' '),
-          companyName: c.companyName ?? '', mobilePhone: c.mobilePhone ?? '',
+          companyName: c.companyName ?? '', vatNumber: c.vatNumber ?? '', mobilePhone: c.mobilePhone ?? '',
           landlinePhone: c.landlinePhone ?? '', email: c.email ?? '', address: c.address ?? '',
           postalCode: c.postalCode ?? '', region: c.region ?? '',
           preferredContactMethod: c.preferredContactMethod ?? 'phone', source: c.source ?? '', needsSummary: c.needsSummary ?? '',
@@ -87,6 +87,7 @@ export default function CustomerEditSheet({
         body: JSON.stringify({
           name: `${form.firstName} ${form.lastName}`.trim() || null,
           companyName: form.companyName || null,
+          vatNumber: form.vatNumber.trim() || null,
           mobilePhone: form.mobilePhone || null, phone: form.mobilePhone || null,
           landlinePhone: form.landlinePhone || null, email: form.email || null, address: form.address || null,
           postalCode: form.postalCode || null, region: form.region || null,
@@ -116,7 +117,10 @@ export default function CustomerEditSheet({
                 <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Όνομα</span><input className="opf-inp" value={form.firstName} onChange={(e) => setForm((f) => ({ ...f, firstName: e.target.value }))} /></label>
                 <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Επώνυμο</span><input className="opf-inp" value={form.lastName} onChange={(e) => setForm((f) => ({ ...f, lastName: e.target.value }))} /></label>
               </div>
-              <label className="opf-field"><span className="opf-field-label">Εταιρεία</span><input className="opf-inp" value={form.companyName} placeholder="Προαιρετικό" onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} /></label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Εταιρεία</span><input className="opf-inp" value={form.companyName} placeholder="Προαιρετικό" onChange={(e) => setForm((f) => ({ ...f, companyName: e.target.value }))} /></label>
+                <label className="opf-field" style={{ flex: '0 0 40%' }}><span className="opf-field-label">ΑΦΜ</span><input className="opf-inp" inputMode="numeric" value={form.vatNumber} placeholder="Για τιμολόγιο" onChange={(e) => setForm((f) => ({ ...f, vatNumber: e.target.value }))} /></label>
+              </div>
               <div style={{ display: 'flex', gap: 10 }}>
                 <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Κινητό</span><input className="opf-inp" inputMode="tel" value={form.mobilePhone} onChange={(e) => setForm((f) => ({ ...f, mobilePhone: e.target.value }))} /></label>
                 <label className="opf-field" style={{ flex: 1 }}><span className="opf-field-label">Σταθερό</span><input className="opf-inp" inputMode="tel" value={form.landlinePhone} onChange={(e) => setForm((f) => ({ ...f, landlinePhone: e.target.value }))} /></label>

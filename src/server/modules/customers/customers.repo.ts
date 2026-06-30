@@ -154,6 +154,18 @@ export async function fetchCustomerBlocked(ctx: RepoContext, id: string): Promis
   return undefined;
 }
 
+/** Tolerant 067 vat_number read (pre-067 column-missing → undefined). */
+export async function fetchCustomerVatNumber(ctx: RepoContext, id: string): Promise<string | null | undefined> {
+  try {
+    const db = tenantDb(ctx.supabase, ctx.businessId);
+    const { data, error } = await db.from('customers').byId(id, 'vat_number').maybeSingle();
+    if (!error && data) return (data as unknown as { vat_number: string | null }).vat_number ?? null;
+  } catch {
+    // pre-067 → leave the default
+  }
+  return undefined;
+}
+
 /** Isolated 053 extras write — returns whether the write succeeded (pre-053 column-missing → false). */
 export async function applyCustomerExtras(
   ctx: RepoContext,
@@ -169,6 +181,13 @@ export async function applyCustomerExtras(
 export async function applyCustomerBlocked(ctx: RepoContext, id: string, blocked: boolean): Promise<boolean> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   const { error } = await db.from('customers').update({ blocked }).eq('id', id);
+  return !error;
+}
+
+/** Isolated 067 vat_number write — returns whether the write succeeded (pre-067 column-missing → false). */
+export async function applyCustomerVatNumber(ctx: RepoContext, id: string, vatNumber: string | null): Promise<boolean> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { error } = await db.from('customers').update({ vat_number: vatNumber }).eq('id', id);
   return !error;
 }
 
