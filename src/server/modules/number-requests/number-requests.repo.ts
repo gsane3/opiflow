@@ -32,13 +32,13 @@ export async function getBusinessNumberInfo(ctx: RepoContext): Promise<BusinessN
   return (data as BusinessNumberInfo) ?? null;
 }
 
-export async function getSubscriptionStatus(ctx: RepoContext): Promise<string | null> {
+export async function getSubscriptionStatus(ctx: RepoContext): Promise<{ status: string; plan_key: string | null } | null> {
   const { data } = await ctx.supabase
     .from('business_subscriptions')
-    .select('status')
+    .select('status, plan_key')
     .eq('business_id', ctx.businessId)
     .maybeSingle();
-  return data ? (data as { status: string }).status : null;
+  return data ? (data as { status: string; plan_key: string | null }) : null;
 }
 
 export async function getPendingRequest(ctx: RepoContext, ordered: boolean): Promise<PendingRequestRow | null> {

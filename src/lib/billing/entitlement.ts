@@ -20,3 +20,22 @@ export function isEntitled(status: string | null | undefined): boolean {
 export function needsPayment(status: string | null | undefined): boolean {
   return status === 'pending_payment' || status === 'past_due';
 }
+
+// ---- Tier features (s44 packaging) ------------------------------------------
+// Base = the whole CRM WITHOUT our telephony (calls from the user's own phone,
+// no in-app number/brief). Premium/pro/team (and legacy rows with no plan_key)
+// keep everything — so shipping this changes nothing for existing customers.
+
+export type PlanFeature = 'telephony';
+
+const BASE_EXCLUDED: ReadonlySet<string> = new Set<PlanFeature>(['telephony']);
+
+export function hasFeature(
+  status: string | null | undefined,
+  planKey: string | null | undefined,
+  feature: PlanFeature,
+): boolean {
+  if (!isEntitled(status)) return false;
+  if (planKey === 'base') return !BASE_EXCLUDED.has(feature);
+  return true;
+}

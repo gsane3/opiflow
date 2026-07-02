@@ -13,7 +13,7 @@
 // not either — it returns plain discriminated results and lets each route emit the
 // identical body it always did.
 
-import { isEntitled } from '../../../lib/billing/entitlement';
+import { hasFeature } from '../../../lib/billing/entitlement';
 import { decryptSecret } from '../../../lib/server/sip-credentials';
 import type { createServerSupabaseClient } from '../../../lib/supabase/server';
 import {
@@ -55,8 +55,9 @@ export async function checkTwilioTokenGate(
     return { ok: false, error: 'no_number_assigned', status: 409 };
   }
   const subRow = await getSubscriptionStatusRow(supabase, businessId);
-  const subStatus = subRow?.status ?? null;
-  if (!isEntitled(subStatus)) {
+  // Telephony is a Premium feature: a Base plan is entitled to the CRM but not
+  // to in-app calling (s44 packaging). Legacy/unknown plan keys keep access.
+  if (!hasFeature(subRow?.status ?? null, subRow?.plan_key ?? null, 'telephony')) {
     return { ok: false, error: 'activation_required', status: 403 };
   }
   return { ok: true };
@@ -98,8 +99,7 @@ export async function isBrowserActivationAllowed(
   businessId: string,
 ): Promise<boolean> {
   const subRow = await getSubscriptionStatusRow(supabase, businessId);
-  const subStatus = subRow?.status ?? null;
-  return isEntitled(subStatus);
+  return hasFeature(subRow?.status ?? null, subRow?.plan_key ?? null, 'telephony');
 }
 
 /** Best-effort bookkeeping RPC (caller swallows any failure). */

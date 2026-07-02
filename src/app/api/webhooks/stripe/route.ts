@@ -82,7 +82,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ received: true });
   }
 
-  const ok = await applyStripeEvent(supabase, event, businessId, PLAN.key);
+  // Tier-aware plan key: stamped on checkout/subscription metadata by the
+  // plan-aware checkout. Legacy events carry none → PLAN.key (unchanged).
+  const planKey =
+    metadata.plan === 'base' || metadata.plan === 'premium' ? (metadata.plan as string) : PLAN.key;
+  const ok = await applyStripeEvent(supabase, event, businessId, planKey);
 
   if (!ok) {
     log.error('stripe_subscription_write_failed', { type: event.type, businessId });

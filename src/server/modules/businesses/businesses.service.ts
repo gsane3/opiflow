@@ -9,7 +9,7 @@
 // original, while AppError validation throws pass through unchanged.
 
 import { AppError } from '../../core/errors';
-import { isEntitled } from '../../../lib/billing/entitlement';
+import { hasFeature, isEntitled } from '../../../lib/billing/entitlement';
 import { isStripeConfigured } from '../../../lib/billing/stripe';
 import {
   listBankAccounts,
@@ -67,6 +67,9 @@ export interface MeResult {
   billingConfigured: boolean;
   subscription: { plan_key: string; status: string; trial_ends_at: string | null } | null;
   numberRequest: { status: string; requestedCity: string | null; createdAt: string } | null;
+  /** Per-tier feature flags (s44 packaging) — both clients read these to show/
+   *  hide surfaces. Additive: old clients simply ignore the field. */
+  entitlements: { planKey: string | null; telephony: boolean };
 }
 
 /**
@@ -86,6 +89,10 @@ export async function getBusinessMe(
 
   const sub = await getSubscription(supabase, bizId);
   const activationAllowed = isEntitled(sub?.status);
+  const entitlements = {
+    planKey: sub?.plan_key ?? null,
+    telephony: hasFeature(sub?.status ?? null, sub?.plan_key ?? null, 'telephony'),
+  };
   const subscription = sub
     ? {
         plan_key:      sub.plan_key,
@@ -111,6 +118,7 @@ export async function getBusinessMe(
     billingConfigured: isStripeConfigured(),
     subscription,
     numberRequest,
+    entitlements,
   };
 }
 
