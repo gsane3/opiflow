@@ -90,7 +90,10 @@ export default function DisclosureRecorderModal({
             mediaPlaybackRequiresUserAction={false}
             mediaCapturePermissionGrantType="grant"
             onPermissionRequest={(event: { grant: (resources: string[]) => void; resources: string[] }) => { event.grant(event.resources); }}
-            originWhitelist={['https://www.opiflow.ai/*', 'https://opiflow.ai/*']}
+            // Origin-only patterns — a `/*` suffix NEVER matches (the whitelist
+            // is checked against the URL origin), which Linking-opens the page
+            // in the external browser instead. Same gotcha as the /cmd widget.
+            originWhitelist={['https://www.opiflow.ai', 'https://opiflow.ai']}
             startInLoadingState
             renderLoading={() => (
               <View style={styles.loading}>

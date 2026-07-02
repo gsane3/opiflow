@@ -162,6 +162,18 @@ export default function DashboardPage() {
   });
   const tokenRef = useRef<string | null>(null);
 
+  // «Τιμολόγια» entry — visible only when the ΑΑΔΕ invoicing add-on is enabled
+  // for this tenant (native-parity; silent check, most users never see it).
+  const [invoicingOn, setInvoicingOn] = useState(false);
+  // Base plan (no in-app telephony): the home gains its two call companions —
+  // voice call-note dictation + quick intake request. Hidden on Premium/legacy
+  // (entitlements.telephony !== false) where the calls flow covers both.
+  const [baseAids, setBaseAids] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickNumber, setQuickNumber] = useState('');
+  const [quickBusy, setQuickBusy] = useState(false);
+  const [quickStatus, setQuickStatus] = useState<string | null>(null);
+
   // Undo state - must be declared before any conditional return.
   const [lastCompletedTask, setLastCompletedTask] = useState<Task | null>(null);
 
@@ -261,6 +273,16 @@ export default function DashboardPage() {
           return;
         }
         tokenRef.current = session.access_token;
+        // Native-parity card gates — best-effort; failures just hide the cards.
+        const headers = { Authorization: `Bearer ${session.access_token}` };
+        fetch('/api/invoicing/settings', { headers })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => setInvoicingOn(Boolean(j?.settings?.enabled)))
+          .catch(() => {});
+        fetch('/api/businesses/me', { headers })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((j) => setBaseAids(j?.entitlements?.telephony === false))
+          .catch(() => {});
         await loadData(session.access_token);
       } catch {
         setActionError('Αποτυχία σύνδεσης. Δοκίμασε ξανά.');
@@ -404,6 +426,64 @@ export default function DashboardPage() {
     }
   }
 
+  // Base quick-add: number (paste from the phone app) → intake request.
+  // Mirrors native sendIntakeForNumber: reuse an existing contact for the
+  // number (last-10-digit match) or create one, then send the intake link.
+  async function handleQuickIntake() {
+    const token = tokenRef.current;
+    const number = quickNumber.trim();
+    if (!token || number.replace(/\D/g, '').length < 8) return;
+    const last10 = (s?: string | null) => (s ? s.replace(/\D/g, '').slice(-10) : '');
+    const digits = last10(number);
+    const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+    setQuickBusy(true);
+    setQuickStatus(null);
+    try {
+      let id: string | null = null;
+      try {
+        const found = await fetch(`/api/customers?q=${encodeURIComponent(number)}&limit=5`, { headers });
+        if (found.ok) {
+          const j = (await found.json()) as { customers?: Array<{ id: string; phone?: string | null; mobilePhone?: string | null }> };
+          id = (j.customers ?? []).find(
+            (cu) => last10(cu.phone) === digits || last10(cu.mobilePhone) === digits
+          )?.id ?? null;
+        }
+      } catch { /* fall through to create */ }
+      if (!id) {
+        const created = await fetch('/api/customers', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ phone: number, source: 'manual_entry' }),
+        });
+        if (created.ok) {
+          const j = (await created.json()) as { customer?: { id: string } };
+          id = j.customer?.id ?? null;
+        }
+      }
+      if (!id) {
+        setQuickStatus('Δεν δημιουργήθηκε επαφή. Δοκίμασε ξανά.');
+        return;
+      }
+      const r = await fetch(`/api/customers/${id}/intake-link`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ mode: 'send' }),
+      });
+      const j = r.ok ? ((await r.json()) as { sent?: boolean }) : null;
+      setQuickStatus(
+        j?.sent
+          ? '✓ Στάλθηκε αίτημα στοιχείων.'
+          : 'Δεν στάλθηκε (λείπει κινητό; βάλε στοιχεία χειροκίνητα).'
+      );
+      setQuickNumber('');
+      if (token) void loadData(token);
+    } catch {
+      setQuickStatus('Η αποστολή απέτυχε. Δοκίμασε ξανά.');
+    } finally {
+      setQuickBusy(false);
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Data computations
   // ---------------------------------------------------------------------------
@@ -519,6 +599,56 @@ export default function DashboardPage() {
         />
       </div>
 
+      {/* «Τιμολόγια» — native parity: shown only with the invoicing add-on on */}
+      {invoicingOn && (
+        <Link
+          href="/invoices"
+          className="flex items-center gap-3 rounded-[24px] bg-white px-4 py-3.5 shadow-sm ring-1 ring-zinc-200/60 transition hover:shadow-md hover:ring-indigo-200 active:scale-[0.98] dark:bg-[#17232f] dark:ring-white/10"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300" aria-hidden>
+            <StatIcon path="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25Z" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Τιμολόγια</span>
+            <span className="block text-xs text-zinc-500 dark:text-zinc-400">Συγκεντρωτικά μήνα για τον λογιστή</span>
+          </span>
+          <ChevronRight />
+        </Link>
+      )}
+
+      {/* Base aids — native parity: only without in-app telephony */}
+      {baseAids && (
+        <div className="space-y-3">
+          <Link
+            href="/cmd?dictate=1"
+            className="flex items-center gap-3 rounded-[24px] bg-white px-4 py-3.5 shadow-sm ring-1 ring-zinc-200/60 transition hover:shadow-md hover:ring-indigo-200 active:scale-[0.98] dark:bg-[#17232f] dark:ring-white/10"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300" aria-hidden>
+              <StatIcon path="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Σημείωση κλήσης</span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">Πες τι είπατε — το AI το καταχωρεί</span>
+            </span>
+            <ChevronRight />
+          </Link>
+          <button
+            type="button"
+            onClick={() => { setQuickNumber(''); setQuickStatus(null); setQuickAddOpen(true); }}
+            className="flex w-full items-center gap-3 rounded-[24px] bg-white px-4 py-3.5 text-left shadow-sm ring-1 ring-zinc-200/60 transition hover:shadow-md hover:ring-indigo-200 active:scale-[0.98] dark:bg-[#17232f] dark:ring-white/10"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300" aria-hidden>
+              <StatIcon path="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-zinc-900 dark:text-zinc-100">Νέος πελάτης;</span>
+              <span className="block text-xs text-zinc-500 dark:text-zinc-400">Επικόλλησε τον αριθμό → αίτημα στοιχείων</span>
+            </span>
+            <ChevronRight />
+          </button>
+        </div>
+      )}
+
       {/* Recent communications */}
       <RecentCommunicationsSection
         communications={communications}
@@ -537,6 +667,45 @@ export default function DashboardPage() {
         onCreateOfferFollowUpTask={handleCreateOfferFollowUpTask}
         compact
       />
+
+      {/* Base quick-add sheet: number (paste from the phone app) → intake request */}
+      {quickAddOpen && (
+        <div className="fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label="Κλείσιμο"
+            className="absolute inset-0 bg-black/30 motion-safe:animate-[fadeIn_0.16s]"
+            onClick={() => setQuickAddOpen(false)}
+          />
+          <div className="relative mx-auto w-full max-w-2xl rounded-t-[28px] bg-white px-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))] pt-3 shadow-2xl motion-safe:animate-[sheetUp_0.22s_ease-out] dark:bg-[#17232f]">
+            <div className="mx-auto mb-3 h-1 w-10 rounded-full bg-zinc-200 dark:bg-white/10" />
+            <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Νέος πελάτης</p>
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Σε κάλεσε στο κινητό σου; Επικόλλησε (ή γράψε) τον αριθμό και θα του
+              σταλεί αίτημα καταχώρησης στοιχείων (Viber → SMS).
+            </p>
+            <input
+              type="tel"
+              inputMode="tel"
+              value={quickNumber}
+              onChange={(e) => setQuickNumber(e.target.value)}
+              placeholder="69ΧΧΧΧΧΧΧΧ"
+              className="mt-3 w-full rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-900 outline-none focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 dark:border-white/10 dark:bg-[#1e2b38] dark:text-zinc-100"
+            />
+            {quickStatus && (
+              <p className="mt-2 text-xs text-zinc-600 dark:text-zinc-300">{quickStatus}</p>
+            )}
+            <button
+              type="button"
+              disabled={quickBusy || quickNumber.replace(/\D/g, '').length < 8}
+              onClick={() => void handleQuickIntake()}
+              className="mt-3 w-full rounded-2xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-indigo-700 disabled:opacity-50"
+            >
+              {quickBusy ? 'Αποστολή…' : 'Αποστολή αιτήματος'}
+            </button>
+          </div>
+        </div>
+      )}
 
     </div>
   );

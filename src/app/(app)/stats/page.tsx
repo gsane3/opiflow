@@ -120,10 +120,18 @@ const GREEK_MONTHS_SHORT = [
   'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ',
 ];
 
+// Minimal call shape for the answer-rate verdict — read raw so 'missed' isn't
+// coerced away by the shared CommunicationRecord mapper.
+interface CallRow {
+  direction: string;
+  status: string;
+}
+
 interface StatsData {
   customers: Customer[];
   tasks: Task[];
   offers: Offer[];
+  calls: CallRow[];
 }
 
 // ---------------------------------------------------------------------------
@@ -148,11 +156,51 @@ function MetricCard({
   );
 }
 
+// douleutaras-style verdict line: value + 👍/👎 + one-line explanation
+// (native Κοντέρ parity).
+function VerdictRow({
+  label,
+  value,
+  good,
+  hint,
+}: {
+  label: string;
+  value: string;
+  good: boolean;
+  hint: string;
+}) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <svg
+        className="mt-0.5 h-4 w-4 shrink-0"
+        style={{ color: good ? '#1B8A4C' : '#D14343' }}
+        fill="none"
+        strokeWidth={1.7}
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden="true"
+      >
+        {good ? (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6.633 10.25c.806 0 1.533-.446 2.031-1.08a9.041 9.041 0 0 1 2.861-2.4c.723-.384 1.35-.956 1.653-1.715a4.498 4.498 0 0 0 .322-1.672V2.75a.75.75 0 0 1 .75-.75 2.25 2.25 0 0 1 2.25 2.25c0 1.152-.26 2.243-.723 3.218-.266.558.107 1.282.725 1.282m0 0h3.126c1.026 0 1.945.694 2.054 1.715.045.422.068.85.068 1.285a11.95 11.95 0 0 1-2.649 7.521c-.388.482-.987.729-1.605.729H13.48c-.483 0-.964-.078-1.423-.23l-3.114-1.04a4.501 4.501 0 0 0-1.423-.23H5.904m10.598-9.75H14.25M5.904 18.5c.083.205.173.405.27.602.197.4-.078.898-.523.898h-.908c-.889 0-1.713-.518-1.972-1.368a12 12 0 0 1-.521-3.507c0-1.553.295-3.036.831-4.398C3.387 9.953 4.167 9.5 5 9.5h1.053c.472 0 .745.556.5.96a8.958 8.958 0 0 0-1.302 4.665c0 1.194.232 2.333.654 3.375Z" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7.498 15.25H4.372c-1.026 0-1.945-.694-2.054-1.715a12.137 12.137 0 0 1-.068-1.285c0-2.848.992-5.464 2.649-7.521C5.287 4.247 5.886 4 6.504 4h4.016a4.5 4.5 0 0 1 1.423.23l3.114 1.04a4.5 4.5 0 0 0 1.423.23h1.294M7.498 15.25c.618 0 .991.724.725 1.282A7.471 7.471 0 0 0 7.5 19.75 2.25 2.25 0 0 0 9.75 22a.75.75 0 0 0 .75-.75v-.633c0-.573.11-1.14.322-1.672.304-.76.93-1.33 1.653-1.715a9.04 9.04 0 0 0 2.86-2.4c.498-.634 1.226-1.08 2.032-1.08h.384m-10.253 1.5H9.7m8.075-9.75c.01.05.027.1.05.148.593 1.2.925 2.55.925 3.977 0 1.487-.36 2.89-.999 4.125m.023-8.25c-.076-.365.183-.75.575-.75h.908c.889 0 1.713.518 1.972 1.368.339 1.11.521 2.287.521 3.507 0 1.553-.295 3.036-.831 4.398-.306.774-1.086 1.227-1.918 1.227h-1.053c-.472 0-.745-.556-.5-.96a8.95 8.95 0 0 0 .303-.54" />
+        )}
+      </svg>
+      <div className="min-w-0">
+        <p className="text-sm text-zinc-700 dark:text-zinc-200">
+          {label}: <span className="font-semibold text-zinc-900 dark:text-zinc-100">{value}</span>
+        </p>
+        <p className="text-xs text-zinc-500 dark:text-zinc-400">{hint}</p>
+      </div>
+    </div>
+  );
+}
+
 export default function StatsPage() {
   const [hydrated, setHydrated] = useState(false);
   const [authRequired, setAuthRequired] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
-  const [data, setData] = useState<StatsData>({ customers: [], tasks: [], offers: [] });
+  const [data, setData] = useState<StatsData>({ customers: [], tasks: [], offers: [], calls: [] });
 
   const loadData = useCallback(async (token: string) => {
     const headers: HeadersInit = { Authorization: `Bearer ${token}` };
@@ -187,7 +235,24 @@ export default function StatsPage() {
         Array.isArray(offersData) ? offersData : (offersData.offers ?? [])
       ).map(mapOffer);
 
-      setData({ customers, tasks, offers });
+      // Calls: best-effort, feeds only the answer-rate verdict of the score.
+      let calls: CallRow[] = [];
+      try {
+        const callsResp = await fetch('/api/communications?channel=call&limit=100', { headers });
+        if (callsResp.ok) {
+          const callsData = await callsResp.json();
+          if (Array.isArray(callsData.communications)) {
+            calls = (callsData.communications as Record<string, unknown>[]).map((c) => ({
+              direction: typeof c.direction === 'string' ? c.direction : '',
+              status: typeof c.status === 'string' ? c.status : '',
+            }));
+          }
+        }
+      } catch {
+        // best-effort: leave calls as []
+      }
+
+      setData({ customers, tasks, offers, calls });
       setHydrated(true);
     } catch {
       setActionError('Αποτυχία φόρτωσης στατιστικών. Δοκίμασε ξανά.');
@@ -235,7 +300,7 @@ export default function StatsPage() {
     );
   }
 
-  const { customers, tasks, offers } = data;
+  const { customers, tasks, offers, calls } = data;
 
   // ---------------------------------------------------------------------------
   // Computations
@@ -275,11 +340,35 @@ export default function StatsPage() {
   const wonFromOffers = wonOffersThisMonth.reduce((sum, o) => sum + (o.total ?? 0), 0);
   const wonThisMonth = wonFromCustomers > 0 ? wonFromCustomers : wonFromOffers;
 
-  // Win rate: won / (won + lost) customers.
+  // Win rate: won / (won + lost) customers — null (shown as «—») until at least
+  // one offer is decided; a made-up 0% reads as failure on day one.
   const wonCount = customers.filter((c) => c.status === 'won').length;
   const lostCount = customers.filter((c) => c.status === 'lost').length;
   const decidedCount = wonCount + lostCount;
-  const winRate = decidedCount > 0 ? Math.round((wonCount / decidedCount) * 100) : 0;
+  const winRate = decidedCount > 0 ? Math.round((wonCount / decidedCount) * 100) : null;
+
+  // Τηλέφωνο — answer rate from real telephony data (native Κοντέρ parity).
+  const inboundCalls = calls.filter((k) => k.direction === 'inbound');
+  const missedCalls = inboundCalls.filter((k) => k.status === 'missed' || k.status === 'failed');
+  const answerRate =
+    inboundCalls.length > 0
+      ? Math.round(((inboundCalls.length - missedCalls.length) / inboundCalls.length) * 100)
+      : null;
+
+  // «Σκορ» v1 — one number the owner can improve (0–100):
+  //   50% answer rate + 25% task hygiene (μη-εκπρόθεσμες) + 25% win rate.
+  // Missing components (no calls / no decided offers) redistribute to the rest.
+  const scoreParts: Array<{ w: number; v: number }> = [];
+  if (answerRate !== null) scoreParts.push({ w: 2, v: answerRate });
+  if (openTasks.length > 0)
+    scoreParts.push({ w: 1, v: Math.round(((openTasks.length - overdueTasks.length) / openTasks.length) * 100) });
+  if (winRate !== null) scoreParts.push({ w: 1, v: winRate });
+  const scoreTotalW = scoreParts.reduce((s, p) => s + p.w, 0);
+  const score =
+    scoreTotalW > 0
+      ? Math.round(scoreParts.reduce((s, p) => s + p.w * p.v, 0) / scoreTotalW)
+      : null;
+  const scoreColor = (s: number) => (s >= 70 ? '#1B8A4C' : s >= 30 ? '#E0922F' : '#D14343');
 
   // Counts by status.
   const statusCounts = STATUS_ORDER.map((status) => ({
@@ -307,7 +396,11 @@ export default function StatsPage() {
     const bucket = months.find((m) => m.key === key);
     if (bucket) bucket.value += o.total ?? 0;
   }
-  const maxMonthValue = Math.max(...months.map((m) => m.value), 0);
+  // Drop leading zero-months — a stack of «—» rows carries no information
+  // (native Κοντέρ parity).
+  const firstMonthWithData = months.findIndex((m) => m.value > 0);
+  const shownMonths = firstMonthWithData > 0 ? months.slice(firstMonthWithData) : months;
+  const maxMonthValue = Math.max(...shownMonths.map((m) => m.value), 0);
 
   const hasAnyData = customers.length > 0 || offers.length > 0;
 
@@ -362,10 +455,47 @@ export default function StatsPage() {
         </div>
       ) : (
         <>
+          {/* «Σκορ επιχείρησης» — native Κοντέρ parity: one number to improve */}
+          {score !== null && (
+            <div className="rounded-[28px] bg-white px-5 py-5 shadow-sm ring-1 ring-zinc-200/60 dark:bg-[#17232f] dark:ring-white/10">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">Σκορ επιχείρησης</h2>
+                <span className="text-4xl font-bold leading-none tabular-nums" style={{ color: scoreColor(score) }}>
+                  {score}
+                </span>
+              </div>
+              <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-[#1e2b38]">
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{ width: `${score}%`, backgroundColor: scoreColor(score) }}
+                />
+              </div>
+              <p className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                Απαντημένες κλήσεις + εργασίες στην ώρα τους + κερδισμένες προσφορές
+              </p>
+              <div className="mt-3 space-y-2.5">
+                {answerRate !== null && (
+                  <VerdictRow
+                    label="Ποσοστό απάντησης"
+                    value={`${answerRate}%`}
+                    good={answerRate >= 80}
+                    hint={`${missedCalls.length} αναπάντητες σε ${inboundCalls.length} εισερχόμενες`}
+                  />
+                )}
+                <VerdictRow
+                  label="Εκπρόθεσμες εργασίες"
+                  value={String(overdueTasks.length)}
+                  good={overdueTasks.length === 0}
+                  hint={overdueTasks.length > 0 ? 'Κλείσε τις παλιές για να ανέβει το σκορ' : 'Όλα στην ώρα τους'}
+                />
+              </div>
+            </div>
+          )}
+
           {/* Headline metrics */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
             <MetricCard
-              label="Αξία pipeline"
+              label="Σε εξέλιξη (αξία)"
               value={fmtEur(pipelineValue)}
               hint={`${openCustomers.length} ανοιχτοί πελάτες`}
             />
@@ -380,8 +510,12 @@ export default function StatsPage() {
             />
             <MetricCard
               label="Ποσοστό επιτυχίας"
-              value={`${winRate}%`}
-              hint={`${wonCount} κερδισμένοι / ${lostCount} χαμένοι`}
+              value={winRate === null ? '—' : `${winRate}% (${wonCount}/${decidedCount})`}
+              hint={
+                winRate === null
+                  ? 'δεν έχουν κριθεί προσφορές ακόμα'
+                  : `${wonCount} κερδισμένοι / ${lostCount} χαμένοι`
+              }
             />
             <MetricCard
               label="Εκκρεμείς εργασίες"
@@ -415,7 +549,7 @@ export default function StatsPage() {
             <p className="mt-0.5 text-xs text-zinc-400 dark:text-zinc-500">Τελευταίοι 6 μήνες (σύνολο προσφορών)</p>
             {maxMonthValue > 0 ? (
               <div className="mt-5 space-y-3">
-                {months.map((m) => {
+                {shownMonths.map((m) => {
                   const pct = maxMonthValue > 0 ? Math.round((m.value / maxMonthValue) * 100) : 0;
                   return (
                     <div key={m.key} className="flex items-center gap-3">
