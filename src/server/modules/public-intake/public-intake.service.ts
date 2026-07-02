@@ -314,9 +314,11 @@ export async function submitIntake(
       summary,
     });
     if (notifyOwner) {
+      // Not a chat message — say what actually happened, with the customer's name.
+      const custName = (updatedRow as { name?: string | null } | null)?.name?.trim();
       await notifyOwner(customer.business_id, {
-        title: 'Νέο μήνυμα από πελάτη',
-        body: summary,
+        title: 'Ο πελάτης έστειλε στοιχεία',
+        body: `Ο πελάτης ${custName || ''} συμπλήρωσε τη φόρμα στοιχείων. Σχόλιο: ${comments.slice(0, 500)}`.replace('  ', ' '),
         url: `/customers/${customer.id}`,
         data: { type: 'customer_message', source: 'intake' },
       });

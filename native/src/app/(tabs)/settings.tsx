@@ -16,7 +16,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost, apiPut } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { useThemeMode } from '@/lib/theme-mode';
-import { formatDate, formatEuro } from '@/lib/format';
+import { formatDate, formatEuro, greekUpper } from '@/lib/format';
 import { getIncomingState } from '@/lib/twilio-state';
 import type { Business, CatalogItem } from '@/lib/types';
 import DisclosureRecorderModal from '@/components/disclosure-recorder-modal';
@@ -1056,7 +1056,7 @@ function Row({ label, value }: { label: string; value: string }) {
 function GroupHeader({ title }: { title: string }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
-  return <ThemedText style={styles.groupHeader}>{title}</ThemedText>;
+  return <ThemedText style={styles.groupHeader}>{greekUpper(title)}</ThemedText>;
 }
 
 const makeStyles = (c: ThemePalette) =>
@@ -1066,7 +1066,7 @@ const makeStyles = (c: ThemePalette) =>
     kav: { flex: 1 },
     title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four, paddingBottom: Spacing.three },
     content: { paddingHorizontal: Spacing.four, paddingBottom: BottomTabInset + Spacing.four, gap: Spacing.three },
-    groupHeader: { marginTop: Spacing.two, marginBottom: -Spacing.one, marginLeft: Spacing.one, color: c.textFaint, fontWeight: '700', fontSize: 12, letterSpacing: 1, textTransform: 'uppercase' },
+    groupHeader: { marginTop: Spacing.two, marginBottom: -Spacing.one, marginLeft: Spacing.one, color: c.textFaint, fontWeight: '700', fontSize: 12, letterSpacing: 1 },
     card: { padding: Spacing.three, borderRadius: 16 },
     groupCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, backgroundColor: c.card, borderRadius: 16, padding: Spacing.three, marginTop: Spacing.two, borderWidth: 1, borderColor: c.border },
     groupIcon: { width: 44, height: 44, borderRadius: 14, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },

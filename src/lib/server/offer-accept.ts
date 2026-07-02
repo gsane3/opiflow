@@ -10,6 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { markOfferResponseTokenResponded } from './offer-response-tokens';
 import { sendPushToBusinessOwner } from './push';
 import { OFFER_FINAL_STATUSES, isBeforeToday, offerCanRespond } from './offer-status';
+import { euroLabel, offerShortLabel } from '../offer-label';
 
 // Re-export the pure status helpers so existing importers keep one entry point.
 export { OFFER_FINAL_STATUSES, isBeforeToday, offerCanRespond };
@@ -26,15 +27,19 @@ export function buildOfferNoteAppend(
   return comment ? `${label} Σχόλιο: ${comment}` : label;
 }
 
+// Amount first, technical id parenthesized last — push previews and the 160-char
+// notification slice truncate the tail, so the tail must be the expendable part.
 export function buildOfferCommunicationSummary(
   response: 'accepted' | 'rejected',
   offerNumber: string,
   comment: string | null,
+  total?: number,
 ): string {
+  const amount = typeof total === 'number' && total > 0 ? ` ${euroLabel(total)}` : '';
   const base =
     response === 'accepted'
-      ? `Ο πελάτης αποδέχτηκε την προσφορά ${offerNumber} μέσω δημόσιου link.`
-      : `Ο πελάτης απέρριψε την προσφορά ${offerNumber} μέσω δημόσιου link.`;
+      ? `Ο πελάτης αποδέχτηκε την προσφορά${amount} (${offerShortLabel(offerNumber)}) μέσω δημόσιου link.`
+      : `Ο πελάτης απέρριψε την προσφορά${amount} (${offerShortLabel(offerNumber)}) μέσω δημόσιου link.`;
   return comment ? `${base} Σχόλιο: ${comment}` : base;
 }
 
@@ -152,7 +157,7 @@ export async function applyOfferResponse(opts: {
   }
 
   // 4. Communications row (CRM audit trail, fatal). Stamp work_folder_id when present.
-  const commSummary = buildOfferCommunicationSummary(response, offer.offer_number, comment);
+  const commSummary = buildOfferCommunicationSummary(response, offer.offer_number, comment, offer.total);
   try {
     const { error } = await supabase.from('communications').insert({
       business_id: businessId,
@@ -179,11 +184,29 @@ export async function applyOfferResponse(opts: {
   }
 
   // 6. Owner push (best-effort, inert until FCM configured, never throws).
+  // Customer name in the title — device previews truncate ~40 chars, so the
+  // technical offer number must never lead.
+  let pushName: string | null = null;
+  if (offer.customer_id) {
+    try {
+      const { data: cust } = await supabase
+        .from('customers')
+        .select('name, company_name')
+        .eq('id', offer.customer_id)
+        .eq('business_id', businessId)
+        .maybeSingle();
+      const c = cust as { name?: string | null; company_name?: string | null } | null;
+      pushName = c?.name?.trim() || c?.company_name?.trim() || null;
+    } catch {
+      // best-effort only
+    }
+  }
+  const pushWho = pushName ?? offerShortLabel(offer.offer_number);
   await sendPushToBusinessOwner(businessId, {
     title:
       response === 'accepted'
-        ? `Προσφορά ${offer.offer_number}: Αποδοχή ✅`
-        : `Προσφορά ${offer.offer_number}: Απόρριψη`,
+        ? `✅ Αποδοχή προσφοράς — ${pushWho}`
+        : `Απόρριψη προσφοράς — ${pushWho}`,
     body: commSummary,
     ...(offer.customer_id ? { url: `/customers/${offer.customer_id}` } : {}),
     data: { type: 'offer_response', offerId: offer.id, response },

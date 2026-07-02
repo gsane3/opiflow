@@ -14,6 +14,7 @@
 
 import { AppError } from '../../core/errors';
 import { tenantDb, type TenantContext } from '../../core/tenant';
+import { euroLabel, offerShortLabel } from '../../../lib/offer-label';
 import type { createServerSupabaseClient } from '../../../lib/supabase/server';
 
 type Ctx = TenantContext & { supabase: ReturnType<typeof createServerSupabaseClient> };
@@ -70,6 +71,7 @@ interface OfferRow {
   id: string;
   offer_number: string | null;
   customer_id: string | null;
+  total: number | null;
 }
 
 interface TaskRow {
@@ -232,7 +234,7 @@ export async function listNotifications(ctx: Ctx): Promise<Notification[]> {
       offerIds.length > 0
         ? db
             .from('offers')
-            .select('id, offer_number, customer_id')
+            .select('id, offer_number, customer_id, total')
             .in('id', offerIds)
         : Promise.resolve({ data: [] as unknown[] }),
       taskIds.length > 0
@@ -319,20 +321,19 @@ export async function listNotifications(ctx: Ctx): Promise<Notification[]> {
       const name = nameFor(customerId);
       const offerNum = offer?.offer_number ?? '';
       const response = tok.response ?? '';
+      // «450,00 € (Νο 24/2026)» αντί για το τεχνικό OFFER-24-2026-DRADR.
+      const amount = typeof offer?.total === 'number' && offer.total > 0 ? ` ${euroLabel(offer.total)}` : '';
+      const offerRef = offerNum ? ` (${offerShortLabel(offerNum)})` : '';
 
       let title: string;
       let description: string;
 
       if (response === 'accepted') {
         title = 'Αποδοχή προσφοράς';
-        description = offerNum
-          ? `Ο πελάτης ${name} αποδέχτηκε την προσφορά ${offerNum}.`
-          : `Ο πελάτης ${name} αποδέχτηκε την προσφορά.`;
+        description = `Ο πελάτης ${name} αποδέχτηκε την προσφορά${amount}${offerRef}.`;
       } else if (response === 'rejected') {
         title = 'Απόρριψη προσφοράς';
-        description = offerNum
-          ? `Ο πελάτης ${name} απέρριψε την προσφορά ${offerNum}.`
-          : `Ο πελάτης ${name} απέρριψε την προσφορά.`;
+        description = `Ο πελάτης ${name} απέρριψε την προσφορά${amount}${offerRef}.`;
       } else {
         title = 'Απάντηση σε προσφορά';
         description = `Ο πελάτης ${name} απάντησε σε προσφορά.`;
@@ -493,7 +494,9 @@ export async function listNotifications(ctx: Ctx): Promise<Notification[]> {
       // call/sms keep their existing behavior; viber/email are the newly-included
       // customer messages — exclude offer/appointment audit-row duplicates.
       .filter((c) =>
-        c.channel === 'viber' || c.channel === 'email' ? !isOfferApptAuditRow(c) : true,
+        c.channel === 'viber' || c.channel === 'email' || c.channel === 'sms'
+          ? !isOfferApptAuditRow(c)
+          : true,
       )
       .map((c) => {
         const customerId = c.customer_id ?? null;
@@ -505,7 +508,22 @@ export async function listNotifications(ctx: Ctx): Promise<Notification[]> {
         let description: string;
         let href: string;
 
-        if (c.channel === 'viber' || c.channel === 'email') {
+        // Folder-portal offer responses have no offer_response_token, so they
+        // reach this generic branch — classify them by the audit-row prefix
+        // instead of mislabeling the most valuable event «Νέο μήνυμα από πελάτη».
+        const summaryText = c.summary?.trim() ?? '';
+        const offerResponse = summaryText.startsWith('Ο πελάτης αποδέχτηκε την προσφορά')
+          ? 'accepted'
+          : summaryText.startsWith('Ο πελάτης απέρριψε την προσφορά')
+          ? 'rejected'
+          : null;
+
+        if (offerResponse && (c.channel === 'viber' || c.channel === 'email' || c.channel === 'sms')) {
+          kind = 'offer';
+          title = offerResponse === 'accepted' ? 'Αποδοχή προσφοράς' : 'Απόρριψη προσφοράς';
+          description = summaryText.length > 160 ? `${summaryText.slice(0, 159)}…` : summaryText;
+          href = customerHref(customerId, '/offers');
+        } else if (c.channel === 'viber' || c.channel === 'email') {
           // Customer free-text message from a public link (intake/upload comment).
           kind = 'message';
           title = 'Νέο μήνυμα από πελάτη';
@@ -519,7 +537,12 @@ export async function listNotifications(ctx: Ctx): Promise<Notification[]> {
         } else if (c.channel === 'sms') {
           kind = 'sms';
           title = 'Εισερχόμενο SMS';
-          description = `Ο πελάτης ${name} έστειλε SMS.`;
+          const smsText = c.summary?.trim();
+          description = smsText
+            ? smsText.length > 160
+              ? `${smsText.slice(0, 159)}…`
+              : smsText
+            : `Ο πελάτης ${name} έστειλε SMS.`;
           href = customerHref(customerId, '/communications');
         } else {
           kind = 'call';

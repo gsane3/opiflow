@@ -567,6 +567,13 @@ export default function CustomerProfileScreen() {
           {/* Στοιχεία */}
           <GroupCard title="Στοιχεία">
             <InfoRow icon="call" label="Κινητό" value={customer.mobilePhone} />
+            {/* Auto-created-from-call customers carry only the generic `phone` —
+                without this row the card looked empty for exactly those contacts. */}
+            <InfoRow
+              icon="call"
+              label="Τηλέφωνο"
+              value={customer.phone && customer.phone !== customer.mobilePhone && customer.phone !== customer.landlinePhone ? customer.phone : null}
+            />
             <InfoRow icon="call-outline" label="Σταθερό" value={customer.landlinePhone} />
             <InfoRow icon="mail" label="Email" value={customer.email} />
             <InfoRow
@@ -575,7 +582,7 @@ export default function CustomerProfileScreen() {
               value={[customer.address, [customer.postalCode, customer.region].filter(Boolean).join(' ')].filter(Boolean).join(', ') || null}
             />
             <InfoRow icon="sparkles" label="Ανάγκες" value={customer.needsSummary} />
-            {!customer.mobilePhone && !customer.landlinePhone && !customer.email && !customer.address ? (
+            {!customer.phone && !customer.mobilePhone && !customer.landlinePhone && !customer.email && !customer.address ? (
               <ThemedText type="small" themeColor="textSecondary" style={styles.emptyRow}>
                 Δεν υπάρχουν στοιχεία — πάτα το μολύβι πάνω δεξιά.
               </ThemedText>
@@ -583,7 +590,7 @@ export default function CustomerProfileScreen() {
           </GroupCard>
 
           {/* Έργα — per-job grouping + the project «Διαδικασία» flow */}
-          <WorkFoldersSection customerId={customerId} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
+          <WorkFoldersSection customerId={customerId} customerName={customer.name ?? null} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
 
           {/* Δραστηριότητα — expandable rows (call summaries first) */}
           <GroupCard title="Δραστηριότητα">

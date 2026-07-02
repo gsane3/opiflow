@@ -23,7 +23,7 @@ import { PrimaryButton, SheetModal } from '@/components/ui';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPost } from '@/lib/api';
-import { todayYMD } from '@/lib/format';
+import { greekUpper, todayYMD } from '@/lib/format';
 import type { Customer, LinkDraft, Task } from '@/lib/types';
 
 const APPT_TYPES = ['book_appointment', 'visit_customer'] as const;
@@ -248,7 +248,7 @@ export default function AppointmentsScreen() {
                 <ThemedText
                   type="smallBold"
                   style={[styles.groupHeader, item.overdue && styles.groupHeaderOverdue]}>
-                  {item.label.toUpperCase()}
+                  {greekUpper(item.label)}
                 </ThemedText>
               );
             }

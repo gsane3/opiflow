@@ -237,6 +237,22 @@ function mapPublicBusiness(row: BusinessRowForPublic | null): PublicFolderBusine
 }
 
 /**
+ * PURE — the headline shown to the END CUSTOMER. Legacy folder titles were
+ * composed as «{δουλειά} — {όνομα πελάτη}»; showing the customer their own
+ * name (or only their name) reads broken on their page, so strip that suffix.
+ */
+export function publicFolderTitle(title: string, customerName: string | null): string {
+  const t = (title ?? '').trim();
+  const n = customerName?.trim();
+  if (n) {
+    const suffix = ` — ${n}`;
+    if (t.endsWith(suffix)) return t.slice(0, -suffix.length).trim() || 'Το έργο σας';
+    if (t === n) return 'Το έργο σας';
+  }
+  return t || 'Το έργο σας';
+}
+
+/**
  * PURE — build the public view from the safe rows. Deliberately omits every
  * internal id and business-only field; this is the only data the customer sees.
  */
@@ -403,6 +419,11 @@ export async function loadPublicFolder(rawToken: string): Promise<PublicFolderVi
     const custName = custRow?.name ?? null;
     const greetingName = custName ? (custName.trim().split(/\s+/)[0] || null) : null;
     const locationLabel = custRow?.address?.trim() || null;
+
+    // The headline the END CUSTOMER sees must describe the job — legacy titles
+    // were stored as «{δουλειά} — {όνομα πελάτη}», which reads confusing on the
+    // customer's own page. Display-only strip; the stored title is untouched.
+    folder.title = publicFolderTitle(folder.title, custName);
 
     // Offer line items (the customer's own quote breakdown), scoped to this
     // business + the offers already scoped to this folder. Best-effort.

@@ -15,6 +15,7 @@ import {
   fetchCallCustomerName,
   finalizeCall,
   findCallByProviderId,
+  findRecentPbxInboundCall,
   insertCall,
   matchCustomerByPhone,
   type RepoContext,
@@ -82,6 +83,23 @@ export async function logCall(ctx: RepoContext, raw: Record<string, unknown>): P
         ...(customerId && !row.customer_id ? { customer_id: customerId } : {}),
       });
       return { communicationId: row.id, brief: null };
+    }
+  }
+
+  // Inbound: when the PBX webhook already logged this call (Asterisk uniqueid,
+  // no provider_call_id — an identity the CallSid can never match), merge into
+  // that row instead of inserting a duplicate. Its PBX summary/brief is richer
+  // than basicSummary, so we only attach status/ids — never touch the summary.
+  if (direction === 'inbound' && phone) {
+    const sinceIso = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const pbxRow = await findRecentPbxInboundCall(ctx, phone, sinceIso);
+    if (pbxRow) {
+      await finalizeCall(ctx, pbxRow.id, {
+        status,
+        ...(providerCallId ? { provider_call_id: providerCallId } : {}),
+        ...(customerId && !pbxRow.customer_id ? { customer_id: customerId } : {}),
+      });
+      return { communicationId: pbxRow.id, brief: null };
     }
   }
 

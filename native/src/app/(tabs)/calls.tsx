@@ -464,7 +464,7 @@ const KEY = 76;
 
 const makeStyles = (c: ThemePalette) => StyleSheet.create({
   container: { flex: 1 },
-  safe: { flex: 1, paddingBottom: BottomTabInset + Spacing.two },
+  safe: { flex: 1 },
   title: { paddingHorizontal: Spacing.four, paddingTop: Spacing.four },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 
@@ -482,7 +482,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   tabText: { color: c.textSecondary },
   tabTextActive: { color: Brand.primary },
 
-  keypadWrap: { flex: 1, alignItems: 'center' },
+  keypadWrap: { flex: 1, alignItems: 'center', paddingBottom: BottomTabInset + Spacing.two },
   display: { minHeight: 84, justifyContent: 'center', alignItems: 'center', paddingVertical: Spacing.two, paddingHorizontal: Spacing.four },
   number: { fontSize: 34, lineHeight: 44, fontWeight: '700', letterSpacing: 1, color: c.text },
   numberPlaceholder: { fontSize: 17, fontWeight: '500', color: c.textFaint },
@@ -500,7 +500,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   disabled: { opacity: 0.4 },
   pressed: { opacity: 0.7 },
 
-  recentList: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: Spacing.four },
+  recentList: { paddingHorizontal: Spacing.four, paddingTop: Spacing.two, paddingBottom: BottomTabInset + Spacing.four },
   sep: { height: 1, backgroundColor: c.border, marginLeft: 40 },
   recentRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.three, paddingVertical: Spacing.three },
   recentBody: { flex: 1, gap: 2 },

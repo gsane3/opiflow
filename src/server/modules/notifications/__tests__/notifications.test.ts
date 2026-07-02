@@ -113,7 +113,7 @@ describe('listNotifications', () => {
       kind: 'offer',
       response: 'accepted',
       title: 'Αποδοχή προσφοράς',
-      description: 'Ο πελάτης Γιώργος αποδέχτηκε την προσφορά PR-7.',
+      description: 'Ο πελάτης Γιώργος αποδέχτηκε την προσφορά (PR-7).',
       customerId: 'c1',
       customerName: 'Γιώργος',
       href: '/customers/c1',

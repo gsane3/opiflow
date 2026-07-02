@@ -122,6 +122,9 @@ export const Spacing = {
   six: 64,
 } as const;
 
-// Clearance for the floating glass tab bar (bar height + raised FAB + safe area).
-export const BottomTabInset = Platform.select({ ios: 110, android: 108 }) ?? 0;
+// Clearance for the floating glass tab bar (see glass-tab-bar.tsx geometry):
+// BAR_H 64 + raised AI FAB overhang (~49 above the bar) + max safe-area bottom.
+// 110/108 cleared the bar but NOT the FAB top (~147px on notch iPhones), so the
+// last centered row could hide behind the FAB — hence 128/126.
+export const BottomTabInset = Platform.select({ ios: 128, android: 126 }) ?? 0;
 export const MaxContentWidth = 800;
