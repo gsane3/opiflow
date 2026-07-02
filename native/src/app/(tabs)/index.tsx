@@ -419,6 +419,12 @@ export default function HomeScreen() {
         onClose={() => setSheetCall(null)}
         onChanged={() => void load()}
         onOpenCustomer={(cid) => router.push({ pathname: '/customers/[id]', params: { id: cid } })}
+        onOpenProject={(cid, folder) =>
+          router.push({
+            pathname: '/customers/[id]/project/[folderId]',
+            params: { id: cid, folderId: folder.id, title: folder.title, status: folder.status },
+          } as never)
+        }
         onDial={(phone) => router.push({ pathname: '/calls', params: { num: phone } })}
       />
 
