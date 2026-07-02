@@ -209,6 +209,7 @@ function Gate() {
         <Stack.Screen name="tasks" />
         <Stack.Screen name="appointments" />
         <Stack.Screen name="offers" />
+        <Stack.Screen name="invoices" />
         <Stack.Screen name="stats" />
         <Stack.Screen name="search" />
         <Stack.Screen name="cmd" />

@@ -41,6 +41,9 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [sheetCall, setSheetCall] = useState<Communication | null>(null);
+  // «Τιμολόγια» entry — visible only when the ΑΑΔΕ invoicing add-on is enabled
+  // for this tenant (silent check; most users never see it).
+  const [invoicingOn, setInvoicingOn] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -64,6 +67,9 @@ export default function HomeScreen() {
 
   useEffect(() => {
     void load();
+    apiGet<{ settings?: { enabled?: boolean } }>('/api/invoicing/settings')
+      .then((r) => setInvoicingOn(Boolean(r?.settings?.enabled)))
+      .catch(() => {});
   }, [load]);
 
   // «Το τηλέφωνο δεν χτυπάει» must be visible on the Home screen — not buried
@@ -252,6 +258,22 @@ export default function HomeScreen() {
                 <StatChip icon="checkbox" label="Εργασίες" value={stats.openTasks} tone="amber" onPress={() => router.push('/tasks' as never)} />
                 <StatChip icon="document-text" label="Προσφορές" value={stats.openOffers} tone="violet" onPress={() => router.push('/offers' as never)} />
               </View>
+
+              {invoicingOn ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push('/invoices' as never)}
+                  style={({ pressed }) => [styles.itemCard, pressed && styles.pressed]}>
+                  <Ionicons name="receipt" size={22} color={Brand.primary} />
+                  <View style={styles.itemBody}>
+                    <ThemedText type="smallBold">Τιμολόγια</ThemedText>
+                    <ThemedText type="small" themeColor="textSecondary">
+                      Συγκεντρωτικά μήνα για τον λογιστή
+                    </ThemedText>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Brand.primary} />
+                </Pressable>
+              ) : null}
 
               {/* Today's appointments — hidden when empty: the «Ραντεβού» chip
                   above already shows the zero, saying it three times was noise. */}
