@@ -5,12 +5,17 @@ import { startCheckout } from '@/server/modules/billing/billing.service';
 
 export const runtime = 'nodejs';
 
-// Per-tier ANNUAL Stripe prices (s44 packaging). Absent env → the tier isn't
-// sellable yet and requesting it is billing_not_configured; no plan in the body
-// → the legacy monthly plan, byte-identical to before.
-function tierPriceId(plan: string): string | undefined {
-  if (plan === 'base') return process.env.STRIPE_PRICE_ID_BASE;
-  if (plan === 'premium') return process.env.STRIPE_PRICE_ID_PREMIUM;
+// Per-tier Stripe prices (s44/s45 packaging): the ANNUAL deal + a deliberately
+// pricier MONTHLY option. Absent env → the combination isn't sellable yet and
+// requesting it is billing_not_configured; no plan in the body → the legacy
+// monthly plan, byte-identical to before.
+function tierPriceId(plan: string, interval: string): string | undefined {
+  if (plan === 'base') {
+    return interval === 'monthly' ? process.env.STRIPE_PRICE_ID_BASE_MONTHLY : process.env.STRIPE_PRICE_ID_BASE;
+  }
+  if (plan === 'premium') {
+    return interval === 'monthly' ? process.env.STRIPE_PRICE_ID_PREMIUM_MONTHLY : process.env.STRIPE_PRICE_ID_PREMIUM;
+  }
   return undefined;
 }
 
@@ -27,14 +32,16 @@ export async function POST(request: NextRequest) {
   const { businessId } = auth.ctx;
 
   let plan: string | null = null;
+  let interval = 'annual';
   try {
-    const body = (await request.json()) as { plan?: unknown };
+    const body = (await request.json()) as { plan?: unknown; interval?: unknown };
     if (body && (body.plan === 'base' || body.plan === 'premium')) plan = body.plan;
+    if (body && body.interval === 'monthly') interval = 'monthly';
   } catch {
     // no/invalid body → legacy plan (the pre-tier client sends none)
   }
 
-  const priceId = plan ? tierPriceId(plan) : process.env.STRIPE_PRICE_ID;
+  const priceId = plan ? tierPriceId(plan, interval) : process.env.STRIPE_PRICE_ID;
   if (!priceId) {
     return NextResponse.json({ ok: false, error: 'billing_not_configured' }, { status: 503 });
   }

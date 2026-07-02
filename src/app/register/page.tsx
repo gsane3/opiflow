@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
@@ -52,6 +52,37 @@ export default function RegisterPage() {
   // When email confirmation is required, signUp returns no session — show a
   // "check your email" screen instead of dropping the user into /package.
   const [awaitingVerify, setAwaitingVerify] = useState(false);
+  const [resendState, setResendState] = useState<'idle' | 'busy' | 'sent'>('idle');
+
+  // /pricing arrives as ?plan=base|premium. The OAuth and email-confirm paths
+  // lose the querystring, so stash the choice for /package to preselect.
+  useEffect(() => {
+    const plan = new URLSearchParams(window.location.search).get('plan');
+    if (plan === 'base' || plan === 'premium') {
+      try {
+        localStorage.setItem('opiflow_selected_plan', plan);
+      } catch {
+        // storage unavailable — the URL param still flows on the email path
+      }
+    }
+  }, []);
+
+  async function resendVerification() {
+    if (resendState === 'busy') return;
+    setResendState('busy');
+    try {
+      const supabase = createBrowserSupabaseClient();
+      await supabase.auth.resend({
+        type: 'signup',
+        email: email.trim().toLowerCase(),
+        options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
+      });
+      setResendState('sent');
+    } catch {
+      setResendState('idle');
+      setError('Η επαναποστολή απέτυχε. Δοκίμασε ξανά σε λίγο.');
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -173,7 +204,18 @@ export default function RegisterPage() {
               <span className="font-semibold">{email.trim()}</span>. Πάτησέ τον για να ενεργοποιήσεις τον λογαριασμό σου και να συνεχίσεις στην επιλογή πακέτου.
             </p>
             <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">Δεν ήρθε; Έλεγξε και τα ανεπιθύμητα (spam).</p>
-            <Link href="/login" className="mt-4 inline-block text-sm font-semibold text-indigo-600 hover:text-indigo-700">
+            <button
+              type="button"
+              onClick={() => void resendVerification()}
+              disabled={resendState !== 'idle'}
+              className="mt-3 inline-block rounded-full border border-indigo-200 px-4 py-2 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 disabled:opacity-60 dark:border-indigo-500/30 dark:hover:bg-indigo-500/10"
+            >
+              {resendState === 'sent' ? '✓ Στάλθηκε ξανά' : resendState === 'busy' ? 'Αποστολή…' : 'Επαναποστολή email'}
+            </button>
+            <p className="mt-3 text-xs text-zinc-400 dark:text-zinc-500">
+              Μετά την επιβεβαίωση συνεχίζεις στην επιλογή πακέτου (Base ή Premium).
+            </p>
+            <Link href="/login" className="mt-2 inline-block text-sm font-semibold text-indigo-600 hover:text-indigo-700">
               Πήγαινε στη Σύνδεση
             </Link>
           </div>
@@ -289,7 +331,7 @@ export default function RegisterPage() {
               disabled={loading}
               className="w-full rounded-[28px] bg-indigo-600 py-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60"
             >
-              {loading ? 'Δημιουργία...' : 'Συνέχεια'}
+              {loading ? 'Δημιουργία...' : 'Δημιουργία λογαριασμού'}
             </button>
           </div>
         </form>

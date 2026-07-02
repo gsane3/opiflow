@@ -73,6 +73,8 @@ const PLAN_NAMES: Record<string, string> = {
   starter: 'Opiflow',
   pro:     'Opiflow',
   team:    'Opiflow',
+  base:    'Opiflow Base',
+  premium: 'Opiflow Premium',
 };
 
 function buildInitialFormData(): FormData {

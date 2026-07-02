@@ -165,16 +165,41 @@ export default function NumberPage() {
         setCheckoutBusy(false);
         return;
       }
+      // Tier-aware: the plan/interval picked on /package (stashed there). No
+      // stash → legacy single plan, unchanged behavior.
+      const plan = (() => {
+        try {
+          const v = localStorage.getItem('opiflow_selected_plan');
+          return v === 'base' || v === 'premium' ? v : null;
+        } catch {
+          return null;
+        }
+      })();
+      const interval = (() => {
+        try {
+          return localStorage.getItem('opiflow_billing_interval') === 'monthly' ? 'monthly' : 'annual';
+        } catch {
+          return 'annual';
+        }
+      })();
       const resp = await fetch('/api/billing/checkout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${session.access_token}` },
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+          ...(plan ? { 'Content-Type': 'application/json' } : {}),
+        },
+        ...(plan ? { body: JSON.stringify({ plan, interval }) } : {}),
       });
-      const data = (await resp.json().catch(() => ({}))) as { ok?: boolean; url?: string };
+      const data = (await resp.json().catch(() => ({}))) as { ok?: boolean; url?: string; error?: string };
       if (resp.ok && typeof data.url === 'string') {
         window.location.href = data.url; // leaving the app for Stripe
         return;
       }
-      setCheckoutError('Δεν μπόρεσε να ξεκινήσει η πληρωμή. Δοκίμασε ξανά ή επικοινώνησε μαζί μας.');
+      setCheckoutError(
+        data.error === 'billing_not_configured'
+          ? 'Οι online πληρωμές δεν έχουν ενεργοποιηθεί ακόμη. Στείλε μας email στο support@opiflow.ai για άμεση ενεργοποίηση.'
+          : 'Δεν μπόρεσε να ξεκινήσει η πληρωμή. Δοκίμασε ξανά ή επικοινώνησε μαζί μας.',
+      );
       setCheckoutBusy(false);
     } catch {
       setCheckoutError('Δεν μπόρεσε να ξεκινήσει η πληρωμή.');

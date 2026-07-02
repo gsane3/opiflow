@@ -15,13 +15,15 @@ export const VAT_RATE = 0.24;
 
 const eur = (n: number) => fmtEur(n); // Greek-canonical "79 €"
 
-/** A headline plan the customer picks (annual). */
+/** A headline plan the customer picks (annual, with a pricier monthly option). */
 export interface Tier {
   key: 'base' | 'premium';
   name: string;
   tagline: string;
-  priceExVat: number;        // € / year, ex-VAT
-  perMonthHint: string;      // "≈ 6,58 €/μήνα"
+  priceExVat: number;        // € / year, ex-VAT — the headline deal
+  monthlyExVat: number;      // € / month, ex-VAT — the deliberately pricier option
+  discountLabel: string;     // annual vs 12× monthly, e.g. "-45%"
+  perMonthHint: string;      // "≈ 6,58 €/μήνα" (what the annual works out to)
   highlight?: boolean;       // Premium = visually featured
   badge?: string;            // e.g. "Δημοφιλές"
   ctaLabel: string;
@@ -46,6 +48,8 @@ export const TIERS: Tier[] = [
     name: 'Base',
     tagline: 'Όλη η δουλειά σου σε μία εφαρμογή. Οι κλήσεις γίνονται από το δικό σου κινητό.',
     priceExVat: 79,
+    monthlyExVat: 12,          // 12×12 = 144 €/yr → the 79 € annual is -45%
+    discountLabel: '-45%',
     perMonthHint: '≈ 6,58 €/μήνα',
     ctaLabel: 'Ξεκίνα με Base',
     bullets: [
@@ -62,6 +66,8 @@ export const TIERS: Tier[] = [
     name: 'Premium',
     tagline: 'Όλα του Base + το επαγγελματικό σου τηλέφωνο με AI. Κάθε κλήση γίνεται πελάτης.',
     priceExVat: 199,
+    monthlyExVat: 33,          // 33×12 = 396 €/yr → the 199 € annual is -50%
+    discountLabel: '-50%',
     perMonthHint: '≈ 16,58 €/μήνα',
     highlight: true,
     badge: 'Δημοφιλές',
