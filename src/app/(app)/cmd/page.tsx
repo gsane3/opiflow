@@ -467,6 +467,18 @@ export default function CmdPage() {
     };
   }, []);
 
+  // Deep-link «Σημείωση κλήσης» (Base home card): /cmd?dictate=1 auto-starts
+  // the dictation once the page is ready — same behaviour as the native /cmd.
+  // window.location instead of useSearchParams: no Suspense boundary needed.
+  const autoDictatedRef = useRef(false);
+  useEffect(() => {
+    if (autoDictatedRef.current || !hydrated || !speechSupported) return;
+    if (!new URLSearchParams(window.location.search).has('dictate')) return;
+    autoDictatedRef.current = true;
+    void startListening();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hydrated, speechSupported]);
+
   async function startListening() {
     setCmdError('');
     setInterimText('');

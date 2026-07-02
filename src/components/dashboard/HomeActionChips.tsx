@@ -19,6 +19,8 @@ interface TaskDto {
 interface Item {
   id: string; customerId: string | null; customerName: string;
   dueDate: string | null; dueTime: string | null; note: string | null; phone: string | null;
+  /** Coalesced duplicates for the same customer («×N»). */
+  count: number;
 }
 
 const APPT_TYPES = new Set(['book_appointment', 'visit_customer']);
@@ -61,11 +63,19 @@ export default function HomeActionChips() {
       const tasks: TaskDto[] = tJson?.ok && Array.isArray(tJson.tasks) ? tJson.tasks : [];
       const toItem = (t: TaskDto): Item => {
         const c = t.customerId ? names.get(t.customerId) : undefined;
-        return { id: t.id, customerId: t.customerId, customerName: c?.name ?? 'Πελάτης', dueDate: t.dueDate, dueTime: t.dueTime, note: t.note, phone: c?.phone ?? null };
+        return { id: t.id, customerId: t.customerId, customerName: c?.name ?? 'Πελάτης', dueDate: t.dueDate, dueTime: t.dueTime, note: t.note, phone: c?.phone ?? null, count: 1 };
       };
       const cmp = (a: Item, b: Item) => `${a.dueDate ?? ''} ${a.dueTime ?? ''}`.localeCompare(`${b.dueDate ?? ''} ${b.dueTime ?? ''}`);
       setAppts(tasks.filter((t) => APPT_TYPES.has(t.type)).map(toItem).sort(cmp));
-      setCallbacks(tasks.filter((t) => t.type === 'call_back').map(toItem).sort(cmp));
+      // Coalesce duplicate callbacks: N missed calls from the same customer are
+      // ONE need («×N»), not N identical rows (native-parity, douleutaras pattern).
+      const grouped = new Map<string, Item>();
+      for (const it of tasks.filter((t) => t.type === 'call_back').map(toItem).sort(cmp)) {
+        const g = grouped.get(it.customerId ?? it.id);
+        if (g) g.count += 1;
+        else grouped.set(it.customerId ?? it.id, { ...it });
+      }
+      setCallbacks([...grouped.values()]);
     } catch { /* non-fatal */ }
   }, []);
 
@@ -123,11 +133,14 @@ export default function HomeActionChips() {
                 {list.map((it) => (
                   <div key={it.id} className="flex items-center gap-2 rounded-[24px] bg-zinc-50 dark:bg-[#1e2b38] px-3 py-2.5 ring-1 ring-zinc-200/60 dark:ring-white/10">
                     <button type="button" onClick={() => openCustomer(it.customerId)} className="min-w-0 flex-1 rounded-lg text-left transition active:scale-[0.98] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2">
-                      <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">{it.customerName}</p>
+                      <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                        {it.customerName}
+                        {it.count > 1 ? `  ·  ×${it.count}` : ''}
+                      </p>
                       <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
                         {openView === 'appts'
                           ? `${fmtDay(it.dueDate)}${it.dueTime ? ` · ${it.dueTime}` : ''}${it.note ? ` · ${it.note}` : ''}`
-                          : (it.note || 'Επιστροφή κλήσης')}
+                          : `${it.count > 1 ? `${it.count} αναπάντητες · ` : ''}${it.note || 'Επιστροφή κλήσης'}`}
                       </p>
                     </button>
                     {it.phone && (
