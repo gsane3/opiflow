@@ -99,7 +99,12 @@ export default function VoiceCommandRecorder({
           mediaPlaybackRequiresUserAction={false}
           mediaCapturePermissionGrantType="grant"
           onPermissionRequest={(event: { grant: (resources: string[]) => void; resources: string[] }) => { event.grant(event.resources); }}
-          originWhitelist={['https://www.opiflow.ai/*', 'https://opiflow.ai/*']}
+          // react-native-webview tests the whitelist against the URL ORIGIN only
+          // (no path) — a '/*' suffix can therefore NEVER match, the load is
+          // refused, and the library Linking-opens the widget in the EXTERNAL
+          // browser where window.ReactNativeWebView doesn't exist (the recording
+          // was silently dropped). Origin-only patterns keep it in-app.
+          originWhitelist={['https://www.opiflow.ai', 'https://opiflow.ai']}
           startInLoadingState
           renderLoading={() => (
             <View style={styles.loading}>

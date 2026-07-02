@@ -19,12 +19,7 @@ import { STATUS_LABELS } from '@/components/customers/CustomerStatusBadge';
 import { SOURCE_LABELS } from '@/components/customers/CustomerCard';
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/components/tasks/TaskStatusBadge';
 import AiWarningBadge from '@/components/ai/AiWarningBadge';
-import { isSpeechSupported, createRecognition } from '@/lib/speech';
-import type {
-  AppSpeechRecognition,
-  AppSpeechRecognitionEvent,
-  AppSpeechRecognitionErrorEvent,
-} from '@/lib/speech';
+import { isDictationSupported, startDictation, transcribeAudioBlob, type DictationSession } from '@/lib/speech';
 
 type EditableTask = {
   _id: string;
@@ -141,9 +136,7 @@ export default function AiReviewPage() {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
-  const recognitionRef = useRef<AppSpeechRecognition | null>(null);
-  const shouldKeepListeningRef = useRef(false);
-  const stoppingManuallyRef = useRef(false);
+  const dictationRef = useRef<DictationSession | null>(null);
 
   // Dismissed warning indices (local state only, not persisted)
   const [dismissedWarnings, setDismissedWarnings] = useState<Set<number>>(new Set());
@@ -185,7 +178,7 @@ export default function AiReviewPage() {
   // setState calls are deferred into a timer so they are not synchronous in the effect body.
   useEffect(() => {
     let cancelled = false;
-    const detectedSpeech = isSpeechSupported();
+    const detectedSpeech = isDictationSupported();
     // Defer the synchronous setState out of the effect body (avoids cascading
     // renders / hydration mismatch).
     const timer = window.setTimeout(() => {
@@ -209,96 +202,51 @@ export default function AiReviewPage() {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Ensure recognition stops on unmount  -  refs prevent restart in onend
+  // Ensure any in-flight recording is discarded on unmount.
   useEffect(() => {
     return () => {
-      shouldKeepListeningRef.current = false;
-      stoppingManuallyRef.current = true;
-      recognitionRef.current?.stop();
+      dictationRef.current?.cancel();
     };
   }, []);
 
-  function startListening() {
+  async function startListening() {
     setAiError('');
-    const r = createRecognition();
-    if (!r) return;
-
-    shouldKeepListeningRef.current = true;
-    stoppingManuallyRef.current = false;
-    recognitionRef.current = r;
-
-    function attachHandlers(instance: AppSpeechRecognition) {
-      instance.onresult = (event: AppSpeechRecognitionEvent) => {
-        let finalTranscript = '';
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const result = event.results[i];
-          if (result.isFinal) {
-            finalTranscript += result[0].transcript;
-          } else {
-            interim += result[0].transcript;
-          }
-        }
-        setInterimText(interim);
-        if (finalTranscript.trim()) {
-          setAiInputText((prev) => {
-            const t = prev.trim();
-            return t ? t + ' ' + finalTranscript.trim() : finalTranscript.trim();
-          });
-          setInterimText('');
-        }
-      };
-
-      instance.onerror = (event: AppSpeechRecognitionErrorEvent) => {
-        const err = event.error;
-        shouldKeepListeningRef.current = false;
-        stoppingManuallyRef.current = true;
+    setInterimText('');
+    const session = await startDictation({
+      onBlob: (blob) => {
+        setIsListening(false);
+        setInterimText('Μεταγραφή…');
+        void transcribeAudioBlob(blob)
+          .then((text) => {
+            setAiInputText((prev) => {
+              const t = prev.trim();
+              return t ? t + ' ' + text : text;
+            });
+          })
+          .catch(() => {
+            setAiError('Η μεταγραφή απέτυχε. Δοκίμασε ξανά ή γράψε το κείμενο.');
+          })
+          .finally(() => setInterimText(''));
+      },
+      onError: (kind) => {
         setIsListening(false);
         setInterimText('');
-        if (err === 'not-allowed' || err === 'service-not-allowed') {
-          setAiError('Δεν δόθηκε πρόσβαση στο μικρόφωνο. Μπορείς να γράψεις το κείμενο.');
-        } else if (err === 'no-speech' || err === 'audio-capture') {
-          setAiError('Δεν άκουσα καθαρά. Μίλησε ξανά ή γράψε το κείμενο.');
-        }
-      };
-
-      instance.onend = () => {
-        if (shouldKeepListeningRef.current && !stoppingManuallyRef.current) {
-          // Restart to keep session alive after browser auto-stops
-          try {
-            const newR = createRecognition();
-            if (newR) {
-              recognitionRef.current = newR;
-              attachHandlers(newR);
-              newR.start();
-            } else {
-              setIsListening(false);
-              setInterimText('');
-            }
-          } catch {
-            shouldKeepListeningRef.current = false;
-            setIsListening(false);
-            setInterimText('');
-            setAiError('Η υπαγόρευση σταμάτησε. Δοκίμασε ξανά.');
-          }
-        } else {
-          setIsListening(false);
-          setInterimText('');
-        }
-      };
+        setAiError(
+          kind === 'denied'
+            ? 'Δεν δόθηκε πρόσβαση στο μικρόφωνο. Μπορείς να γράψεις το κείμενο.'
+            : 'Η ηχογράφηση απέτυχε. Γράψε το κείμενο.',
+        );
+      },
+    });
+    if (session) {
+      dictationRef.current = session;
+      setIsListening(true);
     }
-
-    attachHandlers(r);
-    r.start();
-    setIsListening(true);
   }
 
   function stopListening() {
-    shouldKeepListeningRef.current = false;
-    stoppingManuallyRef.current = true;
-    recognitionRef.current?.stop();
-    setIsListening(false);
-    setInterimText('');
+    dictationRef.current?.stop();
+    dictationRef.current = null;
   }
 
   function applyResult(result: AiReviewResult) {
@@ -693,9 +641,9 @@ export default function AiReviewPage() {
         )}
 
         {/* Interim speech preview  -  shown while listening, not stored */}
-        {isListening && (
+        {(isListening || interimText) && (
           <p className="mt-1 min-h-[1.25rem] text-xs italic text-zinc-400 dark:text-zinc-500">
-            {interimText ? interimText + '...' : 'Ακούω... μίλησε τώρα'}
+            {isListening ? 'Ακούω… πάτα «Σταμάτημα» όταν τελειώσεις.' : interimText}
           </p>
         )}
 

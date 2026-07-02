@@ -4,13 +4,10 @@ import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { createBrowserSupabaseClient } from '@/lib/supabase/client';
 import {
-  isSpeechSupported,
-  createRecognition,
-} from '@/lib/speech';
-import type {
-  AppSpeechRecognition,
-  AppSpeechRecognitionEvent,
-  AppSpeechRecognitionErrorEvent,
+  isDictationSupported,
+  startDictation,
+  transcribeAudioBlob,
+  type DictationSession,
 } from '@/lib/speech';
 import type { Task, Customer, BusinessProfile, TaskType, TaskPriority, Offer } from '@/lib/types';
 import type { CmdReviewResult } from '@/lib/ai/cmd-schema';
@@ -360,13 +357,11 @@ export default function CmdPage() {
   const [speechSupported, setSpeechSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [interimText, setInterimText] = useState('');
-  const recognitionRef = useRef<AppSpeechRecognition | null>(null);
-  const shouldKeepListeningRef = useRef(false);
-  const stoppingManuallyRef = useRef(false);
+  const dictationRef = useRef<DictationSession | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const detected = isSpeechSupported();
+    const detected = isDictationSupported();
 
     async function loadBackendContext() {
       let supabase: ReturnType<typeof createBrowserSupabaseClient>;
@@ -468,85 +463,49 @@ export default function CmdPage() {
 
   useEffect(() => {
     return () => {
-      shouldKeepListeningRef.current = false;
-      stoppingManuallyRef.current = true;
-      recognitionRef.current?.stop();
+      dictationRef.current?.cancel();
     };
   }, []);
 
-  function startListening() {
+  async function startListening() {
     setCmdError('');
-    const r = createRecognition();
-    if (!r) return;
-    shouldKeepListeningRef.current = true;
-    stoppingManuallyRef.current = false;
-    recognitionRef.current = r;
-
-    function attach(instance: AppSpeechRecognition) {
-      instance.onresult = (event: AppSpeechRecognitionEvent) => {
-        let final = '';
-        let interim = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          const res = event.results[i];
-          if (res.isFinal) final += res[0].transcript;
-          else interim += res[0].transcript;
-        }
-        setInterimText(interim);
-        if (final.trim()) {
-          setCmdInput((prev) => {
-            const t = prev.trim();
-            return t ? t + ' ' + final.trim() : final.trim();
-          });
-          setInterimText('');
-        }
-      };
-      instance.onerror = (event: AppSpeechRecognitionErrorEvent) => {
-        shouldKeepListeningRef.current = false;
-        stoppingManuallyRef.current = true;
+    setInterimText('');
+    const session = await startDictation({
+      onBlob: (blob) => {
+        // Recording finished → transcribe server-side and append to the box.
+        setIsListening(false);
+        setInterimText('Μεταγραφή…');
+        void transcribeAudioBlob(blob)
+          .then((text) => {
+            setCmdInput((prev) => {
+              const t = prev.trim();
+              return t ? t + ' ' + text : text;
+            });
+          })
+          .catch(() => {
+            setCmdError('Η μεταγραφή απέτυχε. Δοκίμασε ξανά ή γράψε την εντολή.');
+          })
+          .finally(() => setInterimText(''));
+      },
+      onError: (kind) => {
         setIsListening(false);
         setInterimText('');
-        const err = event.error;
-        if (err === 'not-allowed' || err === 'service-not-allowed') {
-          setCmdError('Δεν δόθηκε πρόσβαση στο μικρόφωνο.');
-        } else if (err === 'no-speech' || err === 'audio-capture') {
-          setCmdError('Δεν άκουσα καθαρά. Γράψε την εντολή.');
-        }
-      };
-      instance.onend = () => {
-        if (shouldKeepListeningRef.current && !stoppingManuallyRef.current) {
-          try {
-            const newR = createRecognition();
-            if (newR) {
-              recognitionRef.current = newR;
-              attach(newR);
-              newR.start();
-            } else {
-              setIsListening(false);
-              setInterimText('');
-            }
-          } catch {
-            shouldKeepListeningRef.current = false;
-            setIsListening(false);
-            setInterimText('');
-          }
-        } else {
-          setIsListening(false);
-          setInterimText('');
-        }
-      };
+        setCmdError(
+          kind === 'denied'
+            ? 'Δεν δόθηκε πρόσβαση στο μικρόφωνο.'
+            : 'Η ηχογράφηση απέτυχε. Γράψε την εντολή.',
+        );
+      },
+    });
+    if (session) {
+      dictationRef.current = session;
+      setIsListening(true);
     }
-
-    attach(r);
-    r.start();
-    setIsListening(true);
   }
 
   function stopListening() {
-    shouldKeepListeningRef.current = false;
-    stoppingManuallyRef.current = true;
-    recognitionRef.current?.stop();
-    setIsListening(false);
-    setInterimText('');
+    dictationRef.current?.stop();
+    dictationRef.current = null;
   }
 
   async function handleSubmit() {
@@ -1241,9 +1200,9 @@ export default function CmdPage() {
           className="w-full resize-none rounded-xl border border-zinc-200 px-3 py-2 text-sm text-zinc-900 placeholder-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 disabled:bg-zinc-50 dark:border-white/10 dark:bg-[#0f1923] dark:text-zinc-100 dark:placeholder-zinc-500"
         />
 
-        {isListening && (
+        {(isListening || interimText) && (
           <p className="min-h-[1.25rem] text-xs italic text-zinc-400 dark:text-zinc-500">
-            {interimText ? interimText + '...' : 'Ακούω...'}
+            {isListening ? 'Ακούω… πάτα «Σταμάτημα» όταν τελειώσεις.' : interimText}
           </p>
         )}
 
