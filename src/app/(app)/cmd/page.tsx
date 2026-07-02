@@ -473,7 +473,7 @@ export default function CmdPage() {
   const autoDictatedRef = useRef(false);
   useEffect(() => {
     if (autoDictatedRef.current || !hydrated || !speechSupported) return;
-    if (!new URLSearchParams(window.location.search).has('dictate')) return;
+    if (new URLSearchParams(window.location.search).get('dictate') !== '1') return;
     autoDictatedRef.current = true;
     void startListening();
     // eslint-disable-next-line react-hooks/exhaustive-deps

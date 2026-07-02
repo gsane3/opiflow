@@ -77,7 +77,9 @@ function downloadMonthCsv(key: string, rows: InvoiceRow[]) {
   document.body.appendChild(a);
   a.click();
   a.remove();
-  URL.revokeObjectURL(url);
+  // Deferred: Safari resolves the blob async after the click — a same-task
+  // revoke can abort the download (same pattern as ics.ts/ImportExportPanel).
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 export default function InvoicesPage() {
@@ -244,12 +246,12 @@ export default function InvoicesPage() {
               <button
                 type="button"
                 onClick={() => downloadMonthCsv(key, rows)}
-                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-indigo-600 px-4 py-2.5 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 dark:hover:bg-indigo-500/10"
+                className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-indigo-600 px-4 py-2.5 text-sm font-semibold text-indigo-600 transition hover:bg-indigo-50 dark:border-indigo-400 dark:text-indigo-300 dark:hover:bg-indigo-500/10"
               >
                 <svg className="h-4 w-4" fill="none" strokeWidth={1.7} stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
                 </svg>
-                Αποστολή στον λογιστή (CSV)
+                Αποστολή στον λογιστή
               </button>
             </div>
           );
