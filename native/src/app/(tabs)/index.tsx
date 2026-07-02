@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CallActionSheet } from '@/components/call-action-sheet';
+import { Input, PrimaryButton, SheetModal } from '@/components/ui';
 import { NotificationsSheet, type NotificationItem } from '@/components/notifications-sheet';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -25,6 +26,7 @@ import { useTheme } from '@/hooks/use-theme';
 import { apiGet, apiPatch } from '@/lib/api';
 import { hapticSuccess } from '@/lib/haptics';
 import { briefExcerpt, formatWhen, todayYMD } from '@/lib/format';
+import { sendIntakeForNumber } from '@/lib/intake-prompt';
 import { getIncomingState, subscribeIncomingState } from '@/lib/twilio-state';
 import type { Communication, Customer, Offer, Task } from '@/lib/types';
 
@@ -44,6 +46,13 @@ export default function HomeScreen() {
   // «Τιμολόγια» entry — visible only when the ΑΑΔΕ invoicing add-on is enabled
   // for this tenant (silent check; most users never see it).
   const [invoicingOn, setInvoicingOn] = useState(false);
+  // Base plan (no in-app telephony): the home gains its two call companions —
+  // voice call-note dictation + quick intake request. Hidden on Premium/legacy
+  // (entitlements.telephony !== false) where the post-call sheet covers both.
+  const [baseAids, setBaseAids] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [quickNumber, setQuickNumber] = useState('');
+  const [quickBusy, setQuickBusy] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +78,9 @@ export default function HomeScreen() {
     void load();
     apiGet<{ settings?: { enabled?: boolean } }>('/api/invoicing/settings')
       .then((r) => setInvoicingOn(Boolean(r?.settings?.enabled)))
+      .catch(() => {});
+    apiGet<{ entitlements?: { telephony?: boolean } }>('/api/businesses/me')
+      .then((r) => setBaseAids(r?.entitlements?.telephony === false))
       .catch(() => {});
   }, [load]);
 
@@ -275,6 +287,40 @@ export default function HomeScreen() {
                 </Pressable>
               ) : null}
 
+              {baseAids ? (
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => router.push('/cmd?dictate=1' as never)}
+                    style={({ pressed }) => [styles.itemCard, pressed && styles.pressed]}>
+                    <Ionicons name="mic" size={22} color={Brand.primary} />
+                    <View style={styles.itemBody}>
+                      <ThemedText type="smallBold">Σημείωση κλήσης</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Πες τι είπατε — το AI το καταχωρεί
+                      </ThemedText>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={Brand.primary} />
+                  </Pressable>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      setQuickNumber('');
+                      setQuickAddOpen(true);
+                    }}
+                    style={({ pressed }) => [styles.itemCard, pressed && styles.pressed]}>
+                    <Ionicons name="person-add" size={22} color={Brand.primary} />
+                    <View style={styles.itemBody}>
+                      <ThemedText type="smallBold">Νέος πελάτης;</ThemedText>
+                      <ThemedText type="small" themeColor="textSecondary">
+                        Επικόλλησε τον αριθμό → αίτημα στοιχείων
+                      </ThemedText>
+                    </View>
+                    <Ionicons name="chevron-forward" size={18} color={Brand.primary} />
+                  </Pressable>
+                </>
+              ) : null}
+
               {/* Today's appointments — hidden when empty: the «Ραντεβού» chip
                   above already shows the zero, saying it three times was noise. */}
               {appointmentsToday.length === 0 ? null : (
@@ -449,6 +495,32 @@ export default function HomeScreen() {
         }
         onDial={(phone) => router.push({ pathname: '/calls', params: { num: phone } })}
       />
+
+      {/* Base quick-add: number (paste from the phone app) → intake request. */}
+      <SheetModal visible={quickAddOpen} title="Νέος πελάτης" onClose={() => setQuickAddOpen(false)}>
+        <ThemedText type="small" themeColor="textSecondary">
+          Σε κάλεσε στο κινητό σου; Επικόλλησε (ή γράψε) τον αριθμό και θα του
+          σταλεί αίτημα καταχώρησης στοιχείων (Viber → SMS).
+        </ThemedText>
+        <Input
+          label="Τηλέφωνο"
+          value={quickNumber}
+          onChangeText={setQuickNumber}
+          keyboardType="phone-pad"
+        />
+        <PrimaryButton
+          label="Αποστολή αιτήματος"
+          busy={quickBusy}
+          disabled={quickNumber.replace(/\D/g, '').length < 8}
+          onPress={() => {
+            setQuickBusy(true);
+            void sendIntakeForNumber(quickNumber.trim(), () => void load()).finally(() => {
+              setQuickBusy(false);
+              setQuickAddOpen(false);
+            });
+          }}
+        />
+      </SheetModal>
 
       <NotificationsSheet
         visible={notifOpen}

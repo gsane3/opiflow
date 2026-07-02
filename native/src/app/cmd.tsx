@@ -6,7 +6,7 @@
 // Customer matching is resolved against /api/customers?q=… (pick when ambiguous).
 
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -82,6 +82,9 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
+  // Base flow: «Σημείωση κλήσης» from the home screen lands here with
+  // ?dictate=1 → jump straight into the voice recorder.
+  const { dictate } = useLocalSearchParams<{ dictate?: string }>();
   const inputRef = useRef<TextInput>(null);
   const [input, setInput] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
@@ -111,6 +114,9 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
   const [loadingFolders, setLoadingFolders] = useState(false);
   // (#2) Voice dictation recorder modal.
   const [voiceOpen, setVoiceOpen] = useState(false);
+  useEffect(() => {
+    if (dictate === '1') setVoiceOpen(true);
+  }, [dictate]);
   // create_invoice — issued ΜΑΡΚ + a gated error message (parity with web).
   const [invoiceMark, setInvoiceMark] = useState<string | null>(null);
   const [invoiceError, setInvoiceError] = useState('');
