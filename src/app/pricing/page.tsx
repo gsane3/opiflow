@@ -94,11 +94,21 @@ export default function PricingPage() {
                 </span>
               )}
               <p className={t.highlight ? 'text-sm font-semibold text-indigo-300' : 'text-sm font-semibold text-indigo-600'}>{t.name}</p>
-              <div className="mt-3 flex items-end gap-1.5">
+              <div className="mt-3 flex items-center gap-2">
+                <span className={'text-sm font-medium line-through ' + (t.highlight ? 'text-zinc-500' : 'text-zinc-400')}>
+                  {exVatLabel(t.monthlyExVat * 12)}
+                </span>
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-bold text-emerald-600">
+                  {t.discountLabel} με το ετήσιο
+                </span>
+              </div>
+              <div className="mt-1 flex items-end gap-1.5">
                 <span className="text-5xl font-bold tracking-tight">{exVatLabel(t.priceExVat)}</span>
                 <span className={'mb-1.5 text-sm font-medium ' + (t.highlight ? 'text-zinc-400' : 'text-zinc-500')}>+ ΦΠΑ / έτος</span>
               </div>
-              <p className={'mt-1 text-xs ' + (t.highlight ? 'text-zinc-400' : 'text-zinc-400')}>{t.perMonthHint}</p>
+              <p className={'mt-1 text-xs ' + (t.highlight ? 'text-zinc-400' : 'text-zinc-400')}>
+                {t.perMonthHint} · ή {exVatLabel(t.monthlyExVat)}/μήνα χωρίς δέσμευση
+              </p>
               <p className={'mt-4 text-sm leading-relaxed ' + (t.highlight ? 'text-zinc-300' : 'text-zinc-600')}>{t.tagline}</p>
 
               <Link
