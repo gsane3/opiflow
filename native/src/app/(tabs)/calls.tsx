@@ -23,7 +23,6 @@ import { ThemedView } from '@/components/themed-view';
 import { BottomTabInset, Brand, BrandGradient, Shadow, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { apiGet } from '@/lib/api';
-import { maybePromptIntakeFor } from '@/lib/intake-prompt';
 import { hapticTap } from '@/lib/haptics';
 import { briefExcerpt, formatWhen } from '@/lib/format';
 import { type ActiveCall, type CallStatus } from '@/lib/twilio-state';
@@ -162,9 +161,8 @@ export default function CallsScreen() {
               createdAt: new Date().toISOString(),
               customer: null,
             });
-            // End-of-call popup: ask to send the details request (only for
-            // completed calls to a not-yet-named number).
-            if (r.status === 'completed') void maybePromptIntakeFor(number, loadRecent);
+            // The auto-opened sheet now carries «Αίτημα στοιχείων» as its
+            // primary CTA for unknown numbers — no stacked Alert on top of it.
           },
         );
         setCall(handle);
@@ -371,6 +369,12 @@ export default function CallsScreen() {
         }}
         onChanged={() => void loadRecent()}
         onOpenCustomer={(cid) => router.push({ pathname: '/customers/[id]', params: { id: cid } })}
+        onOpenProject={(cid, folder) =>
+          router.push({
+            pathname: '/customers/[id]/project/[folderId]',
+            params: { id: cid, folderId: folder.id, title: folder.title, status: folder.status },
+          } as never)
+        }
         onDial={(phone) => {
           setNum(phone.replace(/[^\d+*#]/g, '').slice(0, 24));
           setTab('keypad');

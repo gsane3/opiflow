@@ -12,7 +12,23 @@ import { useTheme } from '@/hooks/use-theme';
 import { apiDelete, apiGet, apiPatch, apiPost } from '@/lib/api';
 import { hapticSuccess } from '@/lib/haptics';
 import { formatWhen, todayYMD } from '@/lib/format';
-import type { Communication, Customer } from '@/lib/types';
+import { sendIntakeForNumber } from '@/lib/intake-prompt';
+import type { Communication, Customer, WorkFolder } from '@/lib/types';
+
+// «Πότε θα ξαναμιλήσετε;» quick chips (douleutaras pattern) — one tap schedules
+// the follow-up call so no conversation is left hanging.
+const FOLLOW_UP_CHOICES: Array<{ label: string; days: number }> = [
+  { label: 'Αύριο', days: 1 },
+  { label: 'Σε 3 μέρες', days: 3 },
+  { label: 'Σε 7 μέρες', days: 7 },
+];
+
+function ymdPlusDays(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 const TASK_TYPES: Array<{ key: string; label: string }> = [
   { key: 'call_back', label: 'Κλήση πίσω' },
@@ -84,6 +100,7 @@ export function CallActionSheet({
   onClose,
   onChanged,
   onOpenCustomer,
+  onOpenProject,
   onDial,
 }: {
   call: Communication | null;
@@ -93,6 +110,8 @@ export function CallActionSheet({
   /** The list changed (link/delete) — reload. */
   onChanged: () => void;
   onOpenCustomer: (customerId: string) => void;
+  /** Open the project «Διαδικασία» screen (context CTA + send_offer chip). */
+  onOpenProject?: (customerId: string, folder: { id: string; title: string; status: string }) => void;
   onDial: (phone: string) => void;
 }) {
   const c = useTheme();
@@ -100,6 +119,10 @@ export function CallActionSheet({
   const [view, setView] = useState<'actions' | 'add_contact' | 'create_task'>('actions');
   const [busy, setBusy] = useState(false);
   const [match, setMatch] = useState<Customer | null>(null);
+  // Ενεργό έργο του πελάτη → η κύρια ενέργεια γίνεται «Ενημέρωση έργου».
+  const [openFolder, setOpenFolder] = useState<WorkFolder | null>(null);
+  // «Πότε θα ξαναμιλήσετε;» → η ημερομηνία που κλείστηκε (ή null).
+  const [followUpSet, setFollowUpSet] = useState<string | null>(null);
 
   // Live AI brief (post-call): the dial-time row carries only a metadata brief;
   // the detailed transcript brief lands seconds later. Poll until it's ready.
@@ -122,6 +145,8 @@ export function CallActionSheet({
     setView('actions');
     setBusy(false);
     setMatch(null);
+    setOpenFolder(null);
+    setFollowUpSet(null);
     setCName('');
     setCCompany('');
     setCEmail('');
@@ -144,6 +169,26 @@ export function CallActionSheet({
         .catch(() => {});
     }
   }, [call]);
+
+  // The effective customer (linked, or matched by number) drives the context CTA.
+  const effectiveCustomerId = call?.customerId ?? match?.id ?? null;
+  useEffect(() => {
+    setOpenFolder(null);
+    if (!effectiveCustomerId) return;
+    let cancelled = false;
+    apiGet<{ folders?: WorkFolder[] }>(`/api/customers/${effectiveCustomerId}/folders`)
+      .then((r) => {
+        if (cancelled) return;
+        const active = (r?.folders ?? [])
+          .filter((f) => f.status === 'open' || f.status === 'in_progress')
+          .sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? ''));
+        setOpenFolder(active[0] ?? null);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveCustomerId]);
 
   // Fetch (and, for a just-ended call, poll) the AI brief + suggested chips.
   // One immediate fetch always runs (so chips show when opened from history);
@@ -201,8 +246,21 @@ export function CallActionSheet({
   const processing = !brief && (/γίνεται επεξεργασία/.test(rawSummary) || loadingBrief || (polling && !briefReady));
   const name = call.customer?.name ?? null;
 
-  // One-tap: turn an AI-suggested action into a task for this call's customer.
+  // One-tap AI chips. request_details and send_offer now EXECUTE the real
+  // action (send the intake link / open the project with the offer wizard);
+  // the rest still create a task for later.
   async function runAction(a: { actionType: string; label: string }) {
+    if (a.actionType === 'request_details' && call?.phone) {
+      setBusy(true);
+      await sendIntakeForNumber(call.phone, onChanged);
+      setActions((prev) => prev.filter((x) => x.actionType !== a.actionType));
+      setBusy(false);
+      return;
+    }
+    if (a.actionType === 'send_offer' && effectiveCustomerId) {
+      await goToProject();
+      return;
+    }
     setBusy(true);
     try {
       await apiPost('/api/tasks', {
@@ -219,6 +277,62 @@ export function CallActionSheet({
       Alert.alert('✓', `Προστέθηκε εργασία: ${a.label}`);
     } catch {
       Alert.alert('Σφάλμα', 'Η εργασία δεν δημιουργήθηκε.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Context CTA: open the customer's active project — or create one first.
+  // With no onOpenProject host wiring, degrade to opening the customer card.
+  async function goToProject() {
+    const cid = effectiveCustomerId;
+    if (!cid) return;
+    if (!onOpenProject) {
+      onClose();
+      onOpenCustomer(cid);
+      return;
+    }
+    if (openFolder) {
+      onClose();
+      onOpenProject(cid, openFolder);
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await apiPost<{ ok?: boolean; folder?: WorkFolder }>(`/api/customers/${cid}/folders`, { title: 'Νέο έργο' });
+      const folder = r?.folder;
+      if (folder) {
+        onChanged();
+        onClose();
+        onOpenProject(cid, folder);
+      } else {
+        Alert.alert('Σφάλμα', 'Το έργο δεν δημιουργήθηκε.');
+      }
+    } catch {
+      Alert.alert('Σφάλμα', 'Το έργο δεν δημιουργήθηκε.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // «Πότε θα ξαναμιλήσετε;» → follow-up call task with the chosen due date.
+  async function scheduleFollowUp(days: number) {
+    setBusy(true);
+    const due = ymdPlusDays(days);
+    try {
+      await apiPost('/api/tasks', {
+        customerId: effectiveCustomerId ?? undefined,
+        title: `Follow-up: ${name ?? call!.phone ?? 'κλήση'}`,
+        type: 'call_back',
+        status: 'open',
+        dueDate: due,
+        note: 'Προγραμματίστηκε μετά από κλήση',
+      });
+      setFollowUpSet(due.split('-').reverse().join('-'));
+      onChanged();
+      void hapticSuccess();
+    } catch {
+      Alert.alert('Σφάλμα', 'Δεν προγραμματίστηκε.');
     } finally {
       setBusy(false);
     }
@@ -431,9 +545,60 @@ export function CallActionSheet({
             </View>
           ) : null}
 
+          {/* Context CTA — the ONE thing this call most likely needs next:
+              unknown number → get their details; known → move the job forward. */}
+          {!effectiveCustomerId && call.phone ? (
+            <PrimaryButton
+              label="Αίτημα στοιχείων"
+              busy={busy}
+              onPress={() => {
+                setBusy(true);
+                void sendIntakeForNumber(call.phone!, () => {
+                  onChanged();
+                }).finally(() => setBusy(false));
+              }}
+            />
+          ) : effectiveCustomerId ? (
+            <PrimaryButton
+              label={openFolder ? 'Ενημέρωση έργου' : 'Νέο έργο'}
+              busy={busy}
+              onPress={() => void goToProject()}
+            />
+          ) : null}
+
+          {/* «Πότε θα ξαναμιλήσετε;» — schedule the next contact in one tap. */}
+          {effectiveCustomerId || call.phone ? (
+            followUpSet ? (
+              <ThemedText type="small" themeColor="textSecondary">
+                ✓ Follow-up προγραμματίστηκε για {followUpSet}
+              </ThemedText>
+            ) : (
+              <View style={styles.followUpRow}>
+                <ThemedText type="small" themeColor="textSecondary">
+                  Πότε θα ξαναμιλήσετε;
+                </ThemedText>
+                <View style={styles.chipRow}>
+                  {FOLLOW_UP_CHOICES.map((f) => (
+                    <Pressable
+                      key={f.days}
+                      onPress={() => void scheduleFollowUp(f.days)}
+                      disabled={busy}
+                      style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
+                      <Ionicons name="alarm" size={13} color={Brand.primary} />
+                      <ThemedText type="small" style={styles.chipText}>
+                        {f.label}
+                      </ThemedText>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )
+          ) : null}
+
           {call.phone ? (
             <PrimaryButton
               label="Κλήση"
+              tone="outline"
               onPress={() => {
                 onClose();
                 onDial(call.phone!);
@@ -517,6 +682,7 @@ const makeStyles = (c: ThemePalette) =>
       padding: Spacing.three,
     },
     chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.two },
+    followUpRow: { gap: Spacing.one },
     chip: {
       flexDirection: 'row',
       alignItems: 'center',

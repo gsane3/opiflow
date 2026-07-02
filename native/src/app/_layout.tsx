@@ -10,6 +10,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { AiSheetProvider } from '@/components/ai-sheet';
 import { IncomingCallModal } from '@/components/incoming-call-modal';
+import { PostCallSheetHost } from '@/components/post-call-sheet-host';
 import { LoginScreen } from '@/components/login-screen';
 import { NeedsSetupScreen } from '@/components/needs-setup-screen';
 import { Brand } from '@/constants/theme';
@@ -214,6 +215,8 @@ function Gate() {
       </Stack>
       {/* Global ring/in-call overlay (B7). Renders null until a call invite arrives. */}
       <IncomingCallModal />
+      {/* Post-call sheet for answered INBOUND calls (outbound uses the dialer's). */}
+      <PostCallSheetHost />
     </AiSheetProvider>
   );
 }

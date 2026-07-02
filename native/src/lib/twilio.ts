@@ -6,6 +6,7 @@ import { Call, CallInvite, Voice } from '@twilio/voice-react-native-sdk';
 import { Platform } from 'react-native';
 
 import { apiGet, apiPost } from './api';
+import { setPostCall } from './post-call-state';
 import { resolveCallerName } from './caller-name';
 import { type ActiveCall, type CallStatus, setIncomingState, setIncomingCall, getIncomingCall, setIncomingCallName } from './twilio-state';
 
@@ -140,12 +141,30 @@ function inviteFrom(invite: CallInvite): string | null {
 // with the outbound logCall in placeCall).
 function logInboundCall(call: Call, from: string | null, status: 'completed' | 'failed') {
   const sid = (() => { try { return call.getSid(); } catch { return undefined; } })();
-  apiPost('/api/calls/log', {
+  apiPost<{ communicationId?: string }>('/api/calls/log', {
     direction: 'inbound',
     status,
     phone: from,
     ...(sid ? { providerCallId: sid } : {}),
-  }).catch((e) => console.log('[twilio] inbound call log failed', e));
+  })
+    .then((r) => {
+      // Answered inbound call → open the global post-call sheet (parity with
+      // the outbound dialer's onLogged). Missed/failed calls stay silent — the
+      // home «Να πάρω τηλέφωνο» queue covers those.
+      if (status === 'completed' && r?.communicationId) {
+        setPostCall({
+          id: r.communicationId,
+          customerId: null,
+          channel: 'call',
+          direction: 'inbound',
+          status,
+          phone: from,
+          summary: null,
+          createdAt: new Date().toISOString(),
+        });
+      }
+    })
+    .catch((e) => console.log('[twilio] inbound call log failed', e));
 }
 
 // Log an inbound call that rang but was never answered (cancelled / timed out /
