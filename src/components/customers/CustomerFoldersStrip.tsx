@@ -52,7 +52,17 @@ function countsLine(c?: FolderCounts): string {
   return parts.join(' · ');
 }
 
-export default function CustomerFoldersStrip({ customerId, onChanged, openCreateSignal, openLatestSignal }: { customerId: string; onChanged?: () => void; openCreateSignal?: number; openLatestSignal?: number }) {
+
+// Legacy titles were stored as «{δουλειά} — {όνομα πελάτη}» — inside the
+// customer's own card the suffix is pure noise. Display-only strip.
+function displayTitle(title: string, customerName?: string | null): string {
+  const t = (title ?? '').trim();
+  const n = customerName?.trim();
+  if (n && t.endsWith(` — ${n}`)) return t.slice(0, -(n.length + 3)).trim() || t;
+  return t;
+}
+
+export default function CustomerFoldersStrip({ customerId, customerName, onChanged, openCreateSignal, openLatestSignal }: { customerId: string; customerName?: string | null; onChanged?: () => void; openCreateSignal?: number; openLatestSignal?: number }) {
   const [theme] = useState<'light' | 'dark'>(() => (typeof document !== 'undefined' && document.documentElement.classList.contains('dark') ? 'dark' : 'light'));
   const [folders, setFolders] = useState<Folder[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,7 +162,7 @@ export default function CustomerFoldersStrip({ customerId, onChanged, openCreate
               <button key={p.id} className="opf-card opf-proj-card opf-press" onClick={() => setOpenId(p.id)} style={{ textAlign: 'left', width: '100%' }}>
                 <div className="opf-proj-card-top">
                   <span className={`opf-pj-dot opf-dot-${STATUS_DOT[p.status] ?? 'new'}`} />
-                  <div className="opf-proj-card-title">{p.title}</div>
+                  <div className="opf-proj-card-title">{displayTitle(p.title, customerName)}</div>
                   <div className={`opf-ev-status opf-st-${STATUS_PILL[p.status] ?? 'pending'}`}>{STATUS_LABEL[p.status] ?? p.status}</div>
                 </div>
                 <div className="opf-proj-card-foot"><Icon name="link" size={13} color="var(--muted)" /> {cl || 'Άνοιγμα έργου'} · {formatDateGr(p.updatedAt)}</div>

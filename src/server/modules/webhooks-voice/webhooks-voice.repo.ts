@@ -250,6 +250,51 @@ export function insertCommunicationCall(
     .single();
 }
 
+/**
+ * Inbound calls are logged TWICE: the native client posts /api/calls/log on
+ * hangup (Twilio client-leg CallSid) and this webhook inserts its own row
+ * (Asterisk uniqueid, embedded in the summary) — two identities that never
+ * match, so «Πρόσφατες» showed every call twice. Find the client's recent row
+ * for the same number so the webhook can MERGE into it instead of inserting.
+ * Guards: same business+phone, inbound call, recent (minutes), no PBX summary
+ * yet (uniqueid=) and no brief — so two distinct calls can't be merged.
+ */
+export async function findRecentNativeInboundCall(
+  supabase: SupabaseServer,
+  businessId: string,
+  phone: string,
+  sinceIso: string,
+): Promise<{ id: string; customer_id: string | null } | null> {
+  const { data } = await supabase
+    .from('communications')
+    .select('id, customer_id, summary, brief_created_at')
+    .eq('business_id', businessId)
+    .eq('channel', 'call')
+    .eq('direction', 'inbound')
+    .eq('phone', phone)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  const rows = (data ?? []) as { id: string; customer_id: string | null; summary: string | null; brief_created_at: string | null }[];
+  const match = rows.find((r) => !r.brief_created_at && !(r.summary ?? '').includes('uniqueid='));
+  return match ? { id: match.id, customer_id: match.customer_id } : null;
+}
+
+export async function mergeCommunicationCall(
+  supabase: SupabaseServer,
+  id: string,
+  values: { customer_id: string | null; status: string; summary: string },
+) {
+  const update: Record<string, unknown> = { status: values.status, summary: values.summary };
+  if (values.customer_id) update.customer_id = values.customer_id;
+  return supabase
+    .from('communications')
+    .update(update)
+    .eq('id', id)
+    .select('id')
+    .single();
+}
+
 export async function getCustomerName(
   supabase: SupabaseServer,
   customerId: string,

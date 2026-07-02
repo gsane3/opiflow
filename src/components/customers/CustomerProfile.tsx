@@ -254,7 +254,7 @@ export default function CustomerProfile({ customerId }: { customerId: string }) 
         </div>
 
         {/* Έργα — the faithful projects section */}
-        <CustomerFoldersStrip customerId={customerId} onChanged={() => void load()} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
+        <CustomerFoldersStrip customerId={customerId} customerName={cust.name ?? null} onChanged={() => void load()} openCreateSignal={createSignal} openLatestSignal={msgSignal} />
 
         {/* Ιστορικό κλήσεων — tap a call to reveal its brief/content */}
         <div className="opf-sec-title"><div className="opf-sec-title-l"><OpfIcon name="phone" size={19} color="var(--brand)" /> <span>Ιστορικό κλήσεων</span></div></div>

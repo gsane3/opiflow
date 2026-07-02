@@ -2,6 +2,16 @@
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+// Greek all-caps drops the tonos (ΕΦΑΡΜΟΓΗ, όχι ΕΦΑΡΜΟΓΉ). toUpperCase()/
+// textTransform:'uppercase' keep it, so uppercase Greek UI text goes through here.
+const TONOS_UPPER: Record<string, string> = {
+  Ά: 'Α', Έ: 'Ε', Ή: 'Η', Ί: 'Ι', Ό: 'Ο', Ύ: 'Υ', Ώ: 'Ω', ΐ: 'Ϊ', ΰ: 'Ϋ',
+};
+
+export function greekUpper(s: string): string {
+  return s.toUpperCase().replace(/[ΆΈΉΊΌΎΏΐΰ]/g, (ch) => TONOS_UPPER[ch] ?? ch);
+}
+
 export function formatDate(iso?: string | null): string {
   if (!iso) return '';
   const d = new Date(iso);

@@ -223,8 +223,8 @@ describe('recordUpload (parity, pre/post-effect)', () => {
       files: [{ uploadPath: 'b1/c1/tok1/x.jpg', name: 'x.jpg', mimeType: 'image/jpeg', sizeBytes: 10 }],
     }, { markCompleted: vi.fn(async () => {}), sendPush })).resolves.toEqual({ ok: true });
     expect(sendPush).toHaveBeenCalledWith('b1', {
-      title: 'Νέο μήνυμα από πελάτη',
-      body: 'Σχόλιο από ανέβασμα φωτογραφιών: γεια',
+      title: 'Ο πελάτης ανέβασε αρχεία',
+      body: 'Σχόλιο πελάτη: γεια',
       url: '/customers/c1',
       data: { type: 'customer_message', source: 'upload' },
     });

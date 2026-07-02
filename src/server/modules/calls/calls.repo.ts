@@ -58,6 +58,32 @@ export async function finalizeCall(
   await db.from('communications').update(updates).eq('id', id);
 }
 
+/**
+ * The PBX webhook logs inbound calls with the Asterisk uniqueid in the summary
+ * and NO provider_call_id — the native client's CallSid can never match it. When
+ * the webhook lands first (fast missed calls), the client log must merge into
+ * that row instead of inserting a duplicate «Εισερχόμενη/Αναπάντητη κλήση».
+ */
+export async function findRecentPbxInboundCall(
+  ctx: RepoContext,
+  phone: string,
+  sinceIso: string,
+): Promise<ExistingCall | null> {
+  const db = tenantDb(ctx.supabase, ctx.businessId);
+  const { data } = await db
+    .from('communications')
+    .select('id, customer_id, brief_created_at, summary, provider_call_id')
+    .eq('channel', 'call')
+    .eq('direction', 'inbound')
+    .eq('phone', phone)
+    .gte('created_at', sinceIso)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  const rows = (data ?? []) as unknown as (ExistingCall & { summary: string | null; provider_call_id: string | null })[];
+  const match = rows.find((r) => !r.provider_call_id && (r.summary ?? '').includes('uniqueid='));
+  return match ? { id: match.id, customer_id: match.customer_id, brief_created_at: match.brief_created_at } : null;
+}
+
 export async function insertCall(ctx: RepoContext, values: Record<string, unknown>): Promise<string> {
   const db = tenantDb(ctx.supabase, ctx.businessId);
   const { data, error } = await db.from('communications').insert(values).select('id').single();

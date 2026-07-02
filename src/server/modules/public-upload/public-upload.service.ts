@@ -238,8 +238,8 @@ export async function recordUpload(
     }
     if (deps.sendPush) {
       await deps.sendPush(tokenRow.business_id, {
-        title: 'Νέο μήνυμα από πελάτη',
-        body: summary,
+        title: 'Ο πελάτης ανέβασε αρχεία',
+        body: `Σχόλιο πελάτη: ${customerComment.slice(0, 500)}`,
         url: `/customers/${tokenRow.customer_id}`,
         data: { type: 'customer_message', source: 'upload' },
       });

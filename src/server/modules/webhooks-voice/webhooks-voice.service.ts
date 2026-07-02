@@ -37,7 +37,9 @@ import {
   getCustomerPreferredContactMethod,
   getOwnerPresenceStatus,
   insertAiDraftTask,
+  findRecentNativeInboundCall,
   insertCommunicationCall,
+  mergeCommunicationCall,
   insertMissedCallTask,
   insertOutboundDialTimeRow,
   insertOutboundDialTimeRowLegacy,
@@ -297,11 +299,34 @@ export async function processPbxCallCompleted(
         summary: communicationSummary,
       });
 
-    let { data: communicationRow, error: communicationError } = await commInsert(
-      notAnswered ? 'missed' : 'completed'
-    );
-    if (communicationError && notAnswered) {
-      ({ data: communicationRow, error: communicationError } = await commInsert('failed'));
+    // The native client usually logs the same call first (on hangup) with the
+    // Twilio CallSid — an identity this webhook can't match. Merge into that
+    // row instead of inserting a duplicate; the merged summary carries the
+    // `uniqueid=` marker, so the pbx-recording webhook still attaches the brief.
+    let mergedRow: { id: string } | null = null;
+    const normalizedCaller = normalizePhone(callerNumber);
+    if (normalizedCaller) {
+      const sinceIso = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+      const nativeRow = await findRecentNativeInboundCall(supabase, businessId, normalizedCaller, sinceIso);
+      if (nativeRow) {
+        const { data } = await mergeCommunicationCall(supabase, nativeRow.id, {
+          customer_id: customerLink.customerId,
+          status: notAnswered ? 'missed' : 'completed',
+          summary: communicationSummary,
+        });
+        mergedRow = (data as { id: string } | null) ?? null;
+      }
+    }
+
+    let communicationRow: unknown = mergedRow;
+    let communicationError: { message: string } | null = null;
+    if (!mergedRow) {
+      ({ data: communicationRow, error: communicationError } = await commInsert(
+        notAnswered ? 'missed' : 'completed'
+      ));
+      if (communicationError && notAnswered) {
+        ({ data: communicationRow, error: communicationError } = await commInsert('failed'));
+      }
     }
 
     if (communicationError) {

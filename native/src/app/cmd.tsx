@@ -18,7 +18,7 @@ import VoiceCommandRecorder from '@/components/voice-command-recorder';
 import { BottomTabInset, Brand, Spacing, type ThemePalette } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 import { ApiError, apiGet, apiPatch, apiPost } from '@/lib/api';
-import { formatEuro, todayYMD } from '@/lib/format';
+import { formatEuro, greekUpper, todayYMD } from '@/lib/format';
 import type { Business, Customer, Task } from '@/lib/types';
 
 type CmdIntent =
@@ -371,7 +371,8 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
     if (fromAi) return fromAi;
     const fromTitle = result?.params.title?.trim();
     if (fromTitle) return fromTitle;
-    return matched ? `Έργο — ${matched.name}` : 'Νέο έργο';
+    // Χωρίς όνομα πελάτη στον τίτλο — φαινόταν και στη δημόσια σελίδα έργου.
+    return 'Νέο έργο';
   }
 
   async function createFolder(customerId: string, title: string): Promise<string | null> {
@@ -561,7 +562,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
         {result && !analyzing ? (
           <View style={styles.resultWrap}>
             <View style={styles.summaryBox}>
-              <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Ανάλυση</ThemedText>
+              <ThemedText type="small" themeColor="textSecondary" style={styles.label}>{greekUpper('Ανάλυση')}</ThemedText>
               <ThemedText type="small" style={styles.summaryText}>{result.summary}</ThemedText>
             </View>
 
@@ -604,7 +605,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
             {/* query_appointments */}
             {result.intent === 'query_appointments' ? (
               <View style={styles.card}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Ραντεβού</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>{greekUpper('Ραντεβού')}</ThemedText>
                 {appts.length === 0 ? (
                   <ThemedText type="small" themeColor="textSecondary">Δεν βρέθηκαν ραντεβού για αυτό το διάστημα.</ThemedText>
                 ) : (
@@ -623,7 +624,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
             {/* create_project */}
             {result.intent === 'create_project' && resolved && !saved ? (
               <View style={styles.card}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Νέο έργο (προεπισκόπηση)</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>{greekUpper('Νέο έργο (προεπισκόπηση)')}</ThemedText>
                 {matched ? (
                   <>
                     <Row k="Πελάτης" v={matched.name ?? ''} />
@@ -656,7 +657,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
             {(result.intent === 'create_task' || result.intent === 'create_appointment') && resolved && !saved ? (
               <View style={styles.card}>
                 <ThemedText type="small" themeColor="textSecondary" style={styles.label}>
-                  {result.intent === 'create_appointment' ? 'Νέο ραντεβού (προεπισκόπηση)' : 'Νέο task (προεπισκόπηση)'}
+                  {greekUpper(result.intent === 'create_appointment' ? 'Νέο ραντεβού (προεπισκόπηση)' : 'Νέο task (προεπισκόπηση)')}
                 </ThemedText>
                 <Row k="Τίτλος" v={result.params.title?.trim() || (result.intent === 'create_appointment' ? (matched ? `Ραντεβού με ${matched.name}` : 'Νέο ραντεβού') : 'Νέο task')} />
                 {matched ? <Row k="Πελάτης" v={matched.name ?? ''} /> : <Row k="Πελάτης" v="— (χωρίς σύνδεση)" />}
@@ -681,7 +682,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
             {/* create_offer */}
             {result.intent === 'create_offer' && resolved && !saved && offerTotals ? (
               <View style={styles.card}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Πρόχειρη προσφορά (προεπισκόπηση)</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>{greekUpper('Πρόχειρη προσφορά (προεπισκόπηση)')}</ThemedText>
                 {matched ? <Row k="Πελάτης" v={matched.name ?? ''} /> : <Row k="Πελάτης" v="— (χωρίς σύνδεση)" />}
                 {offerTotals.items.length === 0 ? (
                   <ThemedText type="small" style={styles.warnText}>Δεν βρέθηκαν γραμμές προσφοράς στην εντολή.</ThemedText>
@@ -738,7 +739,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
             {/* create_invoice — official AADE/myDATA document. Customer optional → B2C. */}
             {result.intent === 'create_invoice' && resolved && !saved ? (
               <View style={styles.card}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Έκδοση τιμολογίου</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>{greekUpper('Έκδοση τιμολογίου')}</ThemedText>
                 <Row k="Πελάτης" v={matched?.name ?? (result.params.customerName || '— (απόδειξη λιανικής)')} />
                 <Row k="Ποσό (με ΦΠΑ)" v={result.params.invoiceAmount ? formatEuro(result.params.invoiceAmount) : '—'} />
                 <Row k="Περιγραφή" v={result.params.invoiceDescription?.trim() || 'Παροχή υπηρεσιών'} />
@@ -760,7 +761,7 @@ export function AiCommand({ onClose }: { onClose?: () => void }) {
             {/* cancel_appointment */}
             {result.intent === 'cancel_appointment' && resolved && !saved ? (
               <View style={styles.card}>
-                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>Ακύρωση ραντεβού</ThemedText>
+                <ThemedText type="small" themeColor="textSecondary" style={styles.label}>{greekUpper('Ακύρωση ραντεβού')}</ThemedText>
                 {appts.length === 0 ? (
                   <ThemedText type="small" themeColor="textSecondary">Δεν βρέθηκαν ανοιχτά ραντεβού με αυτά τα κριτήρια.</ThemedText>
                 ) : (
@@ -916,7 +917,7 @@ const makeStyles = (c: ThemePalette) => StyleSheet.create({
   err: { color: '#D14343' },
   resultWrap: { gap: Spacing.three },
   summaryBox: { backgroundColor: c.surface, borderRadius: 14, padding: Spacing.three, gap: 2 },
-  label: { textTransform: 'uppercase', letterSpacing: 0.5, fontSize: 11 },
+  label: { letterSpacing: 0.5, fontSize: 11 },
   summaryText: { color: c.textSecondary },
   card: { backgroundColor: c.card, borderRadius: 18, padding: Spacing.three, gap: Spacing.two, borderWidth: 1, borderColor: c.border },
   dark: { color: c.text },

@@ -34,7 +34,17 @@ function countsLine(c?: WorkFolderCounts): string {
   return parts.join(' · ');
 }
 
-export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSignal }: { customerId: string; openCreateSignal?: number; openLatestSignal?: number }) {
+
+// Legacy titles were stored as «{δουλειά} — {όνομα πελάτη}» — inside the
+// customer's own card the suffix is pure noise. Display-only strip.
+function displayTitle(title: string, customerName?: string | null): string {
+  const t = (title ?? '').trim();
+  const n = customerName?.trim();
+  if (n && t.endsWith(` — ${n}`)) return t.slice(0, -(n.length + 3)).trim() || t;
+  return t;
+}
+
+export function WorkFoldersSection({ customerId, customerName, openCreateSignal, openLatestSignal }: { customerId: string; customerName?: string | null; openCreateSignal?: number; openLatestSignal?: number }) {
   const c = useTheme();
   const styles = useMemo(() => makeStyles(c), [c]);
   const router = useRouter();
@@ -157,7 +167,7 @@ export function WorkFoldersSection({ customerId, openCreateSignal, openLatestSig
                 style={({ pressed }) => [styles.projCard, pressed && styles.dim]}>
                 <View style={styles.projTop}>
                   <View style={[styles.dot, { backgroundColor: DOT_COLOR[p.status] ?? Brand.primary }]} />
-                  <ThemedText type="smallBold" numberOfLines={1} style={styles.projTitle}>{p.title}</ThemedText>
+                  <ThemedText type="smallBold" numberOfLines={1} style={styles.projTitle}>{displayTitle(p.title, customerName)}</ThemedText>
                   <View style={[styles.pill, p.status === 'done' ? styles.pillOk : styles.pillWarn]}>
                     <ThemedText style={[styles.pillText, p.status === 'done' ? styles.pillTextOk : styles.pillTextWarn]}>{STATUS_LABEL[p.status] ?? p.status}</ThemedText>
                   </View>

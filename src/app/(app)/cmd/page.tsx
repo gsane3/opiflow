@@ -942,7 +942,9 @@ export default function CmdPage() {
     if (fromAi) return fromAi;
     const fromTitle = result?.params.title?.trim();
     if (fromTitle) return fromTitle;
-    return matchedCustomer ? `Έργο — ${matchedCustomer.name}` : 'Νέο έργο';
+    // Το έργο ζει ήδη κάτω από τον πελάτη — ΔΕΝ βάζουμε το όνομά του στον τίτλο
+    // (κατέληγε ως «… — Όνομα» και στη δημόσια σελίδα του τελικού πελάτη).
+    return 'Νέο έργο';
   }
 
   // POST a work folder under the matched customer; returns its id or null.
