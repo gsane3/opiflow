@@ -34,12 +34,15 @@ export async function startCheckout(opts: {
   priceId: string;
   businessId: string;
   origin: string;
+  /** Tier key (base/premium) stamped on the Stripe metadata; omit for legacy. */
+  plan?: string;
 }): Promise<CheckoutResult> {
   const result = await createCheckoutSession({
     priceId: opts.priceId,
     businessId: opts.businessId,
     successUrl: `${opts.origin}/settings?billing=success`,
     cancelUrl: `${opts.origin}/settings?billing=cancelled`,
+    plan: opts.plan,
   });
   if (!result.ok || typeof result.data.url !== 'string') {
     return { kind: 'checkout_failed' };

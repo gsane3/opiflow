@@ -106,7 +106,7 @@ export async function createBusinessForOwner(
   if (typeof rawPackageKey !== 'string' || !rawPackageKey.trim()) {
     throw new AppError('invalid_package', 400);
   }
-  const packageKey = rawPackageKey.trim().toLowerCase().slice(0, 50);
+  let packageKey = rawPackageKey.trim().toLowerCase().slice(0, 50);
   if (!/^[a-z0-9_-]{1,50}$/.test(packageKey)) {
     throw new AppError('invalid_package', 400);
   }
@@ -260,6 +260,13 @@ export async function createBusinessForOwner(
   if (subError && subError.code === '23514' && desiredStatus === 'pending_payment') {
     subscriptionStatus = 'pending_manual_review';
     ({ error: subError } = await insertSubscription('pending_manual_review'));
+  }
+  // plan_key FK: 'base'/'premium' exist only after migration 069. Pre-069, a
+  // tier signup would hit 23503 — retry with the legacy plan so signup never
+  // breaks on a pending migration (the webhook re-stamps the tier later).
+  if (subError && subError.code === '23503' && packageKey !== 'pro') {
+    packageKey = 'pro';
+    ({ error: subError } = await insertSubscription(subscriptionStatus));
   }
 
   // A business with NO subscription row can never be activated later (the Stripe

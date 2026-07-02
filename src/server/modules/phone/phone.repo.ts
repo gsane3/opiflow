@@ -44,7 +44,7 @@ export async function getSubscriptionStatusRow(
 ): Promise<SubStatusRow | null> {
   const { data } = await supabase
     .from('business_subscriptions')
-    .select('status')
+    .select('status, plan_key')
     .eq('business_id', businessId)
     .maybeSingle();
   return (data as SubStatusRow | null) ?? null;

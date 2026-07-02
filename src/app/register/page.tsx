@@ -118,7 +118,14 @@ export default function RegisterPage() {
 
     if (data.session) {
       // Email confirmation is disabled → the user is already signed in. Continue.
-      router.push('/package');
+      {
+        // /pricing CTAs arrive as /register?plan=base|premium — forward the
+        // choice to /package instead of silently dropping it. Read at push
+        // time from the URL (no useSearchParams → no Suspense requirement).
+        const planParam = new URLSearchParams(window.location.search).get('plan');
+        const planQS = planParam === 'base' || planParam === 'premium' ? `?plan=${planParam}` : '';
+        router.push(`/package${planQS}`);
+      }
     } else {
       // Confirmation required → wait for the email link (→ /auth/confirm → /package).
       // Do NOT push to /package: there's no session, so the app would just bounce

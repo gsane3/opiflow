@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import {useRouter} from 'next/navigation';
 import {
   PLAN,
   PLAN_FEATURES,
@@ -30,7 +30,13 @@ export default function PackagePage() {
   const [voucherInput, setVoucherInput] = useState<string>('');
 
   function handleContinue() {
-    const params = new URLSearchParams({ plan: PLAN.key });
+    // Tier choice forwarded from /pricing → /register → here. Read at click
+    // time from the URL (a useSearchParams hook would force a Suspense
+    // boundary just for this). The chooser UI still shows the single live
+    // plan; the KEY simply flows through to the signup row.
+    const forwarded = new URLSearchParams(window.location.search).get('plan');
+    const planKey = forwarded === 'base' || forwarded === 'premium' ? forwarded : PLAN.key;
+    const params = new URLSearchParams({ plan: planKey });
     const trimmedVoucher = voucherInput.trim();
     if (trimmedVoucher) {
       params.set('voucher', trimmedVoucher);

@@ -4,7 +4,7 @@
 // business_not_found). The route maps any *unexpected* throw to number_request_route_failed.
 
 import { AppError } from '../../core/errors';
-import { isEntitled } from '../../../lib/billing/entitlement';
+import { hasFeature } from '../../../lib/billing/entitlement';
 import {
   getBusinessNumberInfo,
   getPendingRequest,
@@ -40,8 +40,9 @@ export async function ensureNumberRequest(ctx: RepoContext): Promise<EnsureNumbe
   // Number already assigned: no request needed.
   if (business.business_phone_number) return { status: 'already_assigned' };
 
-  // Activation guard: only entitled subscriptions may request a number.
-  if (!isEntitled(await getSubscriptionStatus(ctx))) {
+  // Activation guard: a number is telephony — entitled AND non-Base plans only.
+  const sub = await getSubscriptionStatus(ctx);
+  if (!hasFeature(sub?.status ?? null, sub?.plan_key ?? null, 'telephony')) {
     throw new AppError('activation_required', 403);
   }
 

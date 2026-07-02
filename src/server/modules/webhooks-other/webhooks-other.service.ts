@@ -50,6 +50,15 @@ export async function applyStripeEvent(
   const now = new Date().toISOString();
   let ok = true;
 
+  // plan_key is an FK into package_plans; 'base'/'premium' exist only after
+  // migration 069. If the tiered upsert fails, retry once with the legacy key
+  // so a pre-069 deploy still activates the subscription (status is what gates).
+  const apply = async (details: Record<string, unknown>): Promise<boolean> => {
+    const first = await applySubscription(supabase, businessId, planKey, details);
+    if (first || planKey === 'pro') return first;
+    return applySubscription(supabase, businessId, 'pro', details);
+  };
+
   // The reliable Stripe linkage, written on every activate event. stripe_customer_id
   // is what the billing portal uses to resolve the account (far more reliable than the
   // user's email); both columns exist since migration 061. Only set when present so a
@@ -62,7 +71,7 @@ export async function applyStripeEvent(
   };
 
   if (event.type === 'checkout.session.completed') {
-    ok = await applySubscription(supabase, businessId, planKey, {
+    ok = await apply({
       status: 'active',
       ...linkFields(),
       updated_at: now,
@@ -70,13 +79,13 @@ export async function applyStripeEvent(
   } else if (event.type === 'customer.subscription.updated') {
     const s = typeof obj.status === 'string' ? obj.status : '';
     if (s === 'active' || s === 'trialing') {
-      ok = await applySubscription(supabase, businessId, planKey, {
+      ok = await apply({
         status: 'active',
         ...linkFields(),
         updated_at: now,
       });
     } else if (s === 'canceled' || s === 'unpaid' || s === 'incomplete_expired') {
-      ok = await applySubscription(supabase, businessId, planKey, {
+      ok = await apply({
         status: 'cancelled',
         cancelled_at: now,
         updated_at: now,
@@ -84,7 +93,7 @@ export async function applyStripeEvent(
     }
     // transient states (past_due, incomplete) are left unchanged in this slice
   } else if (event.type === 'customer.subscription.deleted') {
-    ok = await applySubscription(supabase, businessId, planKey, {
+    ok = await apply({
       status: 'cancelled',
       cancelled_at: now,
       updated_at: now,

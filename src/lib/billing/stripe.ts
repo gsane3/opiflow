@@ -46,6 +46,7 @@ export async function createCheckoutSession(opts: {
    *  (e.g. 'invoicing_addon') so the webhook can route a second subscription type
    *  without touching the main-plan path. Unset → a normal plan checkout. */
   kind?: string;
+  plan?: string;
 }): Promise<StripeResult> {
   return stripePost(
     '/checkout/sessions',
@@ -60,6 +61,10 @@ export async function createCheckoutSession(opts: {
       'subscription_data[metadata][businessId]': opts.businessId,
       'metadata[kind]': opts.kind,
       'subscription_data[metadata][kind]': opts.kind,
+      // Tier discriminator (base/premium) — undefined for the legacy plan, so
+      // form() skips it and the classic checkout stays byte-identical.
+      'metadata[plan]': opts.plan,
+      'subscription_data[metadata][plan]': opts.plan,
       allow_promotion_codes: 'true',
     })
   );

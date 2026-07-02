@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { requireBusinessUser, assertManager } from '@/server/core/http';
-import { ok, handleApiError } from '@/server/core/errors';
+import { ok, handleApiError, AppError } from '@/server/core/errors';
 import { isInvoicingConfigured } from '@/server/modules/invoicing/invoicing.config';
 import { getInvoicingSettings, getInvoicingAddonStatus, upsertInvoicingSettings } from '@/server/modules/invoicing/invoicing.repo';
 import { isInvoicingAddonConfigured } from '@/server/modules/invoicing/invoicing-addon.service';
@@ -32,6 +32,16 @@ export async function PUT(request: NextRequest) {
     const ctx = await requireBusinessUser(request);
     assertManager(ctx);
     const input = SettingsInputSchema.parse(await request.json());
+    // Server-side add-on gate: once the paid add-on is configured (Stripe price
+    // env set), ENABLING invoicing requires an active add-on subscription — the
+    // wizard already enforces this in the UI, but the API must too. Deploys
+    // without the env (and pre-068 schemas) are unaffected.
+    if (input.enabled === true && isInvoicingAddonConfigured()) {
+      const addon = await getInvoicingAddonStatus(ctx);
+      if (addon !== undefined && addon.addon_status !== 'active') {
+        throw new AppError('invoicing_addon_required', 402);
+      }
+    }
     const settings = await upsertInvoicingSettings(ctx, settingsInputToDb(input));
     return ok({ settings });
   } catch (err) {

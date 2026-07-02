@@ -8,6 +8,7 @@ export interface BizNumberRow {
 
 export interface SubStatusRow {
   status?: string;
+  plan_key?: string;
 }
 
 /** telephony GET row. */
