@@ -125,14 +125,25 @@ export default function HomeScreen() {
         .sort((a, b) => (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99')),
     [tasks, today],
   );
-  const followUps = useMemo(
-    () =>
-      tasks
-        .filter((t) => t.type === 'call_back' || t.type === 'follow_up_offer')
-        .sort((a, b) => a.dueDate.localeCompare(b.dueDate))
-        .slice(0, 5),
-    [tasks],
-  );
+  // Coalesce duplicate callbacks: N missed calls from the same customer are ONE
+  // need («×N»), not N identical cards drowning the queue (douleutaras pattern).
+  const followUpGroups = useMemo(() => {
+    const src = tasks
+      .filter((t) => t.type === 'call_back' || t.type === 'follow_up_offer')
+      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+    const map = new Map<string, { ids: string[]; task: Task; count: number }>();
+    for (const t of src) {
+      const key = `${t.customerId ?? t.id}:${t.type}`;
+      const g = map.get(key);
+      if (g) {
+        g.ids.push(t.id);
+        g.count += 1;
+      } else {
+        map.set(key, { ids: [t.id], task: t, count: 1 });
+      }
+    }
+    return [...map.values()].slice(0, 5);
+  }, [tasks]);
 
   const monthStart = today.slice(0, 7);
   const stats = useMemo(
@@ -145,11 +156,11 @@ export default function HomeScreen() {
     [customers, tasks, offers, appointmentsToday, monthStart],
   );
 
-  async function completeTask(id: string) {
+  async function completeTasks(ids: string[]) {
     void hapticSuccess();
-    setTasks((ts) => ts.filter((t) => t.id !== id));
+    setTasks((ts) => ts.filter((t) => !ids.includes(t.id)));
     try {
-      await apiPatch(`/api/tasks/${id}`, { status: 'completed' });
+      await Promise.all(ids.map((id) => apiPatch(`/api/tasks/${id}`, { status: 'completed' })));
     } catch {
       void load();
     }
@@ -205,13 +216,6 @@ export default function HomeScreen() {
             </Pressable>
           </View>
 
-          {/* Quick links to the secondary screens (hidden from the tab bar). */}
-          <View style={styles.quickLinks}>
-            <QuickLink icon="checkbox" label="Εργασίες" onPress={() => router.push('/tasks' as never)} />
-            <QuickLink icon="calendar" label="Ραντεβού" onPress={() => router.push('/appointments' as never)} />
-            <QuickLink icon="document-text" label="Προσφορές" onPress={() => router.push('/offers' as never)} />
-          </View>
-
           {phoneState === 'error' ? (
             <Pressable
               accessibilityRole="button"
@@ -240,22 +244,21 @@ export default function HomeScreen() {
             </View>
           ) : (
             <>
-              {/* Stats */}
+              {/* Compact stat strip — the numbers AND the quick links in one row,
+                  so the actionable queue below stays above the fold. */}
               <View style={styles.statsRow}>
-                <StatCard icon="person-add" label="Νέοι πελάτες" value={stats.newThisMonth} tone="brand" onPress={() => router.push('/customers/index')} />
-                <StatCard icon="calendar" label="Ραντεβού σήμερα" value={stats.apptsToday} tone="sky" onPress={() => router.push('/appointments' as never)} />
-              </View>
-              <View style={styles.statsRow}>
-                <StatCard icon="checkbox" label="Εκκρεμότητες" value={stats.openTasks} tone="amber" onPress={() => router.push('/tasks' as never)} />
-                <StatCard icon="document-text" label="Προσφορές" value={stats.openOffers} tone="violet" onPress={() => router.push('/offers' as never)} />
+                <StatChip icon="person-add" label="Νέοι" value={stats.newThisMonth} tone="brand" onPress={() => router.push('/customers/index')} />
+                <StatChip icon="calendar" label="Ραντεβού" value={stats.apptsToday} tone="sky" onPress={() => router.push('/appointments' as never)} />
+                <StatChip icon="checkbox" label="Εργασίες" value={stats.openTasks} tone="amber" onPress={() => router.push('/tasks' as never)} />
+                <StatChip icon="document-text" label="Προσφορές" value={stats.openOffers} tone="violet" onPress={() => router.push('/offers' as never)} />
               </View>
 
-              {/* Today's appointments */}
-              <SectionTitle icon="calendar" title="Σήμερα" />
-              {appointmentsToday.length === 0 ? (
-                <EmptyHint text="Κανένα ραντεβού σήμερα." />
-              ) : (
-                appointmentsToday.map((t) => {
+              {/* Today's appointments — hidden when empty: the «Ραντεβού» chip
+                  above already shows the zero, saying it three times was noise. */}
+              {appointmentsToday.length === 0 ? null : (
+                <>
+                <SectionTitle icon="calendar" title="Σήμερα" />
+                {appointmentsToday.map((t) => {
                   const cust = customerById(t.customerId);
                   const phone = cust?.mobilePhone || cust?.phone || cust?.landlinePhone || null;
                   return (
@@ -304,19 +307,23 @@ export default function HomeScreen() {
                       ) : null}
                     </Pressable>
                   );
-                })
+                })}
+                </>
               )}
 
-              {/* Follow-ups */}
-              <SectionTitle icon="call" title="Να πάρω τηλέφωνο" />
-              {followUps.length === 0 ? (
-                <EmptyHint text="Καμία εκκρεμής επικοινωνία." />
-              ) : (
-                followUps.map((t) => {
+              {/* Follow-ups — the section is literally «Να πάρω τηλέφωνο», so the
+                  primary one-tap action on every card is the CALL button. */}
+              {followUpGroups.length === 0 ? null : (
+                <>
+                <SectionTitle icon="call" title="Να πάρω τηλέφωνο" />
+                {followUpGroups.map((g) => {
+                  const t = g.task;
                   const overdue = t.dueDate < today;
+                  const cust = customerById(t.customerId);
+                  const phone = cust?.mobilePhone || cust?.phone || cust?.landlinePhone || null;
                   return (
                     <Pressable
-                      key={t.id}
+                      key={g.ids[0]}
                       onPress={() =>
                         t.customerId &&
                         router.push({ pathname: '/customers/[id]', params: { id: t.customerId } })
@@ -325,27 +332,40 @@ export default function HomeScreen() {
                       <View style={styles.itemBody}>
                         <ThemedText type="smallBold">
                           {customerName(t.customerId) ?? t.title}
+                          {g.count > 1 ? `  ·  ×${g.count}` : ''}
                         </ThemedText>
                         <ThemedText
                           type="small"
                           themeColor="textSecondary"
                           style={overdue ? styles.overdue : undefined}>
+                          {g.count > 1 && t.type === 'call_back' ? `${g.count} αναπάντητες · ` : ''}
                           {overdue ? 'Εκπρόθεσμο · ' : ''}
                           {t.dueDate.split('-').reverse().join('-')}
                           {t.note ? ` · ${t.note.slice(0, 40)}` : ''}
                         </ThemedText>
                       </View>
+                      {phone ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Κλήση"
+                          onPress={() => router.push({ pathname: '/calls', params: { num: phone } })}
+                          hitSlop={8}
+                          style={({ pressed }) => [styles.cardAction, pressed && styles.pressed]}>
+                          <Ionicons name="call" size={17} color={Brand.primary} />
+                        </Pressable>
+                      ) : null}
                       <Pressable
                         accessibilityRole="button"
-                        accessibilityLabel="Ολοκλήρωση εργασίας"
-                        onPress={() => void completeTask(t.id)}
+                        accessibilityLabel={g.count > 1 ? `Ολοκλήρωση ${g.count} εργασιών` : 'Ολοκλήρωση εργασίας'}
+                        onPress={() => void completeTasks(g.ids)}
                         hitSlop={8}
                         style={({ pressed }) => [styles.doneBtn, pressed && styles.pressed]}>
                         <Ionicons name="checkmark" size={18} color={Brand.primary} />
                       </Pressable>
                     </Pressable>
                   );
-                })
+                })}
+                </>
               )}
 
               {/* Recent activity */}
@@ -419,7 +439,7 @@ const ACCENT_CHIP: Record<string, { bg: string; fg: string }> = {
   violet: { bg: '#EEE9FA', fg: '#7C5CCB' }, // offers — violet
 };
 
-function StatCard({
+function StatChip({
   icon,
   label,
   value,
@@ -439,24 +459,13 @@ function StatCard({
     <Pressable onPress={onPress} disabled={!onPress} style={({ pressed }) => [styles.statCardWrap, pressed && styles.pressed]}>
       <View style={styles.statCard}>
         <View style={[styles.statIcon, { backgroundColor: chip.bg }]}>
-          <Ionicons name={icon} size={20} color={chip.fg} />
+          <Ionicons name={icon} size={16} color={chip.fg} />
         </View>
         <ThemedText style={styles.statValue}>{value}</ThemedText>
-        <ThemedText type="small" themeColor="textSecondary">
+        <ThemedText style={styles.statLabel} themeColor="textSecondary" numberOfLines={1}>
           {label}
         </ThemedText>
       </View>
-    </Pressable>
-  );
-}
-
-function QuickLink({ icon, label, onPress }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void }) {
-  const c = useTheme();
-  const styles = useMemo(() => makeStyles(c), [c]);
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}>
-      <Ionicons name={icon} size={18} color={Brand.primary} />
-      <ThemedText type="small" style={styles.quickLinkText}>{label}</ThemedText>
     </Pressable>
   );
 }
@@ -493,9 +502,6 @@ const makeStyles = (c: ThemePalette) =>
     headerIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: Brand.primarySoft, alignItems: 'center', justifyContent: 'center' },
     badge: { position: 'absolute', top: 2, right: 2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: '#D14343', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
     badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '800' },
-    quickLinks: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
-    quickLink: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 46, borderRadius: 15, backgroundColor: c.card, borderWidth: 1, borderColor: c.border, ...Shadow.card },
-    quickLinkText: { color: Brand.navy, fontWeight: '700' },
     headerTitle: { fontSize: 26, lineHeight: 32 },
     logo: { width: 48, height: 48, borderRadius: 14, backgroundColor: Brand.primary, alignItems: 'center', justifyContent: 'center' },
     logoMark: { color: Brand.onPrimary, fontSize: 26, lineHeight: 32, fontWeight: '800' },
@@ -503,9 +509,10 @@ const makeStyles = (c: ThemePalette) =>
 
     statsRow: { flexDirection: 'row', gap: Spacing.two, marginBottom: Spacing.two },
     statCardWrap: { flex: 1 },
-    statCard: { padding: Spacing.three, borderRadius: 22, gap: 4, backgroundColor: c.card, borderWidth: 1, borderColor: c.borderFaint, ...Shadow.card },
-    statIcon: { width: 36, height: 36, borderRadius: 11, alignItems: 'center', justifyContent: 'center', marginBottom: 6 },
-    statValue: { fontSize: 30, lineHeight: 38, fontWeight: '800', letterSpacing: -0.5, color: c.text },
+    statCard: { paddingVertical: Spacing.two, paddingHorizontal: 6, borderRadius: 16, gap: 2, alignItems: 'center', backgroundColor: c.card, borderWidth: 1, borderColor: c.borderFaint, ...Shadow.card },
+    statIcon: { width: 28, height: 28, borderRadius: 9, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+    statValue: { fontSize: 20, lineHeight: 26, fontWeight: '800', letterSpacing: -0.5, color: c.text },
+    statLabel: { fontSize: 11, lineHeight: 14 },
 
     sectionTitle: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: Spacing.four, marginBottom: Spacing.two },
     sectionTitleText: { fontSize: 15 },
